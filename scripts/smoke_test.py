@@ -76,7 +76,13 @@ def test_index():
     assert "pypdf" in response.text, "Missing pypdf mention"
     assert "LLM Profile" in response.text, "Missing LLM Profile section"
     assert "failed card" in response.text, "Missing failed card mention"
-    print("[OK] GET / returns 200 with all required content")
+    # V0.3 featured sources section
+    assert "精选 AI 前沿来源" in response.text, "Missing featured sources section"
+    assert "OpenAI" in response.text, "Missing OpenAI in featured sources"
+    assert "Anthropic" in response.text, "Missing Anthropic in featured sources"
+    assert "nvidia_ai_blog" in response.text or "NVIDIA" in response.text, \
+        "Missing NVIDIA in featured sources"
+    print("[OK] GET / returns 200 with all required content and featured sources")
 
 
 def test_static_css():
@@ -251,18 +257,32 @@ def test_source_config():
     from app.sources import list_sources, get_source, get_enabled_sources
 
     all_sources = list_sources(include_disabled=True)
-    assert len(all_sources) >= 8, \
-        f"Expected at least 8 sources, got {len(all_sources)}"
+    assert len(all_sources) >= 15, \
+        f"Expected at least 15 sources, got {len(all_sources)}"
 
     enabled = get_enabled_sources()
-    assert len(enabled) >= 3, \
-        f"Expected at least 3 enabled sources, got {len(enabled)}"
+    assert len(enabled) >= 10, \
+        f"Expected at least 10 enabled sources, got {len(enabled)}"
 
     # Check required sources exist
     required_keys = {"openai_news", "anthropic_news", "arxiv_cs_ai"}
     for key in required_keys:
         src = get_source(key)
         assert src is not None, f"Required source '{key}' not found"
+
+    # Check new V0.3 sources
+    new_keys = [
+        "nvidia_ai_blog",
+        "microsoft_ai_source",
+        "berkeley_bair_blog",
+        "mistral_ai_news",
+        "cohere_blog",
+    ]
+    for key in new_keys:
+        src = get_source(key)
+        assert src is not None, f"New V0.3 source '{key}' not found"
+        assert src.enabled, f"New V0.3 source '{key}' should be enabled by default"
+    print(f"[OK] All 5 new V0.3 sources present and enabled")
 
     # get_source returns None for unknown keys
     assert get_source("not_exists") is None, \
@@ -284,6 +304,36 @@ def test_source_config():
     for s in all_sources:
         status = "enabled" if s.enabled else "disabled"
         print(f"     {s.source_key}: {s.category}/{s.fetch_strategy} [{status}]")
+
+
+def test_featured_sources_config():
+    """Test that featured sources data layer returns all required fields."""
+    from app.sources import get_featured_sources
+
+    sources = get_featured_sources()
+    assert len(sources) >= 10, \
+        f"Expected at least 10 featured sources, got {len(sources)}"
+    assert any(s["source_key"] == "openai_news" for s in sources), \
+        "openai_news should be in featured sources"
+    assert any(s["source_key"] == "anthropic_news" for s in sources), \
+        "anthropic_news should be in featured sources"
+    assert any(s["source_key"] == "nvidia_ai_blog" for s in sources), \
+        "nvidia_ai_blog should be in featured sources"
+    assert all("icon" in s for s in sources), \
+        "All featured sources must have an icon"
+    assert all("homepage_url" in s for s in sources), \
+        "All featured sources must have a homepage_url"
+    assert all("display_name" in s for s in sources), \
+        "All featured sources must have a display_name"
+    assert all("priority" in s for s in sources), \
+        "All featured sources must have a priority"
+    print(f"[OK] Featured sources: {len(sources)} sources with all required fields")
+    for s in sources:
+        icon = s["icon"]
+        try:
+            print(f"     {icon} {s['display_name']} ({s['source_key']}) [{s['priority']}]")
+        except UnicodeEncodeError:
+            print(f"     [emoji] {s['display_name']} ({s['source_key']}) [{s['priority']}]")
 
 
 def test_source_registry_db_models():
@@ -1457,6 +1507,7 @@ if __name__ == "__main__":
     test_sqlite_parent_dir_creation()
     test_utility_scripts_exist()
     test_source_config()
+    test_featured_sources_config()
     test_source_registry_db_models()
     test_source_config_sync_to_db()
     test_sources_page()

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db, init_db
 from app.models import InsightCard, CardStatus, Source, SourceItem
 from app.schemas import HealthResponse
-from app.sources import sync_sources_config_to_db
+from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
 from app.logging_config import setup_logging, get_logger
 
@@ -45,8 +45,12 @@ def health_check():
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    """Home page with URL submission form."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    """Home page with URL submission form and featured AI sources."""
+    featured_sources = get_featured_sources()
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "featured_sources": featured_sources,
+    })
 
 
 @app.post("/compile")

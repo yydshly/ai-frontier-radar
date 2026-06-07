@@ -41,6 +41,7 @@
                     <th>最后检查</th>
                     <th>最后成功</th>
                     <th>最后错误</th>
+                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -80,6 +81,12 @@
                         -
                         {% endif %}
                     </td>
+                    <td class="action-cell">
+                        {% if s.homepage_url %}
+                        <a href="{{ s.homepage_url }}" target="_blank" rel="noopener" class="btn-link">官网</a>
+                        {% endif %}
+                        <a href="/source-items?source_key={{ s.source_key }}" class="btn-link">发现条目</a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -88,12 +95,12 @@
         <p class="empty-state">没有找到信息来源配置。</p>
         {% endif %}
 
-        <p class="page-note">V0.2.3 仅展示来源配置，不执行抓取。</p>
-        <p><a href="/source-items">查看发现条目 →</a></p>
+        <p class="page-note">V0.3 展示来源配置，可通过首页「精选来源」快速进入。</p>
+        <p><a href="/source-items">查看所有发现条目 →</a></p>
     </main>
 
     <footer>
-        <p>V0.2.3 来源配置同步与查看</p>
+        <p>AI Frontier Radar V0.3</p>
     </footer>
 </body>
 </html>

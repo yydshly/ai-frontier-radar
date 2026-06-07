@@ -89,6 +89,30 @@ python scripts/smoke_test.py
 
 > **V0.2.8** 重点补充了真实链路验收记录、空 URL 编译防护测试、详情页状态提示增强。
 
+## V0.3 精选 AI 前沿来源导航 UI
+
+V0.3 在 V0.2 来源探测链路基础上，新增**精选来源导航 UI**，降低用户发现成本。
+
+### ✅ 已完成能力
+
+- 首页展示精选 AI 前沿来源卡片网格（P0 / P1 / P2 分级）
+- 每个来源包含图标、名称、分类、关注重点、操作按钮
+- 来源覆盖：OpenAI、Anthropic、DeepMind、Hugging Face、arXiv、NVIDIA、Microsoft、Meta、Stanford HAI、MIT、Berkeley BAIR、Mistral AI、Cohere
+- 操作按钮：访问官网、查看系统来源、查看发现条目
+- `/sources` 页面增强操作列，可快速跳转发现条目
+
+### 精选来源分级
+
+| 优先级 | 来源 |
+|--------|------|
+| P0（必看） | OpenAI、Anthropic、DeepMind、Hugging Face、arXiv AI、NVIDIA AI |
+| P1（推荐） | Meta AI、Microsoft AI、Stanford HAI、MIT AI、Berkeley BAIR、Mistral AI、Cohere |
+| P2（补充） | arXiv NLP、arXiv ML |
+
+### 页面入口
+
+访问首页即可看到精选来源卡片区，无需配置即可了解系统追踪范围。
+
 ## 技术栈
 
 ```
@@ -586,6 +610,7 @@ SQLite 存储的 UTF-8 中文数据正常。Windows Git Bash 终端显示 `�` 
 - [x] HTML Index 来源探测（V0.2.5）
 - [x] 发现条目列表与详情页（V0.2.6–V0.2.7）
 - [x] 真实链路验收与状态增强（V0.2.8）
+- [x] 精选 AI 前沿来源导航 UI（V0.3）
 - [ ] 批量 URL 导入
 - [ ] 后台异步任务
 - [ ] 全文搜索

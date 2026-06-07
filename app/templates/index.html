@@ -30,6 +30,43 @@
             </form>
         </section>
 
+        <section class="featured-sources-section">
+            <h2>🗺️ 精选 AI 前沿来源</h2>
+            <p class="section-desc">系统正在追踪的高价值 AI 前沿来源，点击可直接访问官网或查看系统内的发现条目。</p>
+            <div class="featured-source-grid">
+                {% for source in featured_sources %}
+                <div class="featured-source-card priority-{{ source.priority }}">
+                    <div class="featured-source-header">
+                        <span class="featured-source-icon">{{ source.icon }}</span>
+                        <div class="featured-source-title">
+                            <span class="featured-source-name">{{ source.display_name }}</span>
+                            <span class="featured-source-meta">
+                                <span class="category-badge">{{ source.category }}</span>
+                                <span class="priority-badge priority-{{ source.priority }}">{{ source.priority }}</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="featured-source-focus">
+                        <p>{{ source.focus }}</p>
+                    </div>
+                    <div class="featured-source-why">
+                        <p>{{ source.why }}</p>
+                    </div>
+                    <div class="featured-source-tags">
+                        {% for tag in source.tags %}
+                        <span class="tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="featured-source-actions">
+                        <a href="{{ source.homepage_url }}" target="_blank" rel="noopener" class="btn-icon">🌐 访问官网</a>
+                        <a href="/sources" class="btn-icon">📡 系统来源</a>
+                        <a href="/source-items?source_key={{ source.source_key }}" class="btn-icon">🔍 发现条目</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
         <section class="cards-section">
             <h2>📋 已有的 InsightCard</h2>
             <a href="/cards" class="btn-secondary">查看所有卡片 →</a>
@@ -141,14 +178,14 @@
         </section>
 
         <section class="limitations-section">
-            <h2>📋 V0.1 当前限制</h2>
-            <p>V0.1 是技术探针 MVP，当前重点是验证单篇资料编译链路。</p>
-            <p>暂不做：批量导入、RSS 订阅、登录注册、多用户、向量数据库、全网爬虫、浏览器插件、复杂推荐算法。</p>
+            <h2>📋 V0.3 当前能力</h2>
+            <p>V0.3 在 V0.2 来源探测链路基础上新增精选来源导航 UI，降低发现成本。</p>
+            <p>暂不做：批量编译、后台任务、定时调度、登录注册、多用户、向量数据库。</p>
         </section>
     </main>
 
     <footer>
-        <p>V0.1 技术探针 MVP</p>
+        <p>AI Frontier Radar V0.3</p>
     </footer>
 </body>
 </html>
