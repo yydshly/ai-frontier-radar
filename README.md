@@ -259,6 +259,46 @@ uvicorn app.main:app --reload
 - **重复 URL + 相同内容 hash**：返回已有卡片，不创建新的
 - **内容过大**：截断到 `MAX_SOURCE_CHARS`
 
+## V0.1 真实端到端验证记录
+
+以下验证于 2026-06-07 完成：
+
+### MiniMax Anthropic API
+
+- **鉴权方式**：`x-api-key` header
+- **接口**：`https://api.minimaxi.com/anthropic/v1/messages`
+- **状态**：已验证可用
+
+### HTML 测试
+
+| 项目 | 值 |
+|------|-----|
+| 测试 URL | `https://arxiv.org/abs/2303.17760` |
+| 结果 | completed |
+| 卡片 ID | 11 |
+| 相关性分数 | 88 |
+| 正文提取 | trafilatura 失败，BeautifulSoup fallback 成功 |
+| 提取字符数 | 4,627 |
+
+### PDF 测试
+
+| 项目 | 值 |
+|------|-----|
+| 测试 URL | `https://arxiv.org/pdf/2303.17760.pdf` |
+| 结果 | completed |
+| 卡片 ID | 14 |
+| 相关性分数 | 85 |
+| PDF 页数 | 77 |
+| 提取字符数 | 206,443（截断到 60,000） |
+
+### 去重测试
+
+同一 URL + 同一 content_hash 提交两次，第二次返回已有卡片，未重复创建。
+
+### 编码说明
+
+SQLite 存储的 UTF-8 中文数据正常。Windows Git Bash 终端显示 `�` 是终端编码问题，不影响实际数据。
+
 ## 后续路线（V0.2+）
 
 - [ ] RSS 订阅源支持

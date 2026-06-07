@@ -15,6 +15,7 @@ Does NOT require a real API key for basic smoke tests.
 import os
 import sys
 import uuid
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -210,6 +211,15 @@ def test_sqlite_parent_dir_creation():
     print("[OK] SQLite parent directory creation handles relative data path")
 
 
+def test_utility_scripts_exist():
+    """Check that utility scripts exist."""
+    scripts_dir = Path(__file__).parent
+    for script in ["probe_minimax_anthropic.py", "check_card_encoding.py", "check_card_page.py"]:
+        script_path = scripts_dir / script
+        assert script_path.exists(), f"Utility script {script} not found"
+    print("[OK] Utility scripts exist")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -221,6 +231,7 @@ if __name__ == "__main__":
     test_cards_page()
     test_llm_profile_config()
     test_sqlite_parent_dir_creation()
+    test_utility_scripts_exist()
     test_compile_missing_api_key()
     test_compile_with_url()
 
