@@ -384,10 +384,32 @@ def test_source_registry_db_models():
         db.add(dup)
         try:
             db.commit()
-            assert False, "Should have raised IntegrityError for duplicate source_key"
-        except Exception:
+        except IntegrityError:
             db.rollback()
-        print("[OK] source_key unique constraint enforced")
+            print("[OK] source_key unique constraint enforced")
+        else:
+            db.rollback()
+            raise AssertionError("Expected IntegrityError for duplicate source_key")
+
+        # Verify SourceItem(source_id, url) unique constraint
+        dup_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=item.url,  # same URL as item already created above
+            title="Duplicate Article",
+            status="discovered",
+        )
+        db.add(dup_item)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            print("[OK] SourceItem(source_id, url) unique constraint enforced")
+        else:
+            db.rollback()
+            raise AssertionError(
+                "Expected IntegrityError for duplicate SourceItem(source_id, url)"
+            )
 
     finally:
         db.close()
