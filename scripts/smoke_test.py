@@ -465,6 +465,149 @@ def test_sources_page():
     print("[OK] GET /sources returns 200 with source data")
 
 
+def test_rss_probe_module_imports():
+    """Test that RSS probe module can be imported."""
+    from app.sources.rss_probe import (
+        probe_rss_source,
+        run_rss_probe_for_source,
+        run_rss_probe_for_enabled_sources,
+    )
+    assert callable(probe_rss_source)
+    assert callable(run_rss_probe_for_source)
+    assert callable(run_rss_probe_for_enabled_sources)
+    print("[OK] RSS probe module imports successfully")
+
+
+def test_rss_probe_no_feed_url():
+    """Test that probe_rss_source fails gracefully when feed_url is not set."""
+    from app.sources.rss_probe import probe_rss_source
+    from app.db import SessionLocal
+    from app.models import Source
+
+    db = SessionLocal()
+    try:
+        # Create a test source without feed_url
+        test_key = f"test_no_feed_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test No Feed",
+            description="A test source without feed URL",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url=None,
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        result = probe_rss_source(db, src)
+        assert result["error_message"] is not None, "Expected error_message for missing feed_url"
+        assert "feed_url" in result["error_message"].lower(), \
+            f"Expected 'feed_url' in error message, got: {result['error_message']}"
+        print(f"[OK] probe_rss_source fails with no feed_url: {result['error_message']}")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_rss_probe_mock_feed():
+    """Test probe_rss_source with a mocked RSS feed response."""
+    import httpx
+    from app.sources.rss_probe import probe_rss_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    # Save original httpx.get
+    original_get = httpx.get
+
+    # Fake RSS XML
+    fake_rss_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Test Feed</title>
+  <link>https://example.com</link>
+  <description>Test RSS Feed</description>
+  <item>
+    <title>Test Article 1</title>
+    <link>https://example.com/article-1</link>
+    <author>Author One</author>
+    <pubDate>2025-01-15T10:00:00Z</pubDate>
+  </item>
+  <item>
+    <title>Test Article 2</title>
+    <link>https://example.com/article-2</link>
+    <author>Author Two</author>
+    <pubDate>2025-01-16T11:00:00Z</pubDate>
+  </item>
+</channel>
+</rss>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_rss_xml.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None):
+        return FakeResponse()
+
+    # Monkeypatch httpx.get
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        # Create test source with RSS feed
+        test_key = f"test_rss_mock_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test RSS Mock",
+            description="Mock RSS source for testing",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # First probe
+        result1 = probe_rss_source(db, src)
+        assert result1["items_found"] == 2, f"Expected 2 items_found, got {result1['items_found']}"
+        assert result1["items_new"] == 2, f"Expected 2 items_new, got {result1['items_new']}"
+        assert result1["items_updated"] == 0
+        assert result1["error_message"] is None
+        print(f"[OK] First probe: found={result1['items_found']}, new={result1['items_new']}")
+
+        # Second probe — should update, not create new
+        result2 = probe_rss_source(db, src)
+        assert result2["items_found"] == 2
+        assert result2["items_new"] == 0, f"Expected 0 new on re-run, got {result2['items_new']}"
+        assert result2["items_updated"] == 2, f"Expected 2 updated on re-run, got {result2['items_updated']}"
+        print(f"[OK] Second probe (idempotent): new={result2['items_new']}, updated={result2['items_updated']}")
+
+        # Verify no duplicate SourceItems
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        assert len(items) == 2, f"Expected exactly 2 SourceItems, got {len(items)}"
+        print(f"[OK] No duplicate SourceItems created (count={len(items)})")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -481,6 +624,9 @@ if __name__ == "__main__":
     test_source_registry_db_models()
     test_source_config_sync_to_db()
     test_sources_page()
+    test_rss_probe_module_imports()
+    test_rss_probe_no_feed_url()
+    test_rss_probe_mock_feed()
     test_compile_missing_api_key()
     test_compile_with_url()
 
