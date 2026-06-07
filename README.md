@@ -224,6 +224,58 @@ uvicorn app.main:app --reload
 # 访问 http://localhost:8000
 ```
 
+## 常见问题
+
+### Starlette / Jinja2 / TestClient 异常
+
+如果 `smoke_test.py` 或 `check_card_page.py` 出现类似以下错误：
+
+```
+TypeError: unhashable type: 'dict'
+```
+
+优先检查依赖版本，这通常是 starlette 版本不兼容导致的。请执行以下步骤重建环境：
+
+**Windows PowerShell：**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt --upgrade --force-reinstall
+python scripts/check_dependencies.py
+python scripts/smoke_test.py
+```
+
+**Linux / macOS / Git Bash：**
+
+```bash
+python -m venv .venv
+source .venv/Scripts/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt --upgrade --force-reinstall
+python scripts/check_dependencies.py
+python scripts/smoke_test.py
+```
+
+### 验证依赖版本
+
+```bash
+python scripts/check_dependencies.py
+```
+
+应输出：
+
+```
+[OK] fastapi=0.111.0
+[OK] starlette=0.37.2
+[OK] jinja2=3.1.4
+[OK] httpx=0.27.0
+[OK] dependency compatibility passed
+```
+
+> **注意**：不要直接修改业务代码来规避 Starlette / Jinja2 兼容性问题。
+
 ## 使用流程
 
 ### 1. 提交 URL

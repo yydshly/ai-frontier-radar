@@ -20,6 +20,32 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
+def check_dependency_compat():
+    """Verify starlette version is compatible before importing app."""
+    import starlette
+    ver = getattr(starlette, "__version__", "unknown")
+    parts = ver.split(".")
+    try:
+        major, minor = int(parts[0]), int(parts[1])
+        patch = int(parts[2]) if len(parts) > 2 else 0
+        version_tuple = (major, minor, patch)
+        min_ver = (0, 37, 2)
+        max_ver = (0, 38, 0)
+        if not (version_tuple >= min_ver and version_tuple < max_ver):
+            print(f"[FAIL] starlette version incompatible: {ver}")
+            print(f"       Expected: >=0.37.2,<0.38.0 for fastapi==0.111.0")
+            print(f"       Please reinstall dependencies:")
+            print(f"       pip install -r requirements.txt --upgrade --force-reinstall")
+            sys.exit(1)
+    except (ValueError, IndexError):
+        print(f"[FAIL] starlette version unparseable: {ver}")
+        print(f"       Expected: >=0.37.2,<0.38.0")
+        sys.exit(1)
+
+
+check_dependency_compat()
+
 from fastapi.testclient import TestClient
 
 # Set test database before importing app
