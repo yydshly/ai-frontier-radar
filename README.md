@@ -550,6 +550,46 @@ python scripts/smoke_test.py
 
 完整产品验收步骤见 [docs/V0.5_ACTION_MARKDOWN_EXPORT_ACCEPTANCE.md](docs/V0.5_ACTION_MARKDOWN_EXPORT_ACCEPTANCE.md)。
 
+## V0.6 首页升级为个人 AI 前沿工作台
+
+V0.6 将首页从普通入口页升级为工作台，让用户打开系统后立即知道当前状态和下一步动作。
+
+### 产品闭环
+
+```
+首页
+→ 待编译资料
+→ 中文洞察卡
+→ 用户判断
+→ 转成行动
+→ Markdown 任务导出
+```
+
+### 新增内容
+
+- **统计概览**：待编译资料、未处理卡片、值得关注、转成行动
+- **下一步建议**：根据当前数据状态给出规则化行动建议
+- **快捷入口**：快速跳转到收件箱、洞察卡、行动任务、信息来源
+- **最近待编译资料**：最近 5 条 SourceItem
+- **最近中文洞察卡**：最近 5 张 InsightCard（含 to_action 导出入口）
+- **保留**：手动 URL 编译入口、精选来源展示
+
+### 验收命令
+
+```bash
+python scripts/acceptance_home_workbench.py --isolated-db
+python scripts/smoke_test.py
+```
+
+### 不做什么
+
+- 不做复杂统计图表
+- 不做 ECharts / Chart.js
+- 不做多用户 / 登录注册
+- 不做后台任务 / 批量编译
+
+完整产品验收步骤见 [docs/V0.6_HOME_WORKBENCH_ACCEPTANCE.md](docs/V0.6_HOME_WORKBENCH_ACCEPTANCE.md)。
+
 ## 技术栈
 
 ```

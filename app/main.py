@@ -47,12 +47,127 @@ def health_check():
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    """Home page with URL submission form and featured AI sources."""
-    featured_sources = get_featured_sources()
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "featured_sources": featured_sources,
-    })
+    """V0.6: Home page upgraded to personal AI frontier workbench.
+
+    Aggregates dashboard statistics, recent records, and action suggestions
+    without calling LLM or network access.
+    """
+    db = next(get_db())
+    try:
+        featured_sources = get_featured_sources()
+
+        # ── SourceItem statistics ────────────────────────────────────────────
+        source_items_discovered_count = (
+            db.query(SourceItem).filter(SourceItem.status == "discovered").count()
+        )
+        source_items_failed_count = (
+            db.query(SourceItem).filter(SourceItem.status == "failed").count()
+        )
+
+        # ── InsightCard statistics ──────────────────────────────────────────
+        cards_total_count = db.query(InsightCard).count()
+
+        # Unhandled = cards without any CardDecision
+        all_card_ids = [r[0] for r in db.query(InsightCard.id).all()]
+        if all_card_ids:
+            handled_card_ids = {
+                r[0] for r in db.query(CardDecision.card_id).distinct().all()
+            }
+            cards_unhandled_count = len(set(all_card_ids) - handled_card_ids)
+        else:
+            cards_unhandled_count = 0
+
+        # Count by decision value
+        decision_counts: dict[str, int] = {}
+        for decision_value in ALLOWED_CARD_DECISIONS.keys():
+            count = (
+                db.query(CardDecision)
+                .filter(CardDecision.decision == decision_value)
+                .count()
+            )
+            decision_counts[decision_value] = count
+
+        cards_worth_attention_count = decision_counts.get("worth_attention", 0)
+        cards_related_to_me_count = decision_counts.get("related_to_me", 0)
+        cards_read_later_count = decision_counts.get("read_later", 0)
+        cards_ignore_count = decision_counts.get("ignore", 0)
+        cards_to_action_count = decision_counts.get("to_action", 0)
+
+        # ── Recent SourceItems (last 5, discovered first) ──────────────────
+        recent_source_items = (
+            db.query(SourceItem)
+            .order_by(SourceItem.last_seen_at.desc())
+            .limit(5)
+            .all()
+        )
+        recent_source_items_data = []
+        for item in recent_source_items:
+            recent_source_items_data.append({
+                "id": item.id,
+                "source_key": item.source_key,
+                "title": item.title or "无标题",
+                "url": item.url,
+                "status": item.status,
+                "insight_card_id": item.insight_card_id,
+                "last_seen_at": item.last_seen_at,
+            })
+
+        # ── Recent InsightCards (last 5) ───────────────────────────────────
+        recent_cards = (
+            db.query(InsightCard)
+            .order_by(InsightCard.created_at.desc())
+            .limit(5)
+            .all()
+        )
+        recent_card_ids = [c.id for c in recent_cards]
+        recent_decisions: dict[int, CardDecision] = {}
+        if recent_card_ids:
+            decision_rows = (
+                db.query(CardDecision)
+                .filter(CardDecision.card_id.in_(recent_card_ids))
+                .all()
+            )
+            recent_decisions = {row.card_id: row for row in decision_rows}
+
+        recent_cards_data = []
+        for card in recent_cards:
+            decision_row = recent_decisions.get(card.id)
+            decision_value = decision_row.decision if decision_row else None
+            decision_note = decision_row.note if decision_row else None
+            recent_cards_data.append({
+                "id": card.id,
+                "source_title": card.source_title or "无标题",
+                "source_url": card.source_url,
+                "status": card.status.value if card.status else "unknown",
+                "decision_value": decision_value,
+                "decision_label": get_decision_label(decision_value),
+                "decision_note": decision_note or "",
+                "relevance_score": card.relevance_score,
+                "created_at": card.created_at,
+            })
+
+        # ── Build context ──────────────────────────────────────────────────
+        dashboard_stats = {
+            "source_items_discovered": source_items_discovered_count,
+            "source_items_failed": source_items_failed_count,
+            "cards_total": cards_total_count,
+            "cards_unhandled": cards_unhandled_count,
+            "cards_worth_attention": cards_worth_attention_count,
+            "cards_related_to_me": cards_related_to_me_count,
+            "cards_read_later": cards_read_later_count,
+            "cards_ignore": cards_ignore_count,
+            "cards_to_action": cards_to_action_count,
+        }
+
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "featured_sources": featured_sources,
+            "dashboard_stats": dashboard_stats,
+            "recent_source_items": recent_source_items_data,
+            "recent_cards": recent_cards_data,
+        })
+    finally:
+        db.close()
 
 
 @app.post("/compile")

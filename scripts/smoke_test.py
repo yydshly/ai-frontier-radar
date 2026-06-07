@@ -70,19 +70,27 @@ def test_index():
     """Test index page loads with required content sections."""
     response = client.get("/")
     assert response.status_code == 200
-    assert "AI Frontier Radar" in response.text
-    assert "系统如何处理 URL" in response.text, "Missing pipeline explanation"
-    assert "trafilatura" in response.text, "Missing trafilatura mention"
-    assert "pypdf" in response.text, "Missing pypdf mention"
-    assert "LLM Profile" in response.text, "Missing LLM Profile section"
-    assert "failed card" in response.text, "Missing failed card mention"
-    # V0.3 featured sources section
-    assert "精选 AI 前沿来源" in response.text, "Missing featured sources section"
-    assert "OpenAI" in response.text, "Missing OpenAI in featured sources"
-    assert "Anthropic" in response.text, "Missing Anthropic in featured sources"
-    assert "nvidia_ai_blog" in response.text or "NVIDIA" in response.text, \
-        "Missing NVIDIA in featured sources"
-    print("[OK] GET / returns 200 with all required content and featured sources")
+    text = response.text
+    assert "AI Frontier Radar" in text
+    # V0.6 workbench title
+    assert "全球 AI 前沿资料中文编译工作台" in text, \
+        "Missing V0.6 workbench title"
+    assert "中文洞察" in text and "可执行任务" in text, \
+        "Missing workbench mission text"
+    # V0.6 workbench elements
+    assert "工作台概览" in text, "Missing workbench stats section"
+    assert "下一步建议" in text, "Missing next actions section"
+    assert "快捷入口" in text, "Missing quick actions section"
+    # V0.6 stat cards
+    assert "待编译资料" in text, "Missing '待编译资料' stat"
+    assert "未处理卡片" in text, "Missing '未处理卡片' stat"
+    # Featured sources still preserved
+    assert "精选 AI 前沿来源" in text, "Missing featured sources section"
+    assert "OpenAI" in text, "Missing OpenAI in featured sources"
+    assert "Anthropic" in text, "Missing Anthropic in featured sources"
+    # Manual compile preserved
+    assert "手动编译英文资料 URL" in text, "Missing manual compile section"
+    print("[OK] GET / returns 200 with V0.6 workbench content")
 
 
 def test_static_css():
@@ -3236,6 +3244,76 @@ def test_v05_cards_list_shows_export_link_for_to_action():
         db.close()
 
 
+# ─── V0.6: Home Workbench ────────────────────────────────────────────────────
+
+
+def test_v06_home_workbench_has_workbench_title():
+    """Test that GET / contains the V0.6 workbench title and positioning."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    assert "全球 AI 前沿资料中文编译工作台" in text, \
+        "Homepage should have workbench title"
+    assert "中文洞察" in text and "可执行任务" in text, \
+        "Homepage should describe the product mission"
+    print("[OK] GET / has V0.6 workbench title and mission")
+
+
+def test_v06_home_workbench_stats_cards():
+    """Test that GET / shows the 4 main stat cards."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    required_cards = [
+        "待编译资料",
+        "未处理卡片",
+        "值得关注",
+        "转成行动",
+    ]
+    for card in required_cards:
+        assert card in text, f"Stat card '{card}' should be present"
+    print("[OK] GET / has all 4 main stat cards")
+
+
+def test_v06_home_workbench_quick_actions():
+    """Test that GET / has quick action links."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    quick_links = [
+        'href="/source-items"',
+        'href="/cards"',
+        'href="/cards?decision=to_action"',
+        'href="/sources"',
+    ]
+    for link in quick_links:
+        assert link in text, f"Quick action link {link} should be present"
+    print("[OK] GET / has quick action links")
+
+
+def test_v06_home_workbench_recent_sections():
+    """Test that GET / has recent source items and recent cards sections."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    assert "最近待编译资料" in text, "Recent source items section missing"
+    assert "最近中文洞察卡" in text, "Recent cards section missing"
+    print("[OK] GET / has recent source items and cards sections")
+
+
+def test_v06_home_workbench_manual_compile_preserved():
+    """Test that GET / preserves the manual URL compile entry."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    assert "手动编译英文资料 URL" in text, \
+        "Manual compile section should be preserved"
+    assert 'action="/compile"' in text, "Compile form action should exist"
+    assert "精选 AI 前沿来源" in text, \
+        "Featured sources section should be preserved"
+    print("[OK] GET / preserves manual compile and featured sources")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -3308,6 +3386,12 @@ if __name__ == "__main__":
     test_v05_export_preview_page()
     test_v05_export_download_route()
     test_v05_cards_list_shows_export_link_for_to_action()
+    # V0.6
+    test_v06_home_workbench_has_workbench_title()
+    test_v06_home_workbench_stats_cards()
+    test_v06_home_workbench_quick_actions()
+    test_v06_home_workbench_recent_sections()
+    test_v06_home_workbench_manual_compile_preserved()
 
     print("=" * 50)
     print("Smoke test completed!")
