@@ -1248,6 +1248,183 @@ def test_rss_run_records_partial_failed_with_missing_link():
         db.close()
 
 
+def test_rss_probe_duplicate_link():
+    """Test that RSS probe handles duplicate entry links without IntegrityError."""
+    import httpx
+    from app.sources.rss_probe import probe_rss_source, run_rss_probe_for_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    original_get = httpx.get
+
+    # RSS XML with a duplicate link
+    fake_rss_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Test Feed</title>
+  <link>https://example.com</link>
+  <item>
+    <title>Article A</title>
+    <link>https://example.com/article-a</link>
+    <author>Author</author>
+    <pubDate>2025-01-15T10:00:00Z</pubDate>
+  </item>
+  <item>
+    <title>Article A Duplicate</title>
+    <link>https://example.com/article-a</link>
+    <author>Author2</author>
+    <pubDate>2025-01-16T11:00:00Z</pubDate>
+  </item>
+</channel>
+</rss>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_rss_xml.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_rss_dup_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test RSS Duplicate",
+            description="Test RSS source with duplicate links",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # First probe: duplicate URL is skipped, so items_found=1 (unique link only)
+        result1 = probe_rss_source(db, src)
+        assert result1["items_found"] == 1, f"Expected items_found=1 (unique link), got {result1['items_found']}"
+        assert result1["items_new"] == 1, f"Expected items_new=1, got {result1['items_new']}"
+        assert result1["items_updated"] == 0
+        print(f"[OK] First probe: found={result1['items_found']}, new={result1['items_new']}")
+
+        # Verify exactly 1 SourceItem
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        assert len(items) == 1, f"Expected 1 SourceItem, got {len(items)}"
+        print(f"[OK] Only 1 SourceItem created (duplicate link skipped)")
+
+        # Second probe — should update, not create new
+        # Both entries point to same URL; dedup makes items_found=1
+        result2 = probe_rss_source(db, src)
+        assert result2["items_found"] == 1, f"Expected items_found=1 (deduped), got {result2['items_found']}"
+        assert result2["items_new"] == 0, f"Expected items_new=0 on re-run, got {result2['items_new']}"
+        assert result2["items_updated"] == 1, f"Expected items_updated=1, got {result2['items_updated']}"
+        print(f"[OK] Second probe (idempotent): new={result2['items_new']}, updated={result2['items_updated']}")
+
+        # Verify still only 1 SourceItem
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        assert len(items) == 1, f"Expected still 1 SourceItem, got {len(items)}"
+        print(f"[OK] Still 1 SourceItem after second probe")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
+def test_html_index_probe_duplicate_href():
+    """Test that HTML index probe handles duplicate hrefs without IntegrityError."""
+    import httpx
+    from app.sources.html_index_probe import probe_html_index_source, run_html_index_probe_for_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    original_get = httpx.get
+
+    # HTML with duplicate hrefs
+    fake_html = b"""<!DOCTYPE html>
+<html>
+<body>
+    <nav><a href="/">Home</a></nav>
+    <main>
+        <a href="/blog/important-article">Important Article</a>
+        <a href="/blog/important-article">Important Article Again</a>
+        <a href="/blog/other-article">Other Article</a>
+        <a href="/blog/other-article">Other Article Again</a>
+    </main>
+</body>
+</html>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_html.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None, headers=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_html_dup_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test HTML Duplicate",
+            description="Test HTML source with duplicate hrefs",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # First probe
+        result1 = probe_html_index_source(db, src)
+        assert result1["items_found"] == 2, f"Expected items_found=2, got {result1['items_found']}"
+        assert result1["items_new"] == 2, f"Expected items_new=2 (2 unique URLs), got {result1['items_new']}"
+        assert result1["items_updated"] == 0
+        print(f"[OK] First probe: found={result1['items_found']}, new={result1['items_new']}")
+
+        # Verify exactly 2 SourceItems
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        assert len(items) == 2, f"Expected 2 SourceItems, got {len(items)}"
+        print(f"[OK] 2 SourceItems created (duplicate hrefs skipped)")
+
+        # Second probe — should update
+        result2 = probe_html_index_source(db, src)
+        assert result2["items_found"] == 2
+        assert result2["items_new"] == 0, f"Expected items_new=0 on re-run, got {result2['items_new']}"
+        assert result2["items_updated"] == 2, f"Expected items_updated=2, got {result2['items_updated']}"
+        print(f"[OK] Second probe (idempotent): new={result2['items_new']}, updated={result2['items_updated']}")
+
+        # Verify still only 2 SourceItems
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        assert len(items) == 2, f"Expected still 2 SourceItems, got {len(items)}"
+        print(f"[OK] Still 2 SourceItems after second probe")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
 def test_html_index_probe_module_imports():
     """Test that HTML index probe module can be imported."""
     from app.sources.html_index_probe import (
@@ -1589,6 +1766,8 @@ if __name__ == "__main__":
     test_rss_probe_mock_feed()
     test_rss_run_records_failed_fetchrun_without_feed_url()
     test_rss_run_records_partial_failed_with_missing_link()
+    test_rss_probe_duplicate_link()
+    test_html_index_probe_duplicate_href()
     test_html_index_probe_module_imports()
     test_html_index_probe_no_homepage_url()
     test_html_index_probe_mock_html()

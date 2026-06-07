@@ -198,8 +198,17 @@ def probe_html_index_source(
         result["error_kind"] = "no_candidates"
         return result
 
-    # Process each candidate
+    # Deduplicate by URL before processing
+    seen_urls: set[str] = set()
+    deduped_candidates = []
     for candidate in candidates:
+        if candidate["url"] in seen_urls:
+            continue
+        seen_urls.add(candidate["url"])
+        deduped_candidates.append(candidate)
+
+    # Process each candidate
+    for candidate in deduped_candidates:
         result["items_found"] += 1
 
         # Check if item already exists

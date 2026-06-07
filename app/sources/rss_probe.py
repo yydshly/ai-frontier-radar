@@ -63,15 +63,22 @@ def probe_rss_source(db: Session, source: Source, timeout_seconds: int = 20) -> 
         result["error_message"] = "Feed is malformed or empty"
         return result
 
-    # Process entries
+    # Process entries, deduplicating by URL
+    seen_urls: set[str] = set()
     for entry in feed.entries:
-        result["items_found"] += 1
-
         # Get URL — required
         url = getattr(entry, "link", None)
         if not url:
+            result["items_found"] += 1
             result["items_failed"] += 1
             continue
+
+        # Skip duplicate URLs within the same feed
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+
+        result["items_found"] += 1
 
         # Canonical URL equals URL for RSS items
         canonical_url = url
