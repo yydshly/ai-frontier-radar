@@ -9,8 +9,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.db import get_db, init_db
-from app.models import InsightCard, CardStatus
+from app.models import InsightCard, CardStatus, Source
 from app.schemas import HealthResponse
+from app.sources import sync_sources_config_to_db
 from app.services.insight_compiler import compile_url
 from app.logging_config import setup_logging, get_logger
 
@@ -139,6 +140,47 @@ def card_detail(request: Request, card_id: int):
             "relevance_reasons": parse_json_field(card.relevance_reasons_zh),
         }
         return templates.TemplateResponse("card_detail.html", context)
+    finally:
+        db.close()
+
+
+@app.get("/sources", response_class=HTMLResponse)
+def list_sources_page(request: Request):
+    """List all configured sources from database."""
+    db = next(get_db())
+    try:
+        # Sync config to DB first (no network access)
+        sync_result = sync_sources_config_to_db(db)
+
+        # Query sources from DB, sorted by category then source_key
+        sources_orm = (
+            db.query(Source)
+            .order_by(Source.category, Source.source_key)
+            .all()
+        )
+
+        # Convert to plain dicts for template
+        sources_data = []
+        for s in sources_orm:
+            sources_data.append({
+                "source_key": s.source_key,
+                "name": s.name,
+                "category": s.category,
+                "source_type": s.source_type,
+                "fetch_strategy": s.fetch_strategy,
+                "enabled": s.enabled,
+                "homepage_url": s.homepage_url,
+                "feed_url": s.feed_url,
+                "fetch_interval_hours": s.fetch_interval_hours,
+                "last_checked_at": s.last_checked_at,
+                "last_success_at": s.last_success_at,
+                "last_error_message": s.last_error_message,
+            })
+
+        return templates.TemplateResponse(
+            "sources.html",
+            {"request": request, "sources": sources_data, "sync_result": sync_result},
+        )
     finally:
         db.close()
 

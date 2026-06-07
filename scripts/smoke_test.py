@@ -415,6 +415,56 @@ def test_source_registry_db_models():
         db.close()
 
 
+def test_source_config_sync_to_db():
+    """Test that source config syncs to DB correctly and is idempotent."""
+    from app.sources import sync_sources_config_to_db
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        # First sync with force_reload
+        result = sync_sources_config_to_db(db, force_reload=True)
+
+        assert result["total"] >= 8, \
+            f"Expected total >= 8, got {result['total']}"
+        print(f"[OK] sync_sources_config_to_db returned total={result['total']}")
+
+        # Check openai_news exists
+        from app.models import Source
+        openai_news = db.query(Source).filter(Source.source_key == "openai_news").first()
+        assert openai_news is not None, "openai_news source not found in DB"
+        assert openai_news.name, "openai_news.name should not be empty"
+        assert openai_news.source_type, "openai_news.source_type should not be empty"
+        assert openai_news.fetch_strategy, "openai_news.fetch_strategy should not be empty"
+        print(f"[OK] openai_news exists in DB with name='{openai_news.name}'")
+
+        # Idempotency: call again, should not create duplicates
+        result2 = sync_sources_config_to_db(db, force_reload=True)
+        assert result2["created"] == 0, \
+            f"Idempotency failed: expected created=0 on re-run, got {result2['created']}"
+        print(f"[OK] Re-running sync is idempotent (created={result2['created']})")
+
+    finally:
+        db.close()
+
+
+def test_sources_page():
+    """Test that /sources page loads and displays source data."""
+    response = client.get("/sources")
+    assert response.status_code == 200, \
+        f"Expected status 200, got {response.status_code}"
+
+    text = response.text
+    # Check page contains expected content
+    has_title = "信息来源" in text or "Source" in text
+    assert has_title, "Page should contain '信息来源' or 'Source' in title"
+
+    # Check required sources appear
+    assert "openai_news" in text, "openai_news should appear on /sources page"
+    assert "anthropic_news" in text, "anthropic_news should appear on /sources page"
+    print("[OK] GET /sources returns 200 with source data")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -429,6 +479,8 @@ if __name__ == "__main__":
     test_utility_scripts_exist()
     test_source_config()
     test_source_registry_db_models()
+    test_source_config_sync_to_db()
+    test_sources_page()
     test_compile_missing_api_key()
     test_compile_with_url()
 
