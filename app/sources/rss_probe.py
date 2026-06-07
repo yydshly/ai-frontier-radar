@@ -165,24 +165,40 @@ def run_rss_probe_for_source(db: Session, source: Source) -> FetchRun:
         fetch_run.items_failed = probe_result["items_failed"]
         fetch_run.finished_at = datetime.utcnow()
 
-        if probe_result["error_message"]:
-            # Partial or complete failure
-            if probe_result["items_found"] > 0 and probe_result["items_failed"] == probe_result["items_found"]:
-                fetch_run.status = "failed"
-            elif probe_result["items_failed"] > 0:
-                fetch_run.status = "partial_failed"
-            else:
-                fetch_run.status = "success"
-            fetch_run.error_message = probe_result["error_message"]
+        items_found = probe_result["items_found"]
+        items_failed = probe_result["items_failed"]
+        error_message = probe_result["error_message"]
+
+        if error_message:
+            # Feed fetch/parse failure — always "failed"
+            fetch_run.status = "failed"
+            fetch_run.error_message = error_message
 
             # Update source with error state
             source.last_checked_at = datetime.utcnow()
-            source.last_error_message = probe_result["error_message"]
+            source.last_error_message = error_message
+            # Do NOT update last_success_at
+        elif items_failed > 0 and items_found > items_failed:
+            # Some items failed during parsing — partial success
+            fetch_run.status = "partial_failed"
+            fetch_run.error_message = f"{items_failed} item(s) failed during RSS entry parsing"
+
+            # Update source — partial success still updates last_success_at
+            source.last_checked_at = datetime.utcnow()
+            source.last_success_at = datetime.utcnow()
+            source.last_error_message = fetch_run.error_message
+        elif items_failed > 0 and items_found == items_failed:
+            # All entries failed during parsing — complete failure
+            fetch_run.status = "failed"
+            fetch_run.error_message = "All RSS entries failed during parsing"
+
+            source.last_checked_at = datetime.utcnow()
+            source.last_error_message = fetch_run.error_message
         else:
+            # All entries succeeded
             fetch_run.status = "success"
             fetch_run.error_message = None
 
-            # Update source with success state
             source.last_checked_at = datetime.utcnow()
             source.last_success_at = datetime.utcnow()
             source.last_error_message = None

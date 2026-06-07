@@ -65,11 +65,6 @@ def main():
         # Detailed per-source results
         print(f"\n--- Per-Source Results ---")
         for source in rss_sources:
-            fetch_run = (
-                db.query(Source)
-                .filter(Source.id == source.id)
-                .first()
-            )
             # Get latest fetch run for this source
             from app.models import FetchRun
             latest_run = (

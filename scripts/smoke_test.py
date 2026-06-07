@@ -608,6 +608,147 @@ def test_rss_probe_mock_feed():
         db.close()
 
 
+def test_rss_run_records_failed_fetchrun_without_feed_url():
+    """Test that run_rss_probe_for_source records a failed FetchRun when feed_url is None."""
+    from app.sources.rss_probe import run_rss_probe_for_source
+    from app.db import SessionLocal
+    from app.models import Source
+
+    db = SessionLocal()
+    try:
+        # Create a test source without feed_url
+        test_key = f"test_no_feed_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test No Feed",
+            description="A test source without feed URL",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url=None,
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        fetch_run = run_rss_probe_for_source(db, src)
+
+        assert fetch_run.status == "failed", \
+            f"Expected status='failed', got '{fetch_run.status}'"
+        assert fetch_run.error_message is not None, \
+            "Expected error_message to be set"
+        assert "feed_url" in fetch_run.error_message.lower(), \
+            f"Expected 'feed_url' in error message, got: {fetch_run.error_message}"
+        assert fetch_run.finished_at is not None, \
+            "finished_at should be set even for failed runs"
+        print(f"[OK] FetchRun status=failed, error={fetch_run.error_message}")
+
+        # Re-query source from DB and verify state
+        refreshed_source = db.query(Source).filter(Source.id == src.id).first()
+        assert refreshed_source.last_checked_at is not None, \
+            "last_checked_at should be updated"
+        assert refreshed_source.last_error_message is not None, \
+            "last_error_message should be set"
+        assert refreshed_source.last_success_at is None, \
+            "last_success_at should NOT be updated on failure"
+        print("[OK] Source.last_success_at not updated on failure")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_rss_run_records_partial_failed_with_missing_link():
+    """Test that run_rss_probe_for_source records partial_failed when some entries lack links."""
+    import httpx
+    from app.sources.rss_probe import run_rss_probe_for_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    # Save original httpx.get
+    original_get = httpx.get
+
+    # RSS XML with one valid entry and one missing link
+    fake_rss_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Test Feed</title>
+  <item>
+    <title>Valid Article</title>
+    <link>https://example.com/valid</link>
+    <author>Author One</author>
+  </item>
+  <item>
+    <title>Missing Link Article</title>
+  </item>
+</channel>
+</rss>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_rss_xml.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_partial_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Partial",
+            description="Test source with partial failure",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        fetch_run = run_rss_probe_for_source(db, src)
+
+        assert fetch_run.status == "partial_failed", \
+            f"Expected status='partial_failed', got '{fetch_run.status}'"
+        assert fetch_run.items_found == 2, \
+            f"Expected items_found=2, got {fetch_run.items_found}"
+        assert fetch_run.items_new == 1, \
+            f"Expected items_new=1, got {fetch_run.items_new}"
+        assert fetch_run.items_failed == 1, \
+            f"Expected items_failed=1, got {fetch_run.items_failed}"
+        assert fetch_run.error_message is not None, \
+            "error_message should be set for partial_failed"
+        print(f"[OK] FetchRun status=partial_failed: "
+              f"found={fetch_run.items_found}, new={fetch_run.items_new}, "
+              f"failed={fetch_run.items_failed}")
+
+        # Verify exactly 1 SourceItem was created (the one with a valid link)
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        assert len(items) == 1, f"Expected 1 SourceItem, got {len(items)}"
+        assert items[0].url == "https://example.com/valid"
+        print(f"[OK] Only valid entry saved as SourceItem (count={len(items)})")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -627,6 +768,8 @@ if __name__ == "__main__":
     test_rss_probe_module_imports()
     test_rss_probe_no_feed_url()
     test_rss_probe_mock_feed()
+    test_rss_run_records_failed_fetchrun_without_feed_url()
+    test_rss_run_records_partial_failed_with_missing_link()
     test_compile_missing_api_key()
     test_compile_with_url()
 
