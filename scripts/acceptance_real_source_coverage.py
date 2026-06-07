@@ -32,6 +32,7 @@ from app.sources.html_index_probe import (
     _is_index_or_listing_url,
 )
 from app.sources.rss_probe import probe_rss_source
+from app.sources.quality import classify_source_item_url
 
 
 def _build_arg_parser():
@@ -75,19 +76,41 @@ def _get_default_source_keys():
 
 
 def _classify_source_items(db: Session, source: Source):
-    """Classify existing SourceItems for a source as article-like or suspected listing.
+    """Classify existing SourceItems for a source using content quality rules.
 
-    Returns (article_like_count, suspected_listing_count, samples).
+    Returns (article_like_count, expected_content_count, suspected_listing_count,
+             suspected_off_topic_count, article_samples, expected_samples,
+             off_topic_samples).
     """
     items = db.query(SourceItem).filter(SourceItem.source_id == source.id).all()
     article_like = []
+    expected_content = []
     suspected_listing = []
+    suspected_off_topic = []
+
     for item in items:
-        if _is_index_or_listing_url(item.url, source.homepage_url or ""):
+        classification = classify_source_item_url(
+            source.source_key, item.url, source.homepage_url or None
+        )
+        if classification["suspected_listing"]:
             suspected_listing.append(item)
-        else:
+        elif classification["expected_content"]:
             article_like.append(item)
-    return len(article_like), len(suspected_listing), article_like[:5], suspected_listing[:5]
+            expected_content.append(item)
+        else:
+            # Not listing, not expected content = off-topic
+            article_like.append(item)
+            suspected_off_topic.append(item)
+
+    return (
+        len(article_like),
+        len(expected_content),
+        len(suspected_listing),
+        len(suspected_off_topic),
+        article_like[:5],
+        expected_content[:5],
+        suspected_off_topic[:5],
+    )
 
 
 def _print_source_result(
@@ -100,8 +123,12 @@ def _print_source_result(
     items_failed: int,
     error_message: str | None,
     article_like_count: int,
+    expected_content_count: int,
     suspected_listing_count: int,
+    suspected_off_topic_count: int,
     article_samples: list[SourceItem],
+    expected_samples: list[SourceItem],
+    off_topic_samples: list[SourceItem],
     db: Session,
 ):
     print(f"\n{'─' * 55}")
@@ -110,16 +137,25 @@ def _print_source_result(
     print(f"  items_found={items_found}, new={items_new}, updated={items_updated}, failed={items_failed}")
     if error_message:
         print(f"  error: {error_message}")
-    print(f"  article_like={article_like_count}, suspected_listing={suspected_listing_count}")
+    print(f"  article_like={article_like_count}, expected_content={expected_content_count}, "
+          f"suspected_listing={suspected_listing_count}, suspected_off_topic={suspected_off_topic_count}")
     if suspected_listing_count > 0:
         print(f"  [!] WARNING: {suspected_listing_count} URL(s) may be listing/pagination pages")
-    if article_samples:
-        print(f"  Top discovered SourceItems:")
+    if suspected_off_topic_count > 0:
+        print(f"  [!] WARNING: {suspected_off_topic_count} URL(s) are off-topic for this source")
+    if expected_samples:
+        print(f"  Top expected SourceItems:")
+        for item in expected_samples:
+            title = (item.title or "(无标题)")[:60]
+            print(f"    - {title}")
+            print(f"      {item.url[:80]}")
+    elif article_samples:
+        print(f"  Top discovered SourceItems (non-listing):")
         for item in article_samples:
             title = (item.title or "(无标题)")[:60]
             print(f"    - {title}")
             print(f"      {item.url[:80]}")
-    return status in ("success", "partial_failed") and article_like_count >= 1
+    return status in ("success", "partial_failed") and expected_content_count >= 1
 
 
 def _run_probe_for_source(db: Session, source: Source, timeout: int, run_num: int):
@@ -201,7 +237,9 @@ def _run_acceptance(args):
                 print(f"\n  Probing {source.source_key} ({source.fetch_strategy})...")
                 try:
                     fetch_run = _run_probe_for_source(db, source, args.timeout, run_num)
-                    article_like, suspected, art_samples, sus_samples = _classify_source_items(db, source)
+                    (article_like, expected_content, suspected_listing,
+                     suspected_off_topic, art_samples, exp_samples,
+                     off_topic_samples) = _classify_source_items(db, source)
 
                     result = {
                         "source_key": source.source_key,
@@ -214,8 +252,11 @@ def _run_acceptance(args):
                         "items_failed": fetch_run.items_failed if fetch_run else 0,
                         "error_message": fetch_run.error_message if fetch_run else "unsupported strategy",
                         "article_like_count": article_like,
-                        "suspected_listing_count": suspected,
+                        "expected_content_count": expected_content,
+                        "suspected_listing_count": suspected_listing,
+                        "suspected_off_topic_count": suspected_off_topic,
                         "article_samples": art_samples,
+                        "expected_samples": exp_samples,
                     }
                     all_results.append(result)
 
@@ -229,8 +270,12 @@ def _run_acceptance(args):
                         fetch_run.items_failed if fetch_run else 0,
                         fetch_run.error_message if fetch_run else None,
                         article_like,
-                        suspected,
+                        expected_content,
+                        suspected_listing,
+                        suspected_off_topic,
                         art_samples,
+                        exp_samples,
+                        off_topic_samples,
                         db,
                     )
                     print(f"  -> {'PASS' if passed else 'FAIL'}")
@@ -243,7 +288,9 @@ def _run_acceptance(args):
                         "status": "exception",
                         "error_message": str(e),
                         "article_like_count": 0,
+                        "expected_content_count": 0,
                         "suspected_listing_count": 0,
+                        "suspected_off_topic_count": 0,
                     })
 
         # ── Summary ──────────────────────────────────────────────────────
@@ -252,14 +299,14 @@ def _run_acceptance(args):
         print(f"{'═' * 60}")
 
         successful_sources = set()
-        article_like_sources = set()
+        expected_content_sources = set()
         constraint_errors = []
 
         for r in all_results:
             if r["status"] in ("success", "partial_failed"):
                 successful_sources.add(r["source_key"])
-            if r["article_like_count"] >= 1:
-                article_like_sources.add(r["source_key"])
+            if r["expected_content_count"] >= 1:
+                expected_content_sources.add(r["source_key"])
 
         # Check for unique constraint errors
         for r in all_results:
@@ -267,7 +314,7 @@ def _run_acceptance(args):
                 constraint_errors.append(r["source_key"])
 
         print(f"  Sources with successful probe: {len(successful_sources)}")
-        print(f"  Sources with article-like items: {len(article_like_sources)}")
+        print(f"  Sources with expected_content items: {len(expected_content_sources)}")
         print(f"  Unique constraint errors: {len(constraint_errors)}")
 
         # Determine pass/fail
@@ -278,19 +325,22 @@ def _run_acceptance(args):
             passed = False
             reasons.append(f"Only {len(successful_sources)} source(s) completed probe (need ≥2)")
 
-        if len(article_like_sources) < 1:
+        if len(expected_content_sources) < 2:
             passed = False
-            reasons.append("No source produced article-like SourceItems")
+            reasons.append(f"Only {len(expected_content_sources)} source(s) produced expected_content SourceItems (need ≥2)")
 
         if constraint_errors:
             passed = False
             reasons.append(f"Unique constraint errors in: {constraint_errors}")
 
-        # Warn about suspected listing pages
+        # Warn about suspected listing pages and off-topic items
         for r in all_results:
             if r["suspected_listing_count"] > 0:
                 print(f"  [!] WARNING: {r['source_key']} has {r['suspected_listing_count']} "
                       f"suspected listing/pagination URL(s)")
+            if r["suspected_off_topic_count"] > 0:
+                print(f"  [!] WARNING: {r['source_key']} has {r['suspected_off_topic_count']} "
+                      f"off-topic URL(s)")
 
         print(f"\n  -> Overall: {'PASS' if passed else 'FAIL'}")
         for reason in reasons:

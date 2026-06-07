@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from app.models import Source, SourceItem, FetchRun
+from app.sources.quality import classify_source_item_url
 
 # Extensions to skip (static assets)
 SKIP_EXTENSIONS = {
@@ -297,6 +298,16 @@ def probe_html_index_source(
 
         # Filter using heuristic — skip index/listing/pagination URLs
         if not _is_probable_article_url(normalized_url, source.homepage_url):
+            continue
+
+        # Apply content quality classification
+        classification = classify_source_item_url(
+            source.source_key, normalized_url, source.homepage_url
+        )
+        if classification["suspected_listing"]:
+            continue
+        if classification["suspected_off_topic"]:
+            # Log off-topic URLs for debugging (but don't store them)
             continue
 
         # Get link text

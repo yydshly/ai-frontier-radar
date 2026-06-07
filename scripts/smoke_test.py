@@ -3378,6 +3378,170 @@ def test_v07_html_index_probe_supports_timeout():
     print("[OK] HTML index probe supports timeout_seconds parameter")
 
 
+def test_v071_quality_module_imports():
+    """Test that quality module can be imported and has required functions."""
+    from app.sources.quality import (
+        is_suspected_listing_url,
+        is_expected_content_url,
+        classify_source_item_url,
+    )
+    assert callable(is_suspected_listing_url)
+    assert callable(is_expected_content_url)
+    assert callable(classify_source_item_url)
+    print("[OK] quality module imports successfully with required functions")
+
+
+def test_v071_deepmind_models_is_off_topic():
+    """Test that DeepMind /models/... is identified as off-topic for deepmind_blog."""
+    from app.sources.quality import classify_source_item_url
+
+    result = classify_source_item_url(
+        "deepmind_blog",
+        "https://deepmind.google/models/gemini/",
+        "https://deepmind.google/discover/blog/",
+    )
+    assert result["suspected_off_topic"] is True, \
+        "deepmind_blog /models/ should be suspected_off_topic"
+    assert result["expected_content"] is False, \
+        "deepmind_blog /models/ should NOT be expected_content"
+    assert result["suspected_listing"] is False, \
+        "deepmind_blog /models/ should NOT be suspected_listing"
+    print("[OK] DeepMind /models/... correctly identified as off-topic")
+
+
+def test_v071_deepmind_discover_blog_is_expected():
+    """Test that DeepMind /discover/blog/... is identified as expected content."""
+    from app.sources.quality import classify_source_item_url
+
+    result = classify_source_item_url(
+        "deepmind_blog",
+        "https://deepmind.google/discover/blog/example-article/",
+        "https://deepmind.google/discover/blog/",
+    )
+    assert result["expected_content"] is True, \
+        "deepmind_blog /discover/blog/ should be expected_content"
+    assert result["suspected_off_topic"] is False, \
+        "deepmind_blog /discover/blog/ should NOT be off_topic"
+    assert result["suspected_listing"] is False, \
+        "deepmind_blog /discover/blog/ should NOT be suspected_listing"
+    print("[OK] DeepMind /discover/blog/... correctly identified as expected content")
+
+
+def test_v071_anthropic_news_is_expected():
+    """Test that Anthropic /news/... is identified as expected content."""
+    from app.sources.quality import classify_source_item_url
+
+    result = classify_source_item_url(
+        "anthropic_news",
+        "https://www.anthropic.com/news/claude-example",
+        "https://www.anthropic.com/news",
+    )
+    assert result["expected_content"] is True, \
+        "anthropic_news /news/ should be expected_content"
+    assert result["suspected_off_topic"] is False, \
+        "anthropic_news /news/ should NOT be off_topic"
+    assert result["suspected_listing"] is False, \
+        "anthropic_news /news/ should NOT be suspected_listing"
+    print("[OK] Anthropic /news/... correctly identified as expected content")
+
+
+def test_v071_huggingface_blog_listing_filtered():
+    """Test that HuggingFace /blog?p=2 is still identified as listing."""
+    from app.sources.quality import classify_source_item_url
+
+    result = classify_source_item_url(
+        "huggingface_blog",
+        "https://huggingface.co/blog?p=2",
+        "https://huggingface.co/blog",
+    )
+    assert result["suspected_listing"] is True, \
+        "huggingface_blog /blog?p=2 should be suspected_listing"
+    print("[OK] HuggingFace /blog?p=2 correctly identified as listing")
+
+
+def test_v071_huggingface_blog_slug_is_expected():
+    """Test that HuggingFace /blog/{slug} is still identified as expected content."""
+    from app.sources.quality import classify_source_item_url
+
+    result = classify_source_item_url(
+        "huggingface_blog",
+        "https://huggingface.co/blog/agent-glossary",
+        "https://huggingface.co/blog",
+    )
+    assert result["expected_content"] is True, \
+        "huggingface_blog /blog/agent-glossary should be expected_content"
+    assert result["suspected_off_topic"] is False, \
+        "huggingface_blog /blog/agent-glossary should NOT be off_topic"
+    assert result["suspected_listing"] is False, \
+        "huggingface_blog /blog/agent-glossary should NOT be suspected_listing"
+    print("[OK] HuggingFace /blog/{slug} correctly identified as expected content")
+
+
+def test_v071_mistral_news_is_expected():
+    """Test that Mistral /news/... is identified as expected content."""
+    from app.sources.quality import classify_source_item_url
+
+    result = classify_source_item_url(
+        "mistral_ai_news",
+        "https://mistral.ai/news/example-release",
+        "https://mistral.ai/news/",
+    )
+    assert result["expected_content"] is True, \
+        "mistral_ai_news /news/ should be expected_content"
+    assert result["suspected_off_topic"] is False, \
+        "mistral_ai_news /news/ should NOT be off_topic"
+    assert result["suspected_listing"] is False, \
+        "mistral_ai_news /news/ should NOT be suspected_listing"
+    print("[OK] Mistral /news/... correctly identified as expected content")
+
+
+def test_v071_quality_classify_returns_all_fields():
+    """Test that classify_source_item_url returns all required fields."""
+    from app.sources.quality import classify_source_item_url
+
+    result = classify_source_item_url(
+        "anthropic_news",
+        "https://www.anthropic.com/news/claude-example",
+        "https://www.anthropic.com/news",
+    )
+    assert "suspected_listing" in result
+    assert "expected_content" in result
+    assert "suspected_off_topic" in result
+    assert "reason" in result
+    assert isinstance(result["suspected_listing"], bool)
+    assert isinstance(result["expected_content"], bool)
+    assert isinstance(result["suspected_off_topic"], bool)
+    assert isinstance(result["reason"], str)
+    print("[OK] classify_source_item_url returns all required fields")
+
+
+def test_v071_mistral_key_not_in_docs():
+    """Test that 'mistral_ai' (wrong key) does not appear in docs/README as command argument."""
+    from pathlib import Path
+
+    readme_path = Path(__file__).parent.parent / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8")
+
+    doc_path = Path(__file__).parent.parent / "docs" / "V0.7_REAL_SOURCE_COVERAGE_ACCEPTANCE.md"
+    doc_text = doc_path.read_text(encoding="utf-8")
+
+    # Check that mistral_ai (wrong) is NOT used as --source-key argument
+    # Allow "Mistral AI" in text but not "mistral_ai" as command argument
+    import re
+    wrong_pattern = re.compile(r'--source-key\s+mistral_ai\b')
+    assert not wrong_pattern.search(readme_text), \
+        "README should not contain '--source-key mistral_ai' (wrong key)"
+    assert not wrong_pattern.search(doc_text), \
+        "V0.7 doc should not contain '--source-key mistral_ai' (wrong key)"
+
+    # Check that mistral_ai_news (correct) is used in docs
+    correct_pattern = re.compile(r'--source-key\s+mistral_ai_news\b')
+    # Should find at least one occurrence
+    assert correct_pattern.search(doc_text) or "mistral_ai_news" in doc_text, \
+        "V0.7 doc should mention mistral_ai_news"
+    print("[OK] Docs do not contain wrong 'mistral_ai' key as command argument")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -3461,6 +3625,16 @@ if __name__ == "__main__":
     test_v07_check_source_item_quality_exists()
     test_v07_scripts_support_isolated_db()
     test_v07_html_index_probe_supports_timeout()
+    # V0.7.1 quality module tests
+    test_v071_quality_module_imports()
+    test_v071_deepmind_models_is_off_topic()
+    test_v071_deepmind_discover_blog_is_expected()
+    test_v071_anthropic_news_is_expected()
+    test_v071_huggingface_blog_listing_filtered()
+    test_v071_huggingface_blog_slug_is_expected()
+    test_v071_mistral_news_is_expected()
+    test_v071_quality_classify_returns_all_fields()
+    test_v071_mistral_key_not_in_docs()
 
     print("=" * 50)
     print("Smoke test completed!")

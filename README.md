@@ -599,7 +599,16 @@ V0.7 验证系统能从多个高价值英文 AI 来源（Anthropic、DeepMind、
 ```bash
 python scripts/acceptance_real_source_coverage.py --isolated-db --repeat 2 --timeout 15
 python scripts/check_source_item_quality.py --source-key anthropic_news
+python scripts/check_source_item_quality.py --source-key deepmind_blog
+python scripts/check_source_item_quality.py --source-key mistral_ai_news
 ```
+
+### V0.7.1 加强来源质量判断
+
+V0.7.1 加强了来源质量判断：不仅判断是否列表页，还判断是否符合来源预期内容类型。
+
+- DeepMind `/models/` 页面会被标记为 `suspected_off_topic`，不再算作 `deepmind_blog` 的高质量博客文章
+- 配置中的 Mistral source_key 为 `mistral_ai_news`
 
 ### 本轮不做什么
 

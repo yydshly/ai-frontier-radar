@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.db import SessionLocal, init_db
 from app.models import Source, SourceItem
 from app.sources.html_index_probe import _is_index_or_listing_url
+from app.sources.quality import classify_source_item_url
 
 
 def _build_arg_parser():
@@ -86,18 +87,32 @@ def _run_quality_check(args):
 
         total_empty_title = 0
         total_suspected_listing = 0
+        total_expected_content = 0
+        total_suspected_off_topic = 0
         total_duplicate = 0
 
         for source_key, source_items in sorted(by_source.items()):
             src = db.query(Source).filter(Source.source_key == source_key).first()
             homepage_url = src.homepage_url if src else ""
 
-            # Quality metrics
+            # Quality metrics using content quality classification
             empty_title = [i for i in source_items if not i.title or not i.title.strip()]
             suspected_listing = [
                 i for i in source_items
                 if _is_index_or_listing_url(i.url, homepage_url or "")
             ]
+
+            # Use classify_source_item_url for content quality
+            expected_content = []
+            suspected_off_topic = []
+            for i in source_items:
+                classification = classify_source_item_url(
+                    source_key, i.url, homepage_url or None
+                )
+                if classification["suspected_off_topic"]:
+                    suspected_off_topic.append(i)
+                elif classification["expected_content"]:
+                    expected_content.append(i)
 
             # Duplicate URLs
             url_counts: dict[str, list[int]] = defaultdict(list)
@@ -108,12 +123,16 @@ def _run_quality_check(args):
 
             total_empty_title += len(empty_title)
             total_suspected_listing += len(suspected_listing)
+            total_expected_content += len(expected_content)
+            total_suspected_off_topic += len(suspected_off_topic)
             total_duplicate += dup_count
 
             print(f"\n{'─' * 50}")
             print(f"  {source_key}  (total={len(source_items)})")
             print(f"  empty_title_count: {len(empty_title)}")
             print(f"  suspected_listing_count: {len(suspected_listing)}")
+            print(f"  expected_content_count: {len(expected_content)}")
+            print(f"  suspected_off_topic_count: {len(suspected_off_topic)}")
             print(f"  duplicate_url_count: {dup_count}")
 
             if suspected_listing:
@@ -122,6 +141,15 @@ def _run_quality_check(args):
                     print(f"    - {it.url[:80]}")
                 if len(suspected_listing) > 5:
                     print(f"    ... and {len(suspected_listing) - 5} more")
+
+            if suspected_off_topic:
+                print(f"  ⚠ WARNING: suspected off-topic URLs found:")
+                for it in suspected_off_topic[:5]:
+                    title = (it.title or "(无标题)")[:40]
+                    print(f"    - {title}")
+                    print(f"      {it.url[:80]}")
+                if len(suspected_off_topic) > 5:
+                    print(f"    ... and {len(suspected_off_topic) - 5} more")
 
             if empty_title:
                 print(f"  sample empty-title items:")
@@ -138,6 +166,8 @@ def _run_quality_check(args):
         print(f"  total items scanned: {len(items)}")
         print(f"  total empty_title: {total_empty_title}")
         print(f"  total suspected_listing: {total_suspected_listing}")
+        print(f"  total expected_content: {total_expected_content}")
+        print(f"  total suspected_off_topic: {total_suspected_off_topic}")
         print(f"  total duplicate_url: {total_duplicate}")
         print(f"{'═' * 50}")
 
@@ -145,13 +175,16 @@ def _run_quality_check(args):
             print(f"\n⚠ WARNING: {total_suspected_listing} suspected listing/pagination URL(s) found.")
             print("  These may need filtering rules to be updated in html_index_probe.py.")
 
+        if total_suspected_off_topic > 0:
+            print(f"\n⚠ WARNING: {total_suspected_off_topic} off-topic URL(s) found for their source.")
+
         if total_empty_title > 0:
             print(f"\n⚠ WARNING: {total_empty_title} item(s) have empty titles.")
 
         if total_duplicate > 0:
             print(f"\n⚠ WARNING: {total_duplicate} duplicate URL(s) found.")
 
-        if total_suspected_listing == 0 and total_empty_title == 0 and total_duplicate == 0:
+        if total_suspected_listing == 0 and total_suspected_off_topic == 0 and total_empty_title == 0 and total_duplicate == 0:
             print("\n✅ All scanned SourceItems look clean!")
 
         return 0
