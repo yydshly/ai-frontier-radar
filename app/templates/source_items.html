@@ -74,9 +74,11 @@
             <tbody>
                 {% for item in items %}
                 <tr>
-                    <td>{{ item.id }}</td>
+                    <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
                     <td><code>{{ item.source_key }}</code></td>
-                    <td class="title-cell">{{ item.title or '(无标题)' }}</td>
+                    <td class="title-cell">
+                        <a href="/source-items/{{ item.id }}">{{ item.title or '(无标题)' }}</a>
+                    </td>
                     <td class="url-cell">
                         <a href="{{ item.url }}" target="_blank" rel="noopener">
                             {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
@@ -106,11 +108,11 @@
         </p>
         {% endif %}
 
-        <p class="page-note">V0.2.6 仅展示已发现条目，不抓取正文，不调用 LLM。</p>
+        <p class="page-note">V0.2.7 仅展示已发现条目，不抓取正文，不调用 LLM。</p>
     </main>
 
     <footer>
-        <p>V0.2.6 来源发现条目查看</p>
+        <p>V0.2.7 来源发现条目查看</p>
     </footer>
 </body>
 </html>

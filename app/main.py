@@ -258,6 +258,79 @@ def list_source_items_page(
         db.close()
 
 
+@app.get("/source-items/{item_id}", response_class=HTMLResponse)
+def source_item_detail(request: Request, item_id: int):
+    """Show SourceItem detail with optional compile action."""
+    db = next(get_db())
+    try:
+        item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+        if not item:
+            return RedirectResponse(url="/source-items", status_code=303)
+
+        # Get associated Source
+        source = db.query(Source).filter(Source.id == item.source_id).first()
+
+        # Get associated InsightCard if any
+        card = None
+        if item.insight_card_id:
+            card = db.query(InsightCard).filter(InsightCard.id == item.insight_card_id).first()
+
+        context = {
+            "request": request,
+            "item": item,
+            "source": source,
+            "card": card,
+        }
+        return templates.TemplateResponse("source_item_detail.html", context)
+    finally:
+        db.close()
+
+
+@app.post("/source-items/{item_id}/compile")
+def compile_source_item(item_id: int):
+    """Manually compile a SourceItem into an InsightCard."""
+    from datetime import datetime
+
+    db = next(get_db())
+    try:
+        item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+        if not item:
+            return RedirectResponse(url="/source-items", status_code=303)
+
+        # Empty URL guard
+        if not item.url:
+            item.status = "failed"
+            item.error_message = "SourceItem url is empty"
+            item.updated_at = datetime.utcnow()
+            db.commit()
+            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+
+        try:
+            card = compile_url(db, item.url)
+        except Exception as e:
+            item.status = "failed"
+            item.error_message = f"Unexpected compile error: {e}"
+            item.updated_at = datetime.utcnow()
+            db.commit()
+            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+
+        # Link card regardless of success/failure
+        item.insight_card_id = card.id
+        item.updated_at = datetime.utcnow()
+
+        if card.status.value == "completed":
+            item.status = "compiled"
+            item.error_message = None
+        else:
+            item.status = "failed"
+            item.error_message = card.error_message or "InsightCard compilation failed"
+
+        db.commit()
+        return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

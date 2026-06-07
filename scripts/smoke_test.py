@@ -553,6 +553,238 @@ def test_source_items_page():
         db.close()
 
 
+def test_source_item_detail_page():
+    """Test that /source-items/{id} detail page loads correctly."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        # Create a test source
+        test_key = f"test_detail_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Detail Source",
+            description="Test source for detail page",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create a test source item
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/detail-article-{uuid.uuid4().hex[:6]}",
+            title="Detail Test Article",
+            author="Test Author",
+            published_at="2025-01-20",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        # Test detail page loads
+        response = client.get(f"/source-items/{item.id}")
+        assert response.status_code == 200, \
+            f"Expected status 200, got {response.status_code}"
+        text = response.text
+        assert "发现条目详情" in text or "SourceItem" in text, \
+            "Page should contain '发现条目详情' or 'SourceItem'"
+        assert item.url in text, "Item URL should appear on detail page"
+        assert "Detail Test Article" in text, "Item title should appear on detail page"
+        print(f"[OK] GET /source-items/{item.id} returns 200 with content")
+
+        # Test non-existent item redirects
+        response = client.get("/source-items/999999999", follow_redirects=False)
+        assert response.status_code in (302, 303), \
+            f"Expected redirect for non-existent item, got {response.status_code}"
+        print("[OK] GET /source-items/999999999 redirects (not found)")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_source_item_compile_route_with_mock_compile_url():
+    """Test POST /source-items/{id}/compile with mocked compile_url."""
+    import app.main as main_module
+    from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        # Create test source and source item
+        test_key = f"test_compile_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Compile Source",
+            description="Test source for compile route",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/compile-article-{uuid.uuid4().hex[:6]}",
+            title="Compile Test Article",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+
+        # Mock compile_url to return a successful card
+        original_compile_url = main_module.compile_url
+
+        def fake_compile_url(db, url):
+            card = InsightCard(
+                source_url=url,
+                source_type=SourceType.HTML,
+                source_title="Mock Compiled Card",
+                content_hash="mock-hash-123",
+                status=CardStatus.COMPLETED,
+                summary_zh="Mock summary",
+                relevance_score=85,
+            )
+            db.add(card)
+            db.commit()
+            db.refresh(card)
+            return card
+
+        main_module.compile_url = fake_compile_url
+        try:
+            # Call compile route
+            response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
+            assert response.status_code in (302, 303), \
+                f"Expected redirect, got {response.status_code}"
+            print(f"[OK] POST /source-items/{item_id}/compile redirects ({response.status_code})")
+
+            # Re-query item and verify it was updated
+            # Expire all to force re-fetch from DB (compile route used a separate session)
+            db.expire_all()
+            refreshed_item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+            assert refreshed_item.status == "compiled", \
+                f"Expected status='compiled', got '{refreshed_item.status}'"
+            assert refreshed_item.insight_card_id is not None, \
+                "insight_card_id should be set"
+            assert refreshed_item.error_message is None, \
+                "error_message should be cleared on success"
+            print(f"[OK] SourceItem updated: status=compiled, insight_card_id={refreshed_item.insight_card_id}")
+
+        finally:
+            main_module.compile_url = original_compile_url
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_source_item_compile_route_with_failed_card():
+    """Test POST /source-items/{id}/compile with a mocked failed card."""
+    import app.main as main_module
+    from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        # Create test source and source item
+        test_key = f"test_fail_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Fail Source",
+            description="Test source for failed compile",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/fail-article-{uuid.uuid4().hex[:6]}",
+            title="Fail Test Article",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+
+        # Mock compile_url to return a failed card
+        original_compile_url = main_module.compile_url
+
+        def fake_compile_url_failed(db, url):
+            card = InsightCard(
+                source_url=url,
+                source_type=SourceType.HTML,
+                source_title="Failed Card",
+                content_hash="mock-hash-fail",
+                status=CardStatus.FAILED,
+                error_message="Mock failure: API key missing",
+            )
+            db.add(card)
+            db.commit()
+            db.refresh(card)
+            return card
+
+        main_module.compile_url = fake_compile_url_failed
+        try:
+            response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
+            assert response.status_code in (302, 303), \
+                f"Expected redirect, got {response.status_code}"
+            print(f"[OK] POST /source-items/{item_id}/compile (failed card) redirects ({response.status_code})")
+
+            # Re-query item and verify it was updated to failed
+            db.expire_all()
+            refreshed_item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+            assert refreshed_item.status == "failed", \
+                f"Expected status='failed', got '{refreshed_item.status}'"
+            assert refreshed_item.insight_card_id is not None, \
+                "insight_card_id should be set even for failed card"
+            assert "Mock failure" in (refreshed_item.error_message or ""), \
+                f"error_message should contain 'Mock failure', got: {refreshed_item.error_message}"
+            print(f"[OK] SourceItem updated: status=failed, error_message set")
+
+        finally:
+            main_module.compile_url = original_compile_url
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_rss_probe_module_imports():
     """Test that RSS probe module can be imported."""
     from app.sources.rss_probe import (
@@ -1167,6 +1399,9 @@ if __name__ == "__main__":
     test_source_config_sync_to_db()
     test_sources_page()
     test_source_items_page()
+    test_source_item_detail_page()
+    test_source_item_compile_route_with_mock_compile_url()
+    test_source_item_compile_route_with_failed_card()
     test_rss_probe_module_imports()
     test_rss_probe_no_feed_url()
     test_rss_probe_mock_feed()
