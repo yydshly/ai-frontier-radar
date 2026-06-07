@@ -184,6 +184,27 @@ def test_compile_with_url():
         print(f"[WARN] Compile test failed: {e}")
 
 
+def test_sqlite_parent_dir_creation():
+    """Test that SQLite parent directory is created for relative paths."""
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+    from app.db import ensure_sqlite_parent_dir
+
+    with TemporaryDirectory() as tmp:
+        old_cwd = os.getcwd()
+        os.chdir(tmp)
+        try:
+            ensure_sqlite_parent_dir("sqlite:///./data/test.db")
+            assert Path("data").exists(), "data/ directory was not created"
+            assert Path("data").is_dir(), "data/ is not a directory"
+            # Ensure it did NOT create /data on some absolute path
+            assert not Path("/data").exists(), "Created /data instead of ./data/"
+        finally:
+            os.chdir(old_cwd)
+
+    print("[OK] SQLite parent directory creation handles relative data path")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -194,6 +215,7 @@ if __name__ == "__main__":
     test_static_css()
     test_cards_page()
     test_llm_profile_config()
+    test_sqlite_parent_dir_creation()
     test_compile_missing_api_key()
     test_compile_with_url()
 
