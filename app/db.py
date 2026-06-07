@@ -58,5 +58,5 @@ def get_db():
 
 def init_db():
     """Create all tables."""
-    from app.models import InsightCard  # noqa: F401
+    from app.models import InsightCard, Source, SourceItem, FetchRun  # noqa: F401
     Base.metadata.create_all(bind=engine)

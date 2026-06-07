@@ -286,6 +286,113 @@ def test_source_config():
         print(f"     {s.source_key}: {s.category}/{s.fetch_strategy} [{status}]")
 
 
+def test_source_registry_db_models():
+    """Test that Source / SourceItem / FetchRun DB models exist and can be written."""
+    from datetime import datetime
+    from sqlalchemy import inspect
+    from app.db import engine
+    from app.models import Source, SourceItem, FetchRun
+
+    # Check tables exist
+    inspector = inspect(engine)
+    table_names = inspector.get_table_names()
+    assert "sources" in table_names, "table 'sources' not found"
+    assert "source_items" in table_names, "table 'source_items' not found"
+    assert "fetch_runs" in table_names, "table 'fetch_runs' not found"
+    print("[OK] Source/SourceItem/FetchRun tables exist")
+
+    # Use a unique source_key to avoid conflicts on re-run
+    test_key = f"test_source_{uuid.uuid4().hex[:8]}"
+
+    from app.db import SessionLocal
+    db = SessionLocal()
+    try:
+        # Create Source
+        src = Source(
+            source_key=test_key,
+            name="Test Source",
+            description="A test source for smoke test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='["test"]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="Test hint",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+        assert src.id is not None, "Source.id should be auto-assigned"
+        print(f"[OK] Created Source(id={src.id}, source_key={src.source_key})")
+
+        # Create SourceItem
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/article-{uuid.uuid4().hex[:6]}",
+            title="Test Article",
+            author="Test Author",
+            published_at="2025-01-01",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        assert item.id is not None, "SourceItem.id should be auto-assigned"
+        print(f"[OK] Created SourceItem(id={item.id})")
+
+        # Create FetchRun
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=datetime.utcnow(),
+            finished_at=datetime.utcnow(),
+            items_found=1,
+            items_new=1,
+            items_updated=0,
+            items_failed=0,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        assert run.id is not None, "FetchRun.id should be auto-assigned"
+        print(f"[OK] Created FetchRun(id={run.id})")
+
+        # Query back by source_key
+        found = db.query(Source).filter_by(source_key=test_key).first()
+        assert found is not None, f"Could not find Source with source_key={test_key}"
+        assert found.name == "Test Source"
+        print(f"[OK] Source queried back by source_key={test_key}")
+
+        # Verify unique constraint on source_key
+        from sqlalchemy.exc import IntegrityError
+        db.rollback()
+        dup = Source(
+            source_key=test_key,
+            name="Duplicate",
+            description="Should fail",
+            source_type="rss",
+            category="research",
+            fetch_strategy="rss",
+            fetch_interval_hours=24,
+        )
+        db.add(dup)
+        try:
+            db.commit()
+            assert False, "Should have raised IntegrityError for duplicate source_key"
+        except Exception:
+            db.rollback()
+        print("[OK] source_key unique constraint enforced")
+
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -299,6 +406,7 @@ if __name__ == "__main__":
     test_sqlite_parent_dir_creation()
     test_utility_scripts_exist()
     test_source_config()
+    test_source_registry_db_models()
     test_compile_missing_api_key()
     test_compile_with_url()
 
