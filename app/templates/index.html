@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>🤖 AI Frontier Radar</h1>
+        <p class="subtitle">将英文 AI 前沿文章编译为结构化中文洞察卡片</p>
+    </header>
+
+    <main>
+        <section class="compile-section">
+            <h2>📥 提交文章 URL</h2>
+            <form action="/compile" method="post" class="url-form">
+                <div class="form-group">
+                    <input
+                        type="url"
+                        name="url"
+                        id="url-input"
+                        placeholder="https://example.com/ai-article.html"
+                        required
+                        autofocus
+                    >
+                </div>
+                <button type="submit" class="btn-primary">🚀 编译 InsightCard</button>
+            </form>
+        </section>
+
+        <section class="cards-section">
+            <h2>📋 已有的 InsightCard</h2>
+            <a href="/cards" class="btn-secondary">查看所有卡片 →</a>
+        </section>
+    </main>
+
+    <footer>
+        <p>V0.1 技术探针 MVP</p>
+    </footer>
+</body>
+</html>

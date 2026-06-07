@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InsightCard 列表 - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>📋 InsightCard 列表</h1>
+        <nav>
+            <a href="/">← 返回首页</a>
+        </nav>
+    </header>
+
+    <main>
+        {% if cards %}
+        <table class="cards-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>标题</th>
+                    <th>URL</th>
+                    <th>状态</th>
+                    <th>相关性</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for card in cards %}
+                <tr>
+                    <td>{{ card.id }}</td>
+                    <td class="title-cell">{{ card.source_title or '(无标题)' }}</td>
+                    <td class="url-cell">
+                        <a href="{{ card.source_url }}" target="_blank" rel="noopener">
+                            {{ card.source_url[:50] }}{% if card.source_url|length > 50 %}...{% endif %}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="status status-{{ card.status }}">{{ card.status }}</span>
+                    </td>
+                    <td>{{ card.relevance_score if card.relevance_score else 0 }}</td>
+                    <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</td>
+                    <td>
+                        <a href="/cards/{{ card.id }}" class="btn-detail">查看详情</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-state">还没有任何 InsightCard，<a href="/">去提交一个 URL</a> 吧！</p>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>V0.1 技术探针 MVP</p>
+    </footer>
+</body>
+</html>

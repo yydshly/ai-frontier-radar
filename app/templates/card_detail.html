@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ card.source_title or 'InsightCard' }} - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>🎴 InsightCard 详情</h1>
+        <nav>
+            <a href="/">← 返回首页</a> | <a href="/cards">← 返回列表</a>
+        </nav>
+    </header>
+
+    <main>
+        {% if card.status == 'failed' %}
+        <div class="error-banner">
+            <h2>❌ 处理失败</h2>
+            <p>{{ card.error_message }}</p>
+        </div>
+        {% endif %}
+
+        <section class="meta-section">
+            <h2>📄 原文信息</h2>
+            <dl class="meta-list">
+                <dt>标题</dt>
+                <dd>{{ card.source_title or '(无标题)' }}</dd>
+
+                <dt>来源 URL</dt>
+                <dd><a href="{{ card.source_url }}" target="_blank" rel="noopener">{{ card.source_url }}</a></dd>
+
+                <dt>类型</dt>
+                <dd>{{ card.source_type }}</dd>
+
+                <dt>作者</dt>
+                <dd>{{ card.source_author or '-' }}</dd>
+
+                <dt>发布日期</dt>
+                <dd>{{ card.source_published_at or '-' }}</dd>
+
+                <dt>模型</dt>
+                <dd>{{ card.model_name or '-' }}</dd>
+
+                <dt>创建时间</dt>
+                <dd>{{ card.created_at.strftime('%Y-%m-%d %H:%M:%S') if card.created_at else '-' }}</dd>
+            </dl>
+        </section>
+
+        {% if card.status == 'completed' %}
+        <section class="summary-section">
+            <h2>📝 中文摘要</h2>
+            <p class="summary-text">{{ card.summary_zh }}</p>
+        </section>
+
+        <section class="insights-section">
+            <h2>🔑 关键事实</h2>
+            <ul class="insight-list">
+                {% for point in key_points %}
+                <li>{{ point }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="insights-section">
+            <h2>💡 技术洞察</h2>
+            <ul class="insight-list">
+                {% for insight in technical_insights %}
+                <li>{{ insight }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="insights-section">
+            <h2>🚀 产品机会</h2>
+            <ul class="insight-list">
+                {% for opp in product_opportunities %}
+                <li>{{ opp }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="insights-section">
+            <h2>⚠️ 风险</h2>
+            <ul class="insight-list">
+                {% for risk in risks %}
+                <li>{{ risk }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="relevance-section">
+            <h2>🎯 相关性判断</h2>
+            <div class="relevance-score">
+                <span class="score-label">相关性分数：</span>
+                <span class="score-value">{{ card.relevance_score }}</span>
+                <span class="score-max">/100</span>
+            </div>
+
+            <h3>匹配的关注方向</h3>
+            <ul class="direction-list">
+                {% for direction in related_directions %}
+                <li>{{ direction }}</li>
+                {% endfor %}
+            </ul>
+
+            <h3>判断理由</h3>
+            <ul class="insight-list">
+                {% for reason in relevance_reasons %}
+                <li>{{ reason }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="action-section">
+            <h2>✅ 行动建议</h2>
+            <ul class="insight-list">
+                {% for item in action_items %}
+                <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        {% if card.cleaned_text_preview %}
+        <section class="preview-section">
+            <h2>📄 正文预览（前1000字符）</h2>
+            <pre class="text-preview">{{ card.cleaned_text_preview }}</pre>
+        </section>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>V0.1 技术探针 MVP</p>
+    </footer>
+</body>
+</html>

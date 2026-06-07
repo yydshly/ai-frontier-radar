@@ -1,0 +1,131 @@
+"""FastAPI main application."""
+import json
+from pathlib import Path
+
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+
+from app.db import get_db, init_db
+from app.models import InsightCard, CardStatus
+from app.schemas import HealthResponse, CardListItem, CardDetail
+from app.services.insight_compiler import compile_url, CompilationError
+from app.logging_config import setup_logging, get_logger
+
+# Setup
+setup_logging()
+logger = get_logger(__name__)
+
+# Initialize database on startup
+init_db()
+
+# FastAPI app
+app = FastAPI(title="AI Frontier Radar", version="0.1.0")
+
+# Jinja2 templates
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+# --- Routes ---
+
+@app.get("/health", response_model=HealthResponse)
+def health_check():
+    """Health check endpoint."""
+    return HealthResponse(status="ok")
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request):
+    """Home page with URL submission form."""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.post("/compile")
+def compile_source(url: str = Form(...)):
+    """
+    Submit a URL for InsightCard compilation.
+
+    Flow:
+    1. Validate URL
+    2. Fetch, extract, clean content
+    3. Check for duplicates
+    4. Call LLM to generate InsightCard
+    5. Save to database
+    6. Redirect to detail page
+    """
+    logger.info(f"Received compile request for URL: {url}")
+
+    # Basic URL validation
+    if not url.startswith(("http://", "https://")):
+        return RedirectResponse(url="/", status_code=303)
+
+    db = next(get_db())
+    try:
+        card = compile_url(db, url)
+        return RedirectResponse(url=f"/cards/{card.id}", status_code=303)
+    except CompilationError as e:
+        logger.error(f"Compilation failed: {e}")
+        # If we have a partial card, redirect to it
+        # Otherwise redirect back to home
+        return RedirectResponse(url="/", status_code=303)
+    except Exception as e:
+        logger.error(f"Unexpected error during compilation: {e}")
+        return RedirectResponse(url="/", status_code=303)
+    finally:
+        db.close()
+
+
+@app.get("/cards", response_class=HTMLResponse)
+def list_cards(request: Request):
+    """List all InsightCards."""
+    db = next(get_db())
+    try:
+        cards = (
+            db.query(InsightCard)
+            .order_by(InsightCard.created_at.desc())
+            .all()
+        )
+        return templates.TemplateResponse("cards.html", {"request": request, "cards": cards})
+    finally:
+        db.close()
+
+
+@app.get("/cards/{card_id}", response_class=HTMLResponse)
+def card_detail(request: Request, card_id: int):
+    """Show InsightCard detail."""
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        # Parse JSON fields for template
+        def parse_json_field(value):
+            if not value:
+                return []
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return []
+
+        context = {
+            "request": request,
+            "card": card,
+            "key_points": parse_json_field(card.key_points_zh),
+            "technical_insights": parse_json_field(card.technical_insights_zh),
+            "product_opportunities": parse_json_field(card.product_opportunities_zh),
+            "risks": parse_json_field(card.risks_zh),
+            "action_items": parse_json_field(card.action_items_zh),
+            "related_directions": parse_json_field(card.related_user_directions),
+            "relevance_reasons": parse_json_field(card.relevance_reasons_zh),
+        }
+        return templates.TemplateResponse("card_detail.html", context)
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
