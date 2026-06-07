@@ -8,7 +8,8 @@ import json
 from sqlalchemy.orm import Session
 
 from app.models import Source
-from app.sources import load_sources_config, SourceConfig
+from app.sources.config_loader import load_sources_config
+from app.sources.models import SourceConfig
 
 
 def sync_sources_config_to_db(db: Session, force_reload: bool = False) -> dict:
