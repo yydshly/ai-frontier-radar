@@ -93,6 +93,10 @@
                     <td>
                         {% if item.insight_card_id %}
                         <a href="/cards/{{ item.insight_card_id }}">#{{ item.insight_card_id }}</a>
+                        {% elif item.status == 'discovered' %}
+                        <a href="/source-items/{{ item.id }}" class="status-hint-link">待编译</a>
+                        {% elif item.status == 'failed' %}
+                        <a href="/source-items/{{ item.id }}" class="status-hint-link status-hint-error">编译失败，可重试</a>
                         {% else %}
                         -
                         {% endif %}
@@ -113,11 +117,11 @@
         </p>
         {% endif %}
 
-        <p class="page-note">V0.3 展示来源探测发现条目；本页只展示已发现条目，不抓取正文，不调用 LLM。</p>
+        <p class="page-note">V0.3.2 展示来源探测发现条目；本页只展示已发现条目，不抓取正文，不调用 LLM。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.3 来源发现条目查看</p>
+        <p>AI Frontier Radar V0.3.2 来源发现条目查看</p>
     </footer>
 </body>
 </html>

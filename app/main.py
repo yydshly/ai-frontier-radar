@@ -292,7 +292,11 @@ def source_item_detail(request: Request, item_id: int):
 
 @app.post("/source-items/{item_id}/compile")
 def compile_source_item(item_id: int):
-    """Manually compile a SourceItem into an InsightCard."""
+    """Manually compile a SourceItem into an InsightCard.
+
+    Idempotent: if the item is already compiled with a valid insight_card_id,
+    redirects back without re-calling compile_url.
+    """
     from datetime import datetime
 
     db = next(get_db())
@@ -301,7 +305,11 @@ def compile_source_item(item_id: int):
         if not item:
             return RedirectResponse(url="/source-items", status_code=303)
 
-        # Empty URL guard
+        # Case A: already compiled — skip re-compilation (idempotent)
+        if item.status == "compiled" and item.insight_card_id is not None:
+            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+
+        # Case D: empty URL guard
         if not item.url:
             item.status = "failed"
             item.error_message = "SourceItem url is empty"
@@ -324,7 +332,7 @@ def compile_source_item(item_id: int):
 
         if card.status.value == "completed":
             item.status = "compiled"
-            item.error_message = None
+            item.error_message = None  # Clear old error on success
         else:
             item.status = "failed"
             item.error_message = card.error_message or "InsightCard compilation failed"

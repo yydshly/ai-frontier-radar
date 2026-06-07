@@ -902,6 +902,175 @@ def test_source_item_compile_route_with_failed_card():
         db.close()
 
 
+def test_source_item_compile_already_compiled_is_idempotent():
+    """Test that POST on an already-compiled SourceItem does NOT call compile_url."""
+    import app.main as main_module
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        # Create source and already-compiled SourceItem with existing card
+        test_key = f"test_already_compiled_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Already Compiled",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create a completed card first
+        card = InsightCard(
+            source_url="https://example.com/already-compiled",
+            source_type=SourceType.HTML,
+            source_title="Already Compiled Card",
+            content_hash="already-compiled-hash",
+            status=CardStatus.COMPLETED,
+            summary_zh="Already done",
+            relevance_score=80,
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="https://example.com/already-compiled",
+            title="Already Compiled Article",
+            status="compiled",
+            insight_card_id=card.id,
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+        original_card_id = card.id
+
+        # Mock compile_url to fail if called
+        call_count = [0]
+        original = main_module.compile_url
+
+        def counting_mock(db_session, url):
+            call_count[0] += 1
+            return original(db_session, url)
+
+        main_module.compile_url = counting_mock
+        try:
+            # POST should redirect without calling compile_url
+            response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
+            assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+
+            # compile_url should NOT have been called
+            assert call_count[0] == 0, \
+                f"compile_url was called {call_count[0]} times (should be 0 for already-compiled)"
+
+            # Item state should be unchanged
+            db.expire_all()
+            refreshed = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+            assert refreshed.status == "compiled", \
+                f"Expected status='compiled', got '{refreshed.status}'"
+            assert refreshed.insight_card_id == original_card_id, \
+                f"insight_card_id changed from {original_card_id} to {refreshed.insight_card_id}"
+            print(f"[OK] Already-compiled item: no re-compile, status unchanged")
+        finally:
+            main_module.compile_url = original
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_source_item_compile_failed_retry_succeeds():
+    """Test that a failed SourceItem can be retried and succeed."""
+    import app.main as main_module
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_retry_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Retry",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="https://example.com/retry-article",
+            title="Retry Test Article",
+            status="failed",
+            error_message="Previous error",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+
+        original = main_module.compile_url
+
+        def fake_success(db_session, url):
+            card = InsightCard(
+                source_url=url,
+                source_type=SourceType.HTML,
+                source_title="Retry Success Card",
+                content_hash="retry-hash",
+                status=CardStatus.COMPLETED,
+                summary_zh="Retry succeeded",
+                relevance_score=85,
+            )
+            db_session.add(card)
+            db_session.commit()
+            db_session.refresh(card)
+            return card
+
+        main_module.compile_url = fake_success
+        try:
+            response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
+            assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+
+            db.expire_all()
+            refreshed = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+            assert refreshed.status == "compiled", \
+                f"Expected status='compiled' after retry, got '{refreshed.status}'"
+            assert refreshed.insight_card_id is not None, \
+                "insight_card_id should be set after retry"
+            assert refreshed.error_message is None, \
+                f"error_message should be cleared after retry, got: {refreshed.error_message}"
+            print(f"[OK] Failed item retried: status=compiled, error cleared")
+        finally:
+            main_module.compile_url = original
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_source_item_compile_route_with_empty_url():
     """Test POST /source-items/{id}/compile with empty URL returns failed status."""
     from app.db import SessionLocal
@@ -1761,6 +1930,8 @@ if __name__ == "__main__":
     test_source_item_compile_route_with_mock_compile_url()
     test_source_item_compile_route_with_failed_card()
     test_source_item_compile_route_with_empty_url()
+    test_source_item_compile_already_compiled_is_idempotent()
+    test_source_item_compile_failed_retry_succeeds()
     test_rss_probe_module_imports()
     test_rss_probe_no_feed_url()
     test_rss_probe_mock_feed()

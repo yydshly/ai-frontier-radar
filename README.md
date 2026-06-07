@@ -161,6 +161,54 @@ python scripts/acceptance_probe_sources.py --isolated-db --repeat 2 --timeout 15
 | GET | `/source-items?source_key=arxiv_cs_ai` | 按来源筛选 |
 | GET | `/sources` | 查看各来源最后探测时间与状态 |
 
+## V0.3.2 SourceItem 编译为 InsightCard
+
+V0.3.2 在 V0.3.1 基础上，将单条 SourceItem 手动编译为 InsightCard 的链路做成可验收、可防重复、可排查的最小闭环。
+
+### 核心链路
+
+```
+SourceItem(discovered)
+-> 手动触发 POST /source-items/{id}/compile
+-> 调用现有 compile_url()
+-> 生成 InsightCard(completed 或 failed)
+-> 回写 SourceItem.insight_card_id
+-> 回写 SourceItem.status = compiled / failed
+-> 页面可查看关联 InsightCard
+-> 重复点击不会无意义重复编译（幂等）
+-> 失败可重试
+```
+
+### 验收脚本
+
+```bash
+# mock-success 模式：不调用真实 LLM，验证完整链路
+python scripts/acceptance_compile_source_item.py --isolated-db --mock-success
+
+# mock-failed 模式：验证失败时仍写入 insight_card_id 和 error_message
+python scripts/acceptance_compile_source_item.py --isolated-db --mock-failed
+
+# use-existing-item 模式：使用已有 SourceItem 验证真实编译
+# 需要先运行 acceptance_probe_sources.py 生成 SourceItem
+python scripts/acceptance_compile_source_item.py --isolated-db --use-existing-item --source-key huggingface_blog
+```
+
+### 说明
+
+- 真实编译依赖 URL 可访问、正文可提取、LLM API Key 可用
+- API Key 缺失时会生成 failed InsightCard，并回写 `SourceItem.status=failed`
+- 已 compiled 的 SourceItem 重复 POST 不会重新调用 `compile_url`（幂等保护）
+- failed 状态可重试，重试成功后 `error_message` 会被清空
+
+### 页面入口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/source-items` | 查看 SourceItem 列表（含编译状态提示） |
+| GET | `/source-items/{id}` | 查看详情，含编译按钮 |
+| POST | `/source-items/{id}/compile` | 手动编译该条目为 InsightCard |
+| GET | `/cards/{id}` | 查看生成的 InsightCard |
+
 ## 技术栈
 
 ```
