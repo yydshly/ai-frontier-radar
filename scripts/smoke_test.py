@@ -972,6 +972,96 @@ def test_html_index_run_records_fetchrun_with_mock_html():
         db.close()
 
 
+def test_html_index_run_records_partial_failed_when_no_candidates():
+    """Test that run_html_index_probe_for_source records partial_failed when no candidate links found."""
+    import httpx
+    from app.sources.html_index_probe import run_html_index_probe_for_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    original_get = httpx.get
+
+    # HTML with only non-article links (about, contact, mailto, static)
+    fake_html = b"""<!DOCTYPE html>
+<html>
+<body>
+  <a href="/">Home</a>
+  <a href="/about">About</a>
+  <a href="/contact">Contact</a>
+  <a href="mailto:test@example.com">Email</a>
+  <a href="/static/logo.png">Logo</a>
+</body>
+</html>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_html.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None, headers=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_no_candidates_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test No Candidates",
+            description="Test source with no article links",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        fetch_run = run_html_index_probe_for_source(db, src)
+
+        assert fetch_run.status == "partial_failed", \
+            f"Expected status='partial_failed', got '{fetch_run.status}'"
+        assert fetch_run.items_found == 0, \
+            f"Expected items_found=0, got {fetch_run.items_found}"
+        assert fetch_run.items_new == 0, \
+            f"Expected items_new=0, got {fetch_run.items_new}"
+        assert fetch_run.items_updated == 0, \
+            f"Expected items_updated=0, got {fetch_run.items_updated}"
+        assert fetch_run.error_message is not None, \
+            "error_message should be set"
+        assert "No candidate article links found" in fetch_run.error_message, \
+            f"Expected 'No candidate article links found' in error, got: {fetch_run.error_message}"
+        print(f"[OK] FetchRun status=partial_failed, error={fetch_run.error_message}")
+
+        # Re-query source and verify last_checked_at updated but last_success_at NOT updated
+        refreshed = db.query(Source).filter(Source.id == src.id).first()
+        assert refreshed.last_checked_at is not None, \
+            "last_checked_at should be updated"
+        assert refreshed.last_error_message is not None, \
+            "last_error_message should be set"
+        assert refreshed.last_success_at is None, \
+            "last_success_at should NOT be updated when no candidates found"
+        print("[OK] Source.last_success_at NOT updated on no_candidates")
+
+        # Verify no SourceItems were created
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        assert len(items) == 0, \
+            f"Expected 0 SourceItems, got {len(items)}"
+        print("[OK] No SourceItems created when no candidates found")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -997,6 +1087,7 @@ if __name__ == "__main__":
     test_html_index_probe_no_homepage_url()
     test_html_index_probe_mock_html()
     test_html_index_run_records_fetchrun_with_mock_html()
+    test_html_index_run_records_partial_failed_when_no_candidates()
     test_compile_missing_api_key()
     test_compile_with_url()
 

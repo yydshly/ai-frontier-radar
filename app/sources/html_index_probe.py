@@ -107,11 +107,13 @@ def probe_html_index_source(
         "items_updated": 0,
         "items_failed": 0,
         "error_message": None,
+        "error_kind": None,
     }
 
     # Validate homepage_url
     if not source.homepage_url:
         result["error_message"] = "homepage_url is not set"
+        result["error_kind"] = "missing_homepage_url"
         return result
 
     # Build request headers
@@ -130,12 +132,15 @@ def probe_html_index_source(
         response.raise_for_status()
     except httpx.TimeoutException:
         result["error_message"] = f"Timeout fetching homepage after {timeout_seconds}s"
+        result["error_kind"] = "timeout"
         return result
     except httpx.HTTPStatusError as e:
         result["error_message"] = f"HTTP {e.response.status_code}: {e.response.reason_phrase}"
+        result["error_kind"] = "http_error"
         return result
     except Exception as e:
         result["error_message"] = f"Request failed: {e}"
+        result["error_kind"] = "request_failed"
         return result
 
     # Parse HTML
@@ -143,6 +148,7 @@ def probe_html_index_source(
         soup = BeautifulSoup(response.text, "html.parser")
     except Exception as e:
         result["error_message"] = f"Failed to parse HTML: {e}"
+        result["error_kind"] = "parse_failed"
         return result
 
     # Find all <a> tags with href
@@ -189,6 +195,7 @@ def probe_html_index_source(
     # If no candidates found, return partial failure
     if not candidates:
         result["error_message"] = "No candidate article links found"
+        result["error_kind"] = "no_candidates"
         return result
 
     # Process each candidate
@@ -270,14 +277,24 @@ def run_html_index_probe_for_source(db: Session, source: Source) -> FetchRun:
         items_found = probe_result["items_found"]
         items_failed = probe_result["items_failed"]
         error_message = probe_result["error_message"]
+        error_kind = probe_result.get("error_kind")
 
-        if error_message:
-            # Page fetch/parse failure
+        if error_kind == "no_candidates":
+            # Page accessible but no candidate links found — partial failure
+            fetch_run.status = "partial_failed"
+            fetch_run.error_message = error_message
+
+            source.last_checked_at = datetime.utcnow()
+            source.last_error_message = error_message
+            # Do NOT update last_success_at — no items were actually discovered
+        elif error_message:
+            # Page fetch/parse failure — full failure
             fetch_run.status = "failed"
             fetch_run.error_message = error_message
 
             source.last_checked_at = datetime.utcnow()
             source.last_error_message = error_message
+            # Do NOT update last_success_at
         elif items_failed > 0 and items_found > items_failed:
             # Some items failed
             fetch_run.status = "partial_failed"
