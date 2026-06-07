@@ -749,6 +749,229 @@ def test_rss_run_records_partial_failed_with_missing_link():
         db.close()
 
 
+def test_html_index_probe_module_imports():
+    """Test that HTML index probe module can be imported."""
+    from app.sources.html_index_probe import (
+        probe_html_index_source,
+        run_html_index_probe_for_source,
+        run_html_index_probe_for_enabled_sources,
+    )
+    assert callable(probe_html_index_source)
+    assert callable(run_html_index_probe_for_source)
+    assert callable(run_html_index_probe_for_enabled_sources)
+    print("[OK] HTML index probe module imports successfully")
+
+
+def test_html_index_probe_no_homepage_url():
+    """Test that probe_html_index_source fails gracefully when homepage_url is not set."""
+    from app.sources.html_index_probe import probe_html_index_source
+    from app.db import SessionLocal
+    from app.models import Source
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_no_homepage_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test No Homepage",
+            description="A test source without homepage URL",
+            source_type="html_index",
+            homepage_url=None,
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        result = probe_html_index_source(db, src)
+        assert result["error_message"] is not None, "Expected error_message for missing homepage_url"
+        assert "homepage_url" in result["error_message"].lower(), \
+            f"Expected 'homepage_url' in error message, got: {result['error_message']}"
+        print(f"[OK] probe_html_index_source fails with no homepage_url: {result['error_message']}")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_html_index_probe_mock_html():
+    """Test probe_html_index_source with a mocked HTML response."""
+    import httpx
+    from app.sources.html_index_probe import probe_html_index_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    original_get = httpx.get
+
+    fake_html = b"""<!DOCTYPE html>
+<html>
+<head><title>Test Blog</title></head>
+<body>
+    <nav><a href="/">Home</a></nav>
+    <main>
+        <a href="/blog/ai-agent-report">AI Agent Report</a>
+        <a href="/news/product-update">Product Update</a>
+        <a href="/about">About</a>
+        <a href="mailto:test@example.com">Email</a>
+        <a href="/static/logo.png">Logo</a>
+        <a href="/research/papers/llm-survey">LLM Survey Paper</a>
+        <a href="/posts/2025/01/ai-trends">AI Trends Post</a>
+    </main>
+</body>
+</html>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_html.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None, headers=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_html_mock_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test HTML Mock",
+            description="Mock HTML index source",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # First probe
+        result1 = probe_html_index_source(db, src)
+        # Should find at least the blog and research links
+        assert result1["items_found"] >= 2, \
+            f"Expected >=2 items_found, got {result1['items_found']}"
+        assert result1["items_new"] >= 2, \
+            f"Expected >=2 items_new, got {result1['items_new']}"
+        assert result1["error_message"] is None, \
+            f"Expected no error, got: {result1['error_message']}"
+        print(f"[OK] First probe: found={result1['items_found']}, new={result1['items_new']}")
+
+        # Second probe — should update, not create new
+        result2 = probe_html_index_source(db, src)
+        assert result2["items_found"] == result1["items_found"]
+        assert result2["items_new"] == 0, \
+            f"Expected 0 new on re-run, got {result2['items_new']}"
+        assert result2["items_updated"] >= 2, \
+            f"Expected >=2 updated on re-run, got {result2['items_updated']}"
+        print(f"[OK] Second probe (idempotent): new={result2['items_new']}, updated={result2['items_updated']}")
+
+        # Verify DB state — /about, mailto, static files should NOT be in DB
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        item_urls = {item.url for item in items}
+
+        assert "https://example.com/about" not in item_urls, \
+            "/about should not be saved"
+        assert "mailto:test@example.com" not in item_urls, \
+            "mailto: links should not be saved"
+        assert not any("logo.png" in url for url in item_urls), \
+            "static assets should not be saved"
+
+        assert "https://example.com/blog/ai-agent-report" in item_urls, \
+            "/blog/ link should be saved"
+        assert "https://example.com/research/papers/llm-survey" in item_urls, \
+            "/research/ link should be saved"
+        print(f"[OK] Filtering works correctly: /about, mailto, static filtered out")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
+def test_html_index_run_records_fetchrun_with_mock_html():
+    """Test that run_html_index_probe_for_source records FetchRun correctly with mock HTML."""
+    import httpx
+    from app.sources.html_index_probe import run_html_index_probe_for_source
+    from app.db import SessionLocal
+    from app.models import Source
+
+    original_get = httpx.get
+
+    fake_html = b"""<!DOCTYPE html>
+<html>
+<body>
+    <a href="/blog/important-article">Important Article</a>
+    <a href="/news/update">News Update</a>
+</body>
+</html>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_html.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None, headers=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_html_run_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test HTML Run",
+            description="Test HTML index source",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        fetch_run = run_html_index_probe_for_source(db, src)
+
+        assert fetch_run.status == "success", \
+            f"Expected status='success', got '{fetch_run.status}'"
+        assert fetch_run.items_found >= 2, \
+            f"Expected items_found >= 2, got {fetch_run.items_found}"
+        assert fetch_run.finished_at is not None, \
+            "finished_at should be set"
+        print(f"[OK] FetchRun status=success, found={fetch_run.items_found}")
+
+        # Re-query source and verify last_checked_at and last_success_at
+        refreshed = db.query(Source).filter(Source.id == src.id).first()
+        assert refreshed.last_checked_at is not None, \
+            "last_checked_at should be updated"
+        assert refreshed.last_success_at is not None, \
+            "last_success_at should be updated"
+        assert refreshed.last_error_message is None, \
+            "last_error_message should be cleared on success"
+        print("[OK] Source state updated correctly on success")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -770,6 +993,10 @@ if __name__ == "__main__":
     test_rss_probe_mock_feed()
     test_rss_run_records_failed_fetchrun_without_feed_url()
     test_rss_run_records_partial_failed_with_missing_link()
+    test_html_index_probe_module_imports()
+    test_html_index_probe_no_homepage_url()
+    test_html_index_probe_mock_html()
+    test_html_index_run_records_fetchrun_with_mock_html()
     test_compile_missing_api_key()
     test_compile_with_url()
 
