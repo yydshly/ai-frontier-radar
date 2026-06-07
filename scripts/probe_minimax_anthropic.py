@@ -44,7 +44,7 @@ def main():
         print(f"[OK] model={active_profile.get('model')}")
         print(f"[OK] base_url={active_profile.get('base_url')}")
         print(f"[OK] endpoint={active_profile.get('endpoint')}")
-        auth_type = active_profile.get("auth_type", "bearer")
+        auth_type = active_profile.get("auth_type", "x-api-key")
         print(f"[OK] auth_type={auth_type}")
         api_key_env = active_profile.get("api_key_env", "")
         print(f"[OK] api_key_env={api_key_env}")

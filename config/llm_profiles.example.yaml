@@ -12,6 +12,7 @@ profiles:
     protocol: anthropic_messages
     base_url: "https://api.minimaxi.com/anthropic"
     api_key_env: "MINIMAX_API_KEY"
+    auth_type: "x-api-key"
     model: "MiniMax-M2.7-highspeed"
     endpoint: "/v1/messages"
     timeout_seconds: 120
@@ -27,6 +28,7 @@ profiles:
     protocol: anthropic_messages
     base_url: "https://api.minimaxi.com/anthropic"
     api_key_env: "MINIMAX_API_KEY"
+    auth_type: "x-api-key"
     model: "MiniMax-M2.7"
     endpoint: "/v1/messages"
     timeout_seconds: 120
@@ -42,6 +44,7 @@ profiles:
     protocol: anthropic_messages
     base_url: "https://api.minimaxi.com/anthropic"
     api_key_env: "MINIMAX_API_KEY"
+    auth_type: "x-api-key"
     model: "MiniMax-M3"
     endpoint: "/v1/messages"
     timeout_seconds: 180
@@ -58,6 +61,7 @@ profiles:
     protocol: anthropic_messages
     base_url: "https://api.minimaxi.com/anthropic"
     api_key_env: "MINIMAX_API_KEY"
+    auth_type: "x-api-key"
     model: "MiniMax-M2.5-highspeed"
     endpoint: "/v1/messages"
     timeout_seconds: 120

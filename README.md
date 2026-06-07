@@ -259,6 +259,72 @@ uvicorn app.main:app --reload
 - **重复 URL + 相同内容 hash**：返回已有卡片，不创建新的
 - **内容过大**：截断到 `MAX_SOURCE_CHARS`
 
+## 诊断脚本
+
+项目提供一组离线诊断脚本，用于验证 LLM 配置和数据库编码：
+
+### smoke_test.py — 基础冒烟测试
+
+```bash
+python scripts/smoke_test.py
+```
+
+验证：健康检查、页面加载、LLM 配置加载、SQLite 目录创建、API Key 缺失时的失败卡片。
+
+### probe_minimax_anthropic.py — MiniMax API 连通性验证
+
+```bash
+python scripts/probe_minimax_anthropic.py
+```
+
+验证内容：
+- `provider`、`protocol`、`model`、`base_url`、`endpoint`
+- `auth_type`（当前 MiniMax 验证通过使用 `x-api-key`）
+- `api_key_env` 环境变量是否配置
+- 调用 MiniMax Anthropic Messages API，确认返回有效 JSON
+
+**安全提示**：`probe_minimax_anthropic.py` 不会打印 API Key 内容，仅显示 `MINIMAX_API_KEY configured: yes/no`。
+
+### check_card_encoding.py — 数据库文本编码检查
+
+检查 SQLite 中卡片的文本字段是否存在乱码（mojibake）。
+
+```bash
+# 检查 smoke test 数据库（默认）
+python scripts/check_card_encoding.py 11
+
+# 指定数据库路径
+python scripts/check_card_encoding.py 11 --db data/test_smoke.db
+python scripts/check_card_encoding.py 11 --db data/ai_frontier_radar.db
+```
+
+- 默认读取 `.env` 中 `DATABASE_URL`；未设置时 fallback 到 `data/test_smoke.db`
+- `--db` 参数覆盖默认数据库路径
+- 不访问网络，不调用 LLM，不需要 API Key
+
+### check_card_page.py — 卡片详情页 HTML 编码检查
+
+使用 TestClient 抓取卡片详情页，验证 HTML 编码和中文内容。
+
+```bash
+# 检查 smoke test 数据库（默认）
+python scripts/check_card_page.py 11
+
+# 指定数据库路径
+python scripts/check_card_page.py 11 --db data/test_smoke.db
+python scripts/check_card_page.py 11 --db data/ai_frontier_radar.db
+```
+
+- `--db` 参数指定数据库路径
+- 不访问网络，不调用 LLM，不需要 API Key
+
+### 数据库说明
+
+| 数据库 | 路径 | 用途 |
+|--------|------|------|
+| smoke test DB | `data/test_smoke.db` | 冒烟测试使用，由 `smoke_test.py` 创建 |
+| 真实运行 DB | `data/ai_frontier_radar.db` | 实际运行数据，由 `uvicorn` 运行时创建 |
+
 ## V0.1 真实端到端验证记录
 
 以下验证于 2026-06-07 完成：

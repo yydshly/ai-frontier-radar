@@ -7,15 +7,25 @@ Does NOT require real API key or network access.
 """
 import os
 import sys
+import argparse
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Parse --db BEFORE importing app, since DATABASE_URL is read at import time
+parser = argparse.ArgumentParser(description="Check card page HTML encoding.")
+parser.add_argument("card_id", type=int, help="Card ID to check")
+parser.add_argument("--db", dest="db_path", type=str, default=None,
+                    help="Path to SQLite DB (default: data/test_smoke.db)")
+args = parser.parse_args()
+
+if args.db_path:
+    db_url = f"sqlite:///{args.db_path.lstrip('/')}"
+else:
+    db_url = "sqlite:///./data/test_smoke.db"
+
+os.environ["DATABASE_URL"] = db_url
+os.environ["LLM_PROFILE"] = "minimax_m27_highspeed_anthropic"
 
 from fastapi.testclient import TestClient
-
-# Set test database
-os.environ["DATABASE_URL"] = "sqlite:///./data/test_smoke.db"
-os.environ["LLM_PROFILE"] = "minimax_m27_highspeed_anthropic"
 
 from app.main import app
 
@@ -92,9 +102,5 @@ def check_card_page(card_id: int):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python check_card_page.py <card_id>")
-        sys.exit(1)
-
-    card_id = int(sys.argv[1])
-    check_card_page(card_id)
+    print(f"[INFO] Using DB: {db_url}")
+    check_card_page(args.card_id)

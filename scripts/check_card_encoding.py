@@ -8,6 +8,7 @@ Does NOT call LLM, access network, or require API key.
 import os
 import sys
 import json
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,16 +20,19 @@ import sqlite3
 from app.config import DATABASE_URL
 
 
-def get_db_path():
-    """Get path to test_smoke.db (where smoke test creates cards)."""
-    # Smoke test uses data/test_smoke.db
+def get_default_db_path():
+    """Get default DB path from DATABASE_URL env var, fallback to data/test_smoke.db."""
+    db_url = os.getenv("DATABASE_URL", "")
+    if db_url and db_url.startswith("sqlite:///"):
+        # Convert sqlite:///./data/foo.db to ./data/foo.db
+        path = db_url.replace("sqlite:///", "", 1)
+        return Path(path)
     return Path("data/test_smoke.db")
 
 
-def check_card(card_id: int):
-    db_path = get_db_path()
+def check_card(card_id: int, db_path: Path):
     if not db_path:
-        print(f"[ERROR] Cannot determine DB path from DATABASE_URL")
+        print("[ERROR] Cannot determine DB path")
         return
 
     if not db_path.exists():
@@ -122,9 +126,16 @@ def check_card(card_id: int):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python check_card_encoding.py <card_id>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Check card encoding for mojibake.")
+    parser.add_argument("card_id", type=int, help="Card ID to check")
+    parser.add_argument("--db", dest="db_path", type=str, default=None,
+                        help="Path to SQLite DB (default: from DATABASE_URL or data/test_smoke.db)")
+    args = parser.parse_args()
 
-    card_id = int(sys.argv[1])
-    check_card(card_id)
+    if args.db_path:
+        db_path = Path(args.db_path)
+    else:
+        db_path = get_default_db_path()
+
+    print(f"[INFO] Using DB: {db_path}")
+    check_card(args.card_id, db_path)
