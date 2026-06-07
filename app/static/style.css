@@ -1042,3 +1042,18 @@ footer {
     background: #fef0ee;
     color: #c0392b;
 }
+
+/* ============================================================
+   V0.4.1 — /cards filter bar inline guide
+   ============================================================ */
+
+.usage-guide-inline {
+    background: #f4f7fb;
+    border-left: 3px solid #6c8eb6;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.75rem;
+    color: #455a72;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    border-radius: 4px;
+}

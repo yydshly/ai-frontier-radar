@@ -86,25 +86,52 @@ def compile_source(url: str = Form(...)):
 
 
 @app.get("/cards", response_class=HTMLResponse)
-def list_cards(request: Request):
-    """List all InsightCards."""
+def list_cards(request: Request, decision: str | None = None):
+    """List InsightCards with optional decision filter.
+
+    V0.4.1: supports ?decision=unhandled | worth_attention | related_to_me |
+    read_later | ignore | to_action. Invalid values are treated as "all".
+    """
     db = next(get_db())
     try:
+        # Normalize filter: 'unhandled' or a known decision value, else empty
+        filter_decision = ""
+        if decision == "unhandled":
+            filter_decision = "unhandled"
+        elif decision and is_valid_decision(decision):
+            filter_decision = decision
+        # else: invalid / empty -> show all (filter_decision stays "")
+
         cards = (
             db.query(InsightCard)
             .order_by(InsightCard.created_at.desc())
             .all()
         )
-        # Pass stable string values for template comparisons
+
+        # V0.4.1: load all decisions in one query (avoid N+1)
+        card_ids = [card.id for card in cards]
+        decision_by_card_id: dict[int, CardDecision] = {}
+        if card_ids:
+            decision_rows = (
+                db.query(CardDecision)
+                .filter(CardDecision.card_id.in_(card_ids))
+                .all()
+            )
+            decision_by_card_id = {row.card_id: row for row in decision_rows}
+
+        # Build cards_data and apply Python-level filter
         cards_data = []
         for card in cards:
-            # Load user's decision (V0.4) — small per-row query is fine for MVP
-            decision_row = (
-                db.query(CardDecision)
-                .filter(CardDecision.card_id == card.id)
-                .first()
-            )
+            decision_row = decision_by_card_id.get(card.id)
             decision_value = decision_row.decision if decision_row else None
+
+            # Apply filter
+            if filter_decision == "unhandled" and decision_value is not None:
+                continue
+            if filter_decision and filter_decision != "unhandled":
+                if decision_value != filter_decision:
+                    continue
+
             cards_data.append({
                 "id": card.id,
                 "source_title": card.source_title,
@@ -116,7 +143,20 @@ def list_cards(request: Request):
                 "decision_value": decision_value,
                 "decision_label": get_decision_label(decision_value),
             })
-        return templates.TemplateResponse("cards.html", {"request": request, "cards": cards_data})
+
+        context = {
+            "request": request,
+            "cards": cards_data,
+            "filter_decision": filter_decision,
+            "decision_options": ALLOWED_CARD_DECISIONS,
+            "decision_filter_options": [
+                ("unhandled", "未处理"),
+                *ALLOWED_CARD_DECISIONS.items(),
+            ],
+            "total_cards": len(cards),
+            "filtered_cards": len(cards_data),
+        }
+        return templates.TemplateResponse("cards.html", context)
     finally:
         db.close()
 

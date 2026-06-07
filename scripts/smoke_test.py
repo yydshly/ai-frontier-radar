@@ -2768,6 +2768,138 @@ def test_v04_post_invalid_decision_rejected():
         db.close()
 
 
+def test_v041_cards_page_filter_ui():
+    """Test that /cards has the V0.4.1 filter UI (处理状态 select)."""
+    response = client.get("/cards")
+    assert response.status_code == 200
+    text = response.text
+    assert "处理状态" in text, "/cards should have a '处理状态' filter label"
+    assert "全部" in text, "/cards should have '全部' (no filter) option"
+    assert "未处理" in text, "/cards should have '未处理' option"
+    assert "值得关注" in text, "/cards should have '值得关注' option"
+    assert "转成行动" in text, "/cards should have '转成行动' option"
+    # Workspace title
+    assert "工作台" in text, "/cards header should be workspace-themed"
+    print("[OK] /cards has V0.4.1 处理状态 filter UI and workspace title")
+
+
+def test_v041_filter_unhandled():
+    """Test that /cards?decision=unhandled shows only cards without a CardDecision."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+    import uuid
+
+    db = SessionLocal()
+    try:
+        # Create an unhandled card
+        unhandled_card = InsightCard(
+            source_url=f"https://example.com/v041-unh-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title=f"V0.4.1 Unhandled Card {uuid.uuid4().hex[:6]}",
+            content_hash=f"v041-unh-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="t",
+        )
+        db.add(unhandled_card)
+        db.commit()
+        db.refresh(unhandled_card)
+
+        # Create a to_action card
+        to_action_card = InsightCard(
+            source_url=f"https://example.com/v041-act-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title=f"V0.4.1 ToAction Card {uuid.uuid4().hex[:6]}",
+            content_hash=f"v041-act-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="t",
+        )
+        db.add(to_action_card)
+        db.commit()
+        db.refresh(to_action_card)
+        db.add(CardDecision(card_id=to_action_card.id, decision="to_action"))
+        db.commit()
+
+        # Filter by unhandled
+        response = client.get("/cards?decision=unhandled")
+        assert response.status_code == 200
+        text = response.text
+        # Unhandled card title should appear
+        assert unhandled_card.source_title in text, \
+            f"Unhandled card '{unhandled_card.source_title}' should appear in /cards?decision=unhandled"
+        # ToAction card title should NOT appear
+        assert to_action_card.source_title not in text, \
+            f"ToAction card '{to_action_card.source_title}' should NOT appear in /cards?decision=unhandled"
+        # Page should mention "未处理"
+        assert "未处理" in text, "Filter page should mention '未处理'"
+        # Should show "已筛选" label
+        assert "已筛选" in text, "Filter should show '已筛选' label"
+        print("[OK] /cards?decision=unhandled shows only unhandled cards")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v041_filter_to_action():
+    """Test that /cards?decision=to_action shows only to_action cards."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+    import uuid
+
+    db = SessionLocal()
+    try:
+        # to_action card
+        to_action_card = InsightCard(
+            source_url=f"https://example.com/v041-ta-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title=f"V0.4.1 ToActionOnly {uuid.uuid4().hex[:6]}",
+            content_hash=f"v041-ta-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="t",
+        )
+        db.add(to_action_card)
+        db.commit()
+        db.refresh(to_action_card)
+        db.add(CardDecision(card_id=to_action_card.id, decision="to_action"))
+        db.commit()
+
+        # Unhandled card
+        unhandled_card = InsightCard(
+            source_url=f"https://example.com/v041-unh2-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title=f"V0.4.1 UnhandledOnly {uuid.uuid4().hex[:6]}",
+            content_hash=f"v041-unh2-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="t",
+        )
+        db.add(unhandled_card)
+        db.commit()
+        db.refresh(unhandled_card)
+
+        response = client.get("/cards?decision=to_action")
+        assert response.status_code == 200
+        text = response.text
+        assert to_action_card.source_title in text, \
+            f"to_action card '{to_action_card.source_title}' should appear in filter"
+        assert unhandled_card.source_title not in text, \
+            f"unhandled card '{unhandled_card.source_title}' should NOT appear in to_action filter"
+        assert "转成行动" in text, "Filter page should mention '转成行动'"
+        print("[OK] /cards?decision=to_action shows only to_action cards")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v041_filter_invalid_does_not_crash():
+    """Test that /cards?decision=not_real returns 200, not 500."""
+    response = client.get("/cards?decision=not_a_real_decision")
+    assert response.status_code == 200, \
+        f"Invalid decision filter should NOT 500; got {response.status_code}"
+    # And the page should not show "已筛选" because invalid = treated as 'all'
+    assert "已筛选" not in response.text, \
+        "Invalid filter should fall back to 'all' (no '已筛选' label)"
+    print("[OK] /cards?decision=not_a_real_decision returns 200 (falls back to 'all')")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -2827,6 +2959,10 @@ if __name__ == "__main__":
     test_v04_post_decision_updates_existing()
     test_v04_cards_list_shows_decision_status()
     test_v04_post_invalid_decision_rejected()
+    test_v041_cards_page_filter_ui()
+    test_v041_filter_unhandled()
+    test_v041_filter_to_action()
+    test_v041_filter_invalid_does_not_crash()
     test_compile_missing_api_key()
     test_compile_with_url()
 

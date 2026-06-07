@@ -458,6 +458,50 @@ python scripts/smoke_test.py
 
 完整产品验收步骤见 [docs/V0.4_PRODUCT_LOOP_ACCEPTANCE.md](docs/V0.4_PRODUCT_LOOP_ACCEPTANCE.md)。
 
+## V0.4.1 按处理状态过滤 InsightCard
+
+V0.4 已允许用户对卡片做判断；V0.4.1 允许用户在 `/cards` 页面按判断结果筛选和回看。
+
+### 支持的过滤值
+
+| Query | 含义 |
+|-------|------|
+| `?decision=unhandled` | 只看还没有判断的卡片 |
+| `?decision=worth_attention` | 只看「值得关注」 |
+| `?decision=related_to_me` | 只看「与我有关」 |
+| `?decision=read_later` | 只看「稍后再看」 |
+| `?decision=ignore` | 只看「暂时忽略」 |
+| `?decision=to_action` | 只看「转成行动」 |
+| 空 | 显示全部 |
+
+非法 `decision` 值不会 500，会按"全部"显示。
+
+### 页面改动
+
+- `/cards` 页面标题升级为「🗂️ 中文洞察卡工作台」
+- 顶部新增处理状态下拉筛选 + 筛选/清空按钮
+- 筛选后显示「共找到 X 张卡片（已筛选：xxx）」
+- 无结果时显示「当前筛选条件下没有 InsightCard。」
+- 顺手消除 N+1：每张卡不再单独查询 `CardDecision`，改为单次 `IN` 查询
+
+### 验收命令
+
+```bash
+# 端到端验收（isolated DB，不污染本地）
+python scripts/acceptance_card_decision_filter.py --isolated-db
+
+# Smoke test
+python scripts/smoke_test.py
+```
+
+### 不做什么
+
+- 不做复杂统计
+- 不做推荐算法
+- 不做导出
+- 不做任务管理
+- 不做 dashboard 看板
+
 ## 技术栈
 
 ```
