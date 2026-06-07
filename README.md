@@ -39,6 +39,32 @@ PDF 提取: pypdf
 LLM: MiniMax Anthropic Messages API（默认）+ OpenAI-compatible（fallback）
 ```
 
+## 系统处理流程
+
+URL 提交后，系统按以下步骤处理：
+
+### 1. URL 抓取
+使用 `httpx` 发送 HTTP GET 请求，根据 `Content-Type` header 判断是 HTML 还是 PDF。
+
+### 2. 正文提取
+- **HTML**：优先使用 `trafilatura` 提取正文；失败时 fallback 到 BeautifulSoup
+- **PDF**：使用 `pypdf` 提取文本
+
+### 3. 正文清洗
+移除多余空白、导航残留、页脚噪音，截断超过 `MAX_SOURCE_CHARS`（60,000 字符）的内容。
+
+### 4. 去重
+对清洗后的正文计算 SHA256 hash。如果同一 URL + 相同 hash 的卡片已存在，直接返回已有卡片。
+
+### 5. LLM 分析
+调用当前 `LLM_PROFILE` 配置的模型，将英文正文编译为中文 InsightCard（摘要、关键事实、技术洞察、产品机会、风险、相关性判断）。
+
+### 6. 保存
+生成的 InsightCard 保存到 SQLite，可在 `/cards` 列表和 `/cards/{id}` 详情页查看。
+
+### 失败卡片
+任何步骤失败都会创建 `failed` 状态的 InsightCard，保存错误原因到详情页供排查。
+
 ## 目录结构
 
 ```

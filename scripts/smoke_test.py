@@ -40,11 +40,16 @@ def test_health():
 
 
 def test_index():
-    """Test index page loads."""
+    """Test index page loads with required content sections."""
     response = client.get("/")
     assert response.status_code == 200
     assert "AI Frontier Radar" in response.text
-    print("[OK] GET / returns 200 with content")
+    assert "系统如何处理 URL" in response.text, "Missing pipeline explanation"
+    assert "trafilatura" in response.text, "Missing trafilatura mention"
+    assert "pypdf" in response.text, "Missing pypdf mention"
+    assert "LLM Profile" in response.text, "Missing LLM Profile section"
+    assert "failed card" in response.text, "Missing failed card mention"
+    print("[OK] GET / returns 200 with all required content")
 
 
 def test_static_css():

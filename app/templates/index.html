@@ -34,6 +34,115 @@
             <h2>📋 已有的 InsightCard</h2>
             <a href="/cards" class="btn-secondary">查看所有卡片 →</a>
         </section>
+
+        <section class="supported-types">
+            <h2>📌 支持的内容类型</h2>
+            <div class="supported-content">
+                <div class="type-item">
+                    <h3>✅ 当前支持</h3>
+                    <ul>
+                        <li>英文 AI 前沿文章网页</li>
+                        <li>英文研究博客 / 公司公告</li>
+                        <li>可直接访问的 PDF 报告</li>
+                    </ul>
+                </div>
+                <div class="type-item">
+                    <h3>❌ 暂不支持</h3>
+                    <ul>
+                        <li>需要登录的网站</li>
+                        <li>Twitter / X</li>
+                        <li>YouTube 视频</li>
+                        <li>扫描版图片 PDF</li>
+                        <li>复杂反爬网站</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section class="pipeline-section">
+            <h2>🔍 系统如何处理 URL</h2>
+            <div class="pipeline-steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h3>抓取网页或 PDF</h3>
+                        <p>系统使用 HTTP 请求获取原始内容，并根据 Content-Type 判断是 HTML 还是 PDF。</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h3>提取正文</h3>
+                        <p>HTML 页面优先使用 <strong>trafilatura</strong> 提取正文，失败时使用 BeautifulSoup fallback。<br>PDF 文件使用 <strong>pypdf</strong> 提取文本。</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h3>清洗内容</h3>
+                        <p>移除多余空白、导航残留、页脚噪音，并限制最大正文长度（60,000 字符）。</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h3>去重</h3>
+                        <p>根据清洗后的正文计算 SHA256 hash，避免同一 URL 和同一内容重复生成卡片。</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">5</div>
+                    <div class="step-content">
+                        <h3>大模型分析</h3>
+                        <p>调用当前配置的 <strong>LLM Profile</strong>，将英文资料编译成中文 InsightCard，包含摘要、关键事实、技术洞察、产品机会、风险和相关性判断。</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-num">6</div>
+                    <div class="step-content">
+                        <h3>保存和查看</h3>
+                        <p>生成结果保存到 SQLite，可在 InsightCard 列表和详情页查看。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="tech-note">
+            <h2>⚙️ 当前 LLM Profile 配置</h2>
+            <div class="tech-detail">
+                <p><strong>当前默认 Profile：</strong><code>minimax_m27_highspeed_anthropic</code></p>
+                <p><strong>默认模型：</strong><code>MiniMax-M2.7-highspeed</code></p>
+                <p><strong>配置文件：</strong><code>config/llm_profiles.yaml</code>（可通过 <code>.env</code> 中的 <code>LLM_PROFILE</code> 切换）</p>
+                <div class="profile-examples">
+                    <p>切换模型示例：</p>
+                    <ul>
+                        <li><code>LLM_PROFILE=minimax_m27_highspeed_anthropic</code> — 默认高速模型</li>
+                        <li><code>LLM_PROFILE=minimax_m3_anthropic</code> — 更高质量模型</li>
+                        <li><code>LLM_PROFILE=openai_compatible_default</code> — OpenAI-compatible fallback</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section class="failure-note">
+            <h2>🔎 失败排查说明</h2>
+            <p>如果处理失败，系统不会直接丢失任务，而是会创建 <strong>failed card</strong>。</p>
+            <p>你可以在详情页看到失败原因，例如：</p>
+            <ul>
+                <li>URL 无法访问</li>
+                <li>正文提取失败</li>
+                <li>PDF 无法解析</li>
+                <li>API Key 未配置</li>
+                <li>大模型返回的 JSON 无法解析</li>
+            </ul>
+            <p>访问 <a href="/cards">InsightCard 列表</a> 查看所有卡片（包括 failed）。</p>
+        </section>
+
+        <section class="limitations-section">
+            <h2>📋 V0.1 当前限制</h2>
+            <p>V0.1 是技术探针 MVP，当前重点是验证单篇资料编译链路。</p>
+            <p>暂不做：批量导入、RSS 订阅、登录注册、多用户、向量数据库、全网爬虫、浏览器插件、复杂推荐算法。</p>
+        </section>
     </main>
 
     <footer>
