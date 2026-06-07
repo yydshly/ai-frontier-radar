@@ -590,6 +590,26 @@ python scripts/smoke_test.py
 
 完整产品验收步骤见 [docs/V0.6_HOME_WORKBENCH_ACCEPTANCE.md](docs/V0.6_HOME_WORKBENCH_ACCEPTANCE.md)。
 
+## V0.7 真实高价值来源覆盖与探测稳定性
+
+V0.7 验证系统能从多个高价值英文 AI 来源（Anthropic、DeepMind、Mistral）发现真实文章，而不是只依赖单一来源。
+
+### 验收命令
+
+```bash
+python scripts/acceptance_real_source_coverage.py --isolated-db --repeat 2 --timeout 15
+python scripts/check_source_item_quality.py --source-key anthropic_news
+```
+
+### 本轮不做什么
+
+- 不批量探测全部来源
+- 不做后台调度
+- 不做浏览器自动化
+- 不调用 LLM
+
+完整产品验收步骤见 [docs/V0.7_REAL_SOURCE_COVERAGE_ACCEPTANCE.md](docs/V0.7_REAL_SOURCE_COVERAGE_ACCEPTANCE.md)。
+
 ## 技术栈
 
 ```

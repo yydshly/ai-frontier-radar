@@ -245,7 +245,7 @@ def probe_html_index_source(
 
     # Build request headers
     headers = {
-        "User-Agent": "AI-Frontier-Radar/0.2 (+https://github.com/yydshly/ai-frontier-radar)"
+        "User-Agent": "AI-Frontier-Radar/0.7 (+https://github.com/yydshly/ai-frontier-radar)"
     }
 
     # Fetch homepage

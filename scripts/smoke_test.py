@@ -3314,6 +3314,70 @@ def test_v06_home_workbench_manual_compile_preserved():
     print("[OK] GET / preserves manual compile and featured sources")
 
 
+# ─── V0.7: Real Source Coverage ────────────────────────────────────────────
+
+
+def test_v07_acceptance_real_source_coverage_exists():
+    """Test that acceptance_real_source_coverage.py exists."""
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "scripts", "acceptance_real_source_coverage.py")
+    assert os.path.exists(path), \
+        "scripts/acceptance_real_source_coverage.py should exist"
+    print("[OK] acceptance_real_source_coverage.py exists")
+
+
+def test_v07_check_source_item_quality_exists():
+    """Test that check_source_item_quality.py exists."""
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "scripts", "check_source_item_quality.py")
+    assert os.path.exists(path), \
+        "scripts/check_source_item_quality.py should exist"
+    print("[OK] check_source_item_quality.py exists")
+
+
+def test_v07_scripts_support_isolated_db():
+    """Test that acceptance scripts support required flags via --help."""
+    import subprocess, sys
+
+    result = subprocess.run(
+        [sys.executable, "scripts/acceptance_real_source_coverage.py", "--help"],
+        capture_output=True, text=True, timeout=10,
+    )
+    combined = result.stdout + result.stderr
+    assert "--isolated-db" in combined, \
+        "acceptance_real_source_coverage.py should support --isolated-db"
+    assert "--source-key" in combined, \
+        "acceptance_real_source_coverage.py should support --source-key"
+    assert "--timeout" in combined, \
+        "acceptance_real_source_coverage.py should support --timeout"
+    assert "--repeat" in combined, \
+        "acceptance_real_source_coverage.py should support --repeat"
+    print("[OK] acceptance_real_source_coverage.py supports required flags")
+
+    result2 = subprocess.run(
+        [sys.executable, "scripts/check_source_item_quality.py", "--help"],
+        capture_output=True, text=True, timeout=10,
+    )
+    combined2 = result2.stdout + result2.stderr
+    assert "--source-key" in combined2, \
+        "check_source_item_quality.py should support --source-key"
+    assert "--limit" in combined2, \
+        "check_source_item_quality.py should support --limit"
+    print("[OK] check_source_item_quality.py supports required flags")
+
+
+def test_v07_html_index_probe_supports_timeout():
+    """Test that HTML index probe runner supports timeout_seconds."""
+    from app.sources.html_index_probe import run_html_index_probe_for_enabled_sources
+    import inspect
+    sig = inspect.signature(run_html_index_probe_for_enabled_sources)
+    assert "timeout_seconds" in sig.parameters, \
+        "run_html_index_probe_for_enabled_sources should accept timeout_seconds"
+    print("[OK] HTML index probe supports timeout_seconds parameter")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -3392,6 +3456,11 @@ if __name__ == "__main__":
     test_v06_home_workbench_quick_actions()
     test_v06_home_workbench_recent_sections()
     test_v06_home_workbench_manual_compile_preserved()
+    # V0.7
+    test_v07_acceptance_real_source_coverage_exists()
+    test_v07_check_source_item_quality_exists()
+    test_v07_scripts_support_isolated_db()
+    test_v07_html_index_probe_supports_timeout()
 
     print("=" * 50)
     print("Smoke test completed!")
