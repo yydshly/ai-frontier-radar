@@ -465,6 +465,94 @@ def test_sources_page():
     print("[OK] GET /sources returns 200 with source data")
 
 
+def test_source_items_page():
+    """Test that /source-items page loads and displays source items."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        # Create a test source
+        test_key = f"test_si_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Source",
+            description="Test source for items page",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create test source items
+        item1 = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/article-agent-{uuid.uuid4().hex[:6]}",
+            title="AI Agent Report",
+            author="Author One",
+            published_at="2025-01-15",
+            status="discovered",
+        )
+        item2 = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/article-model-{uuid.uuid4().hex[:6]}",
+            title="New Model Launch",
+            author="Author Two",
+            published_at="2025-01-16",
+            status="discovered",
+        )
+        db.add(item1)
+        db.add(item2)
+        db.commit()
+
+        # Test basic page load
+        response = client.get("/source-items")
+        assert response.status_code == 200, \
+            f"Expected status 200, got {response.status_code}"
+        text = response.text
+        assert "发现条目" in text or "SourceItem" in text, \
+            "Page should contain '发现条目' or 'SourceItem'"
+        print("[OK] GET /source-items returns 200")
+
+        # Test source_key filter
+        response = client.get(f"/source-items?source_key={test_key}")
+        assert response.status_code == 200
+        assert "AI Agent Report" in response.text, \
+            "AI Agent Report should appear when filtering by source_key"
+        assert "New Model Launch" in response.text, \
+            "New Model Launch should appear when filtering by source_key"
+        print(f"[OK] /source-items?source_key={test_key} shows items")
+
+        # Test q search
+        response = client.get("/source-items?q=Agent")
+        assert response.status_code == 200
+        assert "Agent" in response.text, \
+            "'Agent' should appear in search results"
+        print("[OK] /source-items?q=Agent search works")
+
+        # Test status filter
+        response = client.get("/source-items?status=discovered")
+        assert response.status_code == 200
+        assert "AI Agent Report" in response.text, \
+            "Items with status=discovered should appear"
+        print("[OK] /source-items?status=discovered filter works")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_rss_probe_module_imports():
     """Test that RSS probe module can be imported."""
     from app.sources.rss_probe import (
@@ -1078,6 +1166,7 @@ if __name__ == "__main__":
     test_source_registry_db_models()
     test_source_config_sync_to_db()
     test_sources_page()
+    test_source_items_page()
     test_rss_probe_module_imports()
     test_rss_probe_no_feed_url()
     test_rss_probe_mock_feed()

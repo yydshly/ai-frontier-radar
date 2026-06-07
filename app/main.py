@@ -2,14 +2,14 @@
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.db import get_db, init_db
-from app.models import InsightCard, CardStatus, Source
+from app.models import InsightCard, CardStatus, Source, SourceItem
 from app.schemas import HealthResponse
 from app.sources import sync_sources_config_to_db
 from app.services.insight_compiler import compile_url
@@ -181,6 +181,79 @@ def list_sources_page(request: Request):
             "sources.html",
             {"request": request, "sources": sources_data, "sync_result": sync_result},
         )
+    finally:
+        db.close()
+
+
+@app.get("/source-items", response_class=HTMLResponse)
+def list_source_items_page(
+    request: Request,
+    source_key: str | None = None,
+    status: str | None = None,
+    q: str | None = None,
+):
+    """List discovered SourceItem entries with optional filters."""
+    db = next(get_db())
+    try:
+        # Build query
+        query = db.query(SourceItem)
+
+        if source_key:
+            query = query.filter(SourceItem.source_key == source_key)
+
+        if status:
+            query = query.filter(SourceItem.status == status)
+
+        if q:
+            pattern = f"%{q}%"
+            query = query.filter(
+                (SourceItem.title.ilike(pattern)) | (SourceItem.url.ilike(pattern))
+            )
+
+        items_orm = (
+            query
+            .order_by(SourceItem.last_seen_at.desc(), SourceItem.id.desc())
+            .limit(200)
+            .all()
+        )
+
+        # Get all sources for filter dropdown
+        all_sources = db.query(Source).order_by(Source.source_key.asc()).all()
+
+        # Convert to plain dicts
+        items_data = []
+        for item in items_orm:
+            items_data.append({
+                "id": item.id,
+                "source_key": item.source_key,
+                "title": item.title,
+                "url": item.url,
+                "status": item.status,
+                "published_at": item.published_at,
+                "first_seen_at": item.first_seen_at,
+                "last_seen_at": item.last_seen_at,
+                "insight_card_id": item.insight_card_id,
+            })
+
+        # Fixed status options
+        status_options = [
+            "discovered",
+            "fetched",
+            "compiled",
+            "skipped_duplicate",
+            "failed",
+        ]
+
+        context = {
+            "request": request,
+            "items": items_data,
+            "sources": [{"source_key": s.source_key} for s in all_sources],
+            "status_options": status_options,
+            "filter_source_key": source_key,
+            "filter_status": status,
+            "filter_q": q,
+        }
+        return templates.TemplateResponse("source_items.html", context)
     finally:
         db.close()
 
