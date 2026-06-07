@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发现条目详情 - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>🔍 发现条目详情</h1>
+        <nav>
+            <a href="/source-items">← 返回列表</a>
+            <a href="/sources">信息来源</a>
+            <a href="/">← 返回首页</a>
+        </nav>
+    </header>
+
+    <main>
+        <h2>SourceItem 信息</h2>
+        <table class="detail-table">
+            <tr>
+                <th>ID</th>
+                <td>{{ item.id }}</td>
+            </tr>
+            <tr>
+                <th>来源</th>
+                <td><code>{{ item.source_key }}</code></td>
+            </tr>
+            <tr>
+                <th>标题</th>
+                <td>{{ item.title or '-' }}</td>
+            </tr>
+            <tr>
+                <th>URL</th>
+                <td>
+                    {% if item.url %}
+                    <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.url }}</a>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>状态</th>
+                <td><span class="status status-{{ item.status }}">{{ item.status }}</span></td>
+            </tr>
+            <tr>
+                <th>作者</th>
+                <td>{{ item.author or '-' }}</td>
+            </tr>
+            <tr>
+                <th>发布时间</th>
+                <td>{{ item.published_at or '-' }}</td>
+            </tr>
+            <tr>
+                <th>首次发现</th>
+                <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M:%S') if item.first_seen_at else '-' }}</td>
+            </tr>
+            <tr>
+                <th>最近发现</th>
+                <td>{{ item.last_seen_at.strftime('%Y-%m-%d %H:%M:%S') if item.last_seen_at else '-' }}</td>
+            </tr>
+            <tr>
+                <th>错误信息</th>
+                <td>{{ item.error_message or '-' }}</td>
+            </tr>
+            <tr>
+                <th>关联卡片</th>
+                <td>
+                    {% if item.insight_card_id %}
+                    <a href="/cards/{{ item.insight_card_id }}">#{{ item.insight_card_id }}</a>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+
+        <h2>Source 信息</h2>
+        {% if source %}
+        <table class="detail-table">
+            <tr>
+                <th>source_key</th>
+                <td><code>{{ source.source_key }}</code></td>
+            </tr>
+            <tr>
+                <th>名称</th>
+                <td>{{ source.name }}</td>
+            </tr>
+            <tr>
+                <th>分类</th>
+                <td>{{ source.category }}</td>
+            </tr>
+            <tr>
+                <th>抓取策略</th>
+                <td>{{ source.fetch_strategy }}</td>
+            </tr>
+        </table>
+        {% else %}
+        <p class="empty-state">未找到关联 Source</p>
+        {% endif %}
+
+        <h2>InsightCard 信息</h2>
+        {% if card %}
+        <table class="detail-table">
+            <tr>
+                <th>ID</th>
+                <td>{{ card.id }}</td>
+            </tr>
+            <tr>
+                <th>状态</th>
+                <td><span class="status status-{{ card.status.value }}">{{ card.status.value }}</span></td>
+            </tr>
+            <tr>
+                <th>来源标题</th>
+                <td>{{ card.source_title or '-' }}</td>
+            </tr>
+            <tr>
+                <th>相关性评分</th>
+                <td>{{ card.relevance_score if card.relevance_score is not none else '-' }}</td>
+            </tr>
+            <tr>
+                <th>创建时间</th>
+                <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M:%S') if card.created_at else '-' }}</td>
+            </tr>
+            <tr>
+                <th>查看卡片</th>
+                <td><a href="/cards/{{ card.id }}">/cards/{{ card.id }}</a></td>
+            </tr>
+        </table>
+        {% else %}
+        <p class="empty-state">尚未编译为 InsightCard</p>
+        {% endif %}
+
+        <div class="action-area">
+            {% if item.status != 'compiled' %}
+            <form method="post" action="/source-items/{{ item.id }}/compile">
+                <button type="submit" class="btn-primary">编译为 InsightCard</button>
+            </form>
+            {% else %}
+            <p class="status-note">已编译 — <a href="/cards/{{ item.insight_card_id }}">查看卡片 #{{ item.insight_card_id }}</a></p>
+            {% endif %}
+        </div>
+
+        <p class="page-note">V0.2.7 仅支持单条 SourceItem 手动编译，不支持批量编译。</p>
+    </main>
+
+    <footer>
+        <p>AI Frontier Radar V0.2.7</p>
+    </footer>
+</body>
+</html>

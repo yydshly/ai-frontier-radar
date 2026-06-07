@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发现条目列表 - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>📡 发现条目列表</h1>
+        <nav>
+            <a href="/">← 返回首页</a>
+            <a href="/sources">← 信息来源</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="filter-bar">
+            <form method="get" action="/source-items" class="filter-form">
+                <div class="filter-row">
+                    <label>
+                        来源：
+                        <select name="source_key">
+                            <option value="">全部</option>
+                            {% for src in sources %}
+                            <option value="{{ src.source_key }}" {% if filter_source_key == src.source_key %}selected{% endif %}>
+                                {{ src.source_key }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label>
+                        状态：
+                        <select name="status">
+                            <option value="">全部</option>
+                            {% for s in status_options %}
+                            <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>
+                                {{ s }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label>
+                        搜索：
+                        <input type="text" name="q" value="{{ filter_q or '' }}" placeholder="标题或URL关键词">
+                    </label>
+
+                    <button type="submit" class="btn-primary">查询</button>
+                    <a href="/source-items" class="btn-secondary">清空筛选</a>
+                </div>
+            </form>
+        </div>
+
+        {% if items %}
+        <p class="result-count">共找到 {{ items|length }} 条目{% if filter_source_key or filter_status or filter_q %}（已筛选）{% endif %}</p>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>来源</th>
+                    <th>标题</th>
+                    <th>URL</th>
+                    <th>状态</th>
+                    <th>发布时间</th>
+                    <th>首次发现</th>
+                    <th>最近发现</th>
+                    <th>关联卡片</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
+                    <td><code>{{ item.source_key }}</code></td>
+                    <td class="title-cell">
+                        <a href="/source-items/{{ item.id }}">{{ item.title or '(无标题)' }}</a>
+                    </td>
+                    <td class="url-cell">
+                        <a href="{{ item.url }}" target="_blank" rel="noopener">
+                            {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="status status-{{ item.status }}">{{ item.status }}</span>
+                    </td>
+                    <td>{{ item.published_at or '-' }}</td>
+                    <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
+                    <td>{{ item.last_seen_at.strftime('%Y-%m-%d %H:%M') if item.last_seen_at else '-' }}</td>
+                    <td>
+                        {% if item.insight_card_id %}
+                        <a href="/cards/{{ item.insight_card_id }}">#{{ item.insight_card_id }}</a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-state">
+            暂无发现条目。
+            <a href="/sources">查看信息来源 →</a>
+        </p>
+        {% endif %}
+
+        <p class="page-note">V0.2.7 仅展示已发现条目，不抓取正文，不调用 LLM。</p>
+    </main>
+
+    <footer>
+        <p>V0.2.7 来源发现条目查看</p>
+    </footer>
+</body>
+</html>

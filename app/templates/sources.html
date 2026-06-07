@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>信息来源列表 - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>📡 信息来源列表</h1>
+        <nav>
+            <a href="/">← 返回首页</a>
+        </nav>
+    </header>
+
+    <main>
+        {% if sync_result %}
+        <div class="sync-stats">
+            <span>同步统计：</span>
+            <span>总计 <strong>{{ sync_result.total }}</strong></span>
+            <span>· 新增 <strong>{{ sync_result.created }}</strong></span>
+            <span>· 更新 <strong>{{ sync_result.updated }}</strong></span>
+            <span>· 禁用 <strong>{{ sync_result.disabled }}</strong></span>
+        </div>
+        {% endif %}
+
+        {% if sources %}
+        <table class="sources-table">
+            <thead>
+                <tr>
+                    <th>source_key</th>
+                    <th>名称</th>
+                    <th>分类</th>
+                    <th>类型</th>
+                    <th>抓取策略</th>
+                    <th>启用</th>
+                    <th>主页</th>
+                    <th>Feed URL</th>
+                    <th>间隔(h)</th>
+                    <th>最后检查</th>
+                    <th>最后成功</th>
+                    <th>最后错误</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sources %}
+                <tr>
+                    <td class="key-cell"><code>{{ s.source_key }}</code></td>
+                    <td>{{ s.name }}</td>
+                    <td>{{ s.category }}</td>
+                    <td>{{ s.source_type }}</td>
+                    <td>{{ s.fetch_strategy }}</td>
+                    <td>{{ '是' if s.enabled else '否' }}</td>
+                    <td class="url-cell">
+                        {% if s.homepage_url %}
+                        <a href="{{ s.homepage_url }}" target="_blank" rel="noopener">
+                            {{ s.homepage_url[:50] }}{% if s.homepage_url|length > 50 %}...{% endif %}
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="url-cell">
+                        {% if s.feed_url %}
+                        <a href="{{ s.feed_url }}" target="_blank" rel="noopener">
+                            {{ s.feed_url[:50] }}{% if s.feed_url|length > 50 %}...{% endif %}
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>{{ s.fetch_interval_hours }}</td>
+                    <td>{{ s.last_checked_at.strftime('%Y-%m-%d %H:%M') if s.last_checked_at else '-' }}</td>
+                    <td>{{ s.last_success_at.strftime('%Y-%m-%d %H:%M') if s.last_success_at else '-' }}</td>
+                    <td class="error-cell">
+                        {% if s.last_error_message %}
+                        <span class="error-msg">{{ s.last_error_message[:60] }}{% if s.last_error_message|length > 60 %}...{% endif %}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-state">没有找到信息来源配置。</p>
+        {% endif %}
+
+        <p class="page-note">V0.2.3 仅展示来源配置，不执行抓取。</p>
+        <p><a href="/source-items">查看发现条目 →</a></p>
+    </main>
+
+    <footer>
+        <p>V0.2.3 来源配置同步与查看</p>
+    </footer>
+</body>
+</html>

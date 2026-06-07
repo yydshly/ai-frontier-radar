@@ -9,3 +9,4 @@ venv/
 *.db-journal
 *.log
 config/llm_profiles.yaml
+config/sources.yaml
