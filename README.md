@@ -357,6 +357,52 @@ uvicorn app.main:app --reload --port 8779
 - 状态列下方有中文辅助文字
 - 页面顶部有 V0.3.3 历史分页 URL 提示
 
+## V0.3.5 中文优先人工验收体验
+
+V0.3.5 不是新增编译能力，而是帮助英语能力有限的中文用户更容易从英文 SourceItem 中选择资料，并完成端到端验收。
+
+### 改动
+
+- `/source-items` 页面增加中文「如何使用这个页面？」引导
+- `/source-items` 表格新增「推荐操作」列：
+  - `discovered` → 「进入详情并编译」
+  - `compiled` → 「查看中文卡片」
+  - `failed` → 「查看失败原因 / 重试」
+- `/source-items/{id}` 详情页增加「这是什么？」中文说明
+- 编译按钮附近增加场景化中文提示（discovered / failed / compiled 三态分别说明）
+- 新增 [docs/V0.3.5_MANUAL_ACCEPTANCE.md](docs/V0.3.5_MANUAL_ACCEPTANCE.md) 端到端人工验收文档
+
+### 不做什么
+
+- 不做批量翻译所有 SourceItem
+- 不做批量编译
+- 不做后台队列
+- 不做自动推荐算法
+- 不做向量数据库 / 知识图谱
+- 不新增 `title_zh` 字段
+- 不调用 LLM 批量分析 SourceItem
+
+### 验收命令
+
+```bash
+# 探测 huggingface_blog（重复 2 次，确认幂等）
+python scripts/acceptance_probe_sources.py --repeat 2 --timeout 15 --html-source huggingface_blog
+
+# 启动 web 服务
+uvicorn app.main:app --reload --port 8779
+```
+
+浏览器打开 `http://127.0.0.1:8779/source-items?source_key=huggingface_blog`，确认：
+
+- 页面有「如何使用这个页面？」中文引导
+- 表格有「推荐操作」列
+- `discovered` 条目显示「进入详情并编译」
+- `compiled` 条目显示「查看中文卡片」
+- `failed` 条目显示「查看失败原因 / 重试」
+- 详情页能说明「这是英文前沿资料，可以编译为中文 InsightCard」
+
+完整验收步骤见 [docs/V0.3.5_MANUAL_ACCEPTANCE.md](docs/V0.3.5_MANUAL_ACCEPTANCE.md)。
+
 ## 技术栈
 
 ```

@@ -2033,6 +2033,222 @@ def test_source_items_url_no_truncation_in_page():
         db.close()
 
 
+def test_source_items_v035_usage_guide():
+    """Test that /source-items page contains V0.3.5 Chinese usage guide."""
+    response = client.get("/source-items")
+    assert response.status_code == 200
+    text = response.text
+    # Check Chinese usage guide header and key bullet points
+    assert "如何使用这个页面" in text, \
+        "Page should have '如何使用这个页面' Chinese guide header"
+    assert "编译为 InsightCard" in text, \
+        "Page should mention '编译为 InsightCard' action"
+    assert "当前阶段不自动批量编译" in text, \
+        "Page should note '当前阶段不自动批量编译'"
+    print("[OK] /source-items has V0.3.5 Chinese usage guide")
+
+
+def test_source_items_v035_action_column():
+    """Test that /source-items page contains V0.3.5 recommended action column."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, InsightCard, CardStatus, SourceType
+    import uuid
+
+    db = SessionLocal()
+    try:
+        # Create test source
+        test_key = f"test_act_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Action Column",
+            description="Test recommended action column",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create one item per status
+        discovered_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/disc-{uuid.uuid4().hex[:6]}",
+            title="Discovered Article",
+            status="discovered",
+        )
+        failed_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/fail-{uuid.uuid4().hex[:6]}",
+            title="Failed Article",
+            status="failed",
+            error_message="Test error",
+        )
+
+        # Create a card for compiled item
+        card = InsightCard(
+            source_url="https://example.com/comp",
+            source_type=SourceType.HTML,
+            source_title="Compiled Card",
+            content_hash="test-hash",
+            status=CardStatus.COMPLETED,
+            summary_zh="Test summary",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+
+        compiled_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="https://example.com/comp",
+            title="Compiled Article",
+            status="compiled",
+            insight_card_id=card.id,
+        )
+        db.add(discovered_item)
+        db.add(failed_item)
+        db.add(compiled_item)
+        db.commit()
+
+        response = client.get(f"/source-items?source_key={test_key}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Check action column header
+        assert "推荐操作" in text, \
+            "Page should have '推荐操作' column header"
+
+        # Check all three action labels
+        assert "进入详情并编译" in text, \
+            "Page should show '进入详情并编译' for discovered items"
+        assert "查看中文卡片" in text, \
+            "Page should show '查看中文卡片' for compiled items"
+        assert "查看失败原因" in text, \
+            "Page should show '查看失败原因' for failed items"
+
+        # Check that action links point to the right places
+        assert f"/source-items/{discovered_item.id}" in text, \
+            f"Discovered action should link to /source-items/{discovered_item.id}"
+        assert f"/cards/{card.id}" in text, \
+            f"Compiled action should link to /cards/{card.id}"
+        assert f"/source-items/{failed_item.id}" in text, \
+            f"Failed action should link to /source-items/{failed_item.id}"
+        print(f"[OK] /source-items has V0.3.5 recommended action column with all 3 states")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_source_item_detail_v035_chinese_explanation():
+    """Test that /source-items/{id} detail page has V0.3.5 Chinese explanation."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_dt_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Detail",
+            description="Test detail page",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Test discovered status detail page
+        discovered_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/desc-{uuid.uuid4().hex[:6]}",
+            title="Discovered Article",
+            status="discovered",
+        )
+        db.add(discovered_item)
+        db.commit()
+        db.refresh(discovered_item)
+
+        response = client.get(f"/source-items/{discovered_item.id}")
+        assert response.status_code == 200
+        text = response.text
+        assert "英文前沿来源" in text, \
+            "Detail page should mention '英文前沿来源' in Chinese explanation"
+        assert "中文洞察卡" in text, \
+            "Detail page should mention '中文洞察卡' / InsightCard concept"
+        print("[OK] /source-items/{id} has V0.3.5 Chinese explanation")
+
+        # Test failed status detail page
+        failed_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/fail-{uuid.uuid4().hex[:6]}",
+            title="Failed Article",
+            status="failed",
+            error_message="Test error",
+        )
+        db.add(failed_item)
+        db.commit()
+        db.refresh(failed_item)
+
+        response2 = client.get(f"/source-items/{failed_item.id}")
+        assert response2.status_code == 200
+        text2 = response2.text
+        assert "失败可能来自" in text2 or "API Key" in text2, \
+            "Failed detail page should explain failure reasons"
+        print("[OK] /source-items/{id} (failed) has failure-reason helper text")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v035_manual_acceptance_doc_exists():
+    """Test that docs/V0.3.5_MANUAL_ACCEPTANCE.md exists."""
+    from pathlib import Path
+    doc_path = (
+        Path(__file__).parent.parent / "docs" / "V0.3.5_MANUAL_ACCEPTANCE.md"
+    )
+    assert doc_path.exists(), "docs/V0.3.5_MANUAL_ACCEPTANCE.md not found"
+    text = doc_path.read_text(encoding="utf-8")
+    # Spot-check key sections
+    assert "目标" in text, "Doc should have '目标' section"
+    assert "前置条件" in text, "Doc should have '前置条件' section"
+    assert "常见问题" in text, "Doc should have '常见问题' section"
+    assert "check_listing_source_items.py" in text, \
+        "Doc should reference check_listing_source_items.py"
+    print("[OK] docs/V0.3.5_MANUAL_ACCEPTANCE.md exists with required sections")
+
+
+def test_v035_readme_section():
+    """Test that README contains V0.3.5 section."""
+    from pathlib import Path
+    readme_path = Path(__file__).parent.parent / "README.md"
+    text = readme_path.read_text(encoding="utf-8")
+    assert "V0.3.5 中文优先人工验收体验" in text, \
+        "README should have V0.3.5 section header"
+    assert "推荐操作" in text, \
+        "README V0.3.5 section should mention 推荐操作"
+    print("[OK] README contains V0.3.5 section")
+
+
 def test_html_index_filters_huggingface_listing_pages():
     """Test that Hugging Face blog listing/pagination pages are filtered out."""
     import httpx
@@ -2258,6 +2474,11 @@ if __name__ == "__main__":
     test_check_listing_script_exists()
     test_check_listing_script_imports()
     test_source_items_url_no_truncation_in_page()
+    test_source_items_v035_usage_guide()
+    test_source_items_v035_action_column()
+    test_source_item_detail_v035_chinese_explanation()
+    test_v035_manual_acceptance_doc_exists()
+    test_v035_readme_section()
     test_compile_missing_api_key()
     test_compile_with_url()
 

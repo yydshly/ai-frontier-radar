@@ -17,6 +17,14 @@
     </header>
 
     <main>
+        <div class="usage-guide">
+            <h3>这是什么？</h3>
+            <p>
+                这是一条从英文前沿来源中发现的候选资料。你可以先打开原文确认，也可以直接点击「<strong>编译为 InsightCard</strong>」，
+                系统会尝试抓取正文并生成中文洞察卡。
+            </p>
+        </div>
+
         <h2>SourceItem 信息</h2>
         <table class="detail-table">
             <tr>
@@ -136,25 +144,34 @@
         <div class="action-area">
             {% if item.status == 'discovered' %}
             <p class="status-hint">该条目尚未编译，可手动生成 InsightCard。</p>
+            <p class="status-helper">
+                适合在你看不懂英文标题、但想知道它是否值得关注时使用。
+            </p>
             <form method="post" action="/source-items/{{ item.id }}/compile">
                 <button type="submit" class="btn-primary">编译为 InsightCard</button>
             </form>
             {% elif item.status == 'failed' %}
             <p class="status-hint status-hint-error">上次编译失败：{{ item.error_message }}</p>
+            <p class="status-helper">
+                失败可能来自：网页无法访问、正文抽取失败、API Key 缺失、LLM 调用失败。你可以查看错误信息后重试。
+            </p>
             <form method="post" action="/source-items/{{ item.id }}/compile">
                 <button type="submit" class="btn-primary">重新编译</button>
             </form>
             {% elif item.status == 'compiled' %}
             <p class="status-hint status-hint-success">已编译，可查看关联 InsightCard。</p>
+            <p class="status-helper">
+                卡片会包含中文摘要、关键事实、技术洞察、产品机会、风险、行动建议和相关性评分。
+            </p>
             <p class="status-note"><a href="/cards/{{ item.insight_card_id }}">查看卡片 #{{ item.insight_card_id }}</a></p>
             {% endif %}
         </div>
 
-        <p class="page-note">V0.3.2 支持单条 SourceItem 手动编译为 InsightCard；本阶段不支持批量编译。</p>
+        <p class="page-note">V0.3.5 中文优先人工验收体验：让中文用户更容易从英文 SourceItem 中选择和理解下一步操作。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.3.2 SourceItem 编译验收</p>
+        <p>AI Frontier Radar V0.3.5 SourceItem 编译验收</p>
     </footer>
 </body>
 </html>

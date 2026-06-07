@@ -54,6 +54,16 @@
             </form>
         </div>
 
+        <div class="usage-guide">
+            <h3>如何使用这个页面？</h3>
+            <ol>
+                <li>优先查看标题像具体文章的条目，例如 <code>/blog/xxx</code>、<code>/news/xxx</code>、<code>/research/xxx</code>。</li>
+                <li>如果标题看不懂，可以先点进详情页，再点击「<strong>编译为 InsightCard</strong>」。</li>
+                <li>编译后系统会生成中文摘要、关键事实、技术洞察、产品机会和行动建议。</li>
+                <li>当前阶段不自动批量编译，避免浪费模型额度。</li>
+            </ol>
+        </div>
+
         <p class="page-notice">
             提示：V0.3.3 已过滤新的分页/列表 URL。若仍看到 <code>/blog?p=2</code> 这类记录，说明它们是旧数据库中的历史条目。
             可使用检查脚本 <code>python scripts/check_listing_source_items.py --source-key {{ filter_source_key or 'huggingface_blog' }}</code> 定位，确认后再手动清理或重建本地数据库。
@@ -75,6 +85,7 @@
                         <th>首次发现</th>
                         <th>最近发现</th>
                         <th>关联卡片</th>
+                        <th>推荐操作</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -106,10 +117,17 @@
                         <td>
                             {% if item.insight_card_id %}
                             <a href="/cards/{{ item.insight_card_id }}">#{{ item.insight_card_id }}</a>
-                            {% elif item.status == 'discovered' %}
-                            <a href="/source-items/{{ item.id }}" class="status-hint-link">待编译</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="action-cell">
+                            {% if item.status == 'discovered' %}
+                            <a href="/source-items/{{ item.id }}" class="action-link action-link-primary">进入详情并编译</a>
+                            {% elif item.status == 'compiled' %}
+                            <a href="/cards/{{ item.insight_card_id }}" class="action-link action-link-success">查看中文卡片</a>
                             {% elif item.status == 'failed' %}
-                            <a href="/source-items/{{ item.id }}" class="status-hint-link status-hint-error">编译失败，可重试</a>
+                            <a href="/source-items/{{ item.id }}" class="action-link action-link-error">查看失败原因 / 重试</a>
                             {% else %}
                             -
                             {% endif %}
@@ -131,11 +149,11 @@
         </p>
         {% endif %}
 
-        <p class="page-note">V0.3.4 SourceItem 列表可读性优化与历史分页数据检查。</p>
+        <p class="page-note">V0.3.5 中文优先人工验收体验：让中文用户更容易从英文 SourceItem 中选择和理解下一步操作。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.3.4 来源发现条目查看</p>
+        <p>AI Frontier Radar V0.3.5 来源发现条目查看</p>
     </footer>
 </body>
 </html>

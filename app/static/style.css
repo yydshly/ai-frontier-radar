@@ -798,3 +798,108 @@ footer {
 .source-items-page .filter-bar {
     margin-bottom: 1rem;
 }
+
+/* ============================================================
+   V0.3.5 — Chinese-first usage guide and recommended actions
+   ============================================================ */
+
+.usage-guide {
+    background: #eaf4fb;
+    border-left: 4px solid #2c5aa0;
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    margin: 1rem 0 1.25rem 0;
+    color: #1f3a5f;
+    line-height: 1.7;
+}
+
+.usage-guide h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: #1f3a5f;
+}
+
+.usage-guide ol {
+    margin-left: 1.25rem;
+}
+
+.usage-guide ol li {
+    margin-bottom: 0.35rem;
+    font-size: 0.92rem;
+}
+
+.usage-guide code {
+    background: rgba(44, 90, 160, 0.1);
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85em;
+    color: #1f3a5f;
+}
+
+.usage-guide strong {
+    color: #2c5aa0;
+}
+
+/* Recommended action cell */
+.source-items-table .action-cell {
+    min-width: 160px;
+    white-space: nowrap;
+}
+
+.action-link {
+    display: inline-block;
+    padding: 0.3rem 0.7rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    transition: background 0.15s, color 0.15s;
+}
+
+.action-link-primary {
+    background: #2c5aa0;
+    color: #fff;
+}
+
+.action-link-primary:hover {
+    background: #234a86;
+    color: #fff;
+}
+
+.action-link-success {
+    background: #27ae60;
+    color: #fff;
+}
+
+.action-link-success:hover {
+    background: #1f8b4d;
+    color: #fff;
+}
+
+.action-link-error {
+    background: #fef0ee;
+    color: #c0392b;
+    border-color: #f5b7b1;
+}
+
+.action-link-error:hover {
+    background: #fadbd8;
+    color: #a02d20;
+}
+
+/* Status helper text on detail page */
+.status-helper {
+    background: #f8f9fa;
+    color: #555;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    margin: 0.5rem 0 1rem 0;
+}
+
+.status-helper strong {
+    color: #2c3e50;
+}
