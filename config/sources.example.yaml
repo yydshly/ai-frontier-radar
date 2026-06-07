@@ -1,0 +1,134 @@
+# V0.2 Source Registry 配置模板
+# 复制为 sources.yaml 并填入真实来源：
+#   cp config/sources.example.yaml config/sources.yaml
+
+sources:
+  openai_news:
+    name: "OpenAI News"
+    description: "OpenAI 官方产品、模型和研究公告"
+    type: "html_index"
+    homepage_url: "https://openai.com/news/"
+    feed_url: null
+    category: "company"
+    tags: ["OpenAI", "frontier-models", "product", "agent"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注 OpenAI 模型能力、产品发布、Agent、开发者工具。"
+    fetch_interval_hours: 24
+
+  anthropic_news:
+    name: "Anthropic News"
+    description: "Anthropic 官方公告、Claude、AI Safety 和 Agent 相关内容"
+    type: "html_index"
+    homepage_url: "https://www.anthropic.com/news"
+    feed_url: null
+    category: "company"
+    tags: ["Anthropic", "Claude", "AI安全", "agent"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注 Claude、AI Safety、Agent、企业应用。"
+    fetch_interval_hours: 24
+
+  deepmind_blog:
+    name: "Google DeepMind Blog"
+    description: "DeepMind 研究博客，覆盖 AlphaFold、Gemini、围棋 AI 等"
+    type: "html_index"
+    homepage_url: "https://deepmind.google/discover/blog/"
+    feed_url: null
+    category: "research"
+    tags: ["DeepMind", "research", "AlphaFold", "Gemini", "multimodal"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注 Gemini、多模态、AI for Science 相关研究。"
+    fetch_interval_hours: 24
+
+  huggingface_blog:
+    name: "Hugging Face Blog"
+    description: "Hugging Face 博客，覆盖开源模型、Transformers、Diffusers 等"
+    type: "html_index"
+    homepage_url: "https://huggingface.co/blog"
+    feed_url: null
+    category: "open_source"
+    tags: ["HuggingFace", "open-source", "LLM", "Transformers", "community"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注开源模型发布、State-of-the-Art 模型、Transformers 更新。"
+    fetch_interval_hours: 24
+
+  arxiv_cs_ai:
+    name: "arXiv cs.AI"
+    description: "arXiv 人工智能方向最新论文 RSS"
+    type: "rss"
+    homepage_url: "https://arxiv.org/list/cs.AI/recent"
+    feed_url: "https://export.arxiv.org/rss/cs.AI"
+    category: "paper"
+    tags: ["paper", "research", "agent", "AI", "arXiv"]
+    enabled: true
+    fetch_strategy: "rss"
+    relevance_hint: "重点关注 Agent、推理、RAG、文档理解、AI Safety 相关论文。"
+    fetch_interval_hours: 24
+
+  arxiv_cs_cl:
+    name: "arXiv cs.CL"
+    description: "arXiv 计算语言学方向最新论文 RSS"
+    type: "rss"
+    homepage_url: "https://arxiv.org/list/cs.CL/recent"
+    feed_url: "https://export.arxiv.org/rss/cs.CL"
+    category: "paper"
+    tags: ["paper", "research", "NLP", "LLM", "arXiv"]
+    enabled: true
+    fetch_strategy: "rss"
+    relevance_hint: "重点关注大语言模型、NLP 架构、推理优化、对话系统相关论文。"
+    fetch_interval_hours: 24
+
+  arxiv_cs_lg:
+    name: "arXiv cs.LG"
+    description: "arXiv 机器学习方向最新论文 RSS"
+    type: "rss"
+    homepage_url: "https://arxiv.org/list/cs.LG/recent"
+    feed_url: "https://export.arxiv.org/rss/cs.LG"
+    category: "paper"
+    tags: ["paper", "research", "ML", "deep-learning", "arXiv"]
+    enabled: true
+    fetch_strategy: "rss"
+    relevance_hint: "重点关注深度学习理论、训练方法、优化算法相关论文。"
+    fetch_interval_hours: 24
+
+  stanford_hai:
+    name: "Stanford HAI"
+    description: "Stanford Human-Centered AI Institute 博客"
+    type: "html_index"
+    homepage_url: "https://hai.stanford.edu/news"
+    feed_url: null
+    category: "research"
+    tags: ["Stanford", "HAI", "policy", "AI-society", "research"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注 AI 政策、AI 社会影响、人机交互研究。"
+    fetch_interval_hours: 24
+
+  mit_news_ai:
+    name: "MIT News AI"
+    description: "MIT 新闻 AI 板块，覆盖 AI 研究进展"
+    type: "html_index"
+    homepage_url: "https://news.mit.edu/topic/artificial-intelligence-0807"
+    feed_url: null
+    category: "research"
+    tags: ["MIT", "research", "AI", "robotics", "policy"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注 AI 机器人研究、AI 政策、AI 安全相关报道。"
+    fetch_interval_hours: 24
+
+  meta_ai_blog:
+    name: "Meta AI Blog"
+    description: "Meta AI 研究博客，覆盖 LLaMA、Segment Anything、MusicGen 等"
+    type: "html_index"
+    homepage_url: "https://ai.meta.com/blog/"
+    feed_url: null
+    category: "company"
+    tags: ["Meta", "LLaMA", "open-source", "multimodal", "research"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注开源模型、多模态、Agents 研究。"
+    fetch_interval_hours: 24

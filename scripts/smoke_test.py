@@ -246,6 +246,41 @@ def test_utility_scripts_exist():
     print("[OK] Utility scripts exist")
 
 
+def test_source_config():
+    """Test that source registry config loads and validates correctly."""
+    from app.sources import list_sources, get_source, get_enabled_sources
+
+    all_sources = list_sources(include_disabled=True)
+    assert len(all_sources) >= 8, \
+        f"Expected at least 8 sources, got {len(all_sources)}"
+
+    enabled = get_enabled_sources()
+    assert len(enabled) >= 3, \
+        f"Expected at least 3 enabled sources, got {len(enabled)}"
+
+    # Check required sources exist
+    required_keys = {"openai_news", "anthropic_news", "arxiv_cs_ai"}
+    for key in required_keys:
+        src = get_source(key)
+        assert src is not None, f"Required source '{key}' not found"
+
+    # get_source returns None for unknown keys
+    assert get_source("not_exists") is None, \
+        "get_source('not_exists') should return None"
+
+    # get_enabled_sources count matches filtering
+    enabled_keys = {s.source_key for s in all_sources if s.enabled}
+    assert {s.source_key for s in enabled} == enabled_keys, \
+        "get_enabled_sources() count mismatch"
+
+    print("[OK] Source config loads correctly")
+    print(f"     total sources: {len(all_sources)}")
+    print(f"     enabled sources: {len(enabled)}")
+    for s in all_sources:
+        status = "enabled" if s.enabled else "disabled"
+        print(f"     {s.source_key}: {s.category}/{s.fetch_strategy} [{status}]")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -258,6 +293,7 @@ if __name__ == "__main__":
     test_llm_profile_config()
     test_sqlite_parent_dir_creation()
     test_utility_scripts_exist()
+    test_source_config()
     test_compile_missing_api_key()
     test_compile_with_url()
 

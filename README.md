@@ -276,6 +276,78 @@ python scripts/check_dependencies.py
 
 > **注意**：不要直接修改业务代码来规避 Starlette / Jinja2 兼容性问题。
 
+## Source Registry 配置
+
+V0.2 新增了信息来源配置模块，可以自定义关注哪些 AI 前沿来源。
+
+### 配置文件
+
+```bash
+# 复制示例配置
+cp config/sources.example.yaml config/sources.yaml
+```
+
+- `config/sources.example.yaml` — 捆绑的示例配置（纳入版本控制）
+- `config/sources.yaml` — 用户本地自定义配置（**不提交**，已在 `.gitignore` 中忽略）
+
+### 新增来源
+
+在 `config/sources.yaml` 的 `sources` 节点下新增条目：
+
+```yaml
+sources:
+  my_source:
+    name: "My Source"
+    description: "来源描述"
+    type: "html_index"
+    homepage_url: "https://..."
+    feed_url: null
+    category: "company"
+    tags: ["tag1", "tag2"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "关注重点..."
+    fetch_interval_hours: 24
+```
+
+### source_key 命名规则
+
+- 只能包含小写字母、数字、下划线
+- 必须以小写字母开头
+- 示例：`openai_news`、`anthropic_news`、`arxiv_cs_ai`
+
+### RSS 来源字段要求
+
+```yaml
+type: "rss"
+feed_url: "https://..."     # 必须有
+```
+
+### HTML Index 来源字段要求
+
+```yaml
+type: "html_index"
+homepage_url: "https://..."  # 必须有
+```
+
+### 验证配置
+
+```bash
+python scripts/check_sources_config.py
+```
+
+应输出：
+
+```
+[OK] loaded sources config: config/sources.yaml
+[OK] total sources: 10
+[OK] enabled sources: 10
+[OK] categories: company=4, research=3, paper=3
+[OK] strategies: html_index=7, rss=3
+```
+
+> **注意**：V0.2.1 仅加载配置，不抓取网络。抓取功能在 V0.2.4 / V0.2.5 中实现。
+
 ## 使用流程
 
 ### 1. 提交 URL
