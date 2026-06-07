@@ -3542,6 +3542,121 @@ def test_v071_mistral_key_not_in_docs():
     print("[OK] Docs do not contain wrong 'mistral_ai' key as command argument")
 
 
+def test_v072_acceptance_cross_source_compile_exists():
+    """Test that acceptance_cross_source_compile.py exists and supports required args."""
+    from pathlib import Path
+    script_path = Path(__file__).parent / "acceptance_cross_source_compile.py"
+    assert script_path.exists(), "acceptance_cross_source_compile.py not found"
+
+    import subprocess, sys
+    result = subprocess.run(
+        [sys.executable, str(script_path), "--help"],
+        capture_output=True, text=True, timeout=10,
+    )
+    combined = result.stdout + result.stderr
+    assert "--isolated-db" in combined, "should support --isolated-db"
+    assert "--source-key" in combined, "should support --source-key"
+    assert "--timeout" in combined, "should support --timeout"
+    assert "--keep-db" in combined, "should support --keep-db"
+    assert "--mock-llm" in combined, "should support --mock-llm"
+    print("[OK] acceptance_cross_source_compile.py exists with required arguments")
+
+
+def test_v072_insight_quality_module_imports():
+    """Test that insight_quality module can be imported and has inspect function."""
+    from app.services.insight_quality import inspect_insight_card_quality
+    assert callable(inspect_insight_card_quality)
+    print("[OK] insight_quality module imports with inspect_insight_card_quality")
+
+
+def test_v072_insight_quality_with_mock_card():
+    """Test inspect_insight_card_quality with a mock completed card."""
+    from app.services.insight_quality import inspect_insight_card_quality
+    from app.models import InsightCard, CardStatus
+    import json
+
+    # Create a mock completed card
+    mock_card = InsightCard(
+        source_url="https://example.com/test",
+        source_type=1,
+        source_title="Test Article",
+        content_hash="mock-hash",
+        status=CardStatus.COMPLETED,
+        summary_zh="这是中文摘要",
+        key_points_zh=json.dumps(["关键点1", "关键点2"]),
+        technical_insights_zh=json.dumps(["技术洞察1"]),
+        product_opportunities_zh=json.dumps([]),
+        risks_zh=json.dumps([]),
+        action_items_zh=json.dumps(["行动项1"]),
+        relevance_score=85,
+        relevance_reasons_zh=json.dumps(["理由1"]),
+        related_user_directions=json.dumps(["AI Agent"]),
+        model_name="mock-model",
+    )
+
+    result = inspect_insight_card_quality(mock_card)
+    assert result["summary_present"] is True, "summary should be present"
+    assert result["key_points_count"] == 2, "should have 2 key points"
+    assert result["technical_insights_count"] == 1, "should have 1 technical insight"
+    assert result["action_items_count"] == 1, "should have 1 action item"
+    assert result["relevance_score_present"] is True, "relevance score should be present"
+    assert result["passed_minimum_quality"] is True, "should pass minimum quality"
+    assert len(result["warnings"]) == 0, "should have no warnings"
+    print("[OK] inspect_insight_card_quality passes with mock completed card")
+
+
+def test_v072_insight_quality_empty_fields():
+    """Test inspect_insight_card_quality handles empty/bad fields without crashing."""
+    from app.services.insight_quality import inspect_insight_card_quality
+    from app.models import InsightCard, CardStatus
+
+    # Card with empty fields
+    bad_card = InsightCard(
+        source_url="https://example.com/test",
+        source_type=1,
+        source_title="Test",
+        content_hash="bad-hash",
+        status=CardStatus.COMPLETED,
+        summary_zh="",  # Empty summary
+        key_points_zh=None,
+        technical_insights_zh="not valid json",  # Bad JSON
+        product_opportunities_zh="[]",
+        risks_zh=None,
+        action_items_zh=None,
+        relevance_score=0,  # Zero score
+    )
+
+    result = inspect_insight_card_quality(bad_card)
+    assert result["summary_present"] is False, "empty summary should not be present"
+    assert result["passed_minimum_quality"] is False, "should fail minimum quality"
+    assert len(result["warnings"]) > 0, "should have warnings"
+    print("[OK] inspect_insight_card_quality handles empty/bad fields gracefully")
+
+
+def test_v072_inspect_failed_card():
+    """Test inspect_insight_card_quality with a failed card."""
+    from app.services.insight_quality import inspect_insight_card_quality
+    from app.models import InsightCard, CardStatus
+
+    failed_card = InsightCard(
+        source_url="https://example.com/test",
+        source_type=1,
+        content_hash="fail-hash",
+        status=CardStatus.FAILED,
+        error_message="LLM API call failed",
+        summary_zh=None,
+        relevance_score=0,
+    )
+
+    result = inspect_insight_card_quality(failed_card)
+    assert result["summary_present"] is False
+    assert result["passed_minimum_quality"] is False
+    # Failed card should produce warnings
+    failed_warnings = [w for w in result["warnings"] if "FAILED" in w or "empty" in w]
+    assert len(failed_warnings) > 0, "Failed card should have warnings"
+    print("[OK] inspect_insight_card_quality handles failed card correctly")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -3635,6 +3750,12 @@ if __name__ == "__main__":
     test_v071_mistral_news_is_expected()
     test_v071_quality_classify_returns_all_fields()
     test_v071_mistral_key_not_in_docs()
+    # V0.7.2 cross-source compile tests
+    test_v072_acceptance_cross_source_compile_exists()
+    test_v072_insight_quality_module_imports()
+    test_v072_insight_quality_with_mock_card()
+    test_v072_insight_quality_empty_fields()
+    test_v072_inspect_failed_card()
 
     print("=" * 50)
     print("Smoke test completed!")
