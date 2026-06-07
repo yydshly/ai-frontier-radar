@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>发现条目列表 - AI Frontier Radar</title>
+    <title>待编译资料收件箱 - AI Frontier Radar</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <h1>📡 发现条目列表</h1>
+        <h1>📥 待编译资料收件箱</h1>
         <nav>
             <a href="/">← 返回首页</a>
             <a href="/sources">← 信息来源</a>
@@ -81,11 +81,11 @@
                         <th>标题</th>
                         <th>URL</th>
                         <th>状态</th>
+                        <th>推荐操作</th>
                         <th>发布时间</th>
                         <th>首次发现</th>
                         <th>最近发现</th>
                         <th>关联卡片</th>
-                        <th>推荐操作</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -102,13 +102,32 @@
                             </a>
                         </td>
                         <td class="status-cell">
-                            <span class="status status-{{ item.status }}">{{ item.status }}</span>
                             {% if item.status == 'discovered' %}
-                            <small class="muted block">待编译</small>
+                            <strong>待编译</strong>
+                            <small class="muted block">discovered · 可生成中文 InsightCard</small>
                             {% elif item.status == 'compiled' %}
-                            <small class="muted block">已编译</small>
+                            <strong>已编译</strong>
+                            <small class="muted block">compiled · 已生成中文卡片</small>
                             {% elif item.status == 'failed' %}
-                            <small class="muted block">失败</small>
+                            <strong>失败</strong>
+                            <small class="muted block">failed · 可查看原因后重试</small>
+                            {% else %}
+                            <strong>{{ item.status }}</strong>
+                            {% endif %}
+                        </td>
+                        <td class="action-cell">
+                            {% if item.status == 'discovered' %}
+                            <a href="/source-items/{{ item.id }}" class="action-link action-link-primary">进入详情并编译</a>
+                            {% elif item.status == 'compiled' %}
+                            {% if item.insight_card_id %}
+                            <a href="/cards/{{ item.insight_card_id }}" class="action-link action-link-success">查看中文卡片</a>
+                            {% else %}
+                            <a href="/source-items/{{ item.id }}" class="action-link">查看详情</a>
+                            {% endif %}
+                            {% elif item.status == 'failed' %}
+                            <a href="/source-items/{{ item.id }}" class="action-link action-link-warning">查看失败原因 / 重试</a>
+                            {% else %}
+                            -
                             {% endif %}
                         </td>
                         <td>{{ item.published_at or '-' }}</td>
@@ -117,17 +136,6 @@
                         <td>
                             {% if item.insight_card_id %}
                             <a href="/cards/{{ item.insight_card_id }}">#{{ item.insight_card_id }}</a>
-                            {% else %}
-                            -
-                            {% endif %}
-                        </td>
-                        <td class="action-cell">
-                            {% if item.status == 'discovered' %}
-                            <a href="/source-items/{{ item.id }}" class="action-link action-link-primary">进入详情并编译</a>
-                            {% elif item.status == 'compiled' %}
-                            <a href="/cards/{{ item.insight_card_id }}" class="action-link action-link-success">查看中文卡片</a>
-                            {% elif item.status == 'failed' %}
-                            <a href="/source-items/{{ item.id }}" class="action-link action-link-error">查看失败原因 / 重试</a>
                             {% else %}
                             -
                             {% endif %}
@@ -149,11 +157,11 @@
         </p>
         {% endif %}
 
-        <p class="page-note">V0.3.5 中文优先人工验收体验：让中文用户更容易从英文 SourceItem 中选择和理解下一步操作。</p>
+        <p class="page-note">把 /source-items 优化为「待编译资料收件箱」，每行都明确告诉你下一步能做什么。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.3.5 来源发现条目查看</p>
+        <p>AI Frontier Radar 待编译资料收件箱</p>
     </footer>
 </body>
 </html>

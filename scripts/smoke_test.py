@@ -638,8 +638,8 @@ def test_source_items_page():
         assert response.status_code == 200, \
             f"Expected status 200, got {response.status_code}"
         text = response.text
-        assert "发现条目" in text or "SourceItem" in text, \
-            "Page should contain '发现条目' or 'SourceItem'"
+        assert "发现条目" in text or "SourceItem" in text or "收件箱" in text, \
+            "Page should contain '发现条目' or 'SourceItem' or '收件箱'"
         print("[OK] GET /source-items returns 200")
 
         # Test source_key filter
@@ -2249,6 +2249,98 @@ def test_v035_readme_section():
     print("[OK] README contains V0.3.5 section")
 
 
+def test_source_items_inbox_refined_status_cell():
+    """Test refined status cell shows Chinese-first copy with technical value as small text."""
+    response = client.get("/source-items")
+    assert response.status_code == 200
+    text = response.text
+    # New status copy should be present in the template
+    assert "可生成中文 InsightCard" in text, \
+        "Status cell should show '可生成中文 InsightCard' for discovered"
+    assert "已生成中文卡片" in text, \
+        "Status cell should show '已生成中文卡片' for compiled"
+    assert "可查看原因后重试" in text, \
+        "Status cell should show '可查看原因后重试' for failed"
+    print("[OK] /source-items has refined Chinese-first status cell copy")
+
+
+def test_source_items_inbox_action_column_position():
+    """Test that '推荐操作' column appears right after '状态' column."""
+    from pathlib import Path
+    template_path = (
+        Path(__file__).parent.parent / "app" / "templates" / "source_items.html"
+    )
+    text = template_path.read_text(encoding="utf-8")
+
+    # Find header positions
+    pos_status = text.find("<th>状态</th>")
+    pos_action = text.find("<th>推荐操作</th>")
+
+    assert pos_status != -1, "Should have <th>状态</th> header"
+    assert pos_action != -1, "Should have <th>推荐操作</th> header"
+    assert pos_action > pos_status, \
+        "推荐操作 column should come AFTER 状态 column"
+    # Action column should appear before the time-related columns
+    pos_published = text.find("<th>发布时间</th>")
+    assert pos_action < pos_published, \
+        "推荐操作 column should come BEFORE 发布时间 column (no horizontal scroll needed)"
+
+    delta = pos_action - pos_status
+    print(f"[OK] '推荐操作' column positioned right after '状态' (delta={delta} chars)")
+
+
+def test_source_items_inbox_action_column_compiled_without_card():
+    """Test that compiled item without insight_card_id shows '查看详情' fallback."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_no_card_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test No Card",
+            description="Test compiled item without card",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Compiled item WITHOUT insight_card_id
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/comp-no-card-{uuid.uuid4().hex[:6]}",
+            title="Compiled Without Card",
+            status="compiled",
+            insight_card_id=None,
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/source-items?source_key={test_key}")
+        assert response.status_code == 200
+        text = response.text
+        # Should show "查看详情" fallback, NOT "查看中文卡片"
+        assert "查看详情" in text, \
+            "Compiled item without insight_card_id should show '查看详情' fallback"
+        print("[OK] Compiled item without card shows '查看详情' fallback")
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_html_index_filters_huggingface_listing_pages():
     """Test that Hugging Face blog listing/pagination pages are filtered out."""
     import httpx
@@ -2476,6 +2568,9 @@ if __name__ == "__main__":
     test_source_items_url_no_truncation_in_page()
     test_source_items_v035_usage_guide()
     test_source_items_v035_action_column()
+    test_source_items_inbox_refined_status_cell()
+    test_source_items_inbox_action_column_position()
+    test_source_items_inbox_action_column_compiled_without_card()
     test_source_item_detail_v035_chinese_explanation()
     test_v035_manual_acceptance_doc_exists()
     test_v035_readme_section()

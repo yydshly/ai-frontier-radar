@@ -849,44 +849,50 @@ footer {
 
 .action-link {
     display: inline-block;
-    padding: 0.3rem 0.7rem;
-    border-radius: 4px;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    background: #e8f3ff;
+    color: #1d6fb8;
     text-decoration: none;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 500;
-    border: 1px solid transparent;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.15s;
+}
+
+.action-link:hover {
+    background: #d7ecff;
+    text-decoration: none;
+    color: #1d6fb8;
 }
 
 .action-link-primary {
-    background: #2c5aa0;
-    color: #fff;
+    background: #e8f3ff;
+    color: #1d6fb8;
 }
 
 .action-link-primary:hover {
-    background: #234a86;
-    color: #fff;
+    background: #d7ecff;
+    color: #1d6fb8;
 }
 
 .action-link-success {
-    background: #27ae60;
-    color: #fff;
+    background: #e9f8ef;
+    color: #1f7a3f;
 }
 
 .action-link-success:hover {
-    background: #1f8b4d;
-    color: #fff;
+    background: #d6f0e0;
+    color: #1f7a3f;
 }
 
-.action-link-error {
-    background: #fef0ee;
-    color: #c0392b;
-    border-color: #f5b7b1;
+.action-link-warning {
+    background: #fff4e5;
+    color: #9a5b00;
 }
 
-.action-link-error:hover {
-    background: #fadbd8;
-    color: #a02d20;
+.action-link-warning:hover {
+    background: #ffe8cc;
+    color: #9a5b00;
 }
 
 /* Status helper text on detail page */
