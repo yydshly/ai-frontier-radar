@@ -144,10 +144,18 @@ def list_cards(request: Request, decision: str | None = None):
                 "decision_label": get_decision_label(decision_value),
             })
 
+        # Determine filter label for template display
+        filter_decision_label = ""
+        if filter_decision == "unhandled":
+            filter_decision_label = "未处理"
+        elif filter_decision and is_valid_decision(filter_decision):
+            filter_decision_label = get_decision_label(filter_decision)
+
         context = {
             "request": request,
             "cards": cards_data,
             "filter_decision": filter_decision,
+            "filter_decision_label": filter_decision_label,
             "decision_options": ALLOWED_CARD_DECISIONS,
             "decision_filter_options": [
                 ("unhandled", "未处理"),

@@ -35,10 +35,11 @@
             </form>
         </div>
 
-        {% if cards %}
         <p class="result-count">
-            共找到 <strong>{{ filtered_cards }}</strong> 张卡片{% if filter_decision %}（已筛选：{{ filter_decision }}）{% else %}（共 {{ total_cards }} 张）{% endif %}
+            共找到 <strong>{{ filtered_cards }}</strong> 张卡片{% if filter_decision_label %}（已筛选：{{ filter_decision_label }}）{% else %}（共 {{ total_cards }} 张）{% endif %}
         </p>
+
+        {% if cards %}
 
         <div class="table-scroll">
             <table class="cards-table">

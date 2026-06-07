@@ -494,6 +494,8 @@ python scripts/acceptance_card_decision_filter.py --isolated-db
 python scripts/smoke_test.py
 ```
 
+V0.4.1 polish：筛选结果显示中文处理状态；筛选后 0 结果也显示数量；smoke test 不应污染本地数据库。
+
 ### 不做什么
 
 - 不做复杂统计

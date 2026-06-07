@@ -2790,6 +2790,7 @@ def test_v041_filter_unhandled():
     import uuid
 
     db = SessionLocal()
+    created_card_ids = []
     try:
         # Create an unhandled card
         unhandled_card = InsightCard(
@@ -2803,6 +2804,7 @@ def test_v041_filter_unhandled():
         db.add(unhandled_card)
         db.commit()
         db.refresh(unhandled_card)
+        created_card_ids.append(unhandled_card.id)
 
         # Create a to_action card
         to_action_card = InsightCard(
@@ -2816,7 +2818,10 @@ def test_v041_filter_unhandled():
         db.add(to_action_card)
         db.commit()
         db.refresh(to_action_card)
-        db.add(CardDecision(card_id=to_action_card.id, decision="to_action"))
+        created_card_ids.append(to_action_card.id)
+
+        decision = CardDecision(card_id=to_action_card.id, decision="to_action")
+        db.add(decision)
         db.commit()
 
         # Filter by unhandled
@@ -2829,13 +2834,21 @@ def test_v041_filter_unhandled():
         # ToAction card title should NOT appear
         assert to_action_card.source_title not in text, \
             f"ToAction card '{to_action_card.source_title}' should NOT appear in /cards?decision=unhandled"
-        # Page should mention "未处理"
-        assert "未处理" in text, "Filter page should mention '未处理'"
-        # Should show "已筛选" label
-        assert "已筛选" in text, "Filter should show '已筛选' label"
-        print("[OK] /cards?decision=unhandled shows only unhandled cards")
+        # Should show Chinese label "已筛选：未处理"
+        assert "已筛选：未处理" in text, \
+            "Filter should show '已筛选：未处理' (Chinese label, not raw value)"
+        # Should NOT show raw value
+        assert "已筛选：unhandled" not in text, \
+            "Filter should NOT show raw value '已筛选：unhandled'"
+        print("[OK] /cards?decision=unhandled shows only unhandled cards with Chinese label")
     finally:
-        db.rollback()
+        if created_card_ids:
+            try:
+                db.query(CardDecision).filter(CardDecision.card_id.in_(created_card_ids)).delete(synchronize_session=False)
+                db.query(InsightCard).filter(InsightCard.id.in_(created_card_ids)).delete(synchronize_session=False)
+                db.commit()
+            except Exception:
+                db.rollback()
         db.close()
 
 
@@ -2846,6 +2859,7 @@ def test_v041_filter_to_action():
     import uuid
 
     db = SessionLocal()
+    created_card_ids = []
     try:
         # to_action card
         to_action_card = InsightCard(
@@ -2859,7 +2873,10 @@ def test_v041_filter_to_action():
         db.add(to_action_card)
         db.commit()
         db.refresh(to_action_card)
-        db.add(CardDecision(card_id=to_action_card.id, decision="to_action"))
+        created_card_ids.append(to_action_card.id)
+
+        decision = CardDecision(card_id=to_action_card.id, decision="to_action")
+        db.add(decision)
         db.commit()
 
         # Unhandled card
@@ -2874,6 +2891,7 @@ def test_v041_filter_to_action():
         db.add(unhandled_card)
         db.commit()
         db.refresh(unhandled_card)
+        created_card_ids.append(unhandled_card.id)
 
         response = client.get("/cards?decision=to_action")
         assert response.status_code == 200
@@ -2882,10 +2900,21 @@ def test_v041_filter_to_action():
             f"to_action card '{to_action_card.source_title}' should appear in filter"
         assert unhandled_card.source_title not in text, \
             f"unhandled card '{unhandled_card.source_title}' should NOT appear in to_action filter"
-        assert "转成行动" in text, "Filter page should mention '转成行动'"
-        print("[OK] /cards?decision=to_action shows only to_action cards")
+        # Should show Chinese label "已筛选：转成行动"
+        assert "已筛选：转成行动" in text, \
+            "Filter should show '已筛选：转成行动' (Chinese label, not raw value)"
+        # Should NOT show raw value
+        assert "已筛选：to_action" not in text, \
+            "Filter should NOT show raw value '已筛选：to_action'"
+        print("[OK] /cards?decision=to_action shows only to_action cards with Chinese label")
     finally:
-        db.rollback()
+        if created_card_ids:
+            try:
+                db.query(CardDecision).filter(CardDecision.card_id.in_(created_card_ids)).delete(synchronize_session=False)
+                db.query(InsightCard).filter(InsightCard.id.in_(created_card_ids)).delete(synchronize_session=False)
+                db.commit()
+            except Exception:
+                db.rollback()
         db.close()
 
 
@@ -2898,6 +2927,57 @@ def test_v041_filter_invalid_does_not_crash():
     assert "已筛选" not in response.text, \
         "Invalid filter should fall back to 'all' (no '已筛选' label)"
     print("[OK] /cards?decision=not_a_real_decision returns 200 (falls back to 'all')")
+
+
+def test_v041_filter_to_action_shows_chinese_label():
+    """Test that /cards?decision=to_action displays the Chinese label (not raw value)."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+    import uuid
+
+    db = SessionLocal()
+    created_card_ids = []
+    try:
+        # to_action card
+        to_action_card = InsightCard(
+            source_url=f"https://example.com/v041-ta-chinese-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title=f"V0.4.1 ToActionChinese {uuid.uuid4().hex[:6]}",
+            content_hash=f"v041-ta-chinese-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="t",
+        )
+        db.add(to_action_card)
+        db.commit()
+        db.refresh(to_action_card)
+        created_card_ids.append(to_action_card.id)
+
+        decision = CardDecision(card_id=to_action_card.id, decision="to_action")
+        db.add(decision)
+        db.commit()
+
+        response = client.get("/cards?decision=to_action")
+        assert response.status_code == 200
+        text = response.text
+        # Should show Chinese label "已筛选：转成行动"
+        assert "已筛选：转成行动" in text, \
+            "Filter should show '已筛选：转成行动' (Chinese label, not raw value)"
+        # Should NOT show raw value
+        assert "已筛选：to_action" not in text, \
+            "Filter should NOT show raw value '已筛选：to_action'"
+        # Should NOT show empty state (we have matching cards)
+        assert "当前筛选条件下没有 InsightCard" not in text, \
+            "to_action filter with results should NOT show empty state"
+        print("[OK] /cards?decision=to_action shows Chinese label '已筛选：转成行动'")
+    finally:
+        if created_card_ids:
+            try:
+                db.query(CardDecision).filter(CardDecision.card_id.in_(created_card_ids)).delete(synchronize_session=False)
+                db.query(InsightCard).filter(InsightCard.id.in_(created_card_ids)).delete(synchronize_session=False)
+                db.commit()
+            except Exception:
+                db.rollback()
+        db.close()
 
 
 if __name__ == "__main__":
@@ -2963,6 +3043,7 @@ if __name__ == "__main__":
     test_v041_filter_unhandled()
     test_v041_filter_to_action()
     test_v041_filter_invalid_does_not_crash()
+    test_v041_filter_to_action_shows_chinese_label()
     test_compile_missing_api_key()
     test_compile_with_url()
 

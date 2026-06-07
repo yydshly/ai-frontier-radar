@@ -211,6 +211,76 @@ def _run_acceptance(args):
     finally:
         db.close()
 
+    # === 5. Scenario B: 0-result filter with Chinese label ===
+    # Start a fresh isolated session with a single card
+    print()
+    print("-" * 60)
+    print("Scenario B: 0-result filter with Chinese label")
+    print("-" * 60)
+
+    db2 = SessionLocal()
+    try:
+        from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+        # Create only one card with to_action
+        zero_card = InsightCard(
+            source_url="https://example.com/v041-zero-only",
+            source_type=SourceType.HTML,
+            source_title="V0.4.1 Only ToAction Card",
+            content_hash="v041-zero-only",
+            status=CardStatus.COMPLETED,
+            summary_zh="Zero scenario test",
+            relevance_score=80,
+        )
+        db2.add(zero_card)
+        db2.commit()
+        db2.refresh(zero_card)
+
+        decision = CardDecision(card_id=zero_card.id, decision="to_action")
+        db2.add(decision)
+        db2.commit()
+
+        zero_card_id = zero_card.id
+        print(f"[OK] Created zero-scenario card #{zero_card_id} (decision=to_action)")
+
+        # Wipe all worth_attention decisions so 0-result scenario is truly isolated.
+        # (Scenario A created one worth_attention card which must not pollute this check.)
+        db2.query(CardDecision).filter(CardDecision.decision == "worth_attention").delete(synchronize_session=False)
+        db2.commit()
+        print("[OK] Cleared worth_attention decisions to isolate 0-result scenario")
+
+        # Request worth_attention filter — should return 0
+        response = client.get("/cards?decision=worth_attention")
+        assert response.status_code == 200, \
+            f"0-result filter should return 200; got {response.status_code}"
+        text = response.text
+
+        # Should show "共找到 0 张卡片"
+        assert "共找到 <strong>0</strong> 张卡片" in text, \
+            "0-result filter should show '共找到 0 张卡片'"
+        # Should show Chinese label
+        assert "已筛选：值得关注" in text, \
+            "0-result filter should show Chinese label '已筛选：值得关注'"
+        # Should show empty state
+        assert "当前筛选条件下没有 InsightCard" in text, \
+            "0-result filter should show empty state message"
+        # Should NOT show raw value
+        assert "已筛选：worth_attention" not in text, \
+            "Should NOT show raw value '已筛选：worth_attention'"
+        # to_action card title should NOT appear
+        assert "V0.4.1 Only ToAction Card" not in text, \
+            "to_action card should NOT appear in worth_attention filter"
+        print("[OK] 0-result filter: shows Chinese label, 0 count, and empty state")
+
+        # Cleanup
+        db2.query(CardDecision).filter(CardDecision.card_id == zero_card_id).delete(synchronize_session=False)
+        db2.query(InsightCard).filter(InsightCard.id == zero_card_id).delete(synchronize_session=False)
+        db2.commit()
+        print(f"[OK] Cleaned up zero-scenario card #{zero_card_id}")
+
+    finally:
+        db2.close()
+
     return card_id_by_decision
 
 
