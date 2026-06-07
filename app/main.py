@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
 from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_decision_label
 from app.logging_config import setup_logging, get_logger
+from app.exports.markdown_task import build_action_markdown
 
 # Setup
 setup_logging()
@@ -262,6 +263,68 @@ def update_card_decision(card_id: int, decision: str = Form(...), note: str = Fo
 
         db.commit()
         return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
+    finally:
+        db.close()
+
+
+@app.get("/cards/{card_id}/export-markdown", response_class=HTMLResponse)
+def card_export_markdown(request: Request, card_id: int):
+    """Preview the Markdown task draft for an InsightCard.
+
+    V0.5: renders a full-page preview of the generated Markdown.
+    Does not modify the database or call LLM.
+    """
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        decision_row = (
+            db.query(CardDecision)
+            .filter(CardDecision.card_id == card.id)
+            .first()
+        )
+
+        markdown_text = build_action_markdown(card, decision_row)
+
+        return templates.TemplateResponse("card_export_markdown.html", {
+            "request": request,
+            "card": card,
+            "decision": decision_row,
+            "markdown_text": markdown_text,
+        })
+    finally:
+        db.close()
+
+
+@app.get("/cards/{card_id}/export-markdown/download")
+def card_export_markdown_download(card_id: int):
+    """Download the Markdown task draft for an InsightCard as a .md file.
+
+    V0.5: streams the file content directly without writing to disk.
+    """
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        decision_row = (
+            db.query(CardDecision)
+            .filter(CardDecision.card_id == card.id)
+            .first()
+        )
+
+        markdown_text = build_action_markdown(card, decision_row)
+
+        filename = f"insightcard-{card_id}-task.md"
+        return PlainTextResponse(
+            content=markdown_text,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
     finally:
         db.close()
 

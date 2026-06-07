@@ -146,6 +146,24 @@
             </p>
             {% endif %}
 
+            <div class="export-action-entry">
+                {% if current_decision == 'to_action' %}
+                <p class="export-action-note">
+                    你已标记为"转成行动"，可以导出为 Markdown 任务继续拆解。
+                </p>
+                <a href="/cards/{{ card.id }}/export-markdown" class="btn-export-action">
+                    📤 导出为 Markdown 任务
+                </a>
+                {% else %}
+                <p class="export-action-note">
+                    通常建议先标记为"转成行动"后再导出。
+                </p>
+                <a href="/cards/{{ card.id }}/export-markdown" class="btn-secondary">
+                    🔍 预览 Markdown 任务草稿
+                </a>
+                {% endif %}
+            </div>
+
             <form method="post" action="/cards/{{ card.id }}/decision" class="decision-form">
                 <fieldset>
                     <legend>选择判断：</legend>

@@ -2980,6 +2980,262 @@ def test_v041_filter_to_action_shows_chinese_label():
         db.close()
 
 
+# ─── V0.5: Markdown task export ───────────────────────────────────────────────
+
+
+def test_v05_markdown_builder_with_full_card():
+    """Test build_action_markdown produces all required sections."""
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+    from app.exports.markdown_task import build_action_markdown
+
+    card = InsightCard(
+        id=99901,
+        source_url="https://example.com/v05-test",
+        source_type=SourceType.HTML,
+        source_title="V0.5 Smoke Test Card",
+        source_author="Tester",
+        source_published_at="2025-01-01",
+        status=CardStatus.COMPLETED,
+        summary_zh="这是中文摘要。",
+        key_points_zh='["事实一", "事实二"]',
+        technical_insights_zh='["洞察一"]',
+        product_opportunities_zh='["机会一"]',
+        risks_zh='["风险一"]',
+        action_items_zh='["行动一", "行动二"]',
+        relevance_score=80,
+        relevance_reasons_zh='["理由一"]',
+        related_user_directions='["AI产品"]',
+        model_name="smoke-test",
+    )
+    decision = CardDecision(
+        id=99901,
+        card_id=99901,
+        decision="to_action",
+        note="测试备注",
+    )
+
+    md = build_action_markdown(card, decision)
+
+    required = [
+        "# 行动任务：",
+        "原文信息",
+        "中文摘要",
+        "关键事实",
+        "技术洞察",
+        "产品机会",
+        "风险与注意事项",
+        "行动建议",
+        "用户备注",
+        "测试备注",
+        "AI产品",
+    ]
+    for item in required:
+        assert item in md, f"Markdown missing: {item}"
+    print("[OK] build_action_markdown includes all required sections")
+
+
+def test_v05_markdown_builder_handles_bad_json():
+    """Test that malformed JSON fields produce '暂无', not exceptions."""
+    from app.models import InsightCard, CardStatus, SourceType
+    from app.exports.markdown_task import build_action_markdown
+
+    card = InsightCard(
+        id=99902,
+        source_url="https://example.com/v05-bad-json",
+        source_type=SourceType.HTML,
+        source_title="Bad JSON Card",
+        status=CardStatus.COMPLETED,
+        summary_zh="摘要",
+        key_points_zh="not json",
+        technical_insights_zh="{bad",
+        product_opportunities_zh=None,
+        risks_zh='["ok"]',
+        action_items_zh="also bad",
+        relevance_score=50,
+        relevance_reasons_zh=None,
+        related_user_directions=None,
+        model_name="smoke-test",
+    )
+
+    # Should not raise
+    md = build_action_markdown(card, None)
+    assert "暂无" in md, "Bad JSON should render as '暂无'"
+    print("[OK] build_action_markdown handles malformed JSON safely")
+
+
+def test_v05_export_preview_page():
+    """Test GET /cards/{id}/export-markdown renders preview."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+    db = SessionLocal()
+    created_ids = []
+    try:
+        card = InsightCard(
+            source_url="https://example.com/v05-preview",
+            source_type=SourceType.HTML,
+            source_title="V0.5 Preview Test",
+            status=CardStatus.COMPLETED,
+            summary_zh="预览测试摘要",
+            key_points_zh='["事实"]',
+            technical_insights_zh='["洞察"]',
+            product_opportunities_zh='["机会"]',
+            risks_zh='["风险"]',
+            action_items_zh='["行动"]',
+            relevance_score=70,
+            relevance_reasons_zh='[]',
+            related_user_directions='[]',
+            model_name="smoke-test",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        created_ids.append(card.id)
+
+        decision = CardDecision(
+            card_id=card.id,
+            decision="to_action",
+            note="预览测试备注",
+        )
+        db.add(decision)
+        db.commit()
+
+        response = client.get(f"/cards/{card.id}/export-markdown")
+        assert response.status_code == 200, \
+            f"Expected 200, got {response.status_code}"
+        text = response.text
+        assert "导出 Markdown 任务" in text, "Page should have title"
+        assert "预览测试摘要" in text, "Page should contain summary"
+        assert "预览测试备注" in text, "Page should contain user note"
+        assert "洞察" in text, "Page should contain technical insight"
+        assert "机会" in text, "Page should contain product opportunity"
+        print(f"[OK] GET /cards/{card.id}/export-markdown returns 200 with content")
+    finally:
+        if created_ids:
+            db.query(CardDecision).filter(
+                CardDecision.card_id.in_(created_ids)
+            ).delete(synchronize_session=False)
+            db.query(InsightCard).filter(
+                InsightCard.id.in_(created_ids)
+            ).delete(synchronize_session=False)
+            db.commit()
+        db.close()
+
+
+def test_v05_export_download_route():
+    """Test GET /cards/{id}/export-markdown/download returns .md file."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+    db = SessionLocal()
+    created_ids = []
+    try:
+        card = InsightCard(
+            source_url="https://example.com/v05-download",
+            source_type=SourceType.HTML,
+            source_title="V0.5 Download Test",
+            status=CardStatus.COMPLETED,
+            summary_zh="下载测试摘要",
+            key_points_zh='[]',
+            technical_insights_zh='[]',
+            product_opportunities_zh='[]',
+            risks_zh='[]',
+            action_items_zh='[]',
+            relevance_score=60,
+            relevance_reasons_zh='[]',
+            related_user_directions='[]',
+            model_name="smoke-test",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        created_ids.append(card.id)
+
+        decision = CardDecision(
+            card_id=card.id,
+            decision="to_action",
+            note="下载测试备注",
+        )
+        db.add(decision)
+        db.commit()
+
+        response = client.get(f"/cards/{card.id}/export-markdown/download")
+        assert response.status_code == 200
+        assert "attachment" in response.headers.get("Content-Disposition", "")
+        assert f"insightcard-{card.id}-task.md" in response.headers["Content-Disposition"]
+        text = response.text
+        assert "# 行动任务" in text, "Download should contain Markdown heading"
+        assert "下载测试摘要" in text
+        print(f"[OK] GET /cards/{card.id}/export-markdown/download returns .md file")
+    finally:
+        if created_ids:
+            db.query(CardDecision).filter(
+                CardDecision.card_id.in_(created_ids)
+            ).delete(synchronize_session=False)
+            db.query(InsightCard).filter(
+                InsightCard.id.in_(created_ids)
+            ).delete(synchronize_session=False)
+            db.commit()
+        db.close()
+
+
+def test_v05_cards_list_shows_export_link_for_to_action():
+    """Test that /cards?decision=to_action shows '导出任务' link for to_action cards."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+    db = SessionLocal()
+    created_ids = []
+    try:
+        card = InsightCard(
+            source_url="https://example.com/v05-list-export",
+            source_type=SourceType.HTML,
+            source_title="V0.5 List Export Test",
+            status=CardStatus.COMPLETED,
+            summary_zh="列表导出测试",
+            key_points_zh='[]',
+            technical_insights_zh='[]',
+            product_opportunities_zh='[]',
+            risks_zh='[]',
+            action_items_zh='[]',
+            relevance_score=65,
+            relevance_reasons_zh='[]',
+            related_user_directions='[]',
+            model_name="smoke-test",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        created_ids.append(card.id)
+
+        decision = CardDecision(
+            card_id=card.id,
+            decision="to_action",
+            note=None,
+        )
+        db.add(decision)
+        db.commit()
+
+        response = client.get("/cards?decision=to_action")
+        assert response.status_code == 200
+        text = response.text
+        assert "导出任务" in text, \
+            "'导出任务' link should appear for to_action cards"
+        assert f"/cards/{card.id}/export-markdown" in text, \
+            "Export link should have correct URL"
+        print("[OK] /cards?decision=to_action shows '导出任务' link for to_action cards")
+    finally:
+        if created_ids:
+            db.query(CardDecision).filter(
+                CardDecision.card_id.in_(created_ids)
+            ).delete(synchronize_session=False)
+            db.query(InsightCard).filter(
+                InsightCard.id.in_(created_ids)
+            ).delete(synchronize_session=False)
+            db.commit()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -3046,6 +3302,12 @@ if __name__ == "__main__":
     test_v041_filter_to_action_shows_chinese_label()
     test_compile_missing_api_key()
     test_compile_with_url()
+    # V0.5
+    test_v05_markdown_builder_with_full_card()
+    test_v05_markdown_builder_handles_bad_json()
+    test_v05_export_preview_page()
+    test_v05_export_download_route()
+    test_v05_cards_list_shows_export_link_for_to_action()
 
     print("=" * 50)
     print("Smoke test completed!")
