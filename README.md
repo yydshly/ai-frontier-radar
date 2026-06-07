@@ -293,6 +293,70 @@ python scripts/acceptance_probe_sources.py --isolated-db --repeat 2 --timeout 15
 - `items_new = 0`（不产生新条目）
 - `items_updated > 0`（更新已有条目时间戳）
 
+## V0.3.4 SourceItem 列表可读性与历史分页数据检查
+
+V0.3.4 解决 `/source-items` 页面可读性问题，并提供历史疑似分页 SourceItem 的检查脚本。
+
+### 页面改进
+
+- 宽屏布局：`main` 容器使用 `wide-page` 类，最大宽度提升到 `min(1600px, calc(100vw - 64px))`
+- 横向滚动表格：表格包在 `table-scroll` 容器中，支持 `overflow-x: auto`
+- URL 完整显示：URL 不再截断为 80 字符，`<a>` 带 `title="{{ item.url }}"` 鼠标悬停可看完整 URL
+- 标题点击进入详情：标题列 `<a href="/source-items/{id}">` 直接跳转详情页
+- 状态中文辅助：`discovered` 显示「待编译」，`compiled` 显示「已编译」，`failed` 显示「失败」
+- 历史数据提示：页面顶部显示 V0.3.3 历史分页 URL 提示，引导用户使用检查脚本
+
+### 历史数据说明
+
+- V0.3.3 只阻止新分页 URL 入库，不会自动清理旧数据
+- 旧数据库中可能仍有 `/blog?p=2`、`/blog?p=1`、`/blog?sort=popular` 这类历史记录
+- 本轮提供非破坏性检查脚本 `scripts/check_listing_source_items.py`
+- 脚本只检查，不删除，不修改状态
+
+### 检查命令
+
+```bash
+# 检查所有来源的疑似分页 SourceItem
+python scripts/check_listing_source_items.py
+
+# 只检查 huggingface_blog
+python scripts/check_listing_source_items.py --source-key huggingface_blog
+
+# 限制显示条数（默认 200）
+python scripts/check_listing_source_items.py --limit 100
+```
+
+输出示例：
+
+```text
+Potential listing SourceItems:
+  #44   huggingface_blog        discovered https://huggingface.co/blog?p=...
+  #43   huggingface_blog        compiled  https://huggingface.co/blog?p=2
+
+Total suspected listing items: 4
+```
+
+如果数据库中无历史脏数据：
+
+```text
+No suspected listing SourceItems found.
+```
+
+### 页面手动验收
+
+```bash
+uvicorn app.main:app --reload --port 8779
+```
+
+打开 `http://127.0.0.1:8779/source-items?source_key=huggingface_blog`，确认：
+
+- 页面主体变宽（容器最大宽度提升）
+- 浏览器窗口较窄时，表格支持横向滚动
+- URL 单元格可显示完整 URL，不再被截断
+- 标题列点击可进入 SourceItem 详情页
+- 状态列下方有中文辅助文字
+- 页面顶部有 V0.3.3 历史分页 URL 提示
+
 ## 技术栈
 
 ```

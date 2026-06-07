@@ -15,7 +15,7 @@
         </nav>
     </header>
 
-    <main>
+    <main class="wide-page source-items-page">
         <div class="filter-bar">
             <form method="get" action="/source-items" class="filter-form">
                 <div class="filter-row">
@@ -54,57 +54,71 @@
             </form>
         </div>
 
+        <p class="page-notice">
+            提示：V0.3.3 已过滤新的分页/列表 URL。若仍看到 <code>/blog?p=2</code> 这类记录，说明它们是旧数据库中的历史条目。
+            可使用检查脚本 <code>python scripts/check_listing_source_items.py --source-key {{ filter_source_key or 'huggingface_blog' }}</code> 定位，确认后再手动清理或重建本地数据库。
+        </p>
+
         {% if items %}
         <p class="result-count">共找到 {{ items|length }} 条目{% if filter_source_key or filter_status or filter_q %}（已筛选）{% endif %}</p>
 
-        <table class="items-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>来源</th>
-                    <th>标题</th>
-                    <th>URL</th>
-                    <th>状态</th>
-                    <th>发布时间</th>
-                    <th>首次发现</th>
-                    <th>最近发现</th>
-                    <th>关联卡片</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
-                <tr>
-                    <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
-                    <td><code>{{ item.source_key }}</code></td>
-                    <td class="title-cell">
-                        <a href="/source-items/{{ item.id }}">{{ item.title or '(无标题)' }}</a>
-                    </td>
-                    <td class="url-cell">
-                        <a href="{{ item.url }}" target="_blank" rel="noopener">
-                            {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
-                        </a>
-                    </td>
-                    <td>
-                        <span class="status status-{{ item.status }}">{{ item.status }}</span>
-                    </td>
-                    <td>{{ item.published_at or '-' }}</td>
-                    <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
-                    <td>{{ item.last_seen_at.strftime('%Y-%m-%d %H:%M') if item.last_seen_at else '-' }}</td>
-                    <td>
-                        {% if item.insight_card_id %}
-                        <a href="/cards/{{ item.insight_card_id }}">#{{ item.insight_card_id }}</a>
-                        {% elif item.status == 'discovered' %}
-                        <a href="/source-items/{{ item.id }}" class="status-hint-link">待编译</a>
-                        {% elif item.status == 'failed' %}
-                        <a href="/source-items/{{ item.id }}" class="status-hint-link status-hint-error">编译失败，可重试</a>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-scroll">
+            <table class="source-items-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>来源</th>
+                        <th>标题</th>
+                        <th>URL</th>
+                        <th>状态</th>
+                        <th>发布时间</th>
+                        <th>首次发现</th>
+                        <th>最近发现</th>
+                        <th>关联卡片</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
+                        <td><code>{{ item.source_key }}</code></td>
+                        <td class="title-cell">
+                            <a href="/source-items/{{ item.id }}">{{ item.title or '无标题' }}</a>
+                        </td>
+                        <td class="url-cell">
+                            <a href="{{ item.url }}" target="_blank" rel="noopener" title="{{ item.url }}">
+                                {{ item.url }}
+                            </a>
+                        </td>
+                        <td class="status-cell">
+                            <span class="status status-{{ item.status }}">{{ item.status }}</span>
+                            {% if item.status == 'discovered' %}
+                            <small class="muted block">待编译</small>
+                            {% elif item.status == 'compiled' %}
+                            <small class="muted block">已编译</small>
+                            {% elif item.status == 'failed' %}
+                            <small class="muted block">失败</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.published_at or '-' }}</td>
+                        <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
+                        <td>{{ item.last_seen_at.strftime('%Y-%m-%d %H:%M') if item.last_seen_at else '-' }}</td>
+                        <td>
+                            {% if item.insight_card_id %}
+                            <a href="/cards/{{ item.insight_card_id }}">#{{ item.insight_card_id }}</a>
+                            {% elif item.status == 'discovered' %}
+                            <a href="/source-items/{{ item.id }}" class="status-hint-link">待编译</a>
+                            {% elif item.status == 'failed' %}
+                            <a href="/source-items/{{ item.id }}" class="status-hint-link status-hint-error">编译失败，可重试</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
         <p class="empty-state">
             暂无发现条目。若你刚配置完来源，请先运行 RSS / HTML Index 探测脚本生成 SourceItem。<br>
@@ -117,11 +131,11 @@
         </p>
         {% endif %}
 
-        <p class="page-note">V0.3.2 展示来源探测发现条目；本页只展示已发现条目，不抓取正文，不调用 LLM。</p>
+        <p class="page-note">V0.3.4 SourceItem 列表可读性优化与历史分页数据检查。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.3.2 来源发现条目查看</p>
+        <p>AI Frontier Radar V0.3.4 来源发现条目查看</p>
     </footer>
 </body>
 </html>

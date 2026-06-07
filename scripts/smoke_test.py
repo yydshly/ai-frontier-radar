@@ -1907,6 +1907,132 @@ def test_html_index_run_records_partial_failed_when_no_candidates():
         db.close()
 
 
+def test_source_items_page_wide_layout_and_scroll():
+    """Test that /source-items page has V0.3.4 wide layout and scrollable table."""
+    response = client.get("/source-items")
+    assert response.status_code == 200, \
+        f"Expected status 200, got {response.status_code}"
+    text = response.text
+    # Check for new V0.3.4 classes
+    assert "table-scroll" in text, \
+        "Page should contain 'table-scroll' container for horizontal scroll"
+    assert "source-items-table" in text, \
+        "Page should use 'source-items-table' class"
+    assert "wide-page" in text, \
+        "Page should use 'wide-page' class for wider layout"
+    print("[OK] /source-items has V0.3.4 wide layout + scrollable table")
+
+
+def test_source_items_page_v033_notice():
+    """Test that /source-items page has V0.3.3 historical URL notice."""
+    response = client.get("/source-items")
+    assert response.status_code == 200
+    text = response.text
+    assert "V0.3.3 已过滤新的分页/列表 URL" in text, \
+        "Page should show V0.3.3 historical pagination URL notice"
+    assert "check_listing_source_items.py" in text, \
+        "Page should mention the check_listing_source_items.py script"
+    print("[OK] /source-items shows V0.3.3 historical URL notice")
+
+
+def test_source_items_template_no_url_truncation():
+    """Test that source_items.html no longer truncates URLs to 80 chars."""
+    from pathlib import Path
+    template_path = Path(__file__).parent.parent / "app" / "templates" / "source_items.html"
+    assert template_path.exists(), "source_items.html template not found"
+    template_text = template_path.read_text(encoding="utf-8")
+    assert "item.url[:80]" not in template_text, \
+        "source_items.html still contains 'item.url[:80]' truncation"
+    assert "title=\"{{ item.url }}\"" in template_text, \
+        "source_items.html should have title attribute on URL link"
+    print("[OK] source_items.html removed URL truncation and added title attr")
+
+
+def test_check_listing_script_exists():
+    """Test that scripts/check_listing_source_items.py exists."""
+    from pathlib import Path
+    script_path = Path(__file__).parent / "check_listing_source_items.py"
+    assert script_path.exists(), "check_listing_source_items.py not found"
+    print("[OK] scripts/check_listing_source_items.py exists")
+
+
+def test_check_listing_script_imports():
+    """Test that check_listing_source_items module can be imported without error."""
+    try:
+        import importlib.util
+        script_path = (
+            Path(__file__).parent / "check_listing_source_items.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "check_listing_source_items", str(script_path)
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert hasattr(module, "_check_listing_source_items"), \
+            "check_listing_source_items.py should have _check_listing_source_items function"
+        assert hasattr(module, "_build_arg_parser"), \
+            "check_listing_source_items.py should have _build_arg_parser function"
+        print("[OK] check_listing_source_items.py imports successfully")
+    except Exception as e:
+        raise AssertionError(f"check_listing_source_items.py failed to import: {e}") from e
+
+
+def test_source_items_url_no_truncation_in_page():
+    """Test that actual /source-items page renders full URLs (not truncated)."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        # Create a test source
+        test_key = f"test_url_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test URL Display",
+            description="Test source for URL display",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create a long URL
+        long_url = "https://example.com/very/long/path/segment/article-title-with-many-words"
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=long_url,
+            title="Long URL Test Article",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        # Fetch page filtered by source_key
+        response = client.get(f"/source-items?source_key={test_key}")
+        assert response.status_code == 200
+        text = response.text
+        # Full URL should appear, not the truncated form
+        assert long_url in text, \
+            f"Full URL should appear in page. Expected: {long_url}"
+        assert f"{long_url[:80]}..." not in text, \
+            "Truncated URL (with ellipsis) should NOT appear in page"
+        print("[OK] Full URL displayed in /source-items page (no truncation)")
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_html_index_filters_huggingface_listing_pages():
     """Test that Hugging Face blog listing/pagination pages are filtered out."""
     import httpx
@@ -2126,6 +2252,12 @@ if __name__ == "__main__":
     test_html_index_run_records_partial_failed_when_no_candidates()
     test_html_index_filters_huggingface_listing_pages()
     test_html_index_filters_generic_listing_pages()
+    test_source_items_page_wide_layout_and_scroll()
+    test_source_items_page_v033_notice()
+    test_source_items_template_no_url_truncation()
+    test_check_listing_script_exists()
+    test_check_listing_script_imports()
+    test_source_items_url_no_truncation_in_page()
     test_compile_missing_api_key()
     test_compile_with_url()
 

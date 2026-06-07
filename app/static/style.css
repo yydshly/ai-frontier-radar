@@ -53,6 +53,17 @@ main {
     width: 100%;
 }
 
+/* Wide-page layout — used by source-items and other wide pages */
+.wide-page {
+    max-width: min(1600px, calc(100vw - 64px));
+    margin: 0 auto;
+}
+
+/* SourceItems page specific styling */
+.source-items-page {
+    /* Inherits wide layout, plus specific tweaks */
+}
+
 section {
     background: white;
     border-radius: 8px;
@@ -645,4 +656,145 @@ footer {
     .featured-source-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ============================================================
+   V0.3.4 — SourceItem list readability
+   ============================================================ */
+
+/* Table scroll container — allows horizontal scroll when needed */
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.source-items-table {
+    min-width: 1280px;
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.source-items-table th,
+.source-items-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+
+.source-items-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.source-items-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+/* Title cell — wraps text, allows click into detail page */
+.source-items-table .title-cell {
+    min-width: 260px;
+    max-width: 460px;
+    white-space: normal;
+    line-height: 1.5;
+}
+
+.source-items-table .title-cell a {
+    color: #2c3e50;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.source-items-table .title-cell a:hover {
+    color: #3498db;
+    text-decoration: underline;
+}
+
+/* URL cell — monospace, no truncation, full URL visible via scroll */
+.source-items-table .url-cell {
+    min-width: 420px;
+    max-width: 640px;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85rem;
+}
+
+.source-items-table .url-cell a {
+    display: inline-block;
+    max-width: none;
+    color: #3498db;
+    text-decoration: none;
+    word-break: keep-all;
+}
+
+.source-items-table .url-cell a:hover {
+    text-decoration: underline;
+}
+
+/* Status cell — adds Chinese helper text */
+.source-items-table .status-cell {
+    min-width: 120px;
+    white-space: nowrap;
+}
+
+.source-items-table .status-cell .muted {
+    color: #6b7280;
+    font-size: 0.78rem;
+}
+
+.source-items-table .status-cell .block {
+    display: block;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* Source key cell */
+.source-items-table code {
+    background: #f4f4f4;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    color: #c7254e;
+}
+
+/* Page notice — old listing URL hint */
+.page-notice {
+    background: #fff8e1;
+    border-left: 4px solid #f39c12;
+    color: #6b5b00;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.page-notice code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85em;
+    color: #6b5b00;
+}
+
+/* Result count and filter bar tweaks for wide layout */
+.source-items-page .result-count {
+    color: #555;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.source-items-page .filter-bar {
+    margin-bottom: 1rem;
 }
