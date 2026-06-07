@@ -8,11 +8,13 @@ Validates:
 - GET /static/style.css returns 200
 - GET /cards returns 200
 - POST /compile creates failed card when API key is missing
+- Profile config loading works without real API key
 
 Does NOT require a real API key for basic smoke tests.
 """
 import os
 import sys
+import uuid
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,10 +23,10 @@ from fastapi.testclient import TestClient
 
 # Set test database before importing app
 os.environ["DATABASE_URL"] = "sqlite:///./data/test_smoke.db"
-# Use a profile that requires no API key check during config load for smoke test
 os.environ["LLM_PROFILE"] = "minimax_m27_highspeed_anthropic"
 
 from app.main import app
+from app.models import SourceType
 
 client = TestClient(app)
 
@@ -61,18 +63,104 @@ def test_cards_page():
     print("[OK] GET /cards returns 200 with content")
 
 
+def test_llm_profile_config():
+    """Test that profile config loads correctly without requiring real API key."""
+    from app.llm.config_loader import load_llm_profiles
+
+    profiles_data = load_llm_profiles()
+    default_profile_name = profiles_data.get("default_profile", "")
+
+    assert default_profile_name == "minimax_m27_highspeed_anthropic", \
+        f"Expected default_profile='minimax_m27_highspeed_anthropic', got '{default_profile_name}'"
+
+    profiles = profiles_data.get("profiles", {})
+    assert "minimax_m27_highspeed_anthropic" in profiles, \
+        "minimax_m27_highspeed_anthropic profile not found"
+
+    profile = profiles["minimax_m27_highspeed_anthropic"]
+    assert profile["provider"] == "minimax", f"Expected provider='minimax', got '{profile.get('provider')}'"
+    assert profile["protocol"] == "anthropic_messages", \
+        f"Expected protocol='anthropic_messages', got '{profile.get('protocol')}'"
+    assert profile["model"] == "MiniMax-M2.7-highspeed", \
+        f"Expected model='MiniMax-M2.7-highspeed', got '{profile.get('model')}'"
+    assert profile["api_key_env"] == "MINIMAX_API_KEY", \
+        f"Expected api_key_env='MINIMAX_API_KEY', got '{profile.get('api_key_env')}'"
+    assert profile["endpoint"] == "/v1/messages", \
+        f"Expected endpoint='/v1/messages', got '{profile.get('endpoint')}'"
+
+    print("[OK] LLM profile config loads correctly")
+    print(f"     default_profile: {default_profile_name}")
+    print(f"     model: {profile['model']}")
+    print(f"     protocol: {profile['protocol']}")
+    print(f"     api_key_env: {profile['api_key_env']}")
+
+
 def test_compile_missing_api_key():
-    """Test that compile with missing API key creates a failed card, not a crash."""
-    test_url = "https://example.com/test"
-    print(f"[TEST] POST /compile with missing API key...")
+    """
+    Test that compile with missing API key creates a failed card with correct error.
 
-    response = client.post("/compile", data={"url": test_url}, follow_redirects=False)
-    # Should redirect (303) to card detail page
-    assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+    Uses monkeypatch to mock fetch/extract so we don't need real network access.
+    Asserts the failed card detail page contains the expected error message.
+    """
+    import app.services.insight_compiler as compiler
 
-    location = response.headers.get("location", "")
-    assert "/cards/" in location, f"Expected redirect to /cards/, got {location}"
-    print(f"[OK] POST /compile created failed card (redirected to {location})")
+    # Save originals
+    original_fetch = compiler.fetch_url
+    original_extract = compiler.extract_content
+    original_key = os.environ.get("MINIMAX_API_KEY", "placeholder")
+
+    # Monkeypatch fetch and extract to avoid real network calls
+    def fake_fetch_url(url):
+        return (
+            b"<html><body><article>"
+            b"<h1>Test AI Article About Machine Learning</h1>"
+            b"<p>This is a test article. " + b"x" * 200 + b"</p>"
+            b"<p>More content here. " + b"y" * 200 + b"</p>"
+            b"</article></body></html>",
+            "text/html"
+        )
+
+    def fake_extract_content(url, content, content_type):
+        text = (
+            "This is a test article about machine learning and AI. " * 20 +
+            "It contains enough text to pass the length check. " * 20 +
+            "Machine learning models are advancing rapidly. " * 20 +
+            "New AI capabilities emerge every day. " * 20
+        )
+        return text, "Test AI Article", None, SourceType.HTML
+
+    compiler.fetch_url = fake_fetch_url
+    compiler.extract_content = fake_extract_content
+
+    # Use empty API key to trigger the missing key error
+    os.environ["MINIMAX_API_KEY"] = ""
+
+    # Use unique URL to avoid dedup hitting previous test run
+    test_url = f"https://example.com/test-missing-key-{uuid.uuid4().hex[:8]}"
+
+    try:
+        print("[TEST] POST /compile with empty API key...")
+
+        response = client.post("/compile", data={"url": test_url}, follow_redirects=False)
+        assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+
+        location = response.headers.get("location", "")
+        assert "/cards/" in location, f"Expected redirect to /cards/, got {location}"
+        print(f"[OK] POST /compile created card (redirected to {location})")
+
+        # Follow the redirect to get card detail
+        detail_response = client.get(location)
+        assert detail_response.status_code == 200, f"Detail page failed: {detail_response.status_code}"
+
+        # The failed card should show the API key error
+        assert "MINIMAX_API_KEY is not configured" in detail_response.text, \
+            "Expected 'MINIMAX_API_KEY is not configured' in failed card detail page"
+        print("[OK] Failed card detail contains 'MINIMAX_API_KEY is not configured'")
+
+    finally:
+        compiler.fetch_url = original_fetch
+        compiler.extract_content = original_extract
+        os.environ["MINIMAX_API_KEY"] = original_key
 
 
 def test_compile_with_url():
@@ -105,6 +193,7 @@ if __name__ == "__main__":
     test_index()
     test_static_css()
     test_cards_page()
+    test_llm_profile_config()
     test_compile_missing_api_key()
     test_compile_with_url()
 
