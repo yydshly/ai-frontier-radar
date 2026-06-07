@@ -308,25 +308,51 @@ def test_source_config():
 
 def test_featured_sources_config():
     """Test that featured sources data layer returns all required fields."""
-    from app.sources import get_featured_sources
+    from app.sources import get_featured_sources, list_sources
 
     sources = get_featured_sources()
-    assert len(sources) >= 10, \
-        f"Expected at least 10 featured sources, got {len(sources)}"
-    assert any(s["source_key"] == "openai_news" for s in sources), \
-        "openai_news should be in featured sources"
-    assert any(s["source_key"] == "anthropic_news" for s in sources), \
-        "anthropic_news should be in featured sources"
-    assert any(s["source_key"] == "nvidia_ai_blog" for s in sources), \
-        "nvidia_ai_blog should be in featured sources"
-    assert all("icon" in s for s in sources), \
-        "All featured sources must have an icon"
-    assert all("homepage_url" in s for s in sources), \
-        "All featured sources must have a homepage_url"
-    assert all("display_name" in s for s in sources), \
-        "All featured sources must have a display_name"
-    assert all("priority" in s for s in sources), \
-        "All featured sources must have a priority"
+    registry_sources = list_sources(include_disabled=True)
+    registry_keys = {s.source_key for s in registry_sources}
+
+    # Hard requirement: exactly 15 featured sources
+    assert len(sources) == 15, \
+        f"Expected exactly 15 featured sources, got {len(sources)}"
+
+    # 1. featured source_key must not be duplicated
+    featured_keys = [s["source_key"] for s in sources]
+    assert len(featured_keys) == len(set(featured_keys)), \
+        "featured source_key duplicated"
+
+    # 2. featured source_key must all exist in Source Registry
+    for key in featured_keys:
+        assert key in registry_keys, \
+            f"featured source_key '{key}' not found in Source Registry"
+
+    # 3. priority must be P0, P1, or P2
+    valid_priorities = {"P0", "P1", "P2"}
+    for s in sources:
+        assert s.get("priority") in valid_priorities, \
+            f"source_key '{s['source_key']}' has invalid priority: {s.get('priority')}"
+
+    # 4. category, homepage_url, focus, why, tags must all be present
+    for s in sources:
+        assert s.get("category"), \
+            f"source_key '{s['source_key']}' missing category"
+        assert s.get("homepage_url"), \
+            f"source_key '{s['source_key']}' missing homepage_url"
+        assert s.get("focus"), \
+            f"source_key '{s['source_key']}' missing focus"
+        assert s.get("why"), \
+            f"source_key '{s['source_key']}' missing why"
+        assert isinstance(s.get("tags"), list) and s["tags"], \
+            f"source_key '{s['source_key']}' missing non-empty tags"
+
+    # 5. homepage_url must start with http:// or https://
+    for s in sources:
+        url = s.get("homepage_url", "")
+        assert url.startswith(("http://", "https://")), \
+            f"source_key '{s['source_key']}' homepage_url must start with http:// or https://: {url}"
+
     print(f"[OK] Featured sources: {len(sources)} sources with all required fields")
     for s in sources:
         icon = s["icon"]

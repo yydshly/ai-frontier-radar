@@ -188,5 +188,11 @@ FEATURED_SOURCES = [
 
 
 def get_featured_sources() -> list[dict]:
-    """Return the featured AI source list for UI rendering."""
-    return FEATURED_SOURCES
+    """Return a shallow copy of the featured AI source list to prevent external mutation."""
+    return [
+        {
+            **source,
+            "tags": list(source.get("tags", [])),
+        }
+        for source in FEATURED_SOURCES
+    ]

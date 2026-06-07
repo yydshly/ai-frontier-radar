@@ -103,16 +103,21 @@
         </table>
         {% else %}
         <p class="empty-state">
-            暂无发现条目。
+            暂无发现条目。若你刚配置完来源，请先运行 RSS / HTML Index 探测脚本生成 SourceItem。<br>
             <a href="/sources">查看信息来源 →</a>
+        </p>
+        <p class="page-note">
+            探测脚本示例：<br>
+            <code>python scripts/probe_rss_sources.py</code><br>
+            <code>python scripts/probe_html_index_sources.py</code>
         </p>
         {% endif %}
 
-        <p class="page-note">V0.2.7 仅展示已发现条目，不抓取正文，不调用 LLM。</p>
+        <p class="page-note">V0.3 展示来源探测发现条目；本页只展示已发现条目，不抓取正文，不调用 LLM。</p>
     </main>
 
     <footer>
-        <p>V0.2.7 来源发现条目查看</p>
+        <p>AI Frontier Radar V0.3 来源发现条目查看</p>
     </footer>
 </body>
 </html>
