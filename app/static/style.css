@@ -430,3 +430,20 @@ footer {
     color: #555;
     margin-bottom: 0.5rem;
 }
+
+
+/* Status hints for source item detail page */
+.status-hint {
+    font-size: 0.95rem;
+    color: #555;
+    margin-bottom: 0.75rem;
+}
+
+.status-hint-error {
+    color: #c0392b;
+}
+
+.status-hint-success {
+    color: #27ae60;
+}
+

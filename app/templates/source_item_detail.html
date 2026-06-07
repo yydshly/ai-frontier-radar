@@ -134,20 +134,27 @@
         {% endif %}
 
         <div class="action-area">
-            {% if item.status != 'compiled' %}
+            {% if item.status == 'discovered' %}
+            <p class="status-hint">该条目尚未编译，可手动生成 InsightCard。</p>
             <form method="post" action="/source-items/{{ item.id }}/compile">
                 <button type="submit" class="btn-primary">编译为 InsightCard</button>
             </form>
-            {% else %}
-            <p class="status-note">已编译 — <a href="/cards/{{ item.insight_card_id }}">查看卡片 #{{ item.insight_card_id }}</a></p>
+            {% elif item.status == 'failed' %}
+            <p class="status-hint status-hint-error">上次编译失败：{{ item.error_message }}</p>
+            <form method="post" action="/source-items/{{ item.id }}/compile">
+                <button type="submit" class="btn-primary">重新编译</button>
+            </form>
+            {% elif item.status == 'compiled' %}
+            <p class="status-hint status-hint-success">已编译，可查看关联 InsightCard。</p>
+            <p class="status-note"><a href="/cards/{{ item.insight_card_id }}">查看卡片 #{{ item.insight_card_id }}</a></p>
             {% endif %}
         </div>
 
-        <p class="page-note">V0.2.7 仅支持单条 SourceItem 手动编译，不支持批量编译。</p>
+        <p class="page-note">V0.2.8 仅支持单条 SourceItem 手动编译，不支持批量编译。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.2.7</p>
+        <p>AI Frontier Radar V0.2.8</p>
     </footer>
 </body>
 </html>

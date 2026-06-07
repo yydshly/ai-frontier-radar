@@ -785,6 +785,68 @@ def test_source_item_compile_route_with_failed_card():
         db.close()
 
 
+def test_source_item_compile_route_with_empty_url():
+    """Test POST /source-items/{id}/compile with empty URL returns failed status."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        # Create test source
+        test_key = f"test_empty_url_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Empty URL Source",
+            description="Test source for empty URL compile",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create a source item with empty URL
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="",  # empty URL
+            title="Empty URL Test Item",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+
+        # Call compile route
+        response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
+        assert response.status_code in (302, 303), \
+            f"Expected redirect, got {response.status_code}"
+        print(f"[OK] POST /source-items/{item_id}/compile (empty URL) redirects ({response.status_code})")
+
+        # Re-query and verify
+        db.expire_all()
+        refreshed_item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+        assert refreshed_item.status == "failed", \
+            f"Expected status='failed', got '{refreshed_item.status}'"
+        assert "url is empty" in (refreshed_item.error_message or "").lower(), \
+            f"error_message should mention 'url is empty', got: {refreshed_item.error_message}"
+        assert refreshed_item.insight_card_id is None, \
+            "insight_card_id should be None for empty URL"
+        print(f"[OK] SourceItem updated: status=failed, url is empty, no insight_card_id")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_rss_probe_module_imports():
     """Test that RSS probe module can be imported."""
     from app.sources.rss_probe import (
@@ -1402,6 +1464,7 @@ if __name__ == "__main__":
     test_source_item_detail_page()
     test_source_item_compile_route_with_mock_compile_url()
     test_source_item_compile_route_with_failed_card()
+    test_source_item_compile_route_with_empty_url()
     test_rss_probe_module_imports()
     test_rss_probe_no_feed_url()
     test_rss_probe_mock_feed()
