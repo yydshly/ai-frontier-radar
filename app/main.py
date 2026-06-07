@@ -4,13 +4,14 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.db import get_db, init_db
 from app.models import InsightCard, CardStatus
-from app.schemas import HealthResponse, CardListItem, CardDetail
-from app.services.insight_compiler import compile_url, CompilationError
+from app.schemas import HealthResponse
+from app.services.insight_compiler import compile_url
 from app.logging_config import setup_logging, get_logger
 
 # Setup
@@ -23,9 +24,14 @@ init_db()
 # FastAPI app
 app = FastAPI(title="AI Frontier Radar", version="0.1.0")
 
-# Jinja2 templates
+# Base directory for templates and static
 BASE_DIR = Path(__file__).resolve().parent
+
+# Jinja2 templates
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+# Static files - mount before any routes
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
 # --- Routes ---
@@ -53,7 +59,7 @@ def compile_source(url: str = Form(...)):
     3. Check for duplicates
     4. Call LLM to generate InsightCard
     5. Save to database
-    6. Redirect to detail page
+    6. Redirect to detail page (always, including failed cards)
     """
     logger.info(f"Received compile request for URL: {url}")
 
@@ -63,13 +69,9 @@ def compile_source(url: str = Form(...)):
 
     db = next(get_db())
     try:
+        # compile_url now always returns a card (never raises)
         card = compile_url(db, url)
         return RedirectResponse(url=f"/cards/{card.id}", status_code=303)
-    except CompilationError as e:
-        logger.error(f"Compilation failed: {e}")
-        # If we have a partial card, redirect to it
-        # Otherwise redirect back to home
-        return RedirectResponse(url="/", status_code=303)
     except Exception as e:
         logger.error(f"Unexpected error during compilation: {e}")
         return RedirectResponse(url="/", status_code=303)
@@ -87,7 +89,19 @@ def list_cards(request: Request):
             .order_by(InsightCard.created_at.desc())
             .all()
         )
-        return templates.TemplateResponse("cards.html", {"request": request, "cards": cards})
+        # Pass stable string values for template comparisons
+        cards_data = []
+        for card in cards:
+            cards_data.append({
+                "id": card.id,
+                "source_title": card.source_title,
+                "source_url": card.source_url,
+                "status": card.status.value if card.status else "unknown",
+                "status_value": card.status.value if card.status else "unknown",
+                "relevance_score": card.relevance_score,
+                "created_at": card.created_at,
+            })
+        return templates.TemplateResponse("cards.html", {"request": request, "cards": cards_data})
     finally:
         db.close()
 
@@ -110,9 +124,12 @@ def card_detail(request: Request, card_id: int):
             except (json.JSONDecodeError, TypeError):
                 return []
 
+        # Pass stable string values for template comparisons
         context = {
             "request": request,
             "card": card,
+            "status_value": card.status.value if card.status else "unknown",
+            "source_type_value": card.source_type.value if card.source_type else "unknown",
             "key_points": parse_json_field(card.key_points_zh),
             "technical_insights": parse_json_field(card.technical_insights_zh),
             "product_opportunities": parse_json_field(card.product_opportunities_zh),

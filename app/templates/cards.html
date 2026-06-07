@@ -39,7 +39,7 @@
                         </a>
                     </td>
                     <td>
-                        <span class="status status-{{ card.status }}">{{ card.status }}</span>
+                        <span class="status status-{{ card.status_value }}">{{ card.status_value }}</span>
                     </td>
                     <td>{{ card.relevance_score if card.relevance_score else 0 }}</td>
                     <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</td>

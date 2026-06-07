@@ -15,7 +15,7 @@
     </header>
 
     <main>
-        {% if card.status == 'failed' %}
+        {% if status_value == 'failed' %}
         <div class="error-banner">
             <h2>❌ 处理失败</h2>
             <p>{{ card.error_message }}</p>
@@ -32,7 +32,7 @@
                 <dd><a href="{{ card.source_url }}" target="_blank" rel="noopener">{{ card.source_url }}</a></dd>
 
                 <dt>类型</dt>
-                <dd>{{ card.source_type }}</dd>
+                <dd>{{ source_type_value }}</dd>
 
                 <dt>作者</dt>
                 <dd>{{ card.source_author or '-' }}</dd>
@@ -48,7 +48,7 @@
             </dl>
         </section>
 
-        {% if card.status == 'completed' %}
+        {% if status_value == 'completed' %}
         <section class="summary-section">
             <h2>📝 中文摘要</h2>
             <p class="summary-text">{{ card.summary_zh }}</p>

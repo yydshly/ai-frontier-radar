@@ -9,7 +9,10 @@ from app.services.fetcher import fetch_url
 from app.services.extractor import extract_content
 from app.services.cleaner import clean_text
 from app.services.deduper import compute_content_hash, check_duplicate
-from app.services.llm_client import call_llm
+from app.llm.factory import create_llm_client
+from app.prompts.insight_card import INSIGHT_SYSTEM_PROMPT, build_insight_user_prompt
+from app.services.relevance import get_user_directions
+from app.config import MAX_LLM_INPUT_CHARS
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -25,53 +28,85 @@ def compile_url(db: Session, url: str) -> InsightCard:
     Full pipeline: fetch URL -> extract content -> clean -> deduplicate -> call LLM -> save card.
 
     Returns:
-        The created or existing InsightCard
-
-    Raises:
-        CompilationError: On any failure in the pipeline
+        The created or existing InsightCard (never raises, always returns a card)
     """
     logger.info(f"Starting compilation for URL: {url}")
+
+    # Initialize variables to track partial state for failed card creation
+    content_hash = ""
+    cleaned_text = ""
+    source_type = SourceType.UNKNOWN
 
     # Step 1: Fetch URL
     try:
         content, content_type = fetch_url(url)
     except Exception as e:
         logger.error(f"Failed to fetch {url}: {e}")
-        raise CompilationError(f"URL fetch failed: {e}")
+        return _create_failed_card(db, url, SourceType.UNKNOWN, "", "", f"URL fetch failed: {e}")
 
     # Step 2: Extract content
     try:
-        text, title, author = extract_content(url, content, content_type)
+        text, title, author, source_type = extract_content(url, content, content_type)
     except Exception as e:
         logger.error(f"Failed to extract content from {url}: {e}")
-        raise CompilationError(f"Content extraction failed: {e}")
+        return _create_failed_card(db, url, SourceType.UNKNOWN, "", "", f"Content extraction failed: {e}")
 
     if not text or len(text) < 100:
-        raise CompilationError(f"Extracted text too short ({len(text)} chars), likely extraction failure")
+        msg = f"Extracted text too short ({len(text)} chars), likely extraction failure"
+        logger.error(msg)
+        return _create_failed_card(db, url, source_type, "", "", msg)
 
     # Step 3: Clean text
-    cleaned_text = clean_text(text)
+    try:
+        cleaned_text = clean_text(text)
+    except Exception as e:
+        logger.error(f"Failed to clean text: {e}")
+        return _create_failed_card(db, url, source_type, "", "", f"Text cleaning failed: {e}")
 
     # Step 4: Compute hash and check for duplicates
-    content_hash = compute_content_hash(cleaned_text)
-    existing = check_duplicate(db, url, content_hash)
-    if existing:
-        logger.info(f"Duplicate found: existing card {existing.id}")
-        return existing
-
-    # Step 5: Call LLM
     try:
-        llm_result = call_llm(cleaned_text)
+        content_hash = compute_content_hash(cleaned_text)
+    except Exception as e:
+        logger.error(f"Failed to compute content hash: {e}")
+        return _create_failed_card(db, url, source_type, cleaned_text, "", f"Hash computation failed: {e}")
+
+    try:
+        existing = check_duplicate(db, url, content_hash)
+        if existing:
+            logger.info(f"Duplicate found: existing card {existing.id}")
+            return existing
+    except Exception as e:
+        logger.error(f"Failed to check duplicate: {e}")
+        # Non-fatal, continue
+
+    # Step 5: Create LLM client and call it
+    try:
+        client = create_llm_client()
+    except ValueError as e:
+        # API key missing or profile error - create failed card
+        logger.error(f"LLM config error: {e}")
+        return _create_failed_card(db, url, source_type, cleaned_text, content_hash, str(e))
+    except Exception as e:
+        logger.error(f"Failed to create LLM client: {e}")
+        return _create_failed_card(db, url, source_type, cleaned_text, content_hash, f"LLM client init failed: {e}")
+
+    try:
+        llm_result = client.generate_json(
+            system_prompt=INSIGHT_SYSTEM_PROMPT,
+            user_prompt=build_insight_user_prompt(
+                source_content=cleaned_text,
+                user_directions=get_user_directions(),
+                max_chars=MAX_LLM_INPUT_CHARS,
+            ),
+        )
     except Exception as e:
         logger.error(f"LLM call failed for {url}: {e}")
-        # Save failed card with error
-        card = _create_failed_card(db, url, SourceType.HTML if "html" in content_type else SourceType.PDF, cleaned_text, content_hash, str(e))
-        return card
+        return _create_failed_card(db, url, source_type, cleaned_text, content_hash, f"LLM call failed: {e}")
 
     # Step 6: Build and save card
     card = InsightCard(
         source_url=url,
-        source_type=SourceType.HTML if "html" in content_type else SourceType.PDF,
+        source_type=source_type,
         source_title=llm_result.get("source_title") or title,
         source_author=llm_result.get("source_author") or author,
         source_published_at=llm_result.get("source_published_at"),
@@ -101,7 +136,14 @@ def compile_url(db: Session, url: str) -> InsightCard:
     return card
 
 
-def _create_failed_card(db: Session, url: str, source_type: SourceType, cleaned_text: str, content_hash: str, error_message: str) -> InsightCard:
+def _create_failed_card(
+    db: Session,
+    url: str,
+    source_type: SourceType,
+    cleaned_text: str,
+    content_hash: str,
+    error_message: str,
+) -> InsightCard:
     """Create a failed InsightCard record."""
     card = InsightCard(
         source_url=url,

@@ -8,3 +8,4 @@ venv/
 *.db
 *.db-journal
 *.log
+config/llm_profiles.yaml

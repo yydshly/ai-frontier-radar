@@ -1,0 +1,82 @@
+# LLM Profile Configuration for AI Frontier Radar
+# Copy this file to llm_profiles.yaml and customize as needed
+#
+# IMPORTANT: llm_profiles.yaml is gitignored. Never commit real API keys.
+
+default_profile: minimax_m27_highspeed_anthropic
+
+profiles:
+  # MVP default: fast model for quick iteration
+  minimax_m27_highspeed_anthropic:
+    provider: minimax
+    protocol: anthropic_messages
+    base_url: "https://api.minimaxi.com/anthropic"
+    api_key_env: "MINIMAX_API_KEY"
+    model: "MiniMax-M2.7-highspeed"
+    endpoint: "/v1/messages"
+    timeout_seconds: 120
+    max_tokens: 4000
+    temperature: 0.8
+    top_p: 0.9
+    stream: false
+    thinking: null
+
+  # M2.7 standard
+  minimax_m27_anthropic:
+    provider: minimax
+    protocol: anthropic_messages
+    base_url: "https://api.minimaxi.com/anthropic"
+    api_key_env: "MINIMAX_API_KEY"
+    model: "MiniMax-M2.7"
+    endpoint: "/v1/messages"
+    timeout_seconds: 120
+    max_tokens: 4000
+    temperature: 0.8
+    top_p: 0.9
+    stream: false
+    thinking: null
+
+  # M3: high quality / long context / multimodal (backup)
+  minimax_m3_anthropic:
+    provider: minimax
+    protocol: anthropic_messages
+    base_url: "https://api.minimaxi.com/anthropic"
+    api_key_env: "MINIMAX_API_KEY"
+    model: "MiniMax-M3"
+    endpoint: "/v1/messages"
+    timeout_seconds: 180
+    max_tokens: 4000
+    temperature: 0.8
+    top_p: 0.95
+    stream: false
+    thinking:
+      type: "disabled"
+
+  # M2.5-highspeed: lighter/faster option
+  minimax_m25_highspeed_anthropic:
+    provider: minimax
+    protocol: anthropic_messages
+    base_url: "https://api.minimaxi.com/anthropic"
+    api_key_env: "MINIMAX_API_KEY"
+    model: "MiniMax-M2.5-highspeed"
+    endpoint: "/v1/messages"
+    timeout_seconds: 120
+    max_tokens: 4000
+    temperature: 0.8
+    top_p: 0.9
+    stream: false
+    thinking: null
+
+  # OpenAI-compatible fallback
+  openai_compatible_default:
+    provider: openai_compatible
+    protocol: openai_chat_completions
+    base_url: "${LLM_BASE_URL}"
+    api_key_env: "LLM_API_KEY"
+    model: "${LLM_MODEL}"
+    endpoint: "/chat/completions"
+    timeout_seconds: 120
+    max_completion_tokens: 4000
+    temperature: 0.3
+    top_p: 0.95
+    stream: false
