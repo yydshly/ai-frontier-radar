@@ -909,3 +909,136 @@ footer {
 .status-helper strong {
     color: #2c3e50;
 }
+
+/* ============================================================
+   V0.4 — InsightCard user decision section
+   ============================================================ */
+
+.decision-section {
+    background: #f5faf6;
+    border-left: 4px solid #27ae60;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.decision-section h2 {
+    margin-bottom: 0.5rem;
+    color: #1f4d2e;
+}
+
+.decision-intro {
+    color: #4a6b54;
+    margin-bottom: 0.5rem;
+    line-height: 1.6;
+}
+
+.decision-current {
+    background: #fff;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #d6e9d9;
+    margin-bottom: 1rem;
+    color: #2c3e50;
+}
+
+.decision-current strong {
+    color: #1f7a3f;
+    font-size: 1.05rem;
+}
+
+.decision-form fieldset {
+    border: 1px solid #d6e9d9;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    background: #fff;
+}
+
+.decision-form legend {
+    color: #4a6b54;
+    font-weight: 600;
+    padding: 0 0.4rem;
+}
+
+.decision-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-right: 1rem;
+    margin-bottom: 0.3rem;
+    cursor: pointer;
+    color: #2c3e50;
+    font-size: 0.95rem;
+}
+
+.decision-radio input[type="radio"] {
+    margin: 0;
+}
+
+.decision-note-label {
+    display: block;
+    margin-bottom: 0.75rem;
+    color: #4a6b54;
+    font-weight: 500;
+}
+
+.decision-form textarea {
+    display: block;
+    width: 100%;
+    margin-top: 0.3rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid #ccd6cf;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 60px;
+    box-sizing: border-box;
+}
+
+.decision-form textarea:focus {
+    border-color: #27ae60;
+    outline: none;
+}
+
+/* Decision badges in /cards list */
+.decision-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    background: #eef2f7;
+    color: #555;
+    white-space: nowrap;
+}
+
+.decision-badge.decision-none {
+    background: #f1f1f1;
+    color: #888;
+}
+
+.decision-badge.decision-worth_attention {
+    background: #fff8e1;
+    color: #8a6d00;
+}
+
+.decision-badge.decision-related_to_me {
+    background: #e9f8ef;
+    color: #1f7a3f;
+}
+
+.decision-badge.decision-read_later {
+    background: #e8f3ff;
+    color: #1d6fb8;
+}
+
+.decision-badge.decision-ignore {
+    background: #f1f1f1;
+    color: #999;
+}
+
+.decision-badge.decision-to_action {
+    background: #fef0ee;
+    color: #c0392b;
+}

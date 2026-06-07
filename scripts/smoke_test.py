@@ -2521,6 +2521,253 @@ def test_html_index_filters_generic_listing_pages():
         db.close()
 
 
+def test_v04_card_decision_model_exists():
+    """Test that CardDecision model and ALLOWED_CARD_DECISIONS are importable."""
+    from app.models import CardDecision
+    from app.card_decisions import ALLOWED_CARD_DECISIONS, get_decision_label, is_valid_decision
+
+    # Table name
+    assert CardDecision.__tablename__ == "card_decisions", \
+        f"Expected table 'card_decisions', got {CardDecision.__tablename__!r}"
+
+    # 5 allowed decisions
+    assert len(ALLOWED_CARD_DECISIONS) == 5, \
+        f"Expected 5 allowed decisions, got {len(ALLOWED_CARD_DECISIONS)}"
+    for key in ("worth_attention", "related_to_me", "read_later", "ignore", "to_action"):
+        assert key in ALLOWED_CARD_DECISIONS, \
+            f"Missing decision key: {key}"
+        assert ALLOWED_CARD_DECISIONS[key], \
+            f"Decision {key} has empty label"
+
+    # Helper functions
+    assert get_decision_label(None) == "未处理", \
+        "None decision should return '未处理'"
+    assert get_decision_label("worth_attention") == "值得关注", \
+        f"worth_attention label wrong: {get_decision_label('worth_attention')}"
+    assert get_decision_label("not_a_key") == "未处理", \
+        "Unknown decision should fall back to '未处理'"
+
+    assert is_valid_decision("to_action") is True
+    assert is_valid_decision("not_real") is False
+    assert is_valid_decision(None) is False
+
+    # Table is in DB
+    from sqlalchemy import inspect
+    from app.db import engine
+    inspector = inspect(engine)
+    assert "card_decisions" in inspector.get_table_names(), \
+        "card_decisions table should be created by init_db()"
+    print("[OK] CardDecision model exists, table created, helpers work")
+
+
+def test_v04_card_detail_shows_decision_section():
+    """Test that /cards/{id} renders the '看完后的判断' section with all 5 options."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType
+
+    db = SessionLocal()
+    try:
+        card = InsightCard(
+            source_url=f"https://example.com/v04-test-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title="V0.4 Detail Test",
+            content_hash=f"v04-test-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="测试中文摘要",
+            relevance_score=70,
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        card_id = card.id
+
+        response = client.get(f"/cards/{card_id}")
+        assert response.status_code == 200
+        text = response.text
+        assert "看完后的判断" in text, \
+            "Detail page should have '看完后的判断' section"
+        assert "值得" in text or "worth_attention" in text, \
+            "Detail page should show '值得关注' option"
+        assert "与我有关" in text, "Detail page should show '与我有关' option"
+        assert "稍后再看" in text, "Detail page should show '稍后再看' option"
+        assert "暂时忽略" in text, "Detail page should show '暂时忽略' option"
+        assert "转成行动" in text, "Detail page should show '转成行动' option"
+        # For a brand-new card, current decision should be 未处理
+        assert "未处理" in text, "New card should show current=未处理"
+        print(f"[OK] /cards/{card_id} shows decision section with all 5 options")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v04_post_decision_creates_record():
+    """Test that POST /cards/{id}/decision creates a CardDecision row."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+    db = SessionLocal()
+    try:
+        card = InsightCard(
+            source_url=f"https://example.com/v04-create-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title="V0.4 Create Test",
+            content_hash=f"v04-create-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="测试",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        card_id = card.id
+
+        response = client.post(
+            f"/cards/{card_id}/decision",
+            data={"decision": "worth_attention", "note": ""},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 303), \
+            f"Expected redirect, got {response.status_code}"
+
+        # Verify DB
+        db.expire_all()
+        decisions = db.query(CardDecision).filter(CardDecision.card_id == card_id).all()
+        assert len(decisions) == 1, f"Expected 1 decision, got {len(decisions)}"
+        assert decisions[0].decision == "worth_attention"
+        assert decisions[0].note is None
+        print(f"[OK] POST decision created CardDecision (decision=worth_attention)")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v04_post_decision_updates_existing():
+    """Test that re-submitting decision updates the same row (no duplicate insert)."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+    db = SessionLocal()
+    try:
+        card = InsightCard(
+            source_url=f"https://example.com/v04-update-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title="V0.4 Update Test",
+            content_hash=f"v04-update-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="测试",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        card_id = card.id
+
+        # First submit
+        client.post(
+            f"/cards/{card_id}/decision",
+            data={"decision": "worth_attention", "note": ""},
+        )
+        # Second submit with different decision + note
+        client.post(
+            f"/cards/{card_id}/decision",
+            data={"decision": "to_action", "note": "可以转成资料编译功能优化任务"},
+        )
+
+        # Verify still only one row, with updated values
+        db.expire_all()
+        decisions = db.query(CardDecision).filter(CardDecision.card_id == card_id).all()
+        assert len(decisions) == 1, \
+            f"Expected 1 decision after re-submit, got {len(decisions)} (no duplicate insert)"
+        assert decisions[0].decision == "to_action", \
+            f"Expected to_action, got {decisions[0].decision}"
+        assert decisions[0].note == "可以转成资料编译功能优化任务", \
+            f"Expected updated note, got {decisions[0].note!r}"
+        print(f"[OK] Re-submit updates the same row (no duplicate insert)")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v04_cards_list_shows_decision_status():
+    """Test that /cards list shows 处理状态 column with the user's decision."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+    db = SessionLocal()
+    try:
+        card = InsightCard(
+            source_url=f"https://example.com/v04-list-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title="V0.4 List Test Card",
+            content_hash=f"v04-list-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="测试",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+
+        # Set decision to to_action
+        client.post(
+            f"/cards/{card.id}/decision",
+            data={"decision": "to_action", "note": "测试 note"},
+        )
+
+        # Now check /cards
+        response = client.get("/cards")
+        assert response.status_code == 200
+        text = response.text
+        assert "处理状态" in text, "/cards should have '处理状态' column"
+        assert "转成行动" in text, "/cards should show '转成行动' for the updated card"
+        print("[OK] /cards list shows 处理状态=转成行动")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v04_post_invalid_decision_rejected():
+    """Test that invalid decision values are not written to the database."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType, CardDecision
+
+    db = SessionLocal()
+    try:
+        card = InsightCard(
+            source_url=f"https://example.com/v04-invalid-{uuid.uuid4().hex[:6]}",
+            source_type=SourceType.HTML,
+            source_title="V0.4 Invalid Test",
+            content_hash=f"v04-invalid-{uuid.uuid4().hex[:8]}",
+            status=CardStatus.COMPLETED,
+            summary_zh="测试",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+
+        # First, set a valid decision
+        client.post(
+            f"/cards/{card.id}/decision",
+            data={"decision": "worth_attention", "note": ""},
+        )
+
+        # Then try to overwrite with invalid
+        response = client.post(
+            f"/cards/{card.id}/decision",
+            data={"decision": "definitely_not_a_real_decision", "note": ""},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 303)
+
+        # Original decision should still be there
+        db.expire_all()
+        decisions = db.query(CardDecision).filter(CardDecision.card_id == card.id).all()
+        assert len(decisions) == 1
+        assert decisions[0].decision == "worth_attention", \
+            f"Invalid decision should NOT overwrite; got {decisions[0].decision}"
+        print("[OK] Invalid decision is rejected, original preserved")
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -2574,6 +2821,12 @@ if __name__ == "__main__":
     test_source_item_detail_v035_chinese_explanation()
     test_v035_manual_acceptance_doc_exists()
     test_v035_readme_section()
+    test_v04_card_decision_model_exists()
+    test_v04_card_detail_shows_decision_section()
+    test_v04_post_decision_creates_record()
+    test_v04_post_decision_updates_existing()
+    test_v04_cards_list_shows_decision_status()
+    test_v04_post_invalid_decision_rejected()
     test_compile_missing_api_key()
     test_compile_with_url()
 

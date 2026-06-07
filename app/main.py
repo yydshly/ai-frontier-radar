@@ -9,10 +9,11 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.db import get_db, init_db
-from app.models import InsightCard, CardStatus, Source, SourceItem
+from app.models import InsightCard, CardStatus, Source, SourceItem, CardDecision
 from app.schemas import HealthResponse
 from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
+from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_decision_label
 from app.logging_config import setup_logging, get_logger
 
 # Setup
@@ -97,6 +98,13 @@ def list_cards(request: Request):
         # Pass stable string values for template comparisons
         cards_data = []
         for card in cards:
+            # Load user's decision (V0.4) — small per-row query is fine for MVP
+            decision_row = (
+                db.query(CardDecision)
+                .filter(CardDecision.card_id == card.id)
+                .first()
+            )
+            decision_value = decision_row.decision if decision_row else None
             cards_data.append({
                 "id": card.id,
                 "source_title": card.source_title,
@@ -105,6 +113,8 @@ def list_cards(request: Request):
                 "status_value": card.status.value if card.status else "unknown",
                 "relevance_score": card.relevance_score,
                 "created_at": card.created_at,
+                "decision_value": decision_value,
+                "decision_label": get_decision_label(decision_value),
             })
         return templates.TemplateResponse("cards.html", {"request": request, "cards": cards_data})
     finally:
@@ -119,6 +129,15 @@ def card_detail(request: Request, card_id: int):
         card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
         if not card:
             return RedirectResponse(url="/cards", status_code=303)
+
+        # V0.4: load user's current decision
+        decision_row = (
+            db.query(CardDecision)
+            .filter(CardDecision.card_id == card.id)
+            .first()
+        )
+        current_decision = decision_row.decision if decision_row else None
+        current_note = decision_row.note if decision_row else None
 
         # Parse JSON fields for template
         def parse_json_field(value):
@@ -142,8 +161,59 @@ def card_detail(request: Request, card_id: int):
             "action_items": parse_json_field(card.action_items_zh),
             "related_directions": parse_json_field(card.related_user_directions),
             "relevance_reasons": parse_json_field(card.relevance_reasons_zh),
+            # V0.4 decision context
+            "current_decision": current_decision,
+            "current_note": current_note or "",
+            "current_decision_label": get_decision_label(current_decision),
+            "decision_options": ALLOWED_CARD_DECISIONS,
         }
         return templates.TemplateResponse("card_detail.html", context)
+    finally:
+        db.close()
+
+
+@app.post("/cards/{card_id}/decision")
+def update_card_decision(card_id: int, decision: str = Form(...), note: str = Form("")):
+    """Update (or create) the user's decision for a card.
+
+    One CardDecision per card. Re-submitting updates the existing row.
+    Invalid decision values are rejected and redirect back to the detail page
+    without writing to the database.
+    """
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        if not is_valid_decision(decision):
+            # Invalid decision: don't write, just redirect back to detail
+            return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
+
+        # Normalize note: strip whitespace, treat empty as None
+        note_clean = (note or "").strip()
+        note_value: str | None = note_clean if note_clean else None
+
+        existing = (
+            db.query(CardDecision)
+            .filter(CardDecision.card_id == card_id)
+            .first()
+        )
+
+        if existing is None:
+            new_decision = CardDecision(
+                card_id=card_id,
+                decision=decision,
+                note=note_value,
+            )
+            db.add(new_decision)
+        else:
+            existing.decision = decision
+            existing.note = note_value
+            # updated_at is auto-updated by onupdate=datetime.utcnow
+
+        db.commit()
+        return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
     finally:
         db.close()
 

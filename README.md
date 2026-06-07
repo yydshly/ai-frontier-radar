@@ -403,6 +403,61 @@ uvicorn app.main:app --reload --port 8779
 
 完整验收步骤见 [docs/V0.3.5_MANUAL_ACCEPTANCE.md](docs/V0.3.5_MANUAL_ACCEPTANCE.md)。
 
+## V0.4 产品目标闭环：InsightCard 用户决策
+
+V0.4 不是新增抓取能力，而是补齐用户看完 InsightCard 后的处理动作。
+
+### 产品闭环
+
+```text
+待编译资料收件箱
+→ 单条编译
+→ 中文 InsightCard
+→ 用户判断（这一步是用户自己的判断，不是模型判断）：
+   - 值得关注
+   - 与我有关
+   - 稍后再看
+   - 暂时忽略
+   - 转成行动
+```
+
+### 新增数据
+
+- 新表 `card_decisions`（由 `init_db()` / `create_all()` 自动创建，不修改 `insight_cards` 现有字段）
+- 一张 InsightCard 只保留一条当前决策（`card_id` 唯一）
+- 重复提交同一卡片的决策：update，不 insert
+- 不调用 LLM，不新增 `title_zh` 字段
+
+### 页面改动
+
+- `/cards/{id}` 详情页底部新增「🧭 看完后的判断」区块
+  - 显示当前判断（默认「未处理」）
+  - 5 个单选：值得关注 / 与我有关 / 稍后再看 / 暂时忽略 / 转成行动
+  - 可选 note 文本框（记下为什么、和哪个项目有关、下一步想做什么）
+  - failed 状态会提示「可以先标记「稍后再看」或「暂时忽略」」
+- `/cards` 列表新增「处理状态」列，显示每张卡的用户判断
+
+### 验收命令
+
+```bash
+# 端到端验收（isolated DB，不污染本地）
+python scripts/acceptance_card_decision.py --isolated-db
+
+# Smoke test
+python scripts/smoke_test.py
+```
+
+### 不做什么
+
+- 不做多用户 / 登录注册
+- 不做推荐算法
+- 不做自动评分
+- 不做批量处理
+- 不做任务管理系统
+- 不做 Notion 同步
+
+完整产品验收步骤见 [docs/V0.4_PRODUCT_LOOP_ACCEPTANCE.md](docs/V0.4_PRODUCT_LOOP_ACCEPTANCE.md)。
+
 ## 技术栈
 
 ```
