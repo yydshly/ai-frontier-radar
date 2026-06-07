@@ -209,6 +209,90 @@ python scripts/acceptance_compile_source_item.py --isolated-db --use-existing-it
 | POST | `/source-items/{id}/compile` | 手动编译该条目为 InsightCard |
 | GET | `/cards/{id}` | 查看生成的 InsightCard |
 
+## V0.3.3 SourceItem 质量过滤
+
+V0.3.3 解决 HTML Index Probe 误收录列表页、分页页、分类页的问题。
+
+### 问题描述
+
+HTML Index Probe 会把博客列表页、新闻分类页、分页导航页误判为文章详情页，例如：
+
+- `https://huggingface.co/blog?p=2` — 博客分页页
+- `https://huggingface.co/blog?sort=popular` — 博客筛选页
+- `https://huggingface.co/blog?tag=agents` — 博客标签页
+
+这些 URL 可以被编译成 InsightCard，但内容是"聚合摘要"而非单篇文章，不符合系统设计目标。
+
+### 过滤规则
+
+**过滤的 URL 模式：**
+
+```text
+/blog              # 列表页本身
+/blog?p=2          # 分页参数
+/blog?page=3       # 分页参数
+/blog?sort=popular # 排序/筛选参数
+/blog?tag=agents   # 标签参数
+/news              # 列表页
+/news?page=2       # 分页参数
+/research          # 列表页
+/research?topic=...# 话题参数
+```
+
+**保留的 URL 模式：**
+
+```text
+/blog/open-r1              # 文章详情页
+/blog/smolagents           # 文章详情页
+/news/model-release         # 文章详情页
+/research/agent-safety     # 文章详情页
+```
+
+**判断逻辑：**
+
+1. URL 规范化：去除 fragment 和 utm_* 等追踪参数，保留必要的内容参数
+2. 列表页 path 判断：单级 path 为 blog/news/research/articles 等时，判定为列表页
+3. 分页/筛选参数判断：识别 `p`、`page`、`sort`、`tag`、`search` 等 query 参数
+4. 详情页判断：两级以上 path segment（如 `/blog/slug`）或带年份 path（如 `/2025/news`）
+
+### 验收命令
+
+```bash
+# 语法检查
+python -m compileall app scripts
+
+# 来源配置检查
+python scripts/check_sources_config.py
+
+# 质量过滤 smoke test
+python scripts/smoke_test.py
+
+# 真实探测验收
+python scripts/acceptance_probe_sources.py --isolated-db --repeat 2 --timeout 15 --html-source huggingface_blog
+```
+
+### 人工检查要点
+
+acceptance 输出中的 **Top discovered SourceItems** 不应包含：
+
+- `https://huggingface.co/blog?p=2` 等分页 URL
+- `https://huggingface.co/blog?page=...` 等分页 URL
+- `https://huggingface.co/blog?sort=...` 等筛选 URL
+- `https://huggingface.co/blog?tag=...` 等标签 URL
+
+应只出现 `/blog/{slug}` 类型的文章详情页 URL。
+
+### 第二次幂等验证
+
+```bash
+python scripts/acceptance_probe_sources.py --isolated-db --repeat 2 --timeout 15 --html-source huggingface_blog
+```
+
+第二次运行应满足：
+
+- `items_new = 0`（不产生新条目）
+- `items_updated > 0`（更新已有条目时间戳）
+
 ## 技术栈
 
 ```

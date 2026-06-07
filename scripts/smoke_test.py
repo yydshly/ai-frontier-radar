@@ -1907,6 +1907,186 @@ def test_html_index_run_records_partial_failed_when_no_candidates():
         db.close()
 
 
+def test_html_index_filters_huggingface_listing_pages():
+    """Test that Hugging Face blog listing/pagination pages are filtered out."""
+    import httpx
+    from app.sources.html_index_probe import probe_html_index_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    original_get = httpx.get
+
+    # Fake HTML with a mix of listing pages and article pages
+    fake_html = b"""<!DOCTYPE html>
+<html>
+<body>
+    <a href="/blog">Blog Home</a>
+    <a href="/blog?p=2">Page 2</a>
+    <a href="/blog?page=3">Page 3</a>
+    <a href="/blog?sort=popular">Popular</a>
+    <a href="/blog?tag=agents">Agents Tag</a>
+    <a href="/blog/open-r1">Open R1</a>
+    <a href="/blog/smolagents">Smolagents</a>
+</body>
+</html>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_html.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None, headers=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_hf_listing_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Hugging Face Blog",
+            description="Test Hugging Face blog listing filter",
+            source_type="html_index",
+            homepage_url="https://huggingface.co",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        result = probe_html_index_source(db, src)
+
+        # Should only find the 2 article pages
+        assert result["items_found"] == 2, \
+            f"Expected 2 items_found, got {result['items_found']}"
+        assert result["items_new"] == 2, \
+            f"Expected 2 items_new, got {result['items_new']}"
+        assert result["error_message"] is None, \
+            f"Expected no error, got: {result['error_message']}"
+        print(f"[OK] HuggingFace listing filter: found={result['items_found']}, new={result['items_new']}")
+
+        # Verify DB state — listing pages should NOT be in DB
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        item_urls = {item.url for item in items}
+
+        assert "https://huggingface.co/blog" not in item_urls, \
+            "/blog should not be saved"
+        assert "https://huggingface.co/blog?p=2" not in item_urls, \
+            "/blog?p=2 should not be saved"
+        assert "https://huggingface.co/blog?page=3" not in item_urls, \
+            "/blog?page=3 should not be saved"
+        assert "https://huggingface.co/blog?sort=popular" not in item_urls, \
+            "/blog?sort=popular should not be saved"
+        assert "https://huggingface.co/blog?tag=agents" not in item_urls, \
+            "/blog?tag=agents should not be saved"
+
+        assert "https://huggingface.co/blog/open-r1" in item_urls, \
+            "/blog/open-r1 should be saved"
+        assert "https://huggingface.co/blog/smolagents" in item_urls, \
+            "/blog/smolagents should be saved"
+        print("[OK] Only article URLs saved: /blog/open-r1, /blog/smolagents")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
+def test_html_index_filters_generic_listing_pages():
+    """Test that generic listing/pagination/filter pages are filtered out."""
+    import httpx
+    from app.sources.html_index_probe import probe_html_index_source
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    original_get = httpx.get
+
+    fake_html = b"""<!DOCTYPE html>
+<html>
+<body>
+    <a href="/news">News Index</a>
+    <a href="/news?page=2">News Page 2</a>
+    <a href="/research">Research Index</a>
+    <a href="/research?topic=agents">Research Topic</a>
+    <a href="/news/model-release">Model Release</a>
+    <a href="/research/agent-safety-report">Agent Safety Report</a>
+</body>
+</html>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_html.decode("utf-8")
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, timeout=None, follow_redirects=None, headers=None):
+        return FakeResponse()
+
+    httpx.get = fake_get
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_generic_listing_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Generic Listing",
+            description="Test generic listing page filter",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        result = probe_html_index_source(db, src)
+
+        # Should only find the 2 article pages
+        assert result["items_found"] == 2, \
+            f"Expected 2 items_found, got {result['items_found']}"
+        assert result["items_new"] == 2, \
+            f"Expected 2 items_new, got {result['items_new']}"
+        assert result["error_message"] is None, \
+            f"Expected no error, got: {result['error_message']}"
+        print(f"[OK] Generic listing filter: found={result['items_found']}, new={result['items_new']}")
+
+        # Verify DB state — listing pages should NOT be in DB
+        items = db.query(SourceItem).filter(SourceItem.source_id == src.id).all()
+        item_urls = {item.url for item in items}
+
+        assert "https://example.com/news" not in item_urls, \
+            "/news should not be saved"
+        assert "https://example.com/news?page=2" not in item_urls, \
+            "/news?page=2 should not be saved"
+        assert "https://example.com/research" not in item_urls, \
+            "/research should not be saved"
+        assert "https://example.com/research?topic=agents" not in item_urls, \
+            "/research?topic=agents should not be saved"
+
+        assert "https://example.com/news/model-release" in item_urls, \
+            "/news/model-release should be saved"
+        assert "https://example.com/research/agent-safety-report" in item_urls, \
+            "/research/agent-safety-report should be saved"
+        print("[OK] Only article URLs saved: /news/model-release, /research/agent-safety-report")
+
+    finally:
+        httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -1944,6 +2124,8 @@ if __name__ == "__main__":
     test_html_index_probe_mock_html()
     test_html_index_run_records_fetchrun_with_mock_html()
     test_html_index_run_records_partial_failed_when_no_candidates()
+    test_html_index_filters_huggingface_listing_pages()
+    test_html_index_filters_generic_listing_pages()
     test_compile_missing_api_key()
     test_compile_with_url()
 

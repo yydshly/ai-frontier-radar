@@ -122,6 +122,22 @@ def _run_acceptance(args):
             if rss_fetch_run.error_message:
                 print(f"       error: {rss_fetch_run.error_message[:120]}")
 
+            # Show top discovered SourceItems for RSS source
+            rss_items = (
+                db.query(SourceItem)
+                .filter(SourceItem.source_key == args.rss_source)
+                .order_by(SourceItem.last_seen_at.desc())
+                .limit(5)
+                .all()
+            )
+            if rss_items:
+                print(f"\n  Top discovered SourceItems ({args.rss_source} - RSS):")
+                for item in rss_items:
+                    title = item.title or "(no title)"
+                    url = item.url or "(no url)"
+                    print(f"    - {title[:60]}")
+                    print(f"      {url[:80]}")
+
         # --- HTML Index Probe ---
         print(f"\n[3] Probing HTML index source: {args.html_source} (timeout={args.timeout}s)...")
         html_source = db.query(Source).filter(Source.source_key == args.html_source).first()
@@ -151,6 +167,22 @@ def _run_acceptance(args):
             )
             if html_fetch_run.error_message:
                 print(f"       error: {html_fetch_run.error_message[:120]}")
+
+            # Show top discovered SourceItems for HTML source
+            html_items = (
+                db.query(SourceItem)
+                .filter(SourceItem.source_key == args.html_source)
+                .order_by(SourceItem.last_seen_at.desc())
+                .limit(5)
+                .all()
+            )
+            if html_items:
+                print(f"\n  Top discovered SourceItems ({args.html_source} - HTML):")
+                for item in html_items:
+                    title = item.title or "(no title)"
+                    url = item.url or "(no url)"
+                    print(f"    - {title[:60]}")
+                    print(f"      {url[:80]}")
 
         # After stats per source
         rss_after = db.query(SourceItem).filter(SourceItem.source_key == args.rss_source).count()
