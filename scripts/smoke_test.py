@@ -273,6 +273,11 @@ def test_source_config():
     assert {s.source_key for s in enabled} == enabled_keys, \
         "get_enabled_sources() count mismatch"
 
+    # Test force_reload works
+    reloaded = list_sources(include_disabled=True, force_reload=True)
+    assert len(reloaded) == len(all_sources), \
+        "force_reload should return same count as normal load"
+
     print("[OK] Source config loads correctly")
     print(f"     total sources: {len(all_sources)}")
     print(f"     enabled sources: {len(enabled)}")

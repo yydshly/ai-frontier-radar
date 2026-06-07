@@ -342,7 +342,7 @@ python scripts/check_sources_config.py
 [OK] loaded sources config: config/sources.yaml
 [OK] total sources: 10
 [OK] enabled sources: 10
-[OK] categories: company=4, research=3, paper=3
+[OK] categories: company=3, open_source=1, paper=3, research=3
 [OK] strategies: html_index=7, rss=3
 ```
 

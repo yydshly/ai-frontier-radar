@@ -196,17 +196,17 @@ def validate_source_config(source_key: str, raw: dict) -> SourceConfig:
     )
 
 
-def load_sources_config() -> list[SourceConfig]:
+def load_sources_config(force_reload: bool = False) -> list[SourceConfig]:
     """Load and validate all sources from the active YAML config file.
 
-    Caches results after first load; pass force_reload=True to bypass cache.
+    Caches results after first load. Set force_reload=True to bypass cache.
     """
     global _cached_sources, _cached_path
 
     config_file = _find_config_file()
 
-    # Return cache if valid
-    if _cached_sources is not None and _cached_path == config_file:
+    # Return cache if valid and not forcing reload
+    if not force_reload and _cached_sources is not None and _cached_path == config_file:
         return _cached_sources
 
     with open(config_file, "r", encoding="utf-8") as f:
@@ -249,9 +249,12 @@ def load_sources_config() -> list[SourceConfig]:
     return validated
 
 
-def list_sources(include_disabled: bool = True) -> list[SourceConfig]:
-    """Return all sources, optionally filtering out disabled ones."""
-    sources = load_sources_config()
+def list_sources(include_disabled: bool = True, force_reload: bool = False) -> list[SourceConfig]:
+    """Return all sources, optionally filtering out disabled ones.
+
+    Set force_reload=True to bypass the config cache.
+    """
+    sources = load_sources_config(force_reload=force_reload)
     if include_disabled:
         return list(sources)
     return [s for s in sources if s.enabled]
