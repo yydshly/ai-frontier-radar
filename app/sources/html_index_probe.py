@@ -242,12 +242,13 @@ def probe_html_index_source(
     return result
 
 
-def run_html_index_probe_for_source(db: Session, source: Source) -> FetchRun:
+def run_html_index_probe_for_source(db: Session, source: Source, timeout_seconds: int = 20) -> FetchRun:
     """Run HTML index probe for a single source and record a FetchRun.
 
     Args:
         db: SQLAlchemy session.
         source: Source ORM object.
+        timeout_seconds: HTTP request timeout.
 
     Returns:
         FetchRun ORM object (committed to DB).
@@ -265,7 +266,7 @@ def run_html_index_probe_for_source(db: Session, source: Source) -> FetchRun:
     db.refresh(fetch_run)
 
     try:
-        probe_result = probe_html_index_source(db, source)
+        probe_result = probe_html_index_source(db, source, timeout_seconds=timeout_seconds)
 
         # Update fetch run fields
         fetch_run.items_found = probe_result["items_found"]
@@ -338,20 +339,34 @@ def run_html_index_probe_for_source(db: Session, source: Source) -> FetchRun:
         return fetch_run
 
 
-def run_html_index_probe_for_enabled_sources(db: Session) -> dict:
-    """Run HTML index probe for all enabled HTML index sources.
+def run_html_index_probe_for_enabled_sources(
+    db: Session,
+    source_key: str | None = None,
+    limit_sources: int | None = None,
+    timeout_seconds: int = 20,
+) -> dict:
+    """Run HTML index probe for enabled HTML index sources.
 
     Args:
         db: SQLAlchemy session.
+        source_key: If set, only probe this specific source_key.
+        limit_sources: If set, probe at most this many sources.
+        timeout_seconds: HTTP request timeout.
 
     Returns:
         dict with aggregate statistics across all HTML index sources.
     """
-    enabled_html_sources = (
-        db.query(Source)
-        .filter(Source.enabled == True, Source.fetch_strategy == "html_index")
-        .all()
+    query = db.query(Source).filter(
+        Source.enabled == True, Source.fetch_strategy == "html_index"
     )
+
+    if source_key is not None:
+        query = query.filter(Source.source_key == source_key)
+
+    enabled_html_sources = query.all()
+
+    if limit_sources is not None:
+        enabled_html_sources = enabled_html_sources[:limit_sources]
 
     total = len(enabled_html_sources)
     success_count = 0
@@ -364,7 +379,7 @@ def run_html_index_probe_for_enabled_sources(db: Session) -> dict:
 
     for source in enabled_html_sources:
         try:
-            fetch_run = run_html_index_probe_for_source(db, source)
+            fetch_run = run_html_index_probe_for_source(db, source, timeout_seconds=timeout_seconds)
 
             if fetch_run.status == "success":
                 success_count += 1

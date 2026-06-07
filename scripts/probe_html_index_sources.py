@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Probe all enabled HTML index sources and save discovered article links to the database.
+"""Probe HTML index sources and save discovered article links to the database.
 
 Usage:
     python scripts/probe_html_index_sources.py
+    python scripts/probe_html_index_sources.py --source-key openai_news
+    python scripts/probe_html_index_sources.py --limit-sources 2
+    python scripts/probe_html_index_sources.py --timeout 15
 """
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -18,6 +22,29 @@ from app.sources.html_index_probe import run_html_index_probe_for_enabled_source
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Probe HTML index sources and save discovered article links."
+    )
+    parser.add_argument(
+        "--source-key",
+        type=str,
+        default=None,
+        help="Only probe this specific source_key.",
+    )
+    parser.add_argument(
+        "--limit-sources",
+        type=int,
+        default=None,
+        help="Probe at most N sources (applies when no --source-key specified).",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=20,
+        help="HTTP request timeout in seconds (default: 20).",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("HTML Index Source Probe")
     print("=" * 60)
@@ -35,23 +62,45 @@ def main():
               f"created={sync_result['created']}, "
               f"updated={sync_result['updated']}")
 
-        # Find enabled HTML index sources
-        html_sources = (
-            db.query(Source)
-            .filter(Source.enabled == True, Source.fetch_strategy == "html_index")
-            .all()
+        # Find HTML index sources to probe
+        query = db.query(Source).filter(
+            Source.enabled == True, Source.fetch_strategy == "html_index"
         )
-        print(f"\n[2] Found {len(html_sources)} enabled HTML index sources:")
+        if args.source_key:
+            query = query.filter(Source.source_key == args.source_key)
+
+        html_sources = query.all()
+        if args.limit_sources is not None and args.source_key is None:
+            html_sources = html_sources[:args.limit_sources]
+
+        print(f"\n[2] Targeting {len(html_sources)} enabled HTML index source(s):")
         for s in html_sources:
             print(f"    - {s.source_key}: {s.homepage_url}")
+
+        if args.source_key and not html_sources:
+            # Check if the key exists but is not html_index
+            existing = db.query(Source).filter(Source.source_key == args.source_key).first()
+            if existing:
+                print(
+                    f"[FAIL] Source '{args.source_key}' exists but has fetch_strategy='{existing.fetch_strategy}', "
+                    f"not 'html_index'."
+                )
+            else:
+                print(f"[FAIL] Source '{args.source_key}' not found in registry.")
+            return 1
 
         if not html_sources:
             print("[WARN] No enabled HTML index sources found in database")
             return 0
 
-        # Run probe for all enabled HTML index sources
-        print(f"\n[3] Probing HTML index sources...")
-        result = run_html_index_probe_for_enabled_sources(db)
+        # Run probe
+        print(f"\n[3] Probing HTML index sources (timeout={args.timeout}s)...")
+        result = run_html_index_probe_for_enabled_sources(
+            db,
+            source_key=args.source_key,
+            limit_sources=args.limit_sources,
+            timeout_seconds=args.timeout,
+        )
 
         print(f"\n--- Aggregate Results ---")
         print(f"  Sources total:    {result['sources_total']}")
@@ -72,7 +121,7 @@ def main():
                 .first()
             )
             if latest_run:
-                status_icon = "✅" if latest_run.status == "success" else "❌"
+                status_icon = "[OK]" if latest_run.status == "success" else "[FAIL]"
                 print(f"  {status_icon} {source.source_key}: "
                       f"found={latest_run.items_found}, "
                       f"new={latest_run.items_new}, "
@@ -80,7 +129,7 @@ def main():
                       f"failed={latest_run.items_failed}, "
                       f"status={latest_run.status}")
                 if latest_run.error_message:
-                    print(f"       error: {latest_run.error_message[:80]}")
+                    print(f"       error: {latest_run.error_message[:120]}")
 
         # Determine exit code
         if result["sources_failed"] == 0:

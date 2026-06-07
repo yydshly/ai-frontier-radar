@@ -252,6 +252,47 @@ def test_utility_scripts_exist():
     print("[OK] Utility scripts exist")
 
 
+def test_probe_scripts_and_signatures():
+    """Check probe scripts exist and runner functions have required parameters."""
+    import inspect
+    scripts_dir = Path(__file__).parent
+
+    # Check script files exist
+    for script in ["probe_rss_sources.py", "probe_html_index_sources.py", "acceptance_probe_sources.py"]:
+        script_path = scripts_dir / script
+        assert script_path.exists(), f"Probe script {script} not found"
+
+    # Check RSS runner signature
+    from app.sources.rss_probe import run_rss_probe_for_source, run_rss_probe_for_enabled_sources
+    sig_single = inspect.signature(run_rss_probe_for_source)
+    assert "timeout_seconds" in sig_single.parameters, \
+        "run_rss_probe_for_source missing timeout_seconds parameter"
+
+    sig_multi = inspect.signature(run_rss_probe_for_enabled_sources)
+    assert "source_key" in sig_multi.parameters, \
+        "run_rss_probe_for_enabled_sources missing source_key parameter"
+    assert "limit_sources" in sig_multi.parameters, \
+        "run_rss_probe_for_enabled_sources missing limit_sources parameter"
+    assert "timeout_seconds" in sig_multi.parameters, \
+        "run_rss_probe_for_enabled_sources missing timeout_seconds parameter"
+
+    # Check HTML runner signature
+    from app.sources.html_index_probe import run_html_index_probe_for_source, run_html_index_probe_for_enabled_sources
+    sig_single_html = inspect.signature(run_html_index_probe_for_source)
+    assert "timeout_seconds" in sig_single_html.parameters, \
+        "run_html_index_probe_for_source missing timeout_seconds parameter"
+
+    sig_multi_html = inspect.signature(run_html_index_probe_for_enabled_sources)
+    assert "source_key" in sig_multi_html.parameters, \
+        "run_html_index_probe_for_enabled_sources missing source_key parameter"
+    assert "limit_sources" in sig_multi_html.parameters, \
+        "run_html_index_probe_for_enabled_sources missing limit_sources parameter"
+    assert "timeout_seconds" in sig_multi_html.parameters, \
+        "run_html_index_probe_for_enabled_sources missing timeout_seconds parameter"
+
+    print("[OK] Probe scripts exist and runner functions have required parameters")
+
+
 def test_source_config():
     """Test that source registry config loads and validates correctly."""
     from app.sources import list_sources, get_source, get_enabled_sources
@@ -1532,6 +1573,7 @@ if __name__ == "__main__":
     test_llm_profile_config()
     test_sqlite_parent_dir_creation()
     test_utility_scripts_exist()
+    test_probe_scripts_and_signatures()
     test_source_config()
     test_featured_sources_config()
     test_source_registry_db_models()
