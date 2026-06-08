@@ -6019,6 +6019,129 @@ def test_project_docs_renderer_blocks_raw_html():
     print("[OK] iframe injection is blocked")
 
 
+def test_project_docs_renderer_href_bypass():
+    """Test that render_markdown blocks href protocol bypass techniques."""
+    from app.project_docs.renderer import render_markdown
+
+    # Space-prefixed javascript:
+    result = render_markdown("[bad]( javascript:alert(1))")
+    assert "javascript:" not in result.lower(), \
+        f"Space-prefixed javascript: should be blocked, got: {result}"
+    assert "href=" not in result or "javascript" not in result.lower(), \
+        f"javascript href should not appear, got: {result}"
+    print("[OK] Space-prefixed javascript: is blocked")
+
+    # Tab-prefixed javascript:
+    result = render_markdown("[bad](\tjavascript:alert(1))")
+    assert "javascript:" not in result.lower(), \
+        f"Tab-prefixed javascript: should be blocked, got: {result}"
+    print("[OK] Tab-prefixed javascript: is blocked")
+
+    # data: URL with script
+    result = render_markdown("[bad](data:text/html,<script>)")
+    assert "data:" not in result.lower(), \
+        f"data: URL should be blocked, got: {result}"
+    print("[OK] data: URL with script is blocked")
+
+    # file: scheme
+    result = render_markdown("[bad](file:///etc/passwd)")
+    assert "file:" not in result.lower(), \
+        f"file: scheme should be blocked, got: {result}"
+    print("[OK] file: scheme is blocked")
+
+    # Scheme-relative URL
+    result = render_markdown("[bad](//evil.com)")
+    assert "//evil.com" not in result, \
+        f"Scheme-relative URL should be blocked, got: {result}"
+    print("[OK] Scheme-relative URL //evil.com is blocked")
+
+    # Allowed: mailto
+    result = render_markdown("[Email](mailto:test@example.com)")
+    assert 'href="mailto:test@example.com"' in result, \
+        f"mailto: should be allowed, got: {result}"
+    print("[OK] mailto: scheme is allowed")
+
+    # Allowed: relative path
+    result = render_markdown("[Doc](docs/readme.md)")
+    assert 'href="docs/readme.md"' in result, \
+        f"Relative path should be allowed, got: {result}"
+    print("[OK] Relative path links are allowed")
+
+    # Allowed: parent-dir path
+    result = render_markdown("[Parent](../readme.md)")
+    assert 'href="../readme.md"' in result, \
+        f"Parent-dir path should be allowed, got: {result}"
+    print("[OK] Parent-dir path links are allowed")
+
+    # Allowed: anchor
+    result = render_markdown("[Section](#section)")
+    assert 'href="#section"' in result, \
+        f"Anchor should be allowed, got: {result}"
+    print("[OK] Anchor links are allowed")
+
+
+def test_project_docs_renderer_inline_in_paragraph():
+    """Test that inline elements render correctly inside paragraphs."""
+    from app.project_docs.renderer import render_markdown
+
+    # Inline link inside a paragraph
+    result = render_markdown("请阅读 [README](README.md)")
+    assert '<a href="README.md"' in result, \
+        f"Inline link in paragraph should render, got: {result}"
+    assert "&lt;a" not in result, \
+        f"Link should NOT be double-escaped, got: {result}"
+    print("[OK] Inline link in paragraph renders correctly")
+
+    # Bold inside paragraph
+    result = render_markdown("这是 **重要说明**")
+    assert "<strong>重要说明</strong>" in result, \
+        f"Bold in paragraph should render, got: {result}"
+    assert "&lt;strong&gt;" not in result, \
+        f"Bold should NOT be double-escaped, got: {result}"
+    print("[OK] Bold in paragraph renders correctly")
+
+    # Italic inside paragraph
+    result = render_markdown("这是 _斜体说明_")
+    assert "<em>斜体说明</em>" in result, \
+        f"Italic in paragraph should render, got: {result}"
+    assert "&lt;em&gt;" not in result, \
+        f"Italic should NOT be double-escaped, got: {result}"
+    print("[OK] Italic in paragraph renders correctly")
+
+    # Mixed: bold, italic, and link in same paragraph
+    result = render_markdown("组合：**重点** 和 [链接](docs/a.md)")
+    assert "<strong>重点</strong>" in result, \
+        f"Strong in mixed paragraph should render, got: {result}"
+    assert '<a href="docs/a.md"' in result, \
+        f"Link in mixed paragraph should render, got: {result}"
+    assert "&lt;strong&gt;" not in result and "&lt;a" not in result, \
+        f"Inline elements should NOT be double-escaped, got: {result}"
+    print("[OK] Mixed inline elements in paragraph render correctly")
+
+
+def test_project_docs_renderer_onerror_in_code():
+    """Test that onerror= patterns inside code blocks are preserved as inert text."""
+    from app.project_docs.renderer import render_markdown
+
+    # Inline code with onerror=
+    result = render_markdown("`onerror=alert(1)`")
+    assert "onerror=alert(1)" in result, \
+        f"onerror= in inline code should be preserved, got: {result}"
+    assert "<code>" in result, \
+        f"Inline code should render as <code>, got: {result}"
+    # onerror= should NOT be extracted as an event handler
+    # (the content is inside <code> which renders as text, not an attribute)
+    print("[OK] onerror=alert(1) in inline code is preserved as inert text")
+
+    # Fenced code block with onerror=
+    result = render_markdown("```\nonerror=alert(1)\n```")
+    assert "onerror=alert(1)" in result, \
+        f"onerror= in code block should be preserved, got: {result}"
+    assert "<pre><code>" in result, \
+        f"Code block should render as <pre><code>, got: {result}"
+    print("[OK] onerror=alert(1) in fenced code block is preserved as inert text")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -6229,6 +6352,9 @@ if __name__ == "__main__":
     # Project docs renderer security
     test_project_docs_renderer_safe_markdown_links()
     test_project_docs_renderer_blocks_raw_html()
+    test_project_docs_renderer_href_bypass()
+    test_project_docs_renderer_inline_in_paragraph()
+    test_project_docs_renderer_onerror_in_code()
 
     print("=" * 50)
     print("Smoke test completed!")
