@@ -718,6 +718,16 @@ python scripts/acceptance_real_bilingual_report.py --isolated-db --real
 
 完整产品验收步骤见 [docs/V0.8.2_REAL_BILINGUAL_QUALITY_ACCEPTANCE.md](docs/V0.8.2_REAL_BILINGUAL_QUALITY_ACCEPTANCE.md)。
 
+## 项目理解与维护文档
+
+如果你是第一次接手项目，建议先阅读 [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md)。
+
+如果你要改代码，先阅读 [docs/IMPLEMENTATION_GUIDE.md](docs/IMPLEMENTATION_GUIDE.md)。
+
+如果你要调整模型调用，先阅读 [docs/LLM_PIPELINE_AND_QUALITY.md](docs/LLM_PIPELINE_AND_QUALITY.md)。
+
+如果你要判断产品下一步，先阅读 [docs/PRODUCT_SHAPE_ROADMAP.md](docs/PRODUCT_SHAPE_ROADMAP.md)。
+
 ## 技术栈
 
 ```

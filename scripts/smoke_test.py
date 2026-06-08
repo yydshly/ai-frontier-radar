@@ -4118,6 +4118,54 @@ def test_v082_english_in_chinese_field_fails():
     print("[OK] English in chinese_explanation/fidelity/interpretation_boundary correctly fails")
 
 
+def test_v083_project_docs_exist():
+    """Test that V0.8.3 architecture and product docs exist with required content."""
+    from pathlib import Path
+
+    project_root = Path(__file__).parent.parent
+
+    # Assert each doc exists
+    doc_paths = {
+        "ARCHITECTURE_OVERVIEW": project_root / "docs" / "ARCHITECTURE_OVERVIEW.md",
+        "IMPLEMENTATION_GUIDE": project_root / "docs" / "IMPLEMENTATION_GUIDE.md",
+        "LLM_PIPELINE_AND_QUALITY": project_root / "docs" / "LLM_PIPELINE_AND_QUALITY.md",
+        "PRODUCT_SHAPE_ROADMAP": project_root / "docs" / "PRODUCT_SHAPE_ROADMAP.md",
+    }
+
+    for name, path in doc_paths.items():
+        assert path.exists(), f"{name} not found at {path}"
+
+    # Read and check each doc contains its key section marker
+    arch_text = doc_paths["ARCHITECTURE_OVERVIEW"].read_text(encoding="utf-8")
+    assert "三层产品架构" in arch_text, \
+        "ARCHITECTURE_OVERVIEW.md must contain '三层产品架构'"
+
+    impl_text = doc_paths["IMPLEMENTATION_GUIDE"].read_text(encoding="utf-8")
+    assert "SourceItem 编译" in impl_text, \
+        "IMPLEMENTATION_GUIDE.md must contain 'SourceItem 编译'"
+
+    llm_text = doc_paths["LLM_PIPELINE_AND_QUALITY"].read_text(encoding="utf-8")
+    assert "Mock vs Real" in llm_text, \
+        "LLM_PIPELINE_AND_QUALITY.md must contain 'Mock vs Real'"
+
+    roadmap_text = doc_paths["PRODUCT_SHAPE_ROADMAP"].read_text(encoding="utf-8")
+    assert "个人 AI 前沿资料工作台" in roadmap_text, \
+        "PRODUCT_SHAPE_ROADMAP.md must contain '个人 AI 前沿资料工作台'"
+
+    # Check README has the new section
+    readme_path = project_root / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8")
+    assert "项目理解与维护文档" in readme_text, \
+        "README.md must contain '项目理解与维护文档'"
+
+    print("[OK] V0.8.3 docs: all 4 docs exist with required content")
+    print("     ARCHITECTURE_OVERVIEW.md: contains '三层产品架构'")
+    print("     IMPLEMENTATION_GUIDE.md: contains 'SourceItem 编译'")
+    print("     LLM_PIPELINE_AND_QUALITY.md: contains 'Mock vs Real'")
+    print("     PRODUCT_SHAPE_ROADMAP.md: contains '个人 AI 前沿资料工作台'")
+    print("     README.md: contains '项目理解与维护文档'")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4233,6 +4281,9 @@ if __name__ == "__main__":
     test_v082_language_quality_mock_passes()
     test_v082_chinese_in_english_field_fails()
     test_v082_english_in_chinese_field_fails()
+
+    # V0.8.3 architecture and product docs
+    test_v083_project_docs_exist()
 
     print("=" * 50)
     print("Smoke test completed!")
