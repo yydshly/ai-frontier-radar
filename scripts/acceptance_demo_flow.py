@@ -347,12 +347,21 @@ def main():
     _run_acceptance(args)
 
     if isolated_db_path and not args.keep_db:
+        # Dispose engine to release file locks before deletion
+        try:
+            from app.db import engine
+            engine.dispose()
+        except Exception:
+            pass  # Engine may not be imported in this context
+
         try:
             if os.path.exists(isolated_db_path):
                 os.remove(isolated_db_path)
             print(f"[INFO] Cleaned up isolated DB: {isolated_db_path}")
         except OSError as e:
-            print(f"[WARN] Could not remove isolated DB: {isolated_db_path}: {e}")
+            # Windows file lock warning - does not affect acceptance result
+            print(f"[WARN] Could not remove isolated DB (Windows file lock): {isolated_db_path}: {e}")
+            print("[INFO] This is a Windows file lock issue, not an acceptance failure.")
 
     return 0
 

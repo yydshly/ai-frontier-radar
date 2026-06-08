@@ -148,6 +148,23 @@ def index(request: Request):
                 "created_at": card.created_at,
             })
 
+        # ── Demo data entry (V1.0-alpha.1) ────────────────────────────────
+        demo_source_item = None
+        demo_card = None
+        demo_source_item_row = (
+            db.query(SourceItem)
+            .filter(SourceItem.source_key == "demo_ai_frontier")
+            .first()
+        )
+        if demo_source_item_row and demo_source_item_row.insight_card_id:
+            demo_card = (
+                db.query(InsightCard)
+                .filter(InsightCard.id == demo_source_item_row.insight_card_id)
+                .first()
+            )
+            if demo_card and demo_card.status == CardStatus.COMPLETED:
+                demo_source_item = demo_source_item_row
+
         # ── Build context ──────────────────────────────────────────────────
         dashboard_stats = {
             "source_items_discovered": source_items_discovered_count,
@@ -167,6 +184,17 @@ def index(request: Request):
             "dashboard_stats": dashboard_stats,
             "recent_source_items": recent_source_items_data,
             "recent_cards": recent_cards_data,
+            "demo_source_item": {
+                "id": demo_source_item.id,
+                "title": demo_source_item.title or "无标题",
+                "url": demo_source_item.url,
+                "status": demo_source_item.status,
+            } if demo_source_item else None,
+            "demo_card": {
+                "id": demo_card.id,
+                "source_title": demo_card.source_title or "无标题",
+                "source_url": demo_card.source_url,
+            } if demo_card else None,
         })
     finally:
         db.close()

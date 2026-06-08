@@ -816,6 +816,48 @@ python scripts/acceptance_demo_flow.py --isolated-db
 
 详细文档见 [docs/V1.0_ALPHA_DEMO_FLOW.md](docs/V1.0_ALPHA_DEMO_FLOW.md)。
 
+## 5 分钟本地演示
+
+无需联网、无需真实 LLM，即可快速体验完整主流程：
+
+```bash
+# 1. 创建演示数据（不联网、不调用 LLM）
+python scripts/create_demo_data.py
+
+# 2. 启动服务
+uvicorn app.main:app --reload --port 8779
+
+# 3. 打开首页
+open http://127.0.0.1:8779/
+```
+
+### 可访问页面
+
+| 页面 | 路径 |
+|------|------|
+| 首页 | `/` |
+| 待编译资料 | `/source-items` |
+| 演示卡片 | 运行 `create_demo_data.py` 后查看脚本输出的 `/cards/{id}` |
+| 完整报告 | `/cards/{id}/export-report` |
+| 行动任务 | `/cards/{id}/export-markdown` |
+
+首页右侧会出现 **🎬 演示数据入口** 区块，点击即可跳转到对应页面。
+
+### 快速验收命令
+
+```bash
+# 创建 demo 数据
+python scripts/create_demo_data.py
+
+# 重置 demo 数据（删除后重建）
+python scripts/create_demo_data.py --reset-demo
+
+# 验收 demo 数据链路
+python scripts/acceptance_demo_data.py --isolated-db
+```
+
+详细文档见 [docs/V1.0_ALPHA_1_DEMO_DATA.md](docs/V1.0_ALPHA_1_DEMO_DATA.md)。
+
 ## 项目理解与维护文档
 
 如果你是第一次接手项目，建议先阅读 [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md)。

@@ -4539,6 +4539,123 @@ def test_v10_alpha_acceptance_script_exists():
     print("[OK] acceptance_demo_flow.py exists with required arguments")
 
 
+# ── V1.0-alpha.1 demo data ────────────────────────────────────────────────────
+
+def test_v10_alpha1_create_demo_data_script_exists():
+    """Test that create_demo_data.py exists and supports required arguments."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "create_demo_data.py"
+    assert script_path.exists(), \
+        "scripts/create_demo_data.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+    assert "--reset-demo" in script_text, \
+        "create_demo_data.py should support --reset-demo"
+    assert "--source-key" in script_text, \
+        "create_demo_data.py should support --source-key"
+    assert "Demo data ready" in script_text, \
+        "create_demo_data.py should output demo data ready message"
+    print("[OK] create_demo_data.py exists with required arguments")
+
+
+def test_v10_alpha1_acceptance_demo_data_script_exists():
+    """Test that acceptance_demo_data.py exists and supports required arguments."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "acceptance_demo_data.py"
+    assert script_path.exists(), \
+        "scripts/acceptance_demo_data.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+    assert "--isolated-db" in script_text, \
+        "acceptance_demo_data.py should support --isolated-db"
+    assert "--keep-db" in script_text, \
+        "acceptance_demo_data.py should support --keep-db"
+    assert "ACCEPTANCE PASSED" in script_text, \
+        "acceptance_demo_data.py should print ACCEPTANCE PASSED"
+    print("[OK] acceptance_demo_data.py exists with required arguments")
+
+
+def test_v10_alpha1_home_demo_entry():
+    """Test that homepage shows demo entry section when demo data exists."""
+    from app.db import SessionLocal, init_db
+    from app.models import Source, SourceItem, InsightCard, CardStatus, SourceType
+
+    # Initialize DB
+    init_db()
+    db = SessionLocal()
+
+    try:
+        # Create demo data
+        source = Source(
+            source_key="demo_smoke_test",
+            name="Smoke Test Source",
+            description="For smoke test",
+            source_type="rss",
+            category="test",
+            fetch_strategy="rss",
+            relevance_hint="test",
+            enabled=True,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        source_item = SourceItem(
+            source_id=source.id,
+            source_key="demo_smoke_test",
+            url="https://example.com/demo-smoke-test",
+            title="Demo Smoke Test Item",
+            status="compiled",
+        )
+        db.add(source_item)
+        db.commit()
+        db.refresh(source_item)
+
+        card = InsightCard(
+            source_url="https://example.com/demo-smoke-test",
+            source_type=SourceType.HTML,
+            source_title="Demo Smoke Test Card",
+            status=CardStatus.COMPLETED,
+            summary_zh="Smoke test summary",
+            key_points_zh='[]',
+            technical_insights_zh='[]',
+            product_opportunities_zh='[]',
+            risks_zh='[]',
+            action_items_zh='[]',
+            relevance_score=80,
+            relevance_reasons_zh='[]',
+            related_user_directions='[]',
+            model_name="smoke-test",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+
+        source_item.insight_card_id = card.id
+        db.commit()
+
+        # GET homepage
+        response = client.get("/")
+        assert response.status_code == 200
+        text = response.text
+
+        # Check demo entry section is present
+        assert "演示数据入口" in text, \
+            "Homepage should show '演示数据入口' section"
+        print("[OK] Homepage shows 演示数据入口 section with demo data present")
+
+        # Cleanup
+        db.delete(source_item)
+        db.delete(card)
+        db.delete(source)
+        db.commit()
+
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4674,6 +4791,11 @@ if __name__ == "__main__":
     # V1.0-alpha demo flow guidance
     test_v10_alpha_demo_flow_guidance()
     test_v10_alpha_acceptance_script_exists()
+
+    # V1.0-alpha.1 demo data
+    test_v10_alpha1_create_demo_data_script_exists()
+    test_v10_alpha1_acceptance_demo_data_script_exists()
+    test_v10_alpha1_home_demo_entry()
 
     print("=" * 50)
     print("Smoke test completed!")
