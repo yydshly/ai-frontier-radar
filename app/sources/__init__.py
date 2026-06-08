@@ -8,6 +8,7 @@ from app.sources.config_loader import (
 )
 from app.sources.models import SourceConfig
 from app.sources.db_sync import sync_sources_config_to_db
+from app.sources.featured import get_featured_sources
 
 __all__ = [
     "SourceConfig",
@@ -17,4 +18,5 @@ __all__ = [
     "get_enabled_sources",
     "validate_source_config",
     "sync_sources_config_to_db",
+    "get_featured_sources",
 ]

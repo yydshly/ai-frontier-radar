@@ -5,13 +5,14 @@ Does NOT fetch article body, does NOT call LLM.
 import json
 import re
 from datetime import datetime
-from urllib.parse import urljoin, urlparse, urldefrag
+from urllib.parse import urljoin, urlparse, urldefrag, parse_qs, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from app.models import Source, SourceItem, FetchRun
+from app.sources.quality import classify_source_item_url
 
 # Extensions to skip (static assets)
 SKIP_EXTENSIONS = {
@@ -33,15 +34,137 @@ ARTICLE_PATH_SEGMENTS = {
     "announcement", "updates", "update", "insights", "insight",
 }
 
+# Single-level paths that are index/listing pages (not article pages)
+# e.g., /blog, /news, /research — but NOT /blog/slug, /news/slug
+LISTING_PAGE_PATHS = {
+    "blog", "news", "research", "articles", "posts",
+    "announcements", "updates", "reports",
+}
+
+# Query parameters that indicate pagination, filtering, or listing pages
+LISTING_QUERY_PARAMS = {
+    "p", "page", "paged", "offset", "start",
+    "sort", "filter",
+    "tag", "tags", "category", "search",
+    "q", "author", "topic",
+}
+
 # Regex for 4-digit year in path
 YEAR_PATTERN = re.compile(r"/\d{4}/|" r"-\d{4}/|" r"/\d{4}$")
+
+
+def _normalize_candidate_url(url: str) -> str:
+    """Normalize a candidate URL by removing fragments and tracking parameters.
+
+    Args:
+        url: Absolute URL to normalize.
+
+    Returns:
+        Normalized URL string.
+    """
+    # Remove fragment
+    url, _ = urldefrag(url)
+
+    parsed = urlparse(url)
+
+    # Remove tracking/query parameters that don't affect content identity
+    tracking_params = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+                       "ref", "source", "fbclid", "gclid", "_ga"}
+
+    # Parse query string
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+
+    # Filter out tracking params
+    filtered_qs = {k: v for k, v in qs.items() if k not in tracking_params}
+
+    # Reconstruct URL without tracking params
+    # Keep only params that affect content (LISTING_QUERY_PARAMS)
+    content_qs = {k: v for k, v in filtered_qs.items() if k in LISTING_QUERY_PARAMS}
+
+    new_query = "&".join(f"{k}={v[0]}" for k, v in content_qs.items())
+
+    normalized = urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path,
+        parsed.params,
+        new_query,
+        "",  # no fragment
+    ))
+
+    return normalized
+
+
+def _has_pagination_or_listing_query(url: str) -> bool:
+    """Check if URL has pagination, filter, or listing-related query parameters.
+
+    Args:
+        url: URL to check.
+
+    Returns:
+        True if URL contains listing/pagination query parameters.
+    """
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+
+    for param in qs:
+        if param.lower() in LISTING_QUERY_PARAMS:
+            return True
+
+    return False
+
+
+def _is_index_or_listing_url(url: str, source_homepage_url: str) -> bool:
+    """Determine if URL is an index page, listing page, or pagination page.
+
+    A URL is considered an index/listing URL if:
+    - Its path is exactly a single-level listing path like /blog, /news
+      (not /blog/slug which is an article)
+    - OR it has pagination/filtering query params
+
+    Args:
+        url: Absolute URL to check.
+        source_homepage_url: Homepage URL of the source (for path comparison).
+
+    Returns:
+        True if URL is an index/listing/pagination page (should be filtered out).
+    """
+    parsed = urlparse(url)
+    source_parsed = urlparse(source_homepage_url)
+
+    # Only apply same-netloc check here; caller already ensures this
+    if parsed.netloc != source_parsed.netloc:
+        return False
+
+    path = parsed.path.lower().rstrip("/")
+
+    # Empty path or just "/" is not a listing page (it's homepage)
+    if not path or path == "/":
+        return False
+
+    path_segments = [seg for seg in path.split("/") if seg]
+
+    # If path has only ONE segment and that segment is in LISTING_PAGE_PATHS,
+    # it's a listing/index page (e.g., /blog, /news, /research)
+    if len(path_segments) == 1 and path_segments[0] in LISTING_PAGE_PATHS:
+        return True
+
+    # If path is exactly a listing path with no trailing segment
+    if path in LISTING_PAGE_PATHS:
+        return True
+
+    # If URL has pagination/listing query params, it's a listing page
+    if _has_pagination_or_listing_query(url):
+        return True
+
+    return False
 
 
 def _is_probable_article_url(url: str, source_homepage_url: str) -> bool:
     """Filter URL to decide if it looks like a probable article/research page.
 
     Args:
-        url: Absolute URL to evaluate.
+        url: Absolute URL to evaluate (should already be normalized).
         source_homepage_url: Homepage URL of the source (used for same-domain check).
 
     Returns:
@@ -69,6 +192,11 @@ def _is_probable_article_url(url: str, source_homepage_url: str) -> bool:
     for seg in path_segments:
         if seg in SKIP_PATH_SEGMENTS:
             return False
+
+    # Skip index/listing pages (list page paths without a trailing article slug)
+    # This must come after basic path checks but before article segment checks
+    if _is_index_or_listing_url(url, source_homepage_url):
+        return False
 
     # Include if it contains article-like path segments
     for seg in path_segments:
@@ -118,7 +246,7 @@ def probe_html_index_source(
 
     # Build request headers
     headers = {
-        "User-Agent": "AI-Frontier-Radar/0.2 (+https://github.com/yydshly/ai-frontier-radar)"
+        "User-Agent": "AI-Frontier-Radar/0.7 (+https://github.com/yydshly/ai-frontier-radar)"
     }
 
     # Fetch homepage
@@ -160,13 +288,26 @@ def probe_html_index_source(
         if not href or href.startswith(("mailto:", "javascript:", "tel:", "#")):
             continue
 
-        # Join with homepage to get absolute URL
+        # Join with homepage to get absolute URL and defrag
         absolute_url, _ = urldefrag(urljoin(source.homepage_url, href))
         if not absolute_url:
             continue
 
-        # Filter using heuristic
-        if not _is_probable_article_url(absolute_url, source.homepage_url):
+        # Normalize URL: remove fragments and tracking params
+        normalized_url = _normalize_candidate_url(absolute_url)
+
+        # Filter using heuristic — skip index/listing/pagination URLs
+        if not _is_probable_article_url(normalized_url, source.homepage_url):
+            continue
+
+        # Apply content quality classification
+        classification = classify_source_item_url(
+            source.source_key, normalized_url, source.homepage_url
+        )
+        if classification["suspected_listing"]:
+            continue
+        if classification["suspected_off_topic"]:
+            # Log off-topic URLs for debugging (but don't store them)
             continue
 
         # Get link text
@@ -183,7 +324,7 @@ def probe_html_index_source(
             title = absolute_url
 
         candidates.append({
-            "url": absolute_url,
+            "url": normalized_url,
             "title": title,
             "link_text": link_text,
         })
@@ -198,8 +339,17 @@ def probe_html_index_source(
         result["error_kind"] = "no_candidates"
         return result
 
-    # Process each candidate
+    # Deduplicate by URL before processing
+    seen_urls: set[str] = set()
+    deduped_candidates = []
     for candidate in candidates:
+        if candidate["url"] in seen_urls:
+            continue
+        seen_urls.add(candidate["url"])
+        deduped_candidates.append(candidate)
+
+    # Process each candidate
+    for candidate in deduped_candidates:
         result["items_found"] += 1
 
         # Check if item already exists
@@ -242,12 +392,13 @@ def probe_html_index_source(
     return result
 
 
-def run_html_index_probe_for_source(db: Session, source: Source) -> FetchRun:
+def run_html_index_probe_for_source(db: Session, source: Source, timeout_seconds: int = 20) -> FetchRun:
     """Run HTML index probe for a single source and record a FetchRun.
 
     Args:
         db: SQLAlchemy session.
         source: Source ORM object.
+        timeout_seconds: HTTP request timeout.
 
     Returns:
         FetchRun ORM object (committed to DB).
@@ -265,7 +416,7 @@ def run_html_index_probe_for_source(db: Session, source: Source) -> FetchRun:
     db.refresh(fetch_run)
 
     try:
-        probe_result = probe_html_index_source(db, source)
+        probe_result = probe_html_index_source(db, source, timeout_seconds=timeout_seconds)
 
         # Update fetch run fields
         fetch_run.items_found = probe_result["items_found"]
@@ -338,20 +489,34 @@ def run_html_index_probe_for_source(db: Session, source: Source) -> FetchRun:
         return fetch_run
 
 
-def run_html_index_probe_for_enabled_sources(db: Session) -> dict:
-    """Run HTML index probe for all enabled HTML index sources.
+def run_html_index_probe_for_enabled_sources(
+    db: Session,
+    source_key: str | None = None,
+    limit_sources: int | None = None,
+    timeout_seconds: int = 20,
+) -> dict:
+    """Run HTML index probe for enabled HTML index sources.
 
     Args:
         db: SQLAlchemy session.
+        source_key: If set, only probe this specific source_key.
+        limit_sources: If set, probe at most this many sources.
+        timeout_seconds: HTTP request timeout.
 
     Returns:
         dict with aggregate statistics across all HTML index sources.
     """
-    enabled_html_sources = (
-        db.query(Source)
-        .filter(Source.enabled == True, Source.fetch_strategy == "html_index")
-        .all()
+    query = db.query(Source).filter(
+        Source.enabled == True, Source.fetch_strategy == "html_index"
     )
+
+    if source_key is not None:
+        query = query.filter(Source.source_key == source_key)
+
+    enabled_html_sources = query.all()
+
+    if limit_sources is not None:
+        enabled_html_sources = enabled_html_sources[:limit_sources]
 
     total = len(enabled_html_sources)
     success_count = 0
@@ -364,7 +529,7 @@ def run_html_index_probe_for_enabled_sources(db: Session) -> dict:
 
     for source in enabled_html_sources:
         try:
-            fetch_run = run_html_index_probe_for_source(db, source)
+            fetch_run = run_html_index_probe_for_source(db, source, timeout_seconds=timeout_seconds)
 
             if fetch_run.status == "success":
                 success_count += 1

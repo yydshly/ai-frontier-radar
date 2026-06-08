@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导出 Markdown 任务 - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>📤 导出 Markdown 任务</h1>
+        <nav>
+            <a href="/cards/{{ card.id }}">← 返回卡片详情</a> |
+            <a href="/cards">← 返回中文洞察卡工作台</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="export-info">
+            <p>
+                这份 Markdown 是基于当前 InsightCard 自动整理的任务草稿，
+                不会再次调用 LLM。
+            </p>
+            {% if decision and decision.decision == 'to_action' %}
+            <p class="export-hint">
+                <strong>✅ 你已标记为"转成行动"</strong>，可以导出为 Markdown 任务继续拆解。
+            </p>
+            {% else %}
+            <p class="export-hint">
+                通常建议对"转成行动"的卡片导出任务；其他状态也可导出用于记录。
+            </p>
+            {% endif %}
+        </section>
+
+        <section class="export-actions">
+            <a href="/cards/{{ card.id }}/export-markdown/download" class="btn-primary">
+                📥 下载 Markdown 文件
+            </a>
+            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回详情页</a>
+        </section>
+
+        <section class="markdown-preview">
+            <h2>Markdown 预览</h2>
+            <pre class="markdown-body">{{ markdown_text }}</pre>
+        </section>
+    </main>
+
+    <footer>
+        <p>V0.5 将 InsightCard 导出为 Markdown 任务</p>
+    </footer>
+</body>
+</html>

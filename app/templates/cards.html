@@ -3,60 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InsightCard 列表 - AI Frontier Radar</title>
+    <title>InsightCard 中文洞察卡工作台 - AI Frontier Radar</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <h1>📋 InsightCard 列表</h1>
+        <h1>🗂️ 中文洞察卡工作台</h1>
         <nav>
             <a href="/">← 返回首页</a>
         </nav>
     </header>
 
     <main>
+        <div class="filter-bar">
+            <!-- ── V1.0-alpha 主流程第 3 步说明 ─────────────── -->
+            <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3; margin-bottom: 12px;">
+                <h3>🚦 中文洞察卡工作台</h3>
+                <p>这里是中文洞察卡工作台。你可以按处理状态筛选卡片，也可以进入详情生成双语报告、做判断或导出完整报告。</p>
+            </div>
+            <p class="usage-guide-inline">
+                处理状态来自你看完卡片后的判断，而不是模型自动判断。
+                你可以按处理状态回看：哪些值得关注、哪些与我有关、哪些需要转成行动。
+            </p>
+            <form method="get" action="/cards" class="filter-form">
+                <label>
+                    处理状态：
+                    <select name="decision">
+                        <option value="" {% if not filter_decision %}selected{% endif %}>全部</option>
+                        {% for value, label in decision_filter_options %}
+                        <option value="{{ value }}" {% if filter_decision == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <button type="submit" class="btn-primary">筛选</button>
+                <a href="/cards" class="btn-secondary">清空</a>
+            </form>
+        </div>
+
+        <p class="result-count">
+            共找到 <strong>{{ filtered_cards }}</strong> 张卡片{% if filter_decision_label %}（已筛选：{{ filter_decision_label }}）{% else %}（共 {{ total_cards }} 张）{% endif %}
+        </p>
+
         {% if cards %}
-        <table class="cards-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>标题</th>
-                    <th>URL</th>
-                    <th>状态</th>
-                    <th>相关性</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for card in cards %}
-                <tr>
-                    <td>{{ card.id }}</td>
-                    <td class="title-cell">{{ card.source_title or '(无标题)' }}</td>
-                    <td class="url-cell">
-                        <a href="{{ card.source_url }}" target="_blank" rel="noopener">
-                            {{ card.source_url[:50] }}{% if card.source_url|length > 50 %}...{% endif %}
-                        </a>
-                    </td>
-                    <td>
-                        <span class="status status-{{ card.status_value }}">{{ card.status_value }}</span>
-                    </td>
-                    <td>{{ card.relevance_score if card.relevance_score else 0 }}</td>
-                    <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</td>
-                    <td>
-                        <a href="/cards/{{ card.id }}" class="btn-detail">查看详情</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+
+        <div class="table-scroll">
+            <table class="cards-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>标题</th>
+                        <th>URL</th>
+                        <th>状态</th>
+                        <th>处理状态</th>
+                        <th>相关性</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for card in cards %}
+                    <tr>
+                        <td>{{ card.id }}</td>
+                        <td class="title-cell">{{ card.source_title or '(无标题)' }}</td>
+                        <td class="url-cell">
+                            <a href="{{ card.source_url }}" target="_blank" rel="noopener">
+                                {{ card.source_url[:50] }}{% if card.source_url|length > 50 %}...{% endif %}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="status status-{{ card.status_value }}">{{ card.status_value }}</span>
+                        </td>
+                        <td>
+                            <span class="decision-badge decision-{{ card.decision_value or 'none' }}">{{ card.decision_label }}</span>
+                        </td>
+                        <td>{{ card.relevance_score if card.relevance_score else 0 }}</td>
+                        <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</td>
+                        <td>
+                            <a href="/cards/{{ card.id }}" class="btn-detail">查看详情</a>
+                            <a href="/cards/{{ card.id }}/export-report" class="btn-secondary">完整报告</a>
+                            {% if card.decision_value == 'to_action' %}
+                            <a href="/cards/{{ card.id }}/export-markdown" class="btn-export">导出任务</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% elif filter_decision %}
+        <p class="empty-state">当前筛选条件下没有 InsightCard。</p>
         {% else %}
-        <p class="empty-state">还没有任何 InsightCard，<a href="/">去提交一个 URL</a> 吧！</p>
+        <p class="empty-state">还没有 InsightCard。请先从<a href="/source-items">待编译资料收件箱</a>选择一条 SourceItem 编译，或从<a href="/">首页手动提交 URL</a>。</p>
         {% endif %}
     </main>
 
     <footer>
-        <p>V0.1 技术探针 MVP</p>
+        <p>V0.4.1 中文洞察卡工作台：按处理状态回看卡片</p>
     </footer>
 </body>
 </html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>完整 Markdown 报告预览 - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>📄 完整 Markdown 报告预览</h1>
+        <nav>
+            <a href="/cards/{{ card.id }}">← 返回卡片详情</a> |
+            <a href="/cards">← 返回中文洞察卡工作台</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="export-info">
+            <p>
+                这是完整中英双语资料编译报告，适合长期沉淀、复盘和知识整理。
+                这份报告基于当前 InsightCard 生成，不会调用 LLM。
+            </p>
+            <p class="export-hint">
+                <strong>与行动任务导出的区别：</strong>
+                完整报告用于知识沉淀和长期复盘；行动任务用于继续拆解执行。
+            </p>
+        </section>
+
+        <section class="export-actions">
+            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">
+                📥 下载完整 Markdown 报告
+            </a>
+            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回详情页</a>
+            <a href="/cards" class="btn-secondary">返回列表</a>
+        </section>
+
+        <section class="markdown-preview">
+            <h2>Markdown 预览</h2>
+            <pre class="markdown-body">{{ markdown_text }}</pre>
+        </section>
+    </main>
+
+    <footer>
+        <p>V0.9 完整 Markdown 报告导出</p>
+    </footer>
+</body>
+</html>

@@ -169,3 +169,66 @@ class FetchRun(Base):
 
     def __repr__(self):
         return f"<FetchRun(id={self.id}, source_key={self.source_key}, status={self.status})>"
+
+
+class CardDecision(Base):
+    """User's own judgment on an InsightCard after reading it.
+
+    V0.4: lets the user mark a card as worth_attention / related_to_me /
+    read_later / ignore / to_action, with an optional note.
+
+    One current decision per card (card_id is unique). Re-submitting updates
+    the existing row instead of inserting a new one.
+    """
+
+    __tablename__ = "card_decisions"
+    __table_args__ = (
+        UniqueConstraint("card_id", name="uq_card_decisions_card_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_id = Column(Integer, ForeignKey("insight_cards.id"), nullable=False, index=True)
+    decision = Column(String(64), nullable=False)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<CardDecision(id={self.id}, card_id={self.card_id}, decision={self.decision})>"
+
+
+class InsightCardBilingualReport(Base):
+    """Bilingual (English-Chinese) report for an InsightCard.
+
+    V0.8: adds an English core content layer with Chinese explanation
+    to help users who are not comfortable reading English understand
+    the original material while preserving fidelity to the source.
+
+    One report per card (card_id is unique). Re-generating updates
+    the existing row instead of inserting a new one.
+    """
+
+    __tablename__ = "insight_card_bilingual_reports"
+    __table_args__ = (
+        UniqueConstraint("card_id", name="uq_bilingual_reports_card_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_id = Column(Integer, ForeignKey("insight_cards.id"), nullable=False, index=True)
+
+    # English core content (written in English)
+    english_core_summary = Column(Text, nullable=True)
+    english_key_claims_json = Column(Text, nullable=True)
+    english_evidence_points_json = Column(Text, nullable=True)
+    key_terms_json = Column(Text, nullable=True)
+
+    # Chinese explanation and fidelity notes (written in Chinese)
+    chinese_explanation = Column(Text, nullable=True)
+    fidelity_notes_zh = Column(Text, nullable=True)
+    interpretation_boundary_zh = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<InsightCardBilingualReport(id={self.id}, card_id={self.card_id})>"

@@ -63,15 +63,22 @@ def probe_rss_source(db: Session, source: Source, timeout_seconds: int = 20) -> 
         result["error_message"] = "Feed is malformed or empty"
         return result
 
-    # Process entries
+    # Process entries, deduplicating by URL
+    seen_urls: set[str] = set()
     for entry in feed.entries:
-        result["items_found"] += 1
-
         # Get URL — required
         url = getattr(entry, "link", None)
         if not url:
+            result["items_found"] += 1
             result["items_failed"] += 1
             continue
+
+        # Skip duplicate URLs within the same feed
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+
+        result["items_found"] += 1
 
         # Canonical URL equals URL for RSS items
         canonical_url = url
@@ -132,12 +139,13 @@ def probe_rss_source(db: Session, source: Source, timeout_seconds: int = 20) -> 
     return result
 
 
-def run_rss_probe_for_source(db: Session, source: Source) -> FetchRun:
+def run_rss_probe_for_source(db: Session, source: Source, timeout_seconds: int = 20) -> FetchRun:
     """Run RSS probe for a single source and record a FetchRun.
 
     Args:
         db: SQLAlchemy session.
         source: Source ORM object.
+        timeout_seconds: HTTP request timeout.
 
     Returns:
         FetchRun ORM object (committed to DB).
@@ -156,7 +164,7 @@ def run_rss_probe_for_source(db: Session, source: Source) -> FetchRun:
 
     try:
         # Probe the source
-        probe_result = probe_rss_source(db, source)
+        probe_result = probe_rss_source(db, source, timeout_seconds=timeout_seconds)
 
         # Update fetch run
         fetch_run.items_found = probe_result["items_found"]
@@ -225,21 +233,35 @@ def run_rss_probe_for_source(db: Session, source: Source) -> FetchRun:
         return fetch_run
 
 
-def run_rss_probe_for_enabled_sources(db: Session) -> dict:
-    """Run RSS probe for all enabled RSS sources.
+def run_rss_probe_for_enabled_sources(
+    db: Session,
+    source_key: str | None = None,
+    limit_sources: int | None = None,
+    timeout_seconds: int = 20,
+) -> dict:
+    """Run RSS probe for enabled RSS sources.
 
     Args:
         db: SQLAlchemy session.
+        source_key: If set, only probe this specific source_key.
+        limit_sources: If set, probe at most this many sources.
+        timeout_seconds: HTTP request timeout.
 
     Returns:
         dict with aggregate statistics across all RSS sources.
     """
     # Find enabled RSS sources
-    enabled_rss_sources = (
-        db.query(Source)
-        .filter(Source.enabled == True, Source.fetch_strategy == "rss")
-        .all()
+    query = db.query(Source).filter(
+        Source.enabled == True, Source.fetch_strategy == "rss"
     )
+
+    if source_key is not None:
+        query = query.filter(Source.source_key == source_key)
+
+    enabled_rss_sources = query.all()
+
+    if limit_sources is not None:
+        enabled_rss_sources = enabled_rss_sources[:limit_sources]
 
     total = len(enabled_rss_sources)
     success_count = 0
@@ -252,7 +274,7 @@ def run_rss_probe_for_enabled_sources(db: Session) -> dict:
 
     for source in enabled_rss_sources:
         try:
-            fetch_run = run_rss_probe_for_source(db, source)
+            fetch_run = run_rss_probe_for_source(db, source, timeout_seconds=timeout_seconds)
 
             if fetch_run.status == "success":
                 success_count += 1

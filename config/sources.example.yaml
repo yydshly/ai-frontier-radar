@@ -132,3 +132,68 @@ sources:
     fetch_strategy: "html_index"
     relevance_hint: "重点关注开源模型、多模态、Agents 研究。"
     fetch_interval_hours: 24
+
+  nvidia_ai_blog:
+    name: "NVIDIA AI Blog"
+    description: "NVIDIA 官方 AI 博客，覆盖 Agentic AI、Physical AI、GPU、机器人和开发者生态"
+    type: "html_index"
+    homepage_url: "https://blogs.nvidia.com/blog/category/generative-ai/"
+    feed_url: null
+    category: "company"
+    tags: ["NVIDIA", "GPU", "agent", "physical-ai", "robotics", "developer"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注 Agentic AI、Physical AI、AI 基础设施、本地 AI、开发者工具。"
+    fetch_interval_hours: 24
+
+  microsoft_ai_source:
+    name: "Microsoft AI Source"
+    description: "Microsoft 官方 AI 新闻聚合，覆盖 Copilot、Azure AI、企业 AI 和 AI 应用案例"
+    type: "html_index"
+    homepage_url: "https://news.microsoft.com/source/topics/ai/"
+    feed_url: null
+    category: "company"
+    tags: ["Microsoft", "Copilot", "Azure AI", "enterprise-ai", "agent"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注 Copilot、企业 AI、AI agent、开发者生态和行业应用。"
+    fetch_interval_hours: 24
+
+  berkeley_bair_blog:
+    name: "Berkeley BAIR Blog"
+    description: "UC Berkeley BAIR 官方研究博客，覆盖推理、机器人、世界模型、RL 和 AI 安全相关研究"
+    type: "html_index"
+    homepage_url: "https://bair.berkeley.edu/blog/"
+    feed_url: null
+    category: "research"
+    tags: ["Berkeley", "BAIR", "research", "reasoning", "robotics", "world-model"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注推理、Agent、机器人、世界模型、解释性和前沿研究趋势。"
+    fetch_interval_hours: 24
+
+  mistral_ai_news:
+    name: "Mistral AI News"
+    description: "Mistral AI 官方新闻，覆盖开源模型、企业模型、欧洲 AI 生态和产品发布"
+    type: "html_index"
+    homepage_url: "https://mistral.ai/news/"
+    feed_url: null
+    category: "company"
+    tags: ["Mistral", "open-model", "frontier-models", "Europe AI", "LLM"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注开源模型、企业 LLM、欧洲 AI 模型生态和产品发布。"
+    fetch_interval_hours: 24
+
+  cohere_blog:
+    name: "Cohere Blog"
+    description: "Cohere 官方博客，覆盖企业 LLM、RAG、检索、Command 系列模型和企业应用"
+    type: "html_index"
+    homepage_url: "https://cohere.com/blog"
+    feed_url: null
+    category: "company"
+    tags: ["Cohere", "RAG", "enterprise-ai", "retrieval", "LLM"]
+    enabled: true
+    fetch_strategy: "html_index"
+    relevance_hint: "重点关注企业 RAG、检索增强、Command 模型和企业 AI 产品化。"
+    fetch_interval_hours: 24

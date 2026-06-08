@@ -15,6 +15,14 @@
     </header>
 
     <main>
+        <!-- ── V1.0-alpha 主流程第 4～6 步提示 ─────────────── -->
+        {% if status_value == 'completed' %}
+        <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
+            <h3>🚦 你现在在主流程第 4～6 步</h3>
+            <p>阅读 InsightCard，生成中英双语核心理解，并做出你的判断。</p>
+        </div>
+        {% endif %}
+
         {% if status_value == 'failed' %}
         <div class="error-banner">
             <h2>❌ 处理失败</h2>
@@ -52,6 +60,115 @@
         <section class="summary-section">
             <h2>📝 中文摘要</h2>
             <p class="summary-text">{{ card.summary_zh }}</p>
+        </section>
+
+        {# V0.8: Bilingual Report Section #}
+        <section class="bilingual-section">
+            <h2>🌐 中英双语核心理解</h2>
+
+            {% if bilingual_report %}
+            {# Has bilingual report - display it #}
+            <p class="bilingual-notice" style="background: #fff8e1; border-left: 3px solid #ff9800; padding: 8px 12px; margin-bottom: 12px;">
+                <small>
+                    💡 如果你担心中文解说曲解原文，建议先看 <strong>English Core Summary</strong> 和 <strong>Original Key Claims</strong>，再看中文解说。
+                </small>
+            </p>
+            <div class="bilingual-content">
+                {# English Core Summary #}
+                <div class="bilingual-block">
+                    <h3>English Core Summary</h3>
+                    <p class="english-text">{{ bilingual_report.english_core_summary }}</p>
+                </div>
+
+                {# Original Key Claims #}
+                {% if english_key_claims %}
+                <div class="bilingual-block">
+                    <h3>Original Key Claims</h3>
+                    <ul class="insight-list">
+                        {% for claim in english_key_claims %}
+                        <li class="english-text">{{ claim }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {# Key Evidence Points #}
+                {% if english_evidence_points %}
+                <div class="bilingual-block">
+                    <h3>Key Evidence Points</h3>
+                    <ul class="insight-list">
+                        {% for point in english_evidence_points %}
+                        <li class="english-text">{{ point }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {# Key Terms EN-ZH #}
+                {% if key_terms %}
+                <div class="bilingual-block">
+                    <h3>Key Terms EN-ZH</h3>
+                    <table class="terms-table">
+                        <thead>
+                            <tr>
+                                <th>English</th>
+                                <th>中文</th>
+                                <th>说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for term in key_terms %}
+                            <tr>
+                                <td class="english-text">{{ term.en }}</td>
+                                <td>{{ term.zh }}</td>
+                                <td>{{ term.note_zh }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {# 中文解说 #}
+                {% if bilingual_report.chinese_explanation %}
+                <div class="bilingual-block">
+                    <h3>中文解说</h3>
+                    <p class="chinese-text">{{ bilingual_report.chinese_explanation }}</p>
+                </div>
+                {% endif %}
+
+                {# 保真提示 #}
+                {% if bilingual_report.fidelity_notes_zh %}
+                <div class="bilingual-block fidelity-notes">
+                    <h3>⚠️ 保真提示</h3>
+                    <p class="chinese-text">{{ bilingual_report.fidelity_notes_zh }}</p>
+                </div>
+                {% endif %}
+
+                {# 解读边界 #}
+                {% if bilingual_report.interpretation_boundary_zh %}
+                <div class="bilingual-block interpretation-boundary">
+                    <h3>📌 解读边界</h3>
+                    <p class="chinese-text">{{ bilingual_report.interpretation_boundary_zh }}</p>
+                </div>
+                {% endif %}
+
+                {# Regenerate button #}
+                <div class="bilingual-action">
+                    <form method="post" action="/cards/{{ card.id }}/bilingual-report">
+                        <button type="submit" class="btn-secondary">🔄 重新生成中英双语报告</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            {# No bilingual report - show generate button #}
+            <div class="bilingual-empty">
+                <p>还没有生成中英双语核心理解。</p>
+                <form method="post" action="/cards/{{ card.id }}/bilingual-report">
+                    <button type="submit" class="btn-primary">🌐 生成中英双语报告</button>
+                </form>
+            </div>
+            {% endif %}
         </section>
 
         <section class="insights-section">
@@ -129,10 +246,75 @@
             <pre class="text-preview">{{ card.cleaned_text_preview }}</pre>
         </section>
         {% endif %}
+
+        <section class="decision-section">
+            <h2>🧭 看完后的判断</h2>
+            <p class="decision-intro" style="background: #e8f5e9; border-left: 3px solid #4caf50; padding: 8px 12px; margin-bottom: 12px;">
+                💡 判断不是模型做的，而是你对这篇资料的个人处理结果。
+            </p>
+            <p class="decision-current">
+                当前判断：<strong>{{ current_decision_label }}</strong>
+                {% if current_decision %}<small class="muted">（{{ current_decision }}）</small>{% endif %}
+            </p>
+
+            {% if status_value == 'failed' %}
+            <p class="status-helper">
+                如果这张卡片失败，可以先标记「稍后再看」或「暂时忽略」，等以后修好抓取或 API Key 再处理。
+            </p>
+            {% endif %}
+
+            <div class="export-action-entry">
+                {% if current_decision == 'to_action' %}
+                <p class="export-action-note">
+                    你已标记为"转成行动"，可以导出为 Markdown 任务继续拆解。
+                </p>
+                <a href="/cards/{{ card.id }}/export-markdown" class="btn-export-action">
+                    📤 导出为 Markdown 任务
+                </a>
+                {% else %}
+                <p class="export-action-note">
+                    通常建议先标记为"转成行动"后再导出。
+                </p>
+                <a href="/cards/{{ card.id }}/export-markdown" class="btn-secondary">
+                    🔍 预览 Markdown 任务草稿
+                </a>
+                {% endif %}
+            </div>
+
+            <div class="export-report-entry">
+                <p class="export-report-note" style="background: #e3f2fd; border-left: 3px solid #2196f3; padding: 8px 12px; margin-bottom: 8px;">
+                    📄 <strong>完整报告</strong>：适合长期保存和复盘。<br>
+                    <strong>行动任务</strong>：适合继续交给 AI 拆解执行。
+                </p>
+                <a href="/cards/{{ card.id }}/export-report" class="btn-secondary">
+                    📄 导出完整 Markdown 报告
+                </a>
+            </div>
+
+            <form method="post" action="/cards/{{ card.id }}/decision" class="decision-form">
+                <fieldset>
+                    <legend>选择判断：</legend>
+                    {% for value, label in decision_options.items() %}
+                    <label class="decision-radio">
+                        <input type="radio" name="decision" value="{{ value }}"
+                               {% if current_decision == value %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </fieldset>
+
+                <label class="decision-note-label">
+                    备注（可选）：
+                    <textarea name="note" rows="3" placeholder="记下为什么值得关注、和哪个项目有关、下一步想做什么">{{ current_note }}</textarea>
+                </label>
+
+                <button type="submit" class="btn-primary">保存判断</button>
+            </form>
+        </section>
     </main>
 
     <footer>
-        <p>V0.1 技术探针 MVP</p>
+        <p>V0.4 产品目标闭环：看完 InsightCard 后做出自己的判断</p>
     </footer>
 </body>
 </html>
