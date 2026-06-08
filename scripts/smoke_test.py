@@ -6201,6 +6201,16 @@ def test_candidate_pool_page_loads():
     print("[OK] GET /candidate-pool returns 200 with candidate pool content")
 
 
+def test_candidate_pool_template_used():
+    """Test that /candidate-pool actually uses the Jinja2 template (not string concatenation)."""
+    response = client.get("/candidate-pool")
+    assert response.status_code == 200
+    # The template has a marker comment
+    assert "candidate-pool-template" in response.text, \
+        "Page should contain 'candidate-pool-template' marker from the Jinja2 template file"
+    print("[OK] /candidate-pool uses the Jinja2 template (has template marker)")
+
+
 def test_candidate_pool_page_has_required_elements():
     """Test that candidate pool page contains required UI elements."""
     response = client.get("/candidate-pool")
@@ -6223,11 +6233,17 @@ def test_candidate_pool_page_has_required_elements():
     assert "ID" in text, "Page should have ID column"
     assert "来源" in text, "Page should have source column"
 
-    print("[OK] /candidate-pool page has required UI elements")
+    # Should have form with both formaction targets
+    assert 'formaction="/candidate-pool/batch-ignore"' in text, \
+        "Page should have formaction for batch-ignore"
+    assert 'formaction="/candidate-pool/batch-compile"' in text, \
+        "Page should have formaction for batch-compile"
+
+    print("[OK] /candidate-pool page has required UI elements and form actions")
 
 
 def test_candidate_pool_batch_ignore():
-    """Test batch-ignore operation for candidate pool."""
+    """Test batch-ignore operation for candidate pool using tuple list (real form simulation)."""
     from app.db import SessionLocal
     from app.models import Source, SourceItem
 
@@ -6281,10 +6297,11 @@ def test_candidate_pool_batch_ignore():
         db.refresh(failed_item)
         db.refresh(compiled_item)
 
-        # Batch ignore discovered and failed items (but NOT compiled)
+        # Batch ignore with multiple checkbox values (simulates real form submission)
+        # data={...} format with list simulates HTML multi-checkbox submission
         response = client.post(
             "/candidate-pool/batch-ignore",
-            data={"candidate_ids": f"{discovered_item.id},{failed_item.id},{compiled_item.id}"},
+            data={"candidate_ids": [str(discovered_item.id), str(failed_item.id), str(compiled_item.id)]},
             follow_redirects=False,
         )
         assert response.status_code in (302, 303), \
@@ -6309,8 +6326,20 @@ def test_candidate_pool_batch_ignore():
         db.close()
 
 
+def test_candidate_pool_batch_ignore_empty():
+    """Test that empty batch-ignore does not return 422."""
+    response = client.post(
+        "/candidate-pool/batch-ignore",
+        data={"candidate_ids": []},
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 303), \
+        f"Empty batch-ignore should redirect, got {response.status_code}"
+    print("[OK] Empty batch-ignore returns redirect, not 422")
+
+
 def test_candidate_pool_batch_compile():
-    """Test batch-compile preparation for candidate pool."""
+    """Test batch-compile preparation for candidate pool using tuple list."""
     from app.db import SessionLocal
     from app.models import Source, SourceItem
 
@@ -6372,10 +6401,10 @@ def test_candidate_pool_batch_compile():
         db.refresh(ignored_item)
         db.refresh(compiled_item)
 
-        # Batch prepare compile for discovered and failed items
+        # Batch prepare compile with multiple checkbox values
         response = client.post(
             "/candidate-pool/batch-compile",
-            data={"candidate_ids": f"{discovered_item.id},{failed_item.id},{ignored_item.id},{compiled_item.id}"},
+            data={"candidate_ids": [str(discovered_item.id), str(failed_item.id), str(ignored_item.id), str(compiled_item.id)]},
             follow_redirects=False,
         )
         assert response.status_code in (302, 303), \
@@ -6401,6 +6430,94 @@ def test_candidate_pool_batch_compile():
     finally:
         db.rollback()
         db.close()
+
+
+def test_candidate_pool_batch_compile_empty():
+    """Test that empty batch-compile does not return 422."""
+    response = client.post(
+        "/candidate-pool/batch-compile",
+        data={"candidate_ids": []},
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 303), \
+        f"Empty batch-compile should redirect, got {response.status_code}"
+    print("[OK] Empty batch-compile returns redirect, not 422")
+
+
+def test_candidate_pool_unsafe_url_not_link():
+    """Test that javascript: URLs are not rendered as clickable links."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        # Create test source
+        test_key = f"test_cpool_unsafe_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Unsafe URL",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create item with dangerous URL
+        dangerous_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="javascript:alert(1)",
+            title="Dangerous Article",
+            status="discovered",
+        )
+        safe_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="https://example.com/safe-article",
+            title="Safe Article",
+            status="discovered",
+        )
+        db.add_all([dangerous_item, safe_item])
+        db.commit()
+        db.refresh(dangerous_item)
+        db.refresh(safe_item)
+
+        # Check page
+        response = client.get(f"/candidate-pool?source_key={test_key}")
+        assert response.status_code == 200
+        text = response.text
+
+        # javascript: URL should NOT appear as href=
+        assert 'href="javascript:' not in text, \
+            "javascript: URL should NOT be rendered as href"
+
+        # Safe URL should appear as href=
+        assert 'href="https://example.com/safe-article"' in text, \
+            "Safe URL should be rendered as href"
+
+        print("[OK] Unsafe javascript: URLs are not rendered as links")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_candidate_pool_repository_no_commit():
+    """Test that CandidatePoolRepository does not call db.commit()."""
+    from pathlib import Path
+    repo_path = Path(__file__).parent.parent / "app" / "infrastructure" / "repositories" / "candidate_pool_repository.py"
+    content = repo_path.read_text(encoding="utf-8")
+    assert ".commit(" not in content, \
+        "CandidatePoolRepository should not call db.commit()"
+    print("[OK] CandidatePoolRepository does not contain .commit()")
 
 
 def test_candidate_pool_does_not_break_existing_routes():
@@ -6642,9 +6759,14 @@ if __name__ == "__main__":
     test_candidate_pool_imports()
     test_candidate_pool_pagination_validation()
     test_candidate_pool_page_loads()
+    test_candidate_pool_template_used()
     test_candidate_pool_page_has_required_elements()
     test_candidate_pool_batch_ignore()
+    test_candidate_pool_batch_ignore_empty()
     test_candidate_pool_batch_compile()
+    test_candidate_pool_batch_compile_empty()
+    test_candidate_pool_unsafe_url_not_link()
+    test_candidate_pool_repository_no_commit()
     test_candidate_pool_does_not_break_existing_routes()
 
     print("=" * 50)

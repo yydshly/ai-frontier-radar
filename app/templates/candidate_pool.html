@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>候选池 Candidate Pool - AI Frontier Radar</title>
     <link rel="stylesheet" href="/static/style.css">
+    <!-- candidate-pool-template -->
 </head>
 <body>
     <header>
@@ -64,81 +65,85 @@
             </form>
         </div>
 
-        <div class="batch-actions">
-            <form method="post" action="/candidate-pool/batch-ignore" style="display:inline;" id="batchIgnoreForm">
-                <button type="submit" class="btn-warning"
+        <!-- Single form wrapping the table - buttons use formaction to target different endpoints -->
+        <form method="post" id="batchForm">
+            <p class="result-count">
+                共 {{ total }} 条记录，
+                当前第 {{ page }}/{{ total_pages }} 页
+            </p>
+
+            <div class="table-scroll">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>☑</th>
+                            <th>ID</th>
+                            <th>来源</th>
+                            <th>标题</th>
+                            <th>URL</th>
+                            <th>状态</th>
+                            <th>首次发现</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td><input type="checkbox" name="candidate_ids" value="{{ item.id }}"></td>
+                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url | truncate(60, true, '...') if item.url else '-' }}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">{{ item.url | truncate(60, true, '...') if item.url else '-' }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.status == 'discovered' %}
+                                <strong>🆕 待编译</strong>
+                                {% elif item.status == 'ignored' %}
+                                <strong>⏭️ 已忽略</strong>
+                                {% elif item.status == 'compiling' %}
+                                <strong>⚙️ 编译中</strong>
+                                {% elif item.status == 'compiled' %}
+                                <strong>✅ 已编译</strong>
+                                {% elif item.status == 'failed' %}
+                                <strong>❌ 失败</strong>
+                                {% elif item.status == 'manual_required' %}
+                                <strong>👤 需人工</strong>
+                                {% else %}
+                                <strong>{{ item.status }}</strong>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
+                            <td>
+                                <a href="/source-items/{{ item.id }}">详情</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="empty-state">
+                                暂无候选条目
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="batch-actions" style="margin-top: 0.5rem;">
+                <button type="submit" formaction="/candidate-pool/batch-ignore" class="btn-warning"
                     onclick="return confirm('确定要忽略选中的条目吗？')">批量忽略</button>
-            </form>
-            <form method="post" action="/candidate-pool/batch-compile" style="display:inline;" id="batchCompileForm">
-                <button type="submit" class="btn-primary"
+                <button type="submit" formaction="/candidate-pool/batch-compile" class="btn-primary"
                     onclick="return confirm('确定要将选中的条目标记为待编译吗？')">标记为待编译</button>
-            </form>
-            <small class="muted">（请先勾选要操作的条目）</small>
-        </div>
-
-        <p class="result-count">
-            共 {{ total }} 条记录，
-            当前第 {{ page }}/{{ total_pages }} 页
-        </p>
-
-        <div class="table-scroll">
-            <table class="source-items-table">
-                <thead>
-                    <tr>
-                        <th>☑</th>
-                        <th>ID</th>
-                        <th>来源</th>
-                        <th>标题</th>
-                        <th>URL</th>
-                        <th>状态</th>
-                        <th>首次发现</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr>
-                        <td><input type="checkbox" name="candidate_ids" value="{{ item.id }}" form="batchIgnoreForm"></td>
-                        <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
-                        <td><code>{{ item.source_key }}</code></td>
-                        <td class="title-cell">{{ item.title or '无标题' }}</td>
-                        <td class="url-cell">
-                            <a href="{{ item.url }}" target="_blank" rel="noopener" title="{{ item.url }}">
-                                {{ item.url | truncate(60, true, '...') if item.url else '-' }}
-                            </a>
-                        </td>
-                        <td>
-                            {% if item.status == 'discovered' %}
-                            <strong>🆕 待编译</strong>
-                            {% elif item.status == 'ignored' %}
-                            <strong>⏭️ 已忽略</strong>
-                            {% elif item.status == 'compiling' %}
-                            <strong>⚙️ 编译中</strong>
-                            {% elif item.status == 'compiled' %}
-                            <strong>✅ 已编译</strong>
-                            {% elif item.status == 'failed' %}
-                            <strong>❌ 失败</strong>
-                            {% elif item.status == 'manual_required' %}
-                            <strong>👤 需人工</strong>
-                            {% else %}
-                            <strong>{{ item.status }}</strong>
-                            {% endif %}
-                        </td>
-                        <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
-                        <td>
-                            <a href="/source-items/{{ item.id }}">详情</a>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="8" class="empty-state">
-                            暂无候选条目
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                <small class="muted">（请先勾选要操作的条目）</small>
+            </div>
+        </form>
 
         {% if total_pages > 1 %}
         <div class="pagination">

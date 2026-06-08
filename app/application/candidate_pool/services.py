@@ -113,6 +113,11 @@ class CandidatePoolService:
         # Batch update
         if to_ignore_ids:
             updated = self.repo.mark_ignored(to_ignore_ids)
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
             result.add_updated(updated)
 
         return result
@@ -157,6 +162,11 @@ class CandidatePoolService:
         # Batch update
         if to_compile_ids:
             updated = self.repo.mark_compiling(to_compile_ids)
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
             result.add_updated(updated)
 
         return result

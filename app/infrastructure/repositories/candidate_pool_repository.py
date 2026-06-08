@@ -105,6 +105,9 @@ class CandidatePoolRepository:
     def update_status(self, ids: list[int], status: str) -> int:
         """Update status for multiple SourceItem records.
 
+        Note: This method does NOT commit. The caller (Service layer) is
+        responsible for committing the transaction.
+
         Args:
             ids: List of SourceItem IDs to update
             status: New status value
@@ -120,7 +123,6 @@ class CandidatePoolRepository:
             .filter(SourceItem.id.in_(ids))
             .update({"status": status}, synchronize_session=False)
         )
-        self.db.commit()
         return result
 
     def mark_ignored(self, ids: list[int]) -> int:
