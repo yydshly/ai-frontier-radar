@@ -21,6 +21,7 @@ from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
 from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
+from app.routes.project_docs import router as project_docs_router
 
 
 # ── Shared card display helper (V1.0-alpha.8.6) ─────────────────────────────
@@ -1142,6 +1143,10 @@ def compile_source_item(item_id: int):
         return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
     finally:
         db.close()
+
+
+# ── Mount project docs routes ────────────────────────────────────────────────
+app.include_router(project_docs_router)
 
 
 if __name__ == "__main__":

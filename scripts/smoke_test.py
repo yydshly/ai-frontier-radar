@@ -5810,6 +5810,81 @@ def test_v10_alpha_861_unhandled_filter_excludes_failed_cards():
         db.close()
 
 
+def test_project_docs_hub_index():
+    """Test GET /project-docs returns 200 and shows project docs hub."""
+    response = client.get("/project-docs")
+    assert response.status_code == 200, \
+        f"Expected 200 for /project-docs, got {response.status_code}"
+    text = response.text
+    assert "项目资料中心" in text, \
+        "Project docs hub index should contain '项目资料中心'"
+    assert "README.md" in text, \
+        "Project docs hub should list README.md"
+    print("[OK] GET /project-docs returns 200 with docs hub content")
+
+
+def test_project_docs_hub_lists_beta_docs():
+    """Test that project docs hub lists the two beta roadmap documents."""
+    response = client.get("/project-docs")
+    assert response.status_code == 200
+    text = response.text
+    # Beta roadmap docs
+    assert "V1.0_BETA_SIGNAL_RADAR_ROADMAP.md" in text or "beta-roadmap" in text, \
+        "Project docs hub should list beta roadmap doc"
+    assert "V1.0_BETA_ARCHITECTURE_DECISIONS.md" in text or "beta-architecture" in text, \
+        "Project docs hub should list beta architecture doc"
+    print("[OK] Project docs hub lists beta roadmap and architecture docs")
+
+
+def test_project_docs_hub_valid_doc():
+    """Test GET /project-docs/readme returns 200 with doc content."""
+    response = client.get("/project-docs/readme")
+    assert response.status_code == 200, \
+        f"Expected 200 for /project-docs/readme, got {response.status_code}"
+    text = response.text
+    assert "AI Frontier Radar" in text, \
+        "README doc should be rendered"
+    print("[OK] GET /project-docs/readme returns 200 with doc content")
+
+
+def test_project_docs_hub_not_found():
+    """Test GET /project-docs/not-exists returns 404."""
+    response = client.get("/project-docs/not-exists-key")
+    assert response.status_code == 404, \
+        f"Expected 404 for unknown doc key, got {response.status_code}"
+    print("[OK] GET /project-docs/not-exists-key returns 404")
+
+
+def test_project_docs_hub_registry_based_access():
+    """Test that only registry keys work, not arbitrary file paths."""
+    # These should NOT work even if the paths exist somewhere
+    # (security: only registry keys are allowed)
+    # We test that unknown keys return 404
+    dangerous_keys = [
+        ".env",
+        "../../../.env",
+        "data/test.db",
+    ]
+    for key in dangerous_keys:
+        resp = client.get(f"/project-docs/{key}")
+        assert resp.status_code == 404, \
+            f"Expected 404 for dangerous key '{key}', got {resp.status_code}"
+    print("[OK] Project docs hub rejects non-registry keys with 404")
+
+
+def test_project_docs_hub_nav_in_index():
+    """Test that homepage and about page link to project docs hub."""
+    index_resp = client.get("/")
+    assert index_resp.status_code == 200
+    assert "/project-docs" in index_resp.text, \
+        "Homepage should link to /project-docs"
+    about_resp = client.get("/about")
+    assert about_resp.status_code == 200
+    assert "/project-docs" in about_resp.text, \
+        "About page should link to /project-docs"
+    print("[OK] Homepage and about page link to project docs hub")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -6008,6 +6083,14 @@ if __name__ == "__main__":
     # V1.0-alpha.8.6.1 display consistency and filter alignment fixes
     test_v10_alpha_861_home_recent_cards_use_display_helper()
     test_v10_alpha_861_unhandled_filter_excludes_failed_cards()
+
+    # Project docs hub
+    test_project_docs_hub_index()
+    test_project_docs_hub_lists_beta_docs()
+    test_project_docs_hub_valid_doc()
+    test_project_docs_hub_not_found()
+    test_project_docs_hub_registry_based_access()
+    test_project_docs_hub_nav_in_index()
 
     print("=" * 50)
     print("Smoke test completed!")
