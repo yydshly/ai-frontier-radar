@@ -121,6 +121,21 @@ python scripts/health_check.py --full
 `health_check.py` 不访问真实网络，不调用真实 LLM，适合作为本地轻量 CI。
 详细说明见 [docs/HEALTH_CHECK.md](docs/HEALTH_CHECK.md)。
 
+### GitHub Actions 基础 CI
+
+项目提供基础 CI，用于每次 push / PR 自动检查无外部依赖的基础链路。
+
+CI 检查项：
+- compileall
+- check_sources_config
+- smoke_test
+- acceptance_demo_data
+- acceptance_demo_flow
+- health_check
+
+CI 不访问真实网络，不调用真实 LLM，不需要 MINIMAX_API_KEY。
+详细说明见 [docs/CI.md](docs/CI.md)。
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |

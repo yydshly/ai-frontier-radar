@@ -4759,6 +4759,66 @@ def test_v10_alpha3_health_check_doc_exists():
     print("[OK] docs/HEALTH_CHECK.md exists with required content")
 
 
+def test_v10_alpha4_ci_workflow_exists():
+    """Test that .github/workflows/ci.yml exists with required content."""
+    from pathlib import Path
+
+    workflow_path = Path(__file__).parent.parent / ".github" / "workflows" / "ci.yml"
+    assert workflow_path.exists(), ".github/workflows/ci.yml should exist"
+
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+
+    required_content = [
+        "actions/checkout@v4",
+        "actions/setup-python@v5",
+        "python -m compileall app scripts",
+        "python scripts/check_sources_config.py",
+        "python scripts/smoke_test.py",
+        "python scripts/acceptance_demo_data.py --isolated-db",
+        "python scripts/acceptance_demo_flow.py --isolated-db",
+        "python scripts/health_check.py",
+    ]
+    for content in required_content:
+        assert content in workflow_text, \
+            f"ci.yml should contain: {content}"
+
+    print("[OK] .github/workflows/ci.yml exists with required content")
+
+
+def test_v10_alpha4_ci_docs_exist():
+    """Test that docs/CI.md exists and README mentions CI."""
+    from pathlib import Path
+
+    doc_path = Path(__file__).parent.parent / "docs" / "CI.md"
+    assert doc_path.exists(), "docs/CI.md should exist"
+
+    doc_text = doc_path.read_text(encoding="utf-8")
+
+    required_in_doc = [
+        "CI 不会运行什么",
+        "真实网络探测",
+        "真实 LLM",
+    ]
+    for content in required_in_doc:
+        assert content in doc_text, \
+            f"CI.md should contain: {content}"
+
+    # Verify README mentions CI
+    readme_path = Path(__file__).parent.parent / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8")
+
+    required_in_readme = [
+        "GitHub Actions 基础 CI",
+        "不访问真实网络",
+        "不调用真实 LLM",
+    ]
+    for content in required_in_readme:
+        assert content in readme_text, \
+            f"README.md should contain: {content}"
+
+    print("[OK] docs/CI.md and README CI section exist")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4907,6 +4967,10 @@ if __name__ == "__main__":
     # V1.0-alpha.3 health check
     test_v10_alpha3_health_check_script_exists()
     test_v10_alpha3_health_check_doc_exists()
+
+    # V1.0-alpha.4 CI
+    test_v10_alpha4_ci_workflow_exists()
+    test_v10_alpha4_ci_docs_exist()
 
     print("=" * 50)
     print("Smoke test completed!")
