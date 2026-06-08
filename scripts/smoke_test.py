@@ -5694,6 +5694,122 @@ def test_v10_alpha_86_release_docs_not_stale():
     print("[OK] V1.0-alpha.8.6 release documentation consistency")
 
 
+def test_v10_alpha_861_home_recent_cards_use_display_helper():
+    """V1.0-alpha.8.6.1: Homepage recent cards use _build_card_display_data() for all display fields."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType
+
+    db = SessionLocal()
+    try:
+        # Create a regular failed card (not intake-blocked) with no source_title
+        failed_card = InsightCard(
+            source_url="https://example.com/broken-page",
+            source_type=SourceType.HTML,
+            status=CardStatus.FAILED,
+            error_message="fetch failed: connection timeout",
+            relevance_score=0,
+        )
+        db.add(failed_card)
+        db.commit()
+        db.refresh(failed_card)
+        failed_id = failed_card.id
+
+        # Fetch homepage
+        response = client.get("/")
+        assert response.status_code == 200
+        text = response.text
+
+        # The failed card should show "处理失败：example.com/broken-page", NOT "无标题"
+        assert "处理失败" in text, \
+            f"Homepage should show '处理失败' for regular failed card"
+        # Should NOT show "无标题" as the display title for this card's URL
+        # (demo data may have other cards with no title, so we check the specific URL)
+        assert "example.com/broken-page" in text, \
+            "Homepage should show the failed card's URL"
+        print(f"[OK] Homepage shows '处理失败：example.com/broken-page' for failed card {failed_id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_alpha_861_unhandled_filter_excludes_failed_cards():
+    """V1.0-alpha.8.6.1: /cards?decision=unhandled excludes failed/blocked cards."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType
+
+    db = SessionLocal()
+    try:
+        # Create a completed card with no decision (should appear in unhandled)
+        completed_card = InsightCard(
+            source_url="https://example.com/good-article",
+            source_type=SourceType.HTML,
+            status=CardStatus.COMPLETED,
+            summary_zh="Good summary",
+            relevance_score=80,
+        )
+        db.add(completed_card)
+        db.commit()
+        db.refresh(completed_card)
+        completed_id = completed_card.id
+
+        # Create a failed card with no decision (should NOT appear in unhandled)
+        failed_card = InsightCard(
+            source_url="https://example.com/broken-page-unhandled",
+            source_type=SourceType.HTML,
+            status=CardStatus.FAILED,
+            error_message="fetch failed",
+            relevance_score=0,
+        )
+        db.add(failed_card)
+        db.commit()
+        db.refresh(failed_card)
+        failed_id = failed_card.id
+
+        # Create an intake-blocked card with no decision (should NOT appear in unhandled)
+        blocked_card = InsightCard(
+            source_url="https://deepmind.google/blog/page/99/",
+            source_type=SourceType.UNKNOWN,
+            status=CardStatus.FAILED,
+            error_message="[intake:blocked] URL contains pagination pattern",
+            relevance_score=0,
+        )
+        db.add(blocked_card)
+        db.commit()
+        db.refresh(blocked_card)
+        blocked_id = blocked_card.id
+
+        # Request /cards?decision=unhandled
+        unhandled_response = client.get("/cards?decision=unhandled")
+        assert unhandled_response.status_code == 200
+        unhandled_text = unhandled_response.text
+
+        # The completed card SHOULD appear in unhandled
+        assert "good-article" in unhandled_text, \
+            f"Completed card {completed_id} should appear in unhandled list"
+        # The failed card should NOT appear in unhandled
+        assert "broken-page-unhandled" not in unhandled_text, \
+            f"Failed card {failed_id} should NOT appear in unhandled list"
+        # The blocked card should NOT appear in unhandled
+        assert "page/99" not in unhandled_text, \
+            f"Blocked card {blocked_id} should NOT appear in unhandled list"
+        print(f"[OK] /cards?decision=unhandled shows completed card {completed_id}, excludes failed {failed_id} and blocked {blocked_id}")
+
+        # Request /cards (all) - should still show failed/blocked
+        all_response = client.get("/cards")
+        assert all_response.status_code == 200
+        all_text = all_response.text
+        assert "broken-page-unhandled" in all_text, \
+            f"Failed card {failed_id} should appear in full /cards list"
+        assert "page/99" in all_text, \
+            f"Blocked card {blocked_id} should appear in full /cards list"
+        print(f"[OK] /cards (all) still shows failed and blocked cards")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -5888,6 +6004,10 @@ if __name__ == "__main__":
     test_v10_alpha_86_unhandled_count_excludes_failed_cards()
     test_v10_alpha_86_cards_page_blocked_display_fallback()
     test_v10_alpha_86_release_docs_not_stale()
+
+    # V1.0-alpha.8.6.1 display consistency and filter alignment fixes
+    test_v10_alpha_861_home_recent_cards_use_display_helper()
+    test_v10_alpha_861_unhandled_filter_excludes_failed_cards()
 
     print("=" * 50)
     print("Smoke test completed!")

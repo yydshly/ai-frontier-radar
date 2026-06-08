@@ -216,42 +216,22 @@ def index(request: Request):
         recent_cards_data = []
         for card in recent_cards:
             decision_row = recent_decisions.get(card.id)
-            decision_value = decision_row.decision if decision_row else None
+            display = _build_card_display_data(card, decision_row)
+            decision_value = display["decision_value"]
             decision_note = decision_row.note if decision_row else None
-
-            # Determine if this is an intake-blocked card
-            is_intake_blocked = (
-                card.status == CardStatus.FAILED
-                and card.error_message
-                and "[intake:blocked]" in card.error_message
-            )
-
-            # Compute display title: use source_title if available, otherwise build from URL for blocked cards
-            if card.source_title:
-                display_title = card.source_title
-            elif is_intake_blocked:
-                # Build "已拦截：{host/path}" from URL
-                from urllib.parse import urlparse
-                parsed = urlparse(card.source_url)
-                path = parsed.path if parsed.path else ""
-                host_or_path = (parsed.netloc + path) if parsed.netloc else card.source_url
-                # Truncate if too long
-                if len(host_or_path) > 60:
-                    host_or_path = host_or_path[:57] + "..."
-                display_title = f"已拦截：{host_or_path}"
-            else:
-                display_title = "无标题"
 
             recent_cards_data.append({
                 "id": card.id,
-                "source_title": display_title,
+                "source_title": display["display_title"],
                 "source_url": card.source_url,
                 "status": card.status.value if card.status else "unknown",
-                "is_intake_blocked": is_intake_blocked,
+                "status_display": display["status_display"],
+                "is_intake_blocked": display["is_intake_blocked"],
+                "is_failed": display["is_failed"],
                 "decision_value": decision_value,
                 "decision_label": get_decision_label(decision_value),
                 "decision_note": decision_note or "",
-                "relevance_score": card.relevance_score,
+                "relevance_score": display["relevance_score_display"],
                 "created_at": card.created_at,
             })
 
@@ -402,9 +382,13 @@ def list_cards(request: Request, decision: str | None = None):
             decision_value = display["decision_value"]
 
             # Apply filter
-            if filter_decision == "unhandled" and decision_value is not None:
-                continue
-            if filter_decision and filter_decision != "unhandled":
+            if filter_decision == "unhandled":
+                # V1.0-alpha.8.6.1: only show completed cards without decisions
+                if card.status != CardStatus.COMPLETED:
+                    continue
+                if decision_value is not None:
+                    continue
+            elif filter_decision and filter_decision != "unhandled":
                 if decision_value != filter_decision:
                     continue
 
