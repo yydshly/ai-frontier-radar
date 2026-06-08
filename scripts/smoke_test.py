@@ -5256,6 +5256,114 @@ def test_v10_alpha_83_failed_card_delete_route_exists():
         db.close()
 
 
+def test_v10_alpha_84_about_page_exists():
+    """Test that GET /about page exists and contains required content."""
+    response = client.get("/about")
+    assert response.status_code == 200, \
+        f"Expected 200, got {response.status_code}"
+    text = response.text
+
+    # Page title and heading
+    assert "AI Frontier Radar 如何工作" in text, \
+        "About page should have main heading"
+
+    # Module 1: System positioning
+    assert "系统定位" in text, \
+        "About page should have 系统定位 section"
+
+    # Module 2: Processing pipeline
+    assert "整体处理链路" in text, \
+        "About page should have 整体处理链路 section"
+    assert "不是所有 URL 都会直接进入总结" in text, \
+        "About page should emphasize not all URLs go to summarization"
+
+    # Module 3: Source control
+    assert "前沿来源如何控制" in text, \
+        "About page should have 前沿来源如何控制 section"
+
+    # Module 4: Data acquisition
+    assert "来源数据如何获取" in text, \
+        "About page should have 来源数据如何获取 section"
+
+    # Module 5: URL classification
+    assert "URL / 文档类型识别" in text, \
+        "About page should have URL 类型识别 section"
+    assert "https://deepmind.google/blog/page/3/" in text, \
+        "About page should include DeepMind pagination example"
+
+    # Module 6: Failure handling
+    assert "遇到阻塞和失败怎么办" in text, \
+        "About page should have 阻塞和失败 section"
+
+    # Module 7: LLM analysis
+    assert "LLM 分析和输出边界" in text, \
+        "About page should have LLM 分析 section"
+    assert "中文摘要" in text and "中英双语核心理解" in text, \
+        "About page should distinguish Chinese summary and bilingual report"
+
+    # Module 8: Technical choices
+    assert "关键技术选型" in text, \
+        "About page should have 关键技术选型 section"
+
+    print("[OK] GET /about returns 200 with all required content sections")
+
+
+def test_v10_alpha_84_system_design_doc_exists():
+    """Test that docs/SYSTEM_DESIGN_AND_TECH_DECISIONS.md exists with required content."""
+    from pathlib import Path
+    doc_path = Path(__file__).parent.parent / "docs" / "SYSTEM_DESIGN_AND_TECH_DECISIONS.md"
+    assert doc_path.exists(), \
+        "docs/SYSTEM_DESIGN_AND_TECH_DECISIONS.md should exist"
+    text = doc_path.read_text(encoding="utf-8")
+
+    # Check required sections
+    required_sections = [
+        "项目定位",
+        "核心数据流",
+        "来源控制策略",
+        "URL 分类与策略路由",
+        "抓取失败和阻塞处理",
+        "LLM 分析边界",
+        "当前技术选型",
+        "V1.0-alpha 不做什么",
+        "V1.0-beta 后续方向",
+    ]
+    for section in required_sections:
+        assert section in text, \
+            f"SYSTEM_DESIGN doc should contain '{section}' section"
+
+    # Check data model relationship section
+    assert "InsightCard" in text and "SourceItem" in text and "Source" in text, \
+        "SYSTEM_DESIGN doc should explain core data models"
+
+    # Check URL classification example
+    assert "deepmind.google/blog/page/3/" in text, \
+        "SYSTEM_DESIGN doc should include DeepMind pagination example"
+
+    print("[OK] docs/SYSTEM_DESIGN_AND_TECH_DECISIONS.md exists with all required content")
+
+
+def test_v10_alpha_84_readme_links_system_design():
+    """Test that README links to the system design doc and /about page."""
+    from pathlib import Path
+    readme_path = Path(__file__).parent.parent / "README.md"
+    text = readme_path.read_text(encoding="utf-8")
+
+    # README should link to system design doc
+    assert "SYSTEM_DESIGN_AND_TECH_DECISIONS.md" in text, \
+        "README should reference SYSTEM_DESIGN_AND_TECH_DECISIONS.md"
+
+    # README should list /about in page index
+    assert "/about" in text, \
+        "README should include /about page"
+
+    # README should have system design in doc index
+    assert "系统设计与技术决策" in text or "系统设计" in text, \
+        "README should reference system design in doc index"
+
+    print("[OK] README links to SYSTEM_DESIGN doc and /about page")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -5435,6 +5543,11 @@ if __name__ == "__main__":
     test_v10_alpha_83_home_labels_explain_sourceitem_vs_insightcard()
     test_v10_alpha_83_intake_blocked_card_display_helpers()
     test_v10_alpha_83_failed_card_delete_route_exists()
+
+    # V1.0-alpha.8.4 system design explanation page
+    test_v10_alpha_84_about_page_exists()
+    test_v10_alpha_84_system_design_doc_exists()
+    test_v10_alpha_84_readme_links_system_design()
 
     print("=" * 50)
     print("Smoke test completed!")

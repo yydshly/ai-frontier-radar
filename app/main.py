@@ -50,6 +50,16 @@ def health_check():
     return HealthResponse(status="ok")
 
 
+@app.get("/about", response_class=HTMLResponse)
+def about_page(request: Request):
+    """System design and technical explanation page.
+
+    V1.0-alpha.8.4: explains the complete processing pipeline, source control,
+    URL type classification, failure handling, and LLM analysis boundaries.
+    """
+    return templates.TemplateResponse("about.html", {"request": request})
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     """V0.6: Home page upgraded to personal AI frontier workbench.

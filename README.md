@@ -146,6 +146,7 @@ CI 不访问真实网络，不调用真实 LLM，不需要 MINIMAX_API_KEY。
 创建 demo 数据并启动服务后，建议手动打开以下页面确认效果：
 
 - `/` — 首页工作台，演示数据入口
+- `/about` — 项目原理与技术架构说明
 - `/source-items/{id}` — 演示资料详情
 - `/cards/{id}` — 演示 InsightCard 详情
 - `/cards/{id}/export-report` — 完整 Markdown 报告预览
@@ -181,6 +182,8 @@ python scripts/acceptance_release_candidate.py --skip-smoke
 | [PRODUCT_SHAPE_ROADMAP.md](docs/PRODUCT_SHAPE_ROADMAP.md) | 产品形态路线 |
 | [V1.0_ALPHA_DEMO_FLOW.md](docs/V1.0_ALPHA_DEMO_FLOW.md) | 演示主流程 |
 | [V1.0_ALPHA_1_DEMO_DATA.md](docs/V1.0_ALPHA_1_DEMO_DATA.md) | demo 数据和快速启动 |
+| [SYSTEM_DESIGN_AND_TECH_DECISIONS.md](docs/SYSTEM_DESIGN_AND_TECH_DECISIONS.md) | 系统设计与技术决策 |
+| [INPUT_CLASSIFICATION_AND_SUMMARY_STRATEGY.md](docs/INPUT_CLASSIFICATION_AND_SUMMARY_STRATEGY.md) | URL 类型识别与总结策略 |
 
 ## 模型策略
 
@@ -254,6 +257,7 @@ open http://127.0.0.1:8779/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/` | 首页工作台 |
+| GET | `/about` | 项目原理与技术架构说明 |
 | GET | `/sources` | 信息来源列表 |
 | GET | `/source-items` | 发现条目列表 |
 | GET | `/source-items/{id}` | 发现条目详情 |
