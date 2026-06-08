@@ -22,6 +22,7 @@ from app.exports.markdown_task import build_action_markdown
 from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
 from app.routes.project_docs import router as project_docs_router
+from app.routes.candidate_pool import router as candidate_pool_router
 
 
 # ── Shared card display helper (V1.0-alpha.8.6) ─────────────────────────────
@@ -1147,6 +1148,9 @@ def compile_source_item(item_id: int):
 
 # ── Mount project docs routes ────────────────────────────────────────────────
 app.include_router(project_docs_router)
+
+# ── Mount candidate pool routes ───────────────────────────────────────────────
+app.include_router(candidate_pool_router)
 
 
 if __name__ == "__main__":
