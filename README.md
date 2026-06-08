@@ -656,6 +656,39 @@ python scripts/acceptance_cross_source_compile.py --isolated-db --source-key ant
 
 完整产品验收步骤见 [docs/V0.7.2_CROSS_SOURCE_COMPILE_ACCEPTANCE.md](docs/V0.7.2_CROSS_SOURCE_COMPILE_ACCEPTANCE.md)。
 
+## V0.8 中英双语 InsightCard 与原文保真解释
+
+V0.8 不是单纯翻译，而是在中文洞察卡中增加英文核心内容和中文解说。
+
+### 目标
+让用户在不强读英文全文的情况下，既能看到英文核心内容，又能获得中文解释。
+
+### 英文部分（保留原文主旨）
+- **English Core Summary**：英文核心摘要，忠实概括原文
+- **Original Key Claims**：原文主要观点/主张，英文表达
+- **Key Evidence Points**：英文证据点/支撑信息
+- **Key Terms EN-ZH**：关键术语中英对照表
+
+### 中文部分（帮助理解）
+- **中文解说**：通俗中文说明，解释文章在说什么
+- **保真提示**：提醒哪些内容来自原文，哪些不应过度解读
+- **解读边界**：说明产品机会和行动建议属于模型推论，不等于原文结论
+
+### 边界说明
+```
+英文核心内容用于保留原文主旨；
+中文解说用于帮助理解；
+产品机会和行动建议属于模型推论，不等同于原文结论。
+```
+
+### 验收命令
+```bash
+python scripts/acceptance_bilingual_report.py --isolated-db --mock
+python scripts/smoke_test.py
+```
+
+完整产品验收步骤见 [docs/V0.8_BILINGUAL_INSIGHT_ACCEPTANCE.md](docs/V0.8_BILINGUAL_INSIGHT_ACCEPTANCE.md)。
+
 ## 技术栈
 
 ```

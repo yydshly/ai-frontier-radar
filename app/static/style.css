@@ -1424,3 +1424,133 @@ footer {
         gap: 1rem;
     }
 }
+
+/* V0.8: Bilingual Report Section */
+.bilingual-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-left: 4px solid #9b59b6;
+}
+
+.bilingual-section h2 {
+    color: #8e44ad;
+    margin-bottom: 0.5rem;
+}
+
+.bilingual-notice {
+    background: #f8f4fa;
+    border: 1px solid #e8d4f0;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.bilingual-notice small {
+    font-style: italic;
+}
+
+.bilingual-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.bilingual-block {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+}
+
+.bilingual-block:last-of-type {
+    border-bottom: none;
+}
+
+.bilingual-block h3 {
+    font-size: 1rem;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.bilingual-block .english-text {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+.bilingual-block .chinese-text {
+    line-height: 1.8;
+}
+
+.fidelity-notes {
+    background: #fff9e6;
+    border: 1px solid #f5e6a3;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+}
+
+.fidelity-notes h3 {
+    color: #d68910;
+}
+
+.interpretation-boundary {
+    background: #e8f4fd;
+    border: 1px solid #a8d4f0;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+}
+
+.interpretation-boundary h3 {
+    color: #2980b9;
+}
+
+.terms-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.terms-table th,
+.terms-table td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #eee;
+}
+
+.terms-table th {
+    background: #f8f4fa;
+    color: #555;
+    font-weight: 600;
+}
+
+.terms-table td.english-text {
+    font-family: Georgia, "Times New Roman", serif;
+    color: #2c3e50;
+}
+
+.bilingual-action {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+}
+
+.bilingual-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    background: #f8f4fa;
+    border-radius: 8px;
+    border: 2px dashed #d8c8e8;
+}
+
+.bilingual-empty p {
+    margin-bottom: 1rem;
+    color: #666;
+    font-size: 1rem;
+}
+
+.insight-list li.english-text {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.95rem;
+}

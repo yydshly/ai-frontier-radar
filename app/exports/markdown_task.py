@@ -11,7 +11,7 @@ import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.models import InsightCard, CardDecision
+    from app.models import InsightCard, CardDecision, InsightCardBilingualReport
 
 
 def _parse_json_list(value: str | None) -> list[str]:
@@ -49,6 +49,7 @@ def _format_list_section(title: str, items: list[str], indent: str = "  ") -> st
 def build_action_markdown(
     card: "InsightCard",
     decision: "CardDecision | None" = None,
+    bilingual_report: "InsightCardBilingualReport | None" = None,
 ) -> str:
     """Build a Markdown task draft from an InsightCard.
 
@@ -157,6 +158,74 @@ def build_action_markdown(
     else:
         lines.append("  暂无")
     lines.append("")
+
+    # ── V0.8: 中英双语核心理解 ──────────────────────────────────────────────
+    if bilingual_report:
+        lines.append("## English Core Summary")
+        lines.append("")
+        lines.append(bilingual_report.english_core_summary or "暂无")
+        lines.append("")
+
+        # Parse JSON fields
+        try:
+            english_key_claims = json.loads(bilingual_report.english_key_claims_json or "[]")
+        except (json.JSONDecodeError, TypeError):
+            english_key_claims = []
+        try:
+            english_evidence_points = json.loads(bilingual_report.english_evidence_points_json or "[]")
+        except (json.JSONDecodeError, TypeError):
+            english_evidence_points = []
+        try:
+            key_terms = json.loads(bilingual_report.key_terms_json or "[]")
+        except (json.JSONDecodeError, TypeError):
+            key_terms = []
+
+        if english_key_claims:
+            lines.append("## Original Key Claims")
+            lines.append("")
+            for claim in english_key_claims:
+                lines.append(f"- {claim}")
+            lines.append("")
+
+        if english_evidence_points:
+            lines.append("## Key Evidence Points")
+            lines.append("")
+            for point in english_evidence_points:
+                lines.append(f"- {point}")
+            lines.append("")
+
+        if key_terms:
+            lines.append("## Key Terms EN-ZH")
+            lines.append("")
+            lines.append("| English | 中文 | 说明 |")
+            lines.append("|---|---|---|")
+            for term in key_terms:
+                en = term.get("en", "")
+                zh = term.get("zh", "")
+                note = term.get("note_zh", "")
+                lines.append(f"| {en} | {zh} | {note} |")
+            lines.append("")
+
+        if bilingual_report.chinese_explanation:
+            lines.append("## 中文解说")
+            lines.append("")
+            lines.append(bilingual_report.chinese_explanation)
+            lines.append("")
+
+        if bilingual_report.fidelity_notes_zh or bilingual_report.interpretation_boundary_zh:
+            lines.append("## 保真提示与解读边界")
+            lines.append("")
+            if bilingual_report.fidelity_notes_zh:
+                lines.append(bilingual_report.fidelity_notes_zh)
+                lines.append("")
+            if bilingual_report.interpretation_boundary_zh:
+                lines.append(bilingual_report.interpretation_boundary_zh)
+                lines.append("")
+    else:
+        lines.append("## 暂无双语报告")
+        lines.append("")
+        lines.append("（此卡片尚未生成中英双语核心理解）")
+        lines.append("")
 
     # ── 可交给 AI 执行模型的任务草稿 ───────────────────────────────────────
     lines.append("## 可交给 AI 执行模型的任务草稿")

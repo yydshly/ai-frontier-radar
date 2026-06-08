@@ -1,5 +1,6 @@
 """FastAPI main application."""
 import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form
@@ -9,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.db import get_db, init_db
-from app.models import InsightCard, CardStatus, Source, SourceItem, CardDecision
+from app.models import InsightCard, CardStatus, Source, SourceItem, CardDecision, InsightCardBilingualReport
 from app.schemas import HealthResponse
 from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
@@ -303,6 +304,13 @@ def card_detail(request: Request, card_id: int):
         current_decision = decision_row.decision if decision_row else None
         current_note = decision_row.note if decision_row else None
 
+        # V0.8: load bilingual report if exists
+        bilingual_report = (
+            db.query(InsightCardBilingualReport)
+            .filter(InsightCardBilingualReport.card_id == card.id)
+            .first()
+        )
+
         # Parse JSON fields for template
         def parse_json_field(value):
             if not value:
@@ -311,6 +319,27 @@ def card_detail(request: Request, card_id: int):
                 return json.loads(value)
             except (json.JSONDecodeError, TypeError):
                 return []
+
+        # Parse bilingual report JSON fields
+        english_key_claims = []
+        english_evidence_points = []
+        key_terms = []
+        if bilingual_report:
+            try:
+                if bilingual_report.english_key_claims_json:
+                    english_key_claims = json.loads(bilingual_report.english_key_claims_json)
+            except (json.JSONDecodeError, TypeError):
+                english_key_claims = []
+            try:
+                if bilingual_report.english_evidence_points_json:
+                    english_evidence_points = json.loads(bilingual_report.english_evidence_points_json)
+            except (json.JSONDecodeError, TypeError):
+                english_evidence_points = []
+            try:
+                if bilingual_report.key_terms_json:
+                    key_terms = json.loads(bilingual_report.key_terms_json)
+            except (json.JSONDecodeError, TypeError):
+                key_terms = []
 
         # Pass stable string values for template comparisons
         context = {
@@ -330,13 +359,92 @@ def card_detail(request: Request, card_id: int):
             "current_note": current_note or "",
             "current_decision_label": get_decision_label(current_decision),
             "decision_options": ALLOWED_CARD_DECISIONS,
+            # V0.8 bilingual report context
+            "bilingual_report": bilingual_report,
+            "english_key_claims": english_key_claims,
+            "english_evidence_points": english_evidence_points,
+            "key_terms": key_terms,
         }
         return templates.TemplateResponse("card_detail.html", context)
     finally:
         db.close()
 
 
-@app.post("/cards/{card_id}/decision")
+@app.post("/cards/{card_id}/bilingual-report")
+def generate_bilingual_report(card_id: int):
+    """Generate or regenerate a bilingual report for an InsightCard.
+
+    V0.8: creates an English core content layer with Chinese explanation
+    to help users understand the original material while preserving fidelity.
+
+    If a report already exists, updates it (upsert behavior).
+    On failure, does NOT cause 500 - failure info is stored in fidelity_notes_zh.
+    """
+    from app.services.bilingual_report import (
+        build_bilingual_report_prompt,
+        parse_bilingual_report_response,
+        upsert_bilingual_report,
+        build_mock_bilingual_report,
+    )
+
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        # Try to read raw text from raw_text_path if available
+        source_text = None
+        if card.raw_text_path:
+            raw_path = Path(card.raw_text_path)
+            if raw_path.exists() and raw_path.is_file():
+                try:
+                    source_text = raw_path.read_text(encoding="utf-8")
+                except Exception:
+                    pass
+
+        # Fall back to cleaned_text_preview if no raw text
+        if not source_text:
+            source_text = card.cleaned_text_preview
+
+        # Build prompt
+        prompt = build_bilingual_report_prompt(card, source_text)
+
+        # Check if we should use mock mode (no API key or explicit flag)
+        use_mock = os.environ.get("MINIMAX_API_KEY") in ("", None)
+
+        if use_mock:
+            # Use mock report for testing/development
+            report_data = build_mock_bilingual_report(card)
+        else:
+            # Call LLM for real report
+            try:
+                from app.llm.caller import call_llm
+                raw_response = call_llm(prompt)
+                report_data = parse_bilingual_report_response(raw_response)
+            except Exception as e:
+                logger.error(f"LLM call failed for bilingual report: {e}")
+                # Store error info rather than failing
+                report_data = {
+                    "english_core_summary": "",
+                    "english_key_claims": [],
+                    "english_evidence_points": [],
+                    "key_terms": [],
+                    "chinese_explanation": "",
+                    "fidelity_notes_zh": f"[错误] 生成双语报告时发生问题：{e}",
+                    "interpretation_boundary_zh": "生成失败，内容仅供参考。",
+                    "parse_error": str(e),
+                }
+
+        # Upsert the report
+        try:
+            upsert_bilingual_report(db, card, report_data)
+        except Exception as e:
+            logger.error(f"Failed to upsert bilingual report: {e}")
+
+        return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
+    finally:
+        db.close()
 def update_card_decision(card_id: int, decision: str = Form(...), note: str = Form("")):
     """Update (or create) the user's decision for a card.
 
@@ -387,6 +495,7 @@ def card_export_markdown(request: Request, card_id: int):
     """Preview the Markdown task draft for an InsightCard.
 
     V0.5: renders a full-page preview of the generated Markdown.
+    V0.8: includes bilingual report if available.
     Does not modify the database or call LLM.
     """
     db = next(get_db())
@@ -401,7 +510,13 @@ def card_export_markdown(request: Request, card_id: int):
             .first()
         )
 
-        markdown_text = build_action_markdown(card, decision_row)
+        bilingual_report = (
+            db.query(InsightCardBilingualReport)
+            .filter(InsightCardBilingualReport.card_id == card.id)
+            .first()
+        )
+
+        markdown_text = build_action_markdown(card, decision_row, bilingual_report)
 
         return templates.TemplateResponse("card_export_markdown.html", {
             "request": request,
@@ -418,6 +533,7 @@ def card_export_markdown_download(card_id: int):
     """Download the Markdown task draft for an InsightCard as a .md file.
 
     V0.5: streams the file content directly without writing to disk.
+    V0.8: includes bilingual report if available.
     """
     db = next(get_db())
     try:
@@ -431,7 +547,13 @@ def card_export_markdown_download(card_id: int):
             .first()
         )
 
-        markdown_text = build_action_markdown(card, decision_row)
+        bilingual_report = (
+            db.query(InsightCardBilingualReport)
+            .filter(InsightCardBilingualReport.card_id == card.id)
+            .first()
+        )
+
+        markdown_text = build_action_markdown(card, decision_row, bilingual_report)
 
         filename = f"insightcard-{card_id}-task.md"
         return PlainTextResponse(

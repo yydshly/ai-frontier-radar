@@ -54,6 +54,115 @@
             <p class="summary-text">{{ card.summary_zh }}</p>
         </section>
 
+        {# V0.8: Bilingual Report Section #}
+        <section class="bilingual-section">
+            <h2>🌐 中英双语核心理解</h2>
+            <p class="bilingual-notice">
+                <small>
+                    英文核心内容用于保留原文主旨；中文解说用于帮助理解，不等同于原文逐字翻译。
+                </small>
+            </p>
+
+            {% if bilingual_report %}
+            {# Has bilingual report - display it #}
+            <div class="bilingual-content">
+                {# English Core Summary #}
+                <div class="bilingual-block">
+                    <h3>English Core Summary</h3>
+                    <p class="english-text">{{ bilingual_report.english_core_summary }}</p>
+                </div>
+
+                {# Original Key Claims #}
+                {% if english_key_claims %}
+                <div class="bilingual-block">
+                    <h3>Original Key Claims</h3>
+                    <ul class="insight-list">
+                        {% for claim in english_key_claims %}
+                        <li class="english-text">{{ claim }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {# Key Evidence Points #}
+                {% if english_evidence_points %}
+                <div class="bilingual-block">
+                    <h3>Key Evidence Points</h3>
+                    <ul class="insight-list">
+                        {% for point in english_evidence_points %}
+                        <li class="english-text">{{ point }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {# Key Terms EN-ZH #}
+                {% if key_terms %}
+                <div class="bilingual-block">
+                    <h3>Key Terms EN-ZH</h3>
+                    <table class="terms-table">
+                        <thead>
+                            <tr>
+                                <th>English</th>
+                                <th>中文</th>
+                                <th>说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for term in key_terms %}
+                            <tr>
+                                <td class="english-text">{{ term.en }}</td>
+                                <td>{{ term.zh }}</td>
+                                <td>{{ term.note_zh }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {# 中文解说 #}
+                {% if bilingual_report.chinese_explanation %}
+                <div class="bilingual-block">
+                    <h3>中文解说</h3>
+                    <p class="chinese-text">{{ bilingual_report.chinese_explanation }}</p>
+                </div>
+                {% endif %}
+
+                {# 保真提示 #}
+                {% if bilingual_report.fidelity_notes_zh %}
+                <div class="bilingual-block fidelity-notes">
+                    <h3>⚠️ 保真提示</h3>
+                    <p class="chinese-text">{{ bilingual_report.fidelity_notes_zh }}</p>
+                </div>
+                {% endif %}
+
+                {# 解读边界 #}
+                {% if bilingual_report.interpretation_boundary_zh %}
+                <div class="bilingual-block interpretation-boundary">
+                    <h3>📌 解读边界</h3>
+                    <p class="chinese-text">{{ bilingual_report.interpretation_boundary_zh }}</p>
+                </div>
+                {% endif %}
+
+                {# Regenerate button #}
+                <div class="bilingual-action">
+                    <form method="post" action="/cards/{{ card.id }}/bilingual-report">
+                        <button type="submit" class="btn-secondary">🔄 重新生成中英双语报告</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            {# No bilingual report - show generate button #}
+            <div class="bilingual-empty">
+                <p>还没有生成中英双语核心理解。</p>
+                <form method="post" action="/cards/{{ card.id }}/bilingual-report">
+                    <button type="submit" class="btn-primary">🌐 生成中英双语报告</button>
+                </form>
+            </div>
+            {% endif %}
+        </section>
+
         <section class="insights-section">
             <h2>🔑 关键事实</h2>
             <ul class="insight-list">
