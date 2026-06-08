@@ -4656,6 +4656,55 @@ def test_v10_alpha1_home_demo_entry():
         db.close()
 
 
+# ── V1.0-alpha.2 README quickstart ───────────────────────────────────────────
+
+def test_v10_alpha2_readme_quickstart_structure():
+    """Test that README has the required quickstart sections."""
+    from pathlib import Path
+
+    readme_path = Path(__file__).parent.parent / "README.md"
+    assert readme_path.exists(), "README.md should exist"
+
+    readme_text = readme_path.read_text(encoding="utf-8")
+
+    required_sections = [
+        "AI Frontier Radar",
+        "当前阶段",
+        "5 分钟本地演示",
+        "产品主流程",
+        "当前核心能力",
+        "常用命令",
+        "项目理解与维护文档",
+        "模型策略",
+        "当前不做什么",
+        "版本路线",
+    ]
+
+    for section in required_sections:
+        assert section in readme_text, \
+            f"README.md should contain '{section}' section"
+        print(f"[OK] README contains: {section}")
+
+
+def test_v10_alpha2_readme_structure_doc_exists():
+    """Test that docs/README_STRUCTURE.md exists with required content."""
+    from pathlib import Path
+
+    doc_path = Path(__file__).parent.parent / "docs" / "README_STRUCTURE.md"
+    assert doc_path.exists(), "docs/README_STRUCTURE.md should exist"
+
+    doc_text = doc_path.read_text(encoding="utf-8")
+
+    assert "README 是项目入口" in doc_text, \
+        "README_STRUCTURE.md should mention README is project entry"
+    assert "Quickstart" in doc_text, \
+        "README_STRUCTURE.md should mention Quickstart"
+    assert "历史版本记录" in doc_text, \
+        "README_STRUCTURE.md should mention version history"
+
+    print("[OK] docs/README_STRUCTURE.md exists with required content")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4796,6 +4845,10 @@ if __name__ == "__main__":
     test_v10_alpha1_create_demo_data_script_exists()
     test_v10_alpha1_acceptance_demo_data_script_exists()
     test_v10_alpha1_home_demo_entry()
+
+    # V1.0-alpha.2 README quickstart
+    test_v10_alpha2_readme_quickstart_structure()
+    test_v10_alpha2_readme_structure_doc_exists()
 
     print("=" * 50)
     print("Smoke test completed!")
