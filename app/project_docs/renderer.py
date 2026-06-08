@@ -3,6 +3,7 @@
 Renders Markdown as HTML for display in the browser.
 Security: strips all raw HTML and scripts, only renders safe text formatting.
 """
+from html import escape
 import re
 
 
@@ -15,19 +16,9 @@ def render_markdown(content: str) -> str:
     - Removes on* event handler patterns
     - Only renders safe Markdown: headings, bold, italic, code blocks, lists, links (text only)
     - No image loading, no external links (all links open in new tab)
+    - All text content is HTML-escaped before insertion
     """
-    # Step 1: Remove raw HTML tags completely
-    html_pattern = re.compile(r"<[^>]+>", flags=re.IGNORECASE)
-    content = html_pattern.sub("", content)
-
-    # Step 2: Remove script/style/iframe/form tags (already gone but double-check)
-    for tag in ["script", "style", "iframe", "form", "object", "embed"]:
-        content = re.sub(rf"<{tag}[^>]*>.*?</{tag}>", "", content, flags=re.IGNORECASE | re.DOTALL)
-
-    # Step 3: Remove on* event handlers
-    content = re.sub(r"\bon\w+\s*=", "", content, flags=re.IGNORECASE)
-
-    # Step 4: Protect code blocks (don't process inside them)
+    # Step 0: Save code blocks BEFORE any HTML stripping so their content is pristine
     def encode_code_blocks(text: str) -> tuple[str, list[str]]:
         code_blocks: list[str] = []
 
@@ -41,7 +32,18 @@ def render_markdown(content: str) -> str:
 
     content, saved_code = encode_code_blocks(content)
 
-    # Step 5: Block-level elements first (headers, hr, lists, blockquotes)
+    # Step 1: Remove raw HTML tags completely from non-code content
+    html_pattern = re.compile(r"<[^>]+>", flags=re.IGNORECASE)
+    content = html_pattern.sub("", content)
+
+    # Step 2: Remove script/style/iframe/form tags (already gone but double-check)
+    for tag in ["script", "style", "iframe", "form", "object", "embed"]:
+        content = re.sub(rf"<{tag}[^>]*>.*?</{tag}>", "", content, flags=re.IGNORECASE | re.DOTALL)
+
+    # Step 3: Remove on* event handlers
+    content = re.sub(r"\bon\w+\s*=", "", content, flags=re.IGNORECASE)
+
+    # Step 4: Block-level elements (headers, hr, lists, blockquotes)
     lines = content.split("\n")
     result_lines: list[str] = []
 
@@ -52,7 +54,7 @@ def render_markdown(content: str) -> str:
         m = re.match(r"^(#{1,6})\s+(.*)", stripped)
         if m:
             level = len(m.group(1))
-            inner = m.group(2).strip()
+            inner = escape(m.group(2).strip())
             result_lines.append(f"<h{level}>{inner}</h{level}>")
             continue
 
@@ -64,22 +66,61 @@ def render_markdown(content: str) -> str:
         # Blockquote
         if stripped.startswith(">"):
             q = re.sub(r"^>\s*", "", stripped)
-            result_lines.append(f"<blockquote>{q}</blockquote>")
+            result_lines.append(f"<blockquote>{escape(q)}</blockquote>")
             continue
 
         result_lines.append(line)
 
     content = "\n".join(result_lines)
 
-    # Step 6: Inline formatting
-    content = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", content)
-    content = re.sub(r"__(.+?)__", r"<strong>\1</strong>", content)
-    content = re.sub(r"\*(.+?)\*", r"<em>\1</em>", content)
-    content = re.sub(r"_(.+?)_", r"<em>\1</em>", content)
+    # Step 5: Escape code-block placeholders so they aren't corrupted by bold/em
+    _placeholder_escapes: dict[str, str] = {}
 
-    # Step 7: Code blocks restored
+    def _escape_placeholders(text: str) -> str:
+        def _replacer(m):
+            key = f"\x01CODEBLOCK_{len(_placeholder_escapes)}\x01"
+            _placeholder_escapes[key] = m.group(0)
+            return key
+        return re.sub(r"___CODEBLOCK_\d+___", _replacer, text)
+
+    def _restore_placeholders(text: str) -> str:
+        for key, val in _placeholder_escapes.items():
+            text = text.replace(key, val)
+        return text
+
+    content = _escape_placeholders(content)
+
+    # Step 6: Inline formatting — escape content first
+    content = re.sub(r"\*\*(.+?)\*\*", lambda m: f"<strong>{escape(m.group(1))}</strong>", content)
+    content = re.sub(r"__(.+?)__", lambda m: f"<strong>{escape(m.group(1))}</strong>", content)
+    content = re.sub(r"\*(.+?)\*", lambda m: f"<em>{escape(m.group(1))}</em>", content)
+    content = re.sub(r"_(.+?)_", lambda m: f"<em>{escape(m.group(1))}</em>", content)
+
+    # Restore placeholders before generating code block HTML
+    content = _restore_placeholders(content)
+
+    # Step 7: Code blocks restored with proper <pre><code> wrapping and escaping
     for i, block in enumerate(saved_code):
-        content = content.replace(f"___CODEBLOCK_{i}___", block)
+        if block.startswith("```"):
+            # Fenced code block — extract content between fence lines
+            lines_inner = block.split("\n")
+            if len(lines_inner) > 2:
+                inner_code = "\n".join(lines_inner[1:-1])
+            else:
+                inner_code = ""
+            first_line = lines_inner[0] if lines_inner else ""
+            lang_match = re.match(r"```(\S*)", first_line)
+            lang = lang_match.group(1) if lang_match else ""
+            escaped = escape(inner_code)
+            if lang:
+                html_block = f'<pre><code class="language-{escape(lang, quote=True)}">{escaped}</code></pre>'
+            else:
+                html_block = f"<pre><code>{escaped}</code></pre>"
+        else:
+            # Inline code — strip backticks and escape
+            code_content = block.strip("`")
+            html_block = f"<code>{escape(code_content)}</code>"
+        content = content.replace(f"___CODEBLOCK_{i}___", html_block)
 
     # Step 8: Unordered lists
     lines = content.split("\n")
@@ -92,7 +133,7 @@ def render_markdown(content: str) -> str:
                 processed.append("<ul>")
                 in_ul = True
             item = re.sub(r"^[\-\*]\s+", "", stripped)
-            processed.append(f"<li>{item}</li>")
+            processed.append(f"<li>{escape(item)}</li>")
         else:
             if in_ul:
                 processed.append("</ul>")
@@ -113,7 +154,7 @@ def render_markdown(content: str) -> str:
             if not in_ol:
                 processed.append("<ol>")
                 in_ol = True
-            processed.append(f"<li>{m.group(1)}</li>")
+            processed.append(f"<li>{escape(m.group(1))}</li>")
         else:
             if in_ol:
                 processed.append("</ol>")
@@ -125,17 +166,23 @@ def render_markdown(content: str) -> str:
 
     # Step 10: Links — convert to safe format (open in new tab, no scripts)
     def safe_link(m):
-        href = m.group(1) if m.group(1) else ""
-        text = m.group(2) if m.group(2) else href
-        # Strip javascript: and data: URLs
-        if re.match(r"^(javascript:|data:)", href, flags=re.IGNORECASE):
-            return text
-        return f'<a href="{href}" target="_blank" rel="noopener noreferrer">{text}</a>'
+        # Group 1 = text (inside brackets), Group 2 = href (inside parens)
+        text = m.group(1) if m.group(1) else ""
+        href = m.group(2) if m.group(2) else ""
+        safe_text = escape(text)
+        href_lower = href.lower()
+        if re.match(r"^(javascript:|data:|vbscript:)", href_lower):
+            return safe_text
+        safe_href = escape(href, quote=True)
+        return f'<a href="{safe_href}" target="_blank" rel="noopener noreferrer">{safe_text}</a>'
 
     content = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", safe_link, content)
 
     # Step 11: Wrap non-HTML lines in <p> tags
-    html_tags = re.compile(r"^<(?:h[1-6]|ul|ol|li|blockquote|hr|div|p)", flags=re.IGNORECASE)
+    html_tags = re.compile(
+        r"^<(?:h[1-6]|ul|ol|li|blockquote|hr|div|p|pre|code|a|span|strong|em)",
+        flags=re.IGNORECASE,
+    )
     lines = content.split("\n")
     result: list[str] = []
     for line in lines:
@@ -145,7 +192,7 @@ def render_markdown(content: str) -> str:
         elif html_tags.match(stripped):
             result.append(line)
         else:
-            result.append(f"<p>{stripped}</p>")
+            result.append(f"<p>{escape(stripped)}</p>")
     content = "\n".join(result)
 
     # Step 12: Final cleanup — remove any remaining dangerous patterns
