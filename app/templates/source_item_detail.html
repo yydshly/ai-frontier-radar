@@ -169,13 +169,18 @@
             </form>
             {% elif item.status == 'failed' %}
             {% if '[intake:blocked]' in item.error_message %}
-            <p class="status-hint status-hint-error">⚠️ 该条目被识别为不适合直接编译</p>
+            <p class="status-hint status-hint-error">⚠️ 不适合直接编译</p>
             <p class="status-helper">
-                {{ item.error_message.replace('[intake:blocked] ', '') }}
+                该条目看起来是列表页、分页页、标签页或 Feed，不是单篇文章。
+                系统不会直接把它生成 InsightCard。
+            </p>
+            <p class="status-helper">
+                请从该页面发现具体文章 URL 后，再选择单篇文章编译。
             </p>
             <p class="status-helper" style="background:#fff3e0; border-left:3px solid #ff9800;">
-                💡 <strong>推荐操作：</strong>从该来源的列表页发现具体文章 URL，再选择单篇文章编译。
-                请返回来源探测页或重新运行对应 source 的 probe 脚本。
+                💡 <strong>推荐操作：</strong>
+                <a href="/source-items">返回英文资料收件箱</a> ·
+                <a href="/sources">返回来源列表</a>
             </p>
             {% else %}
             <p class="status-hint status-hint-error">上次编译失败：{{ item.error_message }}</p>

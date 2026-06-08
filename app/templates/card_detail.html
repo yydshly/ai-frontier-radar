@@ -23,7 +23,15 @@
         </div>
         {% endif %}
 
-        {% if status_value == 'failed' %}
+        {% if status_value == 'failed' and '[intake:blocked]' in card.error_message %}
+        <div class="error-banner" style="background: #fff3e0; border-left: 4px solid #ff9800;">
+            <h2>⚠️ 不适合直接编译</h2>
+            <p>系统识别到这个 URL 不是单篇文章，而是列表页、分页页、标签页或 Feed。</p>
+            <p>AI Frontier Radar 不会把这类页面直接生成 InsightCard。</p>
+            <p>请从该页面发现具体文章 URL 后，再选择单篇文章编译。</p>
+            <p style="font-size:0.85rem; color:#888; margin-top:0.5rem;">识别原因：{{ card.error_message.replace('[intake:blocked] ', '') }}</p>
+        </div>
+        {% elif status_value == 'failed' %}
         <div class="error-banner">
             <h2>❌ 处理失败</h2>
             <p>{{ card.error_message }}</p>
@@ -267,6 +275,12 @@
             <p class="status-helper">
                 如果这张卡片失败，可以先标记「稍后再看」或「暂时忽略」，等以后修好抓取或 API Key 再处理。
             </p>
+            <div class="delete-section" style="margin-top: 1rem; padding: 1rem; background: #fff3f3; border: 1px solid #ffcdd2; border-radius: 4px;">
+                <p style="margin: 0 0 0.75rem;">如果这条记录是测试或错误输入产生的，可以删除。</p>
+                <form method="post" action="/cards/{{ card.id }}/delete" onsubmit="return confirm('确认删除这条失败记录？该操作不可恢复。')">
+                    <button type="submit" class="btn-danger" style="background: #ef5350; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">🗑️ 删除这条失败记录</button>
+                </form>
+            </div>
             {% endif %}
 
             <div class="export-action-entry">

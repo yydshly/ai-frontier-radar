@@ -130,9 +130,10 @@
             </div>
         </section>
 
-        <!-- ── 最近待编译资料 ───────────────────────────────── -->
+        <!-- ── 英文资料收件箱 ───────────────────────────────── -->
         <section class="recent-section">
-            <h2 class="section-title">🕐 最近待编译资料</h2>
+            <h2 class="section-title">📥 英文资料收件箱</h2>
+            <p class="section-desc" style="font-size:0.85rem; color:#666; margin:-0.5rem 0 0.75rem;">从来源中发现的原始英文资料，选择后可编译为 InsightCard。</p>
             {% if recent_source_items %}
             <table class="recent-table">
                 <thead>
@@ -168,9 +169,10 @@
             {% endif %}
         </section>
 
-        <!-- ── 最近中文洞察卡 ───────────────────────────────── -->
+        <!-- ── 最近生成的中文洞察 ───────────────────────────────── -->
         <section class="recent-section">
-            <h2 class="section-title">🕐 最近中文洞察卡</h2>
+            <h2 class="section-title">🧠 最近生成的中文洞察</h2>
+            <p class="section-desc" style="font-size:0.85rem; color:#666; margin:-0.5rem 0 0.75rem;">已经完成或尝试完成分析的中文洞察结果，可查看、导出或清理。</p>
             {% if recent_cards %}
             <table class="recent-table">
                 <thead>
@@ -183,14 +185,18 @@
                 </thead>
                 <tbody>
                     {% for card in recent_cards %}
-                    <tr>
+                    <tr {% if card.is_intake_blocked %}style="background:#fff8f0;"{% elif card.status == 'failed' %}style="background:#fff5f5;"{% endif %}>
                         <td>
                             <a href="{{ card.source_url }}" target="_blank" rel="noopener">
                                 {{ card.source_title }}
                             </a>
                         </td>
                         <td>
-                            {% if card.decision_value == 'to_action' %}
+                            {% if card.is_intake_blocked %}
+                            <span class="decision-badge" style="background:#ff9800; color:white;">已拦截</span>
+                            {% elif card.status == 'failed' %}
+                            <span class="decision-badge" style="background:#ef5350; color:white;">处理失败</span>
+                            {% elif card.decision_value == 'to_action' %}
                             <span class="decision-badge decision-to_action">{{ card.decision_label }}</span>
                             {% if card.decision_note %}<br><small class="note-preview">{{ card.decision_note }}</small>{% endif %}
                             {% elif card.decision_value %}
@@ -199,10 +205,14 @@
                             <span class="decision-badge decision-none">未处理</span>
                             {% endif %}
                         </td>
-                        <td class="td-score">{{ card.relevance_score if card.relevance_score else 0 }}</td>
+                        <td class="td-score">{% if card.is_intake_blocked or card.status == 'failed' %}-{% else %}{{ card.relevance_score if card.relevance_score else 0 }}{% endif %}</td>
                         <td>
-                            <a href="/cards/{{ card.id }}" class="btn-sm">查看详情</a>
-                            {% if card.decision_value == 'to_action' %}
+                            <a href="/cards/{{ card.id }}" class="btn-sm">{% if card.is_intake_blocked or card.status == 'failed' %}查看原因{% else %}查看详情{% endif %}</a>
+                            {% if card.is_intake_blocked %}
+                            <form method="post" action="/cards/{{ card.id }}/delete" style="display:inline;" onsubmit="return confirm('确认删除这条记录？该操作不可恢复。')">
+                                <button type="submit" class="btn-sm" style="background:#ef5350; color:white; border:none; cursor:pointer; padding:2px 8px; border-radius:3px;">删除记录</button>
+                            </form>
+                            {% elif card.decision_value == 'to_action' %}
                             <a href="/cards/{{ card.id }}/export-markdown" class="btn-sm btn-export">导出任务</a>
                             {% endif %}
                         </td>

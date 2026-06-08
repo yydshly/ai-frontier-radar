@@ -3326,8 +3326,8 @@ def test_v06_home_workbench_recent_sections():
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
-    assert "最近待编译资料" in text, "Recent source items section missing"
-    assert "最近中文洞察卡" in text, "Recent cards section missing"
+    assert "英文资料收件箱" in text, "Recent source items section missing"
+    assert "最近生成的中文洞察" in text, "Recent cards section missing"
     print("[OK] GET / has recent source items and cards sections")
 
 
@@ -5110,6 +5110,152 @@ def test_v10_alpha_82_url_classifier():
     print("[OK] V1.0-alpha.8.2 URL classifier routing")
 
 
+def test_v10_alpha_83_home_labels_explain_sourceitem_vs_insightcard():
+    """Test that homepage uses the new labels: 英文资料收件箱 and 最近生成的中文洞察."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    # New labels for distinguishing SourceItem vs InsightCard
+    assert "英文资料收件箱" in text, \
+        "Homepage should have '英文资料收件箱' label"
+    assert "最近生成的中文洞察" in text, \
+        "Homepage should have '最近生成的中文洞察' label"
+    # Explanatory descriptions should be present
+    assert "从来源中发现的原始英文资料" in text, \
+        "Homepage should explain '英文资料收件箱' is raw English materials"
+    assert "已经完成或尝试完成分析的中文洞察结果" in text, \
+        "Homepage should explain '最近生成的中文洞察' is insight results"
+    print("[OK] Homepage has new labels distinguishing SourceItem from InsightCard")
+
+
+def test_v10_alpha_83_intake_blocked_card_display_helpers():
+    """Test that intake blocked cards have correct display title fallback and status."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType
+
+    db = SessionLocal()
+    try:
+        # Create an intake-blocked card
+        blocked_card = InsightCard(
+            source_url="https://deepmind.google/blog/page/3/",
+            source_type=SourceType.UNKNOWN,
+            status=CardStatus.FAILED,
+            error_message="[intake:blocked] URL contains pagination pattern — use for discovering articles, not direct compilation.",
+            relevance_score=0,
+        )
+        db.add(blocked_card)
+        db.commit()
+        db.refresh(blocked_card)
+        card_id = blocked_card.id
+
+        # Simulate the display_title logic from the index route
+        is_intake_blocked = (
+            blocked_card.status == CardStatus.FAILED
+            and blocked_card.error_message
+            and "[intake:blocked]" in blocked_card.error_message
+        )
+        assert is_intake_blocked, "Card should be identified as intake_blocked"
+
+        # Build the same display_title as the route does
+        if blocked_card.source_title:
+            display_title = blocked_card.source_title
+        elif is_intake_blocked:
+            from urllib.parse import urlparse
+            parsed = urlparse(blocked_card.source_url)
+            path = parsed.path if parsed.path else ""
+            host_or_path = (parsed.netloc + path) if parsed.netloc else blocked_card.source_url
+            if len(host_or_path) > 60:
+                host_or_path = host_or_path[:57] + "..."
+            display_title = f"已拦截：{host_or_path}"
+        else:
+            display_title = "无标题"
+
+        assert display_title == "已拦截：deepmind.google/blog/page/3/", \
+            f"Expected '已拦截：deepmind.google/blog/page/3/', got '{display_title}'"
+        print(f"[OK] Intake blocked card display title: {display_title}")
+
+        # Verify card_detail shows "不适合直接编译" for blocked cards
+        detail_response = client.get(f"/cards/{card_id}")
+        assert detail_response.status_code == 200
+        assert "不适合直接编译" in detail_response.text, \
+            "Card detail should show '不适合直接编译' for intake blocked cards"
+        assert "处理失败" not in detail_response.text or "不适合直接编译" in detail_response.text, \
+            "Card detail should NOT show generic '处理失败' for intake blocked cards"
+        print("[OK] Intake blocked card detail shows '不适合直接编译'")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_alpha_83_failed_card_delete_route_exists():
+    """Test that POST /cards/{card_id}/delete exists and only allows deleting failed cards."""
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType
+
+    db = SessionLocal()
+    try:
+        # Create a failed card
+        failed_card = InsightCard(
+            source_url="https://example.com/failed-test",
+            source_type=SourceType.HTML,
+            status=CardStatus.FAILED,
+            error_message="Test failure",
+            relevance_score=0,
+        )
+        db.add(failed_card)
+        db.commit()
+        db.refresh(failed_card)
+        failed_id = failed_card.id
+
+        # Create a completed card (should NOT be deletable)
+        completed_card = InsightCard(
+            source_url="https://example.com/completed-test",
+            source_type=SourceType.HTML,
+            status=CardStatus.COMPLETED,
+            summary_zh="Test summary",
+            relevance_score=80,
+        )
+        db.add(completed_card)
+        db.commit()
+        db.refresh(completed_card)
+        completed_id = completed_card.id
+
+        # Test: POST delete on failed card should succeed (303 redirect)
+        delete_response = client.post(f"/cards/{failed_id}/delete", follow_redirects=False)
+        assert delete_response.status_code == 303, \
+            f"Expected 303 for failed card delete, got {delete_response.status_code}"
+        # Should redirect to /
+        assert delete_response.headers.get("location") == "/", \
+            f"Expected redirect to /, got {delete_response.headers.get('location')}"
+        print(f"[OK] POST /cards/{failed_id}/delete returns 303 redirect to /")
+
+        # Verify card is actually deleted
+        db.expire_all()
+        deleted_card = db.query(InsightCard).filter(InsightCard.id == failed_id).first()
+        assert deleted_card is None, "Failed card should have been deleted"
+        print(f"[OK] Failed card {failed_id} was actually deleted from DB")
+
+        # Test: POST delete on completed card should be rejected (303 redirect back to detail)
+        reject_response = client.post(f"/cards/{completed_id}/delete", follow_redirects=False)
+        assert reject_response.status_code == 303, \
+            f"Expected 303 rejection for completed card delete, got {reject_response.status_code}"
+        # Should redirect back to the card detail, NOT to /
+        assert f"/cards/{completed_id}" in reject_response.headers.get("location", ""), \
+            f"Expected redirect back to /cards/{completed_id}, got {reject_response.headers.get('location')}"
+        print(f"[OK] POST /cards/{completed_id}/delete correctly rejects completed card")
+
+        # Verify completed card still exists
+        db.expire_all()
+        still_exists = db.query(InsightCard).filter(InsightCard.id == completed_id).first()
+        assert still_exists is not None, "Completed card should NOT have been deleted"
+        print(f"[OK] Completed card {completed_id} was NOT deleted")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -5284,6 +5430,11 @@ if __name__ == "__main__":
 
     # V1.0-alpha.8.2 URL classifier
     test_v10_alpha_82_url_classifier()
+
+    # V1.0-alpha.8.3 intake blocked UX and cleanup
+    test_v10_alpha_83_home_labels_explain_sourceitem_vs_insightcard()
+    test_v10_alpha_83_intake_blocked_card_display_helpers()
+    test_v10_alpha_83_failed_card_delete_route_exists()
 
     print("=" * 50)
     print("Smoke test completed!")

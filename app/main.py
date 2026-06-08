@@ -139,11 +139,36 @@ def index(request: Request):
             decision_row = recent_decisions.get(card.id)
             decision_value = decision_row.decision if decision_row else None
             decision_note = decision_row.note if decision_row else None
+
+            # Determine if this is an intake-blocked card
+            is_intake_blocked = (
+                card.status == CardStatus.FAILED
+                and card.error_message
+                and "[intake:blocked]" in card.error_message
+            )
+
+            # Compute display title: use source_title if available, otherwise build from URL for blocked cards
+            if card.source_title:
+                display_title = card.source_title
+            elif is_intake_blocked:
+                # Build "已拦截：{host/path}" from URL
+                from urllib.parse import urlparse
+                parsed = urlparse(card.source_url)
+                path = parsed.path if parsed.path else ""
+                host_or_path = (parsed.netloc + path) if parsed.netloc else card.source_url
+                # Truncate if too long
+                if len(host_or_path) > 60:
+                    host_or_path = host_or_path[:57] + "..."
+                display_title = f"已拦截：{host_or_path}"
+            else:
+                display_title = "无标题"
+
             recent_cards_data.append({
                 "id": card.id,
-                "source_title": card.source_title or "无标题",
+                "source_title": display_title,
                 "source_url": card.source_url,
                 "status": card.status.value if card.status else "unknown",
+                "is_intake_blocked": is_intake_blocked,
                 "decision_value": decision_value,
                 "decision_label": get_decision_label(decision_value),
                 "decision_note": decision_note or "",
@@ -548,6 +573,44 @@ def update_card_decision(card_id: int, decision: str = Form(...), note: str = Fo
             # updated_at is auto-updated by onupdate=datetime.utcnow
 
         db.commit()
+        return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
+    finally:
+        db.close()
+
+
+@app.post("/cards/{card_id}/delete")
+def delete_failed_card(card_id: int):
+    """Delete a failed InsightCard and its associated data.
+
+    Only allows deletion of cards with status=FAILED to prevent accidental
+    deletion of completed cards. Cleans up CardDecision and
+    InsightCardBilingualReport before deleting the InsightCard.
+    """
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        # Only allow deletion of failed cards
+        if card.status != CardStatus.FAILED:
+            logger.warning(f"Attempted to delete non-failed card {card_id} (status={card.status})")
+            return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
+
+        # Delete in correct order to handle foreign key constraints
+        # 1. CardDecision
+        db.query(CardDecision).filter(CardDecision.card_id == card_id).delete()
+        # 2. InsightCardBilingualReport
+        db.query(InsightCardBilingualReport).filter(InsightCardBilingualReport.card_id == card_id).delete()
+        # 3. InsightCard itself
+        db.query(InsightCard).filter(InsightCard.id == card_id).delete()
+
+        db.commit()
+        logger.info(f"Deleted failed card {card_id}")
+        return RedirectResponse(url="/", status_code=303)
+    except Exception as e:
+        logger.error(f"Error deleting card {card_id}: {e}")
+        db.rollback()
         return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
     finally:
         db.close()
