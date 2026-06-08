@@ -12,15 +12,17 @@
         <h1>📥 候选池 Candidate Pool</h1>
         <nav>
             <a href="/">← 返回首页</a>
-            <a href="/source-items">← 待编译资料</a>
-            <a href="/sources">← 信息来源</a>
+            <a href="/source-items">原始资料</a>
+            <a href="/sources">信息来源</a>
         </nav>
     </header>
 
     <main class="wide-page">
         <div class="usage-guide" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50;">
             <h3>💡 什么是候选池？</h3>
-            <p>这里展示已探测但尚未深度编译的资料元数据。你可以从这里批量筛选、忽略不感兴趣的条目，或将优质条目转入编译流程。</p>
+            <p>候选池是从已配置 AI 信息源中探测到的<strong>候选资料入口</strong>。这里不是原始抓取日志，而是面向<strong>处理决策</strong>的工作台：</p>
+            <p>你可以筛选、忽略、标记待编译，或对单条候选资料<strong>生成 InsightCard</strong>。</p>
+            <p class="muted" style="font-size:0.8rem; margin-top:0.5rem;">需要排查原始 SourceItem 状态？前往 <a href="/source-items">原始资料 / 调试列表</a>。</p>
         </div>
 
         {% if flash_message %}
@@ -123,12 +125,16 @@
                             <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
                             <td>
                                 <a href="/source-items/{{ item.id }}">详情</a>
-                                {% if item.status in ['discovered', 'failed', 'compiling'] %}
+                                {% if item.status in ['discovered', 'compiling'] %}
                                 <form method="post" action="/candidate-pool/{{ item.id }}/compile" style="display:inline;">
-                                    <button type="submit" class="btn-small">编译</button>
+                                    <button type="submit" class="btn-small">生成 InsightCard</button>
+                                </form>
+                                {% elif item.status == 'failed' %}
+                                <form method="post" action="/candidate-pool/{{ item.id }}/compile" style="display:inline;">
+                                    <button type="submit" class="btn-small">重试生成</button>
                                 </form>
                                 {% elif item.status == 'compiled' and item.insight_card_id %}
-                                <a href="/cards/{{ item.insight_card_id }}">查看卡片</a>
+                                <a href="/cards/{{ item.insight_card_id }}">查看 InsightCard</a>
                                 {% endif %}
                             </td>
                         </tr>

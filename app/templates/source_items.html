@@ -3,29 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>待编译资料收件箱 - AI Frontier Radar</title>
+    <title>原始资料 / 调试列表 - AI Frontier Radar</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <h1>📥 待编译资料收件箱</h1>
+        <h1>🔧 原始资料 / 调试列表</h1>
         <nav>
             <a href="/">← 返回首页</a>
-            <a href="/sources">← 信息来源</a>
+            <a href="/candidate-pool">候选池</a>
+            <a href="/sources">信息来源</a>
         </nav>
     </header>
 
     <main class="wide-page source-items-page">
-        <!-- ── V1.0-alpha 主流程第 2 步提示 ─────────────────── -->
-        <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
-            <h3>🚦 你现在在主流程第 2 步</h3>
-            <p>选择一条英文资料，编译为中文 InsightCard。</p>
-            <p class="flow-tip">优先选择标题像具体文章的条目，例如 <code>/news/...</code>、<code>/blog/...</code>，不要选择列表页或分页页。</p>
-            {% if not items %}
-            <p class="flow-tip">还没有发现资料？可以先运行来源探测脚本：<br>
-            <code>python scripts/acceptance_real_source_coverage.py --isolated-db --repeat 2 --timeout 15</code><br>
-            也可以先从<a href="/">首页手动提交 URL</a>。</p>
-            {% endif %}
+        <!-- ── V1.0-beta.3 边界说明：原始资料 vs 候选池 ────────────── -->
+        <div class="usage-guide" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800;">
+            <h3>🔧 这是原始 SourceItem 列表</h3>
+            <p>用于查看所有探测结果、<strong>调试抓取状态</strong>和排查编译失败。</p>
+            <p><strong>日常处理候选资料请优先使用 <a href="/candidate-pool">候选池</a></strong>，它面向"今天有哪些候选资料值得处理"的工作台；本页面面向"所有 SourceItem 原始记录"的排查场景。</p>
+            <p class="muted" style="font-size:0.8rem; margin-top:0.5rem;">
+                <a href="/candidate-pool" class="btn-primary" style="display:inline-block; padding:0.25rem 0.75rem; background:#4caf50; color:white; border-radius:4px; text-decoration:none;">进入候选池 →</a>
+            </p>
+        </div>
+
+        <div class="usage-guide">
+            <h3>如何使用这个页面？</h3>
+            <ol>
+                <li>优先查看标题像具体文章的条目，例如 <code>/blog/xxx</code>、<code>/news/xxx</code>、<code>/research/xxx</code>。</li>
+                <li>如果标题看不懂，可以先点进详情页，再点击「<strong>编译为 InsightCard</strong>」。</li>
+                <li>编译后系统会生成中文摘要、关键事实、技术洞察、产品机会和行动建议。</li>
+                <li>当前阶段不自动批量编译，避免浪费模型额度。</li>
+            </ol>
         </div>
 
         <div class="filter-bar">
@@ -129,15 +138,15 @@
                         </td>
                         <td class="action-cell">
                             {% if item.status == 'discovered' %}
-                            <a href="/source-items/{{ item.id }}" class="action-link action-link-primary">进入详情并编译</a>
+                            <a href="/source-items/{{ item.id }}" class="action-link action-link-primary">进入详情 / 生成 InsightCard</a>
                             {% elif item.status == 'compiled' %}
                             {% if item.insight_card_id %}
-                            <a href="/cards/{{ item.insight_card_id }}" class="action-link action-link-success">查看中文卡片</a>
+                            <a href="/cards/{{ item.insight_card_id }}" class="action-link action-link-success">查看 InsightCard</a>
                             {% else %}
                             <a href="/source-items/{{ item.id }}" class="action-link">查看详情</a>
                             {% endif %}
                             {% elif item.status == 'failed' %}
-                            <a href="/source-items/{{ item.id }}" class="action-link action-link-warning">查看失败原因 / 重试</a>
+                            <a href="/source-items/{{ item.id }}" class="action-link action-link-warning">查看失败原因 / 重试生成</a>
                             {% else %}
                             -
                             {% endif %}
@@ -169,11 +178,11 @@
         </p>
         {% endif %}
 
-        <p class="page-note">把 /source-items 优化为「待编译资料收件箱」，每行都明确告诉你下一步能做什么。</p>
+        <p class="page-note">V1.0-beta.3：本页面定位为「原始资料 / 调试列表」，日常处理请优先使用 <a href="/candidate-pool">候选池</a>。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar 待编译资料收件箱</p>
+        <p>AI Frontier Radar 原始资料 / 调试列表</p>
     </footer>
 </body>
 </html>
