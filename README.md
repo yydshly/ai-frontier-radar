@@ -718,6 +718,54 @@ python scripts/acceptance_real_bilingual_report.py --isolated-db --real
 
 完整产品验收步骤见 [docs/V0.8.2_REAL_BILINGUAL_QUALITY_ACCEPTANCE.md](docs/V0.8.2_REAL_BILINGUAL_QUALITY_ACCEPTANCE.md)。
 
+## V0.9 中英双语 InsightCard 完整 Markdown 报告导出
+
+V0.9 新增完整 Markdown 报告导出功能，把一张 InsightCard 导出为完整的中英双语资料编译报告。
+
+### 与 V0.5 行动任务导出的区别
+
+- **V0.5 行动任务导出**：面向下一步执行，导出任务草稿
+- **V0.9 完整报告导出**：面向知识沉淀、长期复盘和资料保存
+
+### 报告内容
+
+完整报告包含：
+
+```
+英文核心摘要（English Core Summary）
+原文主张（Original Key Claims）
+证据点（Key Evidence Points）
+术语中英对照（Key Terms EN-ZH）
+中文解说（Chinese Explanation）
+中文摘要
+关键事实
+技术洞察
+产品机会
+风险
+行动建议
+保真提示
+解读边界
+用户判断
+后续追问问题
+```
+
+### 验收命令
+
+```bash
+# 有双语报告的完整验收
+python scripts/acceptance_export_full_report.py --isolated-db --with-bilingual
+
+# 无双语报告的完整验收
+python scripts/acceptance_export_full_report.py --isolated-db --without-bilingual
+```
+
+### 页面入口
+
+- `/cards/{id}` 详情页：「📄 导出完整 Markdown 报告」
+- `/cards` 列表：每张卡片的操作列都有「完整报告」链接
+
+完整产品验收步骤见 [docs/V0.9_FULL_MARKDOWN_REPORT_ACCEPTANCE.md](docs/V0.9_FULL_MARKDOWN_REPORT_ACCEPTANCE.md)。
+
 ## 项目理解与维护文档
 
 如果你是第一次接手项目，建议先阅读 [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md)。

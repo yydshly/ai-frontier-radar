@@ -17,6 +17,7 @@ from app.services.insight_compiler import compile_url
 from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_decision_label
 from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
+from app.exports.markdown_report import build_full_report_markdown
 
 # Setup
 setup_logging()
@@ -565,6 +566,79 @@ def card_export_markdown_download(card_id: int):
         markdown_text = build_action_markdown(card, decision_row, bilingual_report)
 
         filename = f"insightcard-{card_id}-task.md"
+        return PlainTextResponse(
+            content=markdown_text,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
+    finally:
+        db.close()
+
+
+@app.get("/cards/{card_id}/export-report", response_class=HTMLResponse)
+def card_export_report_preview(request: Request, card_id: int):
+    """Preview the full bilingual markdown report for an InsightCard.
+
+    V0.9: renders a full-page preview of the complete bilingual report.
+    Does not modify the database or call LLM.
+    """
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        decision_row = (
+            db.query(CardDecision)
+            .filter(CardDecision.card_id == card.id)
+            .first()
+        )
+
+        bilingual_report = (
+            db.query(InsightCardBilingualReport)
+            .filter(InsightCardBilingualReport.card_id == card.id)
+            .first()
+        )
+
+        markdown_text = build_full_report_markdown(card, decision_row, bilingual_report)
+
+        return templates.TemplateResponse("card_export_report.html", {
+            "request": request,
+            "card": card,
+            "markdown_text": markdown_text,
+        })
+    finally:
+        db.close()
+
+
+@app.get("/cards/{card_id}/export-report/download")
+def card_export_report_download(card_id: int):
+    """Download the full bilingual markdown report for an InsightCard as a .md file.
+
+    V0.9: streams the file content directly without writing to disk.
+    """
+    db = next(get_db())
+    try:
+        card = db.query(InsightCard).filter(InsightCard.id == card_id).first()
+        if not card:
+            return RedirectResponse(url="/cards", status_code=303)
+
+        decision_row = (
+            db.query(CardDecision)
+            .filter(CardDecision.card_id == card.id)
+            .first()
+        )
+
+        bilingual_report = (
+            db.query(InsightCardBilingualReport)
+            .filter(InsightCardBilingualReport.card_id == card.id)
+            .first()
+        )
+
+        markdown_text = build_full_report_markdown(card, decision_row, bilingual_report)
+
+        filename = f"insightcard-{card_id}-report.md"
         return PlainTextResponse(
             content=markdown_text,
             headers={

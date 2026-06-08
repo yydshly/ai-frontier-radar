@@ -75,6 +75,7 @@
                         <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</td>
                         <td>
                             <a href="/cards/{{ card.id }}" class="btn-detail">查看详情</a>
+                            <a href="/cards/{{ card.id }}/export-report" class="btn-secondary">完整报告</a>
                             {% if card.decision_value == 'to_action' %}
                             <a href="/cards/{{ card.id }}/export-markdown" class="btn-export">导出任务</a>
                             {% endif %}

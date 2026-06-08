@@ -273,6 +273,15 @@
                 {% endif %}
             </div>
 
+            <div class="export-report-entry">
+                <p class="export-report-note">
+                    📄 完整报告适合长期沉淀；行动任务适合继续拆解执行。
+                </p>
+                <a href="/cards/{{ card.id }}/export-report" class="btn-secondary">
+                    📄 导出完整 Markdown 报告
+                </a>
+            </div>
+
             <form method="post" action="/cards/{{ card.id }}/decision" class="decision-form">
                 <fieldset>
                     <legend>选择判断：</legend>

@@ -4241,6 +4241,249 @@ def test_v084_consistency_fixes():
     print("[OK] app/main.py has reserved state comment near status_options")
 
 
+def test_v09_full_report_module_exists():
+    """Test that app/exports/markdown_report.py exists and exports build_full_report_markdown."""
+    from pathlib import Path
+
+    project_root = Path(__file__).parent.parent
+    report_module_path = project_root / "app" / "exports" / "markdown_report.py"
+    assert report_module_path.exists(), \
+        "app/exports/markdown_report.py must exist"
+
+    # Verify it can be imported
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "markdown_report", str(report_module_path)
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert hasattr(module, "build_full_report_markdown"), \
+        "markdown_report.py must export build_full_report_markdown"
+    print("[OK] app/exports/markdown_report.py exists with build_full_report_markdown")
+
+
+def test_v09_full_report_with_bilingual():
+    """Test that build_full_report_markdown with bilingual report contains all required sections."""
+    import json
+    from app.exports.markdown_report import build_full_report_markdown
+    from app.models import InsightCard, InsightCardBilingualReport, CardDecision, CardStatus, SourceType
+
+    # Create mock card
+    card = InsightCard(
+        id=999,
+        source_url="https://example.com/test",
+        source_type=SourceType.HTML,
+        source_title="Test Article",
+        source_author="Tester",
+        content_hash="test-hash",
+        status=CardStatus.COMPLETED,
+        summary_zh="这是测试摘要",
+        key_points_zh=json.dumps(["事实1", "事实2"]),
+        technical_insights_zh=json.dumps(["洞察1"]),
+        product_opportunities_zh=json.dumps(["机会1"]),
+        risks_zh=json.dumps(["风险1"]),
+        action_items_zh=json.dumps(["行动1"]),
+        relevance_score=85,
+        relevance_reasons_zh=json.dumps(["理由1"]),
+        related_user_directions=json.dumps(["AI"]),
+        model_name="test",
+    )
+
+    decision = CardDecision(
+        id=1,
+        card_id=999,
+        decision="to_action",
+        note="测试备注",
+    )
+
+    bilingual_report = InsightCardBilingualReport(
+        id=1,
+        card_id=999,
+        english_core_summary="This is an English summary of the test article.",
+        english_key_claims_json=json.dumps(["Claim 1", "Claim 2"]),
+        english_evidence_points_json=json.dumps(["Evidence 1"]),
+        key_terms_json=json.dumps([{"en": "AI", "zh": "人工智能", "note_zh": "Artificial Intelligence"}]),
+        chinese_explanation="这是中文解说。",
+        fidelity_notes_zh="【保真提示】这是保真提示内容。",
+        interpretation_boundary_zh="【解读边界】这是解读边界内容。",
+    )
+
+    markdown = build_full_report_markdown(card, decision, bilingual_report)
+
+    required_sections = [
+        "AI 前沿资料编译报告",
+        "English Core Summary",
+        "Original Key Claims",
+        "Key Evidence Points",
+        "Key Terms EN-ZH",
+        "中文解说",
+        "中文摘要",
+        "关键事实",
+        "技术洞察",
+        "产品机会",
+        "风险与注意事项",
+        "行动建议",
+        "保真提示",
+        "解读边界",
+        "用户判断",
+    ]
+
+    for section in required_sections:
+        assert section in markdown, \
+            f"Markdown should contain '{section}' when bilingual report is present"
+
+    print("[OK] build_full_report_markdown with bilingual report contains all sections")
+
+
+def test_v09_full_report_without_bilingual():
+    """Test that build_full_report_markdown without bilingual report does not crash."""
+    import json
+    from app.exports.markdown_report import build_full_report_markdown
+    from app.models import InsightCard, CardDecision, CardStatus, SourceType
+
+    card = InsightCard(
+        id=998,
+        source_url="https://example.com/test2",
+        source_type=SourceType.HTML,
+        source_title="Test Article No Bilingual",
+        source_author="Tester",
+        content_hash="test-hash-2",
+        status=CardStatus.COMPLETED,
+        summary_zh="这是测试摘要",
+        key_points_zh=json.dumps(["事实1"]),
+        technical_insights_zh=json.dumps(["洞察1"]),
+        product_opportunities_zh=json.dumps([]),
+        risks_zh=json.dumps([]),
+        action_items_zh=json.dumps([]),
+        relevance_score=80,
+        relevance_reasons_zh=json.dumps([]),
+        related_user_directions=json.dumps([]),
+        model_name="test",
+    )
+
+    decision = CardDecision(
+        id=2,
+        card_id=998,
+        decision="worth_attention",
+        note=None,
+    )
+
+    # No bilingual report
+    markdown = build_full_report_markdown(card, decision, None)
+
+    assert "暂无中英双语报告" in markdown, \
+        "Without bilingual report, should show '暂无中英双语报告'"
+    assert "中文摘要" in markdown, \
+        "Without bilingual report, should still show '中文摘要'"
+    assert "关键事实" in markdown, \
+        "Without bilingual report, should still show '关键事实'"
+    print("[OK] build_full_report_markdown without bilingual report shows placeholder")
+
+
+def test_v09_export_report_routes_exist():
+    """Test that /cards/{card_id}/export-report and /download routes exist in app/main.py."""
+    from pathlib import Path
+
+    main_path = Path(__file__).parent.parent / "app" / "main.py"
+    main_text = main_path.read_text(encoding="utf-8")
+
+    assert '"/cards/{card_id}/export-report"' in main_text or \
+           "'/cards/{card_id}/export-report'" in main_text, \
+        "app/main.py must define /cards/{card_id}/export-report route"
+
+    assert '"/cards/{card_id}/export-report/download"' in main_text or \
+           "'/cards/{card_id}/export-report/download'" in main_text, \
+        "app/main.py must define /cards/{card_id}/export-report/download route"
+
+    print("[OK] /cards/{card_id}/export-report and /download routes exist")
+
+
+def test_v09_export_report_download_response():
+    """Test that GET /cards/{id}/export-report/download returns .md file."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType
+
+    client = TestClient(app)
+    db = SessionLocal()
+    card_id = None
+    try:
+        # Create a test card
+        card = InsightCard(
+            source_url="https://example.com/v09-smoke",
+            source_type=SourceType.HTML,
+            source_title="V0.9 Smoke Test Card",
+            content_hash="v09-smoke-hash",
+            status=CardStatus.COMPLETED,
+            summary_zh="烟雾测试摘要",
+            key_points_zh='["事实1"]',
+            technical_insights_zh='["洞察1"]',
+            product_opportunities_zh='[]',
+            risks_zh='[]',
+            action_items_zh='[]',
+            relevance_score=75,
+            relevance_reasons_zh='[]',
+            related_user_directions='[]',
+            model_name="smoke-test",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        card_id = card.id
+
+        # GET download
+        response = client.get(f"/cards/{card_id}/export-report/download")
+        assert response.status_code == 200, \
+            f"Expected 200, got {response.status_code}"
+
+        content_disp = response.headers.get("Content-Disposition", "")
+        assert "attachment" in content_disp, \
+            "Content-Disposition should contain 'attachment'"
+        assert f"insightcard-{card_id}-report.md" in content_disp, \
+            f"Filename should be insightcard-{card_id}-report.md"
+
+        assert "AI 前沿资料编译报告" in response.text, \
+            "Response should contain report heading"
+
+        print(f"[OK] GET /cards/{card_id}/export-report/download returns .md file")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v09_card_detail_has_full_report_link():
+    """Test that card_detail.html contains a link to the full report export."""
+    from pathlib import Path
+
+    template_path = Path(__file__).parent.parent / "app" / "templates" / "card_detail.html"
+    template_text = template_path.read_text(encoding="utf-8")
+
+    assert "导出完整 Markdown 报告" in template_text, \
+        "card_detail.html should contain '导出完整 Markdown 报告'"
+    assert "/cards/{{ card.id }}/export-report" in template_text or \
+           "/cards/" in template_text and "export-report" in template_text, \
+        "card_detail.html should link to /cards/{id}/export-report"
+
+    print("[OK] card_detail.html has link to full report export")
+
+
+def test_v09_cards_list_has_full_report_link():
+    """Test that cards.html contains a link to the full report export."""
+    from pathlib import Path
+
+    template_path = Path(__file__).parent.parent / "app" / "templates" / "cards.html"
+    template_text = template_path.read_text(encoding="utf-8")
+
+    assert "完整报告" in template_text, \
+        "cards.html should contain '完整报告'"
+    assert "/cards/" in template_text and "export-report" in template_text, \
+        "cards.html should link to /cards/{id}/export-report"
+
+    print("[OK] cards.html has link to full report export")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4363,6 +4606,15 @@ if __name__ == "__main__":
 
     # V0.8.3 architecture and product docs
     test_v083_project_docs_exist()
+
+    # V0.9 full report export
+    test_v09_full_report_module_exists()
+    test_v09_full_report_with_bilingual()
+    test_v09_full_report_without_bilingual()
+    test_v09_export_report_routes_exist()
+    test_v09_export_report_download_response()
+    test_v09_card_detail_has_full_report_link()
+    test_v09_cards_list_has_full_report_link()
 
     print("=" * 50)
     print("Smoke test completed!")
