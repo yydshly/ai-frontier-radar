@@ -2608,6 +2608,36 @@ def test_v04_card_detail_shows_decision_section():
         db.close()
 
 
+def test_v04_card_decision_route_exists():
+    """Regression test: ensure POST /cards/{card_id}/decision is registered.
+
+    V0.8 added a bilingual-report route; this test prevents the decision route
+    from losing its decorator again.
+    """
+    from app.main import app
+
+    paths = {route.path for route in app.routes if hasattr(route, "path")}
+    methods_per_path = {}
+    for route in app.routes:
+        if hasattr(route, "path") and hasattr(route, "methods"):
+            methods_per_path.setdefault(route.path, set()).update(route.methods)
+
+    # Both /cards/{card_id}/decision and /cards/{card_id}/bilingual-report must exist
+    assert "/cards/{card_id}/decision" in paths, \
+        f"POST /cards/{{card_id}}/decision not in routes. Available: {sorted(paths)}"
+    decision_methods = methods_per_path.get("/cards/{card_id}/decision", set())
+    assert "POST" in decision_methods, \
+        f"POST not in methods for /cards/{{card_id}}/decision. Methods: {decision_methods}"
+
+    assert "/cards/{card_id}/bilingual-report" in paths, \
+        f"/cards/{{card_id}}/bilingual-report not in routes. Available: {sorted(paths)}"
+    bilingual_methods = methods_per_path.get("/cards/{card_id}/bilingual-report", set())
+    assert "POST" in bilingual_methods, \
+        f"POST not in methods for /cards/{{card_id}}/bilingual-report. Methods: {bilingual_methods}"
+
+    print("[OK] Both /cards/{card_id}/decision (POST) and /cards/{card_id}/bilingual-report (POST) are registered")
+
+
 def test_v04_post_decision_creates_record():
     """Test that POST /cards/{id}/decision creates a CardDecision row."""
     from app.db import SessionLocal
@@ -4007,6 +4037,7 @@ if __name__ == "__main__":
     test_v035_manual_acceptance_doc_exists()
     test_v035_readme_section()
     test_v04_card_decision_model_exists()
+    test_v04_card_decision_route_exists()
     test_v04_card_detail_shows_decision_section()
     test_v04_post_decision_creates_record()
     test_v04_post_decision_updates_existing()

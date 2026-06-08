@@ -445,6 +445,9 @@ def generate_bilingual_report(card_id: int):
         return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
     finally:
         db.close()
+
+
+@app.post("/cards/{card_id}/decision")
 def update_card_decision(card_id: int, decision: str = Form(...), note: str = Form("")):
     """Update (or create) the user's decision for a card.
 
