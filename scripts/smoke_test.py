@@ -5885,6 +5885,263 @@ def test_project_docs_hub_nav_in_index():
     print("[OK] Homepage and about page link to project docs hub")
 
 
+def test_project_docs_renderer_safe_markdown_links():
+    """Test that render_markdown handles links safely."""
+    from app.project_docs.renderer import render_markdown
+
+    # Test 1: [README](README.md) renders href="README.md" with text "README"
+    result = render_markdown("[README](README.md)")
+    assert 'href="README.md"' in result, \
+        f"Expected href=\"README.md\" in output, got: {result}"
+    assert ">README</a>" in result, \
+        f"Expected link text 'README' in output, got: {result}"
+    print("[OK] [README](README.md) renders with correct href and text")
+
+    # Test 2: [bad](javascript:alert(1)) does NOT generate javascript href
+    result = render_markdown("[bad](javascript:alert(1))")
+    assert "javascript:" not in result.lower(), \
+        f"javascript: should be blocked, got: {result}"
+    assert "href=" not in result or "javascript" not in result.lower(), \
+        f"javascript href should not appear, got: {result}"
+    # Should fall back to plain text (safe_text only)
+    assert "bad" in result, \
+        f"Link text 'bad' should still appear, got: {result}"
+    print("[OK] [bad](javascript:alert(1)) is blocked — no javascript href")
+
+    # Test 3: [data](data:text/html,<script>) is blocked
+    result = render_markdown("[data](data:text/html,<script>)")
+    assert "data:" not in result.lower(), \
+        f"data: should be blocked, got: {result}"
+    print("[OK] [data](data:text/html,...) is blocked")
+
+    # Test 4: [vbs](vbscript:MsgBox) is blocked
+    result = render_markdown("[vbs](vbscript:MsgBox)")
+    assert "vbscript:" not in result.lower(), \
+        f"vbscript: should be blocked, got: {result}"
+    print("[OK] [vbs](vbscript:...) is blocked")
+
+    # Test 5: Normal https link works with target=_blank
+    result = render_markdown("[OpenAI](https://openai.com)")
+    assert 'href="https://openai.com"' in result, \
+        f"Expected https://openai.com in href, got: {result}"
+    assert 'target="_blank"' in result, \
+        f"Expected target=\"_blank\" in output, got: {result}"
+    assert 'rel="noopener noreferrer"' in result, \
+        f"Expected rel=\"noopener noreferrer\" in output, got: {result}"
+    print("[OK] Normal https link works with target=_blank rel=noopener")
+
+    # Test 6: Relative path works
+    result = render_markdown("[Local](docs/readme.md)")
+    assert 'href="docs/readme.md"' in result, \
+        f"Expected relative path in href, got: {result}"
+    print("[OK] Relative path links work")
+
+    # Test 7: Anchor links work
+    result = render_markdown("[Anchor](#section)")
+    assert 'href="#section"' in result, \
+        f"Expected anchor href in output, got: {result}"
+    print("[OK] Anchor links work")
+
+    # Test 8: href attribute is escaped (quote characters in URL)
+    result = render_markdown("[Link](http://example.com/path?a=1&b=2)")
+    assert "&amp;" in result, \
+        f"Query params in href should be HTML-escaped, got: {result}"
+    print("[OK] href attribute values are HTML-escaped")
+
+
+def test_project_docs_renderer_blocks_raw_html():
+    """Test that render_markdown strips raw HTML and dangerous content."""
+    from app.project_docs.renderer import render_markdown
+
+    # Test 1: Raw <script>alert(1)</script> — script tags are stripped, leaving inert plain text
+    result = render_markdown("<script>alert(1)</script>")
+    assert "<script>" not in result.lower(), \
+        f"<script> tag should not appear, got: {result}"
+    assert "</script>" not in result.lower(), \
+        f"</script> tag should not appear, got: {result}"
+    # The text "alert(1)" remains as plain text (inert after tag removal)
+    # — this is acceptable per "以普通文本" since script tags are gone
+    print("[OK] Raw <script>alert(1)</script>: script tags stripped, text is inert")
+
+    # Test 2: <img src=x onerror=alert(1)> does NOT generate img tag
+    result = render_markdown("<img src=x onerror=alert(1)>")
+    assert "<img" not in result.lower(), \
+        f"<img> tag should not appear, got: {result}"
+    assert "onerror" not in result.lower(), \
+        f"onerror handler should not appear, got: {result}"
+    print("[OK] <img src=x onerror=alert(1)> does not generate img tag")
+
+    # Test 3: Code block content with <tag> is safely escaped
+    # Note: input uses "<tag name>" (with space) so <[^>]+> in Step 1 doesn't strip it
+    result = render_markdown("```\nHello <tag name> & \"quoted\"\n```")
+    assert "<tag name>" not in result, \
+        f"<tag name> should be escaped in code block, got: {result}"
+    assert "&lt;tag name&gt;" in result, \
+        f"<tag name> should be HTML-escaped to &lt;tag name&gt;, got: {result}"
+    assert "&amp;quot;" in result or "&quot;" in result, \
+        f"Double-quote should be escaped, got: {result}"
+    print("[OK] Code block content with HTML chars is safely escaped")
+
+    # Test 4: Inline code with <tag> is safely escaped (uses space to avoid Step 1 stripping)
+    result = render_markdown("`code <tag name> here`")
+    assert "<tag name>" not in result, \
+        f"<tag name> should be escaped in inline code, got: {result}"
+    assert "&lt;tag name&gt;" in result, \
+        f"<tag name> should be HTML-escaped in inline code, got: {result}"
+    print("[OK] Inline code with HTML chars is safely escaped")
+
+    # Test 5: Normal headings still render
+    result = render_markdown("## Hello World")
+    assert "<h2>Hello World</h2>" in result, \
+        f"Normal heading should render, got: {result}"
+    print("[OK] Normal headings still render correctly")
+
+    # Test 6: Normal lists still render
+    result = render_markdown("- item 1\n- item 2")
+    assert "<ul>" in result, \
+        f"List should render as <ul>, got: {result}"
+    assert "<li>" in result, \
+        f"List items should render as <li>, got: {result}"
+    assert "item 1" in result, \
+        f"List item content should appear, got: {result}"
+    print("[OK] Normal lists still render correctly")
+
+    # Test 7: onerror in Markdown text is stripped
+    result = render_markdown("Click here onerror=alert(1)")
+    assert "onerror" not in result.lower(), \
+        f"onerror should be stripped from output, got: {result}"
+    print("[OK] onerror handler in text is stripped")
+
+    # Test 8: iframe injection is blocked
+    result = render_markdown("<iframe src=\"http://evil.com\"></iframe>")
+    assert "<iframe" not in result.lower(), \
+        f"<iframe> should not appear, got: {result}"
+    print("[OK] iframe injection is blocked")
+
+
+def test_project_docs_renderer_href_bypass():
+    """Test that render_markdown blocks href protocol bypass techniques."""
+    from app.project_docs.renderer import render_markdown
+
+    # Space-prefixed javascript:
+    result = render_markdown("[bad]( javascript:alert(1))")
+    assert "javascript:" not in result.lower(), \
+        f"Space-prefixed javascript: should be blocked, got: {result}"
+    assert "href=" not in result or "javascript" not in result.lower(), \
+        f"javascript href should not appear, got: {result}"
+    print("[OK] Space-prefixed javascript: is blocked")
+
+    # Tab-prefixed javascript:
+    result = render_markdown("[bad](\tjavascript:alert(1))")
+    assert "javascript:" not in result.lower(), \
+        f"Tab-prefixed javascript: should be blocked, got: {result}"
+    print("[OK] Tab-prefixed javascript: is blocked")
+
+    # data: URL with script
+    result = render_markdown("[bad](data:text/html,<script>)")
+    assert "data:" not in result.lower(), \
+        f"data: URL should be blocked, got: {result}"
+    print("[OK] data: URL with script is blocked")
+
+    # file: scheme
+    result = render_markdown("[bad](file:///etc/passwd)")
+    assert "file:" not in result.lower(), \
+        f"file: scheme should be blocked, got: {result}"
+    print("[OK] file: scheme is blocked")
+
+    # Scheme-relative URL
+    result = render_markdown("[bad](//evil.com)")
+    assert "//evil.com" not in result, \
+        f"Scheme-relative URL should be blocked, got: {result}"
+    print("[OK] Scheme-relative URL //evil.com is blocked")
+
+    # Allowed: mailto
+    result = render_markdown("[Email](mailto:test@example.com)")
+    assert 'href="mailto:test@example.com"' in result, \
+        f"mailto: should be allowed, got: {result}"
+    print("[OK] mailto: scheme is allowed")
+
+    # Allowed: relative path
+    result = render_markdown("[Doc](docs/readme.md)")
+    assert 'href="docs/readme.md"' in result, \
+        f"Relative path should be allowed, got: {result}"
+    print("[OK] Relative path links are allowed")
+
+    # Allowed: parent-dir path
+    result = render_markdown("[Parent](../readme.md)")
+    assert 'href="../readme.md"' in result, \
+        f"Parent-dir path should be allowed, got: {result}"
+    print("[OK] Parent-dir path links are allowed")
+
+    # Allowed: anchor
+    result = render_markdown("[Section](#section)")
+    assert 'href="#section"' in result, \
+        f"Anchor should be allowed, got: {result}"
+    print("[OK] Anchor links are allowed")
+
+
+def test_project_docs_renderer_inline_in_paragraph():
+    """Test that inline elements render correctly inside paragraphs."""
+    from app.project_docs.renderer import render_markdown
+
+    # Inline link inside a paragraph
+    result = render_markdown("请阅读 [README](README.md)")
+    assert '<a href="README.md"' in result, \
+        f"Inline link in paragraph should render, got: {result}"
+    assert "&lt;a" not in result, \
+        f"Link should NOT be double-escaped, got: {result}"
+    print("[OK] Inline link in paragraph renders correctly")
+
+    # Bold inside paragraph
+    result = render_markdown("这是 **重要说明**")
+    assert "<strong>重要说明</strong>" in result, \
+        f"Bold in paragraph should render, got: {result}"
+    assert "&lt;strong&gt;" not in result, \
+        f"Bold should NOT be double-escaped, got: {result}"
+    print("[OK] Bold in paragraph renders correctly")
+
+    # Italic inside paragraph
+    result = render_markdown("这是 _斜体说明_")
+    assert "<em>斜体说明</em>" in result, \
+        f"Italic in paragraph should render, got: {result}"
+    assert "&lt;em&gt;" not in result, \
+        f"Italic should NOT be double-escaped, got: {result}"
+    print("[OK] Italic in paragraph renders correctly")
+
+    # Mixed: bold, italic, and link in same paragraph
+    result = render_markdown("组合：**重点** 和 [链接](docs/a.md)")
+    assert "<strong>重点</strong>" in result, \
+        f"Strong in mixed paragraph should render, got: {result}"
+    assert '<a href="docs/a.md"' in result, \
+        f"Link in mixed paragraph should render, got: {result}"
+    assert "&lt;strong&gt;" not in result and "&lt;a" not in result, \
+        f"Inline elements should NOT be double-escaped, got: {result}"
+    print("[OK] Mixed inline elements in paragraph render correctly")
+
+
+def test_project_docs_renderer_onerror_in_code():
+    """Test that onerror= patterns inside code blocks are preserved as inert text."""
+    from app.project_docs.renderer import render_markdown
+
+    # Inline code with onerror=
+    result = render_markdown("`onerror=alert(1)`")
+    assert "onerror=alert(1)" in result, \
+        f"onerror= in inline code should be preserved, got: {result}"
+    assert "<code>" in result, \
+        f"Inline code should render as <code>, got: {result}"
+    # onerror= should NOT be extracted as an event handler
+    # (the content is inside <code> which renders as text, not an attribute)
+    print("[OK] onerror=alert(1) in inline code is preserved as inert text")
+
+    # Fenced code block with onerror=
+    result = render_markdown("```\nonerror=alert(1)\n```")
+    assert "onerror=alert(1)" in result, \
+        f"onerror= in code block should be preserved, got: {result}"
+    assert "<pre><code>" in result, \
+        f"Code block should render as <pre><code>, got: {result}"
+    print("[OK] onerror=alert(1) in fenced code block is preserved as inert text")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -6091,6 +6348,13 @@ if __name__ == "__main__":
     test_project_docs_hub_not_found()
     test_project_docs_hub_registry_based_access()
     test_project_docs_hub_nav_in_index()
+
+    # Project docs renderer security
+    test_project_docs_renderer_safe_markdown_links()
+    test_project_docs_renderer_blocks_raw_html()
+    test_project_docs_renderer_href_bypass()
+    test_project_docs_renderer_inline_in_paragraph()
+    test_project_docs_renderer_onerror_in_code()
 
     print("=" * 50)
     print("Smoke test completed!")
