@@ -4972,6 +4972,34 @@ def test_v10_alpha42_app_version():
     print("[OK] app/version.py exists with 1.0-alpha and is used in main.py")
 
 
+def test_v10_alpha43_real_acceptance_doc_exists():
+    """Test that docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md exists with required content."""
+    from pathlib import Path
+
+    doc_path = Path(__file__).parent.parent / "docs" / "V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md"
+    assert doc_path.exists(), "docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md should exist"
+
+    doc_text = doc_path.read_text(encoding="utf-8")
+
+    required_content = [
+        "真实浏览器",
+        "GitHub Actions",
+        "浏览器验收",
+        "GitHub Actions 验收",
+    ]
+    for content in required_content:
+        assert content in doc_text, \
+            f"V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md should contain: {content}"
+
+    # README should reference V1.0-alpha.4.3
+    readme_path = Path(__file__).parent.parent / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8")
+    assert "V1.0-alpha.4.3" in readme_text, \
+        "README.md should reference V1.0-alpha.4.3"
+
+    print("[OK] docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md exists with required content")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -5128,6 +5156,16 @@ if __name__ == "__main__":
     # V1.0-alpha.4.1 CI and UI acceptance
     test_v10_alpha41_ui_acceptance_doc_exists()
     test_v10_alpha41_ui_links_acceptance_script_exists()
+
+    # V1.0-alpha.4.2 stability fixes
+    test_v10_alpha42_health_check_quick_does_not_run_smoke_by_default()
+    test_v10_alpha42_create_demo_data_reset_logic()
+    test_v10_alpha42_acceptance_ci_local_passes_env()
+    test_v10_alpha42_acceptance_ui_links_placeholder_fails()
+    test_v10_alpha42_app_version()
+
+    # V1.0-alpha.4.3 real browser and CI acceptance
+    test_v10_alpha43_real_acceptance_doc_exists()
 
     print("=" * 50)
     print("Smoke test completed!")

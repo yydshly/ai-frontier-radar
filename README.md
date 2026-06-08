@@ -153,6 +153,8 @@ CI 不访问真实网络，不调用真实 LLM，不需要 MINIMAX_API_KEY。
 
 详细清单见 [docs/V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md](docs/V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md)。
 
+V1.0-alpha.4.3 增加真实浏览器与 GitHub Actions 验收记录，详见 [docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md](docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md)。
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |
