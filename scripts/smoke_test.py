@@ -3983,6 +3983,141 @@ def test_v08_markdown_export_with_bilingual_report():
         db.close()
 
 
+# V0.8.2 language quality tests
+def test_v082_acceptance_real_script_exists():
+    """Test that acceptance_real_bilingual_report.py exists and supports required args."""
+    from pathlib import Path
+    import importlib.util
+
+    script_path = Path(__file__).parent / "acceptance_real_bilingual_report.py"
+    assert script_path.exists(), \
+        f"acceptance_real_bilingual_report.py not found at {script_path}"
+
+    # Verify it can be imported
+    spec = importlib.util.spec_from_file_location(
+        "acceptance_real_bilingual_report", str(script_path)
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    # Check it has _build_arg_parser and _run_acceptance
+    assert hasattr(module, "_build_arg_parser"), \
+        "acceptance_real_bilingual_report.py missing _build_arg_parser"
+    assert hasattr(module, "_run_acceptance"), \
+        "acceptance_real_bilingual_report.py missing _run_acceptance"
+
+    # Verify _build_arg_parser returns parser with expected attributes
+    parser = module._build_arg_parser()
+    assert parser is not None
+
+    print("[OK] acceptance_real_bilingual_report.py exists with required functions")
+
+
+def test_v082_language_quality_mock_passes():
+    """Test that a properly-constructed mock bilingual report passes language quality checks."""
+    from app.services.insight_quality import inspect_bilingual_report_quality
+    from app.models import InsightCardBilingualReport
+    import json
+
+    report = InsightCardBilingualReport(
+        card_id=1,
+        english_core_summary="This article discusses a new AI agent framework for enterprise "
+                           "document processing. The system coordinates multiple specialized agents.",
+        english_key_claims_json=json.dumps([
+            "The article announces a new agent workflow framework.",
+            "The framework is designed for enterprise document processing.",
+            "Multiple specialized agents coordinate for extraction and summarization.",
+        ]),
+        english_evidence_points_json=json.dumps([
+            "The announcement highlights audit logs and evaluation datasets.",
+            "Human oversight is maintained for high-risk decisions.",
+        ]),
+        key_terms_json=json.dumps([
+            {"en": "agentic workflow", "zh": "智能体工作流", "note_zh": "多步骤AI协作流程"},
+        ]),
+        chinese_explanation="这篇关于企业文档处理智能体框架的文章介绍了人工智能在自动化文档分析方面的新进展。",
+        fidelity_notes_zh="【保真提示】英文核心摘要和主张列表均来自原文所述。",
+        interpretation_boundary_zh="【解读边界】产品机会和行动建议属于模型推论，不等于原文结论。",
+    )
+
+    result = inspect_bilingual_report_quality(report)
+
+    assert result["english_summary_looks_english"] is True, \
+        f"english_core_summary should look English: {result['warnings']}"
+    assert result["english_key_claims_look_english"] is True, \
+        f"english_key_claims should look English: {result['warnings']}"
+    assert result["chinese_explanation_looks_chinese"] is True, \
+        f"chinese_explanation should look Chinese: {result['warnings']}"
+    assert result["fidelity_notes_look_chinese"] is True, \
+        f"fidelity_notes_zh should look Chinese: {result['warnings']}"
+    assert result["interpretation_boundary_look_chinese"] is True, \
+        f"interpretation_boundary_zh should look Chinese: {result['warnings']}"
+    assert result["passed_minimum_quality"] is True, \
+        f"Mock report with correct languages should pass: {result['warnings']}"
+    print("[OK] Properly-constructed mock report passes language quality checks")
+
+
+def test_v082_chinese_in_english_field_fails():
+    """Test that Chinese text in english_core_summary fails language check."""
+    from app.services.insight_quality import inspect_bilingual_report_quality
+    from app.models import InsightCardBilingualReport
+    import json
+
+    report = InsightCardBilingualReport(
+        card_id=1,
+        english_core_summary="这是一段中文冒充的英文摘要",
+        english_key_claims_json=json.dumps([
+            "This is a valid English claim.",
+        ]),
+        chinese_explanation="这是一段中文解释。",
+        fidelity_notes_zh="【保真提示】这是保真提示。",
+        interpretation_boundary_zh="【解读边界】这是解读边界。",
+    )
+
+    result = inspect_bilingual_report_quality(report)
+
+    assert result["english_summary_looks_english"] is False, \
+        "Chinese in english_core_summary should fail language check"
+    assert result["english_summary_present"] is True, \
+        "Field is non-empty so presence should be True"
+    assert result["passed_minimum_quality"] is False, \
+        f"Should fail quality due to wrong language: {result['warnings']}"
+    assert any("English" in w or "english" in w for w in result["warnings"]), \
+        f"Warning should mention English language issue: {result['warnings']}"
+    print("[OK] Chinese in english_core_summary correctly fails language check")
+
+
+def test_v082_english_in_chinese_field_fails():
+    """Test that English text in chinese_explanation fails language check."""
+    from app.services.insight_quality import inspect_bilingual_report_quality
+    from app.models import InsightCardBilingualReport
+    import json
+
+    report = InsightCardBilingualReport(
+        card_id=1,
+        english_core_summary="This article discusses a new AI agent framework for enterprise document processing.",
+        english_key_claims_json=json.dumps([
+            "The article announces a new agent workflow framework.",
+            "The framework is designed for enterprise document processing.",
+        ]),
+        chinese_explanation="This is English text masquerading as Chinese explanation.",
+        fidelity_notes_zh="This is also English in fidelity notes.",
+        interpretation_boundary_zh="And this is English in interpretation boundary.",
+    )
+
+    result = inspect_bilingual_report_quality(report)
+
+    assert result["chinese_explanation_looks_chinese"] is False, \
+        f"English in chinese_explanation should fail: {result['warnings']}"
+    assert result["fidelity_notes_look_chinese"] is False, \
+        f"English in fidelity_notes_zh should fail: {result['warnings']}"
+    assert result["interpretation_boundary_look_chinese"] is False, \
+        f"English in interpretation_boundary_zh should fail: {result['warnings']}"
+    assert result["passed_minimum_quality"] is False, \
+        f"Should fail quality due to wrong language: {result['warnings']}"
+    print("[OK] English in chinese_explanation/fidelity/interpretation_boundary correctly fails")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4093,6 +4228,14 @@ if __name__ == "__main__":
     test_v08_markdown_export_without_bilingual_report()
     test_v08_markdown_export_with_bilingual_report()
 
+    # V0.8.2 language quality tests
+    test_v082_acceptance_real_script_exists()
+    test_v082_language_quality_mock_passes()
+    test_v082_chinese_in_english_field_fails()
+    test_v082_english_in_chinese_field_fails()
+
     print("=" * 50)
     print("Smoke test completed!")
     print("=" * 50)
+
+

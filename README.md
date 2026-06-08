@@ -689,6 +689,35 @@ python scripts/smoke_test.py
 
 完整产品验收步骤见 [docs/V0.8_BILINGUAL_INSIGHT_ACCEPTANCE.md](docs/V0.8_BILINGUAL_INSIGHT_ACCEPTANCE.md)。
 
+## V0.8.2 真实 LLM 中英双语报告质量验收
+
+V0.8 验证了中英双语报告的数据结构和页面链路；V0.8.2 验证真实 LLM 输出是否满足保真和语言边界要求。
+
+### 质量标准
+
+英文字段必须为英文，中文字段必须为中文：
+- English Core Summary 非空且看起来是英文
+- Original Key Claims 至少 2 条且看起来是英文
+- 中文解说非空且看起来是中文
+- 保真提示非空且看起来是中文
+- 解读边界非空且看起来是中文
+
+### 验收命令
+
+Mock 链路验证（不调用真实 LLM）：
+```bash
+python scripts/acceptance_bilingual_report.py --isolated-db --mock
+```
+
+真实 LLM 质量验收（需要 MINIMAX_API_KEY）：
+```bash
+python scripts/acceptance_real_bilingual_report.py --isolated-db --real
+```
+
+> 注意：mock 通过不代表真实模型质量通过。如果没有 API Key，真实模式会输出明确错误。
+
+完整产品验收步骤见 [docs/V0.8.2_REAL_BILINGUAL_QUALITY_ACCEPTANCE.md](docs/V0.8.2_REAL_BILINGUAL_QUALITY_ACCEPTANCE.md)。
+
 ## 技术栈
 
 ```

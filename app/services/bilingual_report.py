@@ -100,24 +100,31 @@ def build_bilingual_report_prompt(card: InsightCard, source_text: str | None = N
 ## Goal
 Help Chinese-speaking users who are not comfortable reading English understand the core content of this article while preserving fidelity to the original material.
 
+## Language Rules (CRITICAL)
+- Fields: english_core_summary, english_key_claims, english_evidence_points, key_terms.en MUST be in ENGLISH.
+- Fields: chinese_explanation, fidelity_notes_zh, interpretation_boundary_zh, key_terms.zh, key_terms.note_zh MUST be in CHINESE.
+- Do NOT mix languages within a single field.
+- Do NOT write Chinese sentences in english_core_summary.
+- Do NOT write English sentences in chinese_explanation.
+
 ## Output Format
 Generate a JSON object with these fields:
-- "english_core_summary": A faithful English summary of the article's main point (1-3 sentences). Written in English, as if an English speaker wrote it. NOT a translation of Chinese text.
+- "english_core_summary": A faithful English summary of the article's main point (1-3 sentences). Written in English as if by an English speaker. NOT a translation of Chinese text.
 - "english_key_claims": List of 2-8 main claims or arguments made in the article. Written in English. Max 8 items.
 - "english_evidence_points": List of 2-8 evidence points, data, or specific information from the article. Written in English. Max 8 items.
-- "key_terms": List of up to 10 key technical terms with Chinese translations. Each item should have {{"en": "...", "zh": "...", "note_zh": "..."}}.
-- "chinese_explanation": A clear Chinese explanation of what this article is about and why it matters. Write in Chinese, as if explaining to someone who can't read English. Do NOT simply translate the english_core_summary.
-- "fidelity_notes_zh": Notes in Chinese about what is faithfully represented from the original vs. what is interpretation. Remind the reader what is definitely from the source vs. inferred.
-- "interpretation_boundary_zh": A clear statement in Chinese explaining that product opportunities, action recommendations, and technical significance assessments are model inferences, NOT original article conclusions.
+- "key_terms": List of up to 10 key technical terms with Chinese translations. Each item: {{"en": "...", "zh": "...", "note_zh": "..."}}.
+- "chinese_explanation": A clear Chinese explanation of what this article is about and why it matters. Written in Chinese. Do NOT simply translate english_core_summary.
+- "fidelity_notes_zh": Notes in Chinese about what is faithfully from the source vs. what is interpretation.
+- "interpretation_boundary_zh": A clear statement in Chinese explaining that product opportunities, action recommendations, and technical significance are model inferences, NOT the article's own conclusions.
 
-## Important Rules
-1. english_core_summary, english_key_claims, and english_evidence_points must be written IN ENGLISH as original English text.
-2. chinese_explanation, fidelity_notes_zh, and interpretation_boundary_zh must be written IN CHINESE.
-3. Do NOT claim the article says things it does not say. If something is uncertain, say so.
-4. Do NOT present product opportunities as if they were direct conclusions of the article.
-5. Key claims should represent what the article actually argues or reports, not tangential interpretations.
-6. Keep each english_key_claims item to 1-2 sentences.
-7. Keep each english_evidence_points item to 1-2 sentences.
+## Fidelity Rules
+1. Only include claims that appear in the source text or established InsightCard context.
+2. If the source does not explicitly state something, do not claim it does.
+3. Product opportunities and action items from the existing InsightCard are MODEL INTERPRETATION, not source conclusions.
+4. If uncertain about a claim, write less — do not fabricate.
+5. Keep each english_key_claims item to 1-2 sentences.
+6. Keep each english_evidence_points item to 1-2 sentences.
+7. Return ONLY the JSON object, no preamble or explanation.
 
 ## Source Context
 {context}

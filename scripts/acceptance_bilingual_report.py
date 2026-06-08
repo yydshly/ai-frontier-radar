@@ -7,12 +7,13 @@ Validates the bilingual InsightCard report feature:
 - Markdown export includes bilingual content
 - Quality inspection works
 
+NOTE: This script validates the mock bilingual report workflow only.
+For real LLM output quality validation, run:
+    python scripts/acceptance_real_bilingual_report.py --isolated-db --real
+
 Usage:
     # Mock mode (default, validates without real LLM)
     python scripts/acceptance_bilingual_report.py --isolated-db --mock
-
-    # Real mode (requires API key)
-    python scripts/acceptance_bilingual_report.py --isolated-db
 
     # Keep isolated DB after run
     python scripts/acceptance_bilingual_report.py --isolated-db --mock --keep-db
