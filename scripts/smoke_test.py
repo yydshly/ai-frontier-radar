@@ -6589,9 +6589,16 @@ def test_safe_external_url_strict_allowlist():
     assert is_safe_external_url(None) is False
     assert is_safe_external_url("   ") is False
 
-    # Blocked: ASCII control characters
+    # Blocked: ASCII control characters (0x00–0x1F and 0x7F DEL)
     assert is_safe_external_url("https://example.com\x00") is False
     assert is_safe_external_url("https://example.com\x01") is False
+    assert is_safe_external_url("https://example.com\x1f") is False
+    assert is_safe_external_url("https://example.com\x7f") is False
+
+    # Blocked: tab, newline, carriage return are also rejected (no exceptions)
+    assert is_safe_external_url("https://example.com/a\tb") is False
+    assert is_safe_external_url("https://example.com/a\nb") is False
+    assert is_safe_external_url("https://example.com/a\rb") is False
 
     print("[OK] is_safe_external_url enforces strict http/https allowlist")
 

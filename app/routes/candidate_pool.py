@@ -49,16 +49,21 @@ def is_safe_external_url(url: str | None) -> bool:
     if not url:
         return False
 
-    url = url.strip()
+    # Check for ASCII control characters (0x00–0x1F and 0x7F DEL) on the
+    # ORIGINAL input. We do this BEFORE .strip() because Python's default
+    # str.strip() removes 0x1F (Unicode whitespace) which would otherwise
+    # let attackers bypass the control-char check by suffixing their payload
+    # with 0x1F. No exceptions: tab, newline, carriage return are also rejected.
+    for c in url:
+        if ord(c) < 32 or ord(c) == 127:
+            return False
+
+    # Now strip only ASCII space (0x20); tab/newline/CR were already rejected.
+    url = url.strip(" ")
 
     # Empty after strip
     if not url:
         return False
-
-    # Check for ASCII control characters (0x00-0x1F except tab 0x09, CR 0x0D, LF 0x0A)
-    for c in url:
-        if ord(c) < 32 and c not in '\t\n\r':
-            return False
 
     # Parse URL using urlsplit
     try:
