@@ -19,7 +19,7 @@
         {% if status_value == 'completed' %}
         <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
             <h3>🚦 你现在在主流程第 4～6 步</h3>
-            <p>阅读 InsightCard，生成中英双语核心理解，并做出你的判断。</p>
+            <p>阅读中文摘要 → 生成深度双语理解 → 做出判断。</p>
         </div>
         {% endif %}
 
@@ -59,12 +59,18 @@
         {% if status_value == 'completed' %}
         <section class="summary-section">
             <h2>📝 中文摘要</h2>
+            <p class="summary-purpose" style="font-size:0.88rem; color:#666; margin-bottom:0.75rem; background:#f8f9fa; border-left:3px solid #ccc; padding:0.5rem 0.75rem; border-radius:0 4px 4px 0;">
+                💡 用于快速看懂这篇资料，是 InsightCard 的基础内容。
+            </p>
             <p class="summary-text">{{ card.summary_zh }}</p>
         </section>
 
         {# V0.8: Bilingual Report Section #}
         <section class="bilingual-section">
             <h2>🌐 中英双语核心理解</h2>
+            <p class="bilingual-purpose" style="font-size:0.88rem; color:#666; margin-bottom:0.75rem; background:#f8f4fa; border-left:3px solid #9b59b6; padding:0.5rem 0.75rem; border-radius:0 4px 4px 0;">
+                💡 用于保留英文核心观点，并提供中文解释，适合深度阅读和长期沉淀。
+            </p>
 
             {% if bilingual_report %}
             {# Has bilingual report - display it #}
@@ -156,16 +162,16 @@
                 {# Regenerate button #}
                 <div class="bilingual-action">
                     <form method="post" action="/cards/{{ card.id }}/bilingual-report">
-                        <button type="submit" class="btn-secondary">🔄 重新生成中英双语报告</button>
+                        <button type="submit" class="btn-secondary">🔄 重新生成深度双语理解</button>
                     </form>
                 </div>
             </div>
             {% else %}
             {# No bilingual report - show generate button #}
             <div class="bilingual-empty">
-                <p>还没有生成中英双语核心理解。</p>
+                <p>当前只有快速中文摘要。你可以继续生成深度双语理解，以便查看英文核心观点、原文主张和中文解释。</p>
                 <form method="post" action="/cards/{{ card.id }}/bilingual-report">
-                    <button type="submit" class="btn-primary">🌐 生成中英双语报告</button>
+                    <button type="submit" class="btn-primary">🌐 生成深度双语理解</button>
                 </form>
             </div>
             {% endif %}

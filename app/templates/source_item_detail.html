@@ -162,26 +162,37 @@
             <p class="status-hint">该条目尚未编译，可手动生成 InsightCard。</p>
             <p class="status-helper">
                 适合在你看不懂英文标题、但想知道它是否值得关注时使用。
+                编译过程包含网页抓取和模型分析，可能需要几十秒，请耐心等待。
             </p>
-            <form method="post" action="/source-items/{{ item.id }}/compile">
-                <button type="submit" class="btn-primary">编译为 InsightCard</button>
+            <form method="post" action="/source-items/{{ item.id }}/compile" id="compile-form">
+                <button type="submit" class="btn-primary" id="compile-btn" onclick="return startCompile(this)">编译为 InsightCard</button>
             </form>
             {% elif item.status == 'failed' %}
             <p class="status-hint status-hint-error">上次编译失败：{{ item.error_message }}</p>
             <p class="status-helper">
                 失败可能来自：网页无法访问、正文抽取失败、API Key 缺失、LLM 调用失败。你可以查看错误信息后重试。
             </p>
-            <form method="post" action="/source-items/{{ item.id }}/compile">
-                <button type="submit" class="btn-primary">重新编译</button>
+            <form method="post" action="/source-items/{{ item.id }}/compile" id="compile-form">
+                <button type="submit" class="btn-primary" id="compile-btn" onclick="return startCompile(this)">重新编译</button>
             </form>
             {% elif item.status == 'compiled' %}
-            <p class="status-hint status-hint-success">已编译，可查看关联 InsightCard。</p>
+            <p class="status-hint status-hint-success">✅ 已编译，可查看关联 InsightCard。</p>
             <p class="status-helper">
                 卡片会包含中文摘要、关键事实、技术洞察、产品机会、风险、行动建议和相关性评分。
             </p>
-            <p class="status-note"><a href="/cards/{{ item.insight_card_id }}">查看卡片 #{{ item.insight_card_id }}</a></p>
+            <p class="status-note"><a href="/cards/{{ item.insight_card_id }}" class="btn-secondary">🌐 查看中文 InsightCard</a></p>
             {% endif %}
         </div>
+
+        <script>
+        function startCompile(btn) {
+            btn.textContent = '正在编译，请稍候...';
+            btn.disabled = true;
+            var form = document.getElementById('compile-form');
+            if (form) form.submit();
+            return false;
+        }
+        </script>
 
         <p class="page-note">V0.3.5 中文优先人工验收体验：让中文用户更容易从英文 SourceItem 中选择和理解下一步操作。</p>
     </main>

@@ -67,35 +67,25 @@
 
         <!-- ── V1.0-alpha.1 演示数据入口 ────────────────────── -->
         {% if demo_card %}
-        <section class="next-actions-section" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800;">
-            <h2 class="section-title">🎬 演示数据入口</h2>
-            <p class="flow-note">以下演示数据无需联网、无需 LLM，可直接体验完整主流程。</p>
-            <ul class="next-actions-list">
-                <li><a href="/source-items/{{ demo_source_item.id }}">查看演示资料</a></li>
-                <li><a href="/cards/{{ demo_card.id }}">查看演示 InsightCard</a></li>
-                <li><a href="/cards/{{ demo_card.id }}/export-report">导出演示完整报告</a></li>
-                <li><a href="/cards/{{ demo_card.id }}/export-markdown">导出演示行动任务</a></li>
-            </ul>
-        </section>
-        {% else %}
-        <section class="next-actions-section" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800;">
-            <h2 class="section-title">🎬 演示数据入口</h2>
-            <p class="flow-note">还没有演示数据。可以运行以下命令创建：</p>
-            <p class="flow-note"><code>python scripts/create_demo_data.py</code></p>
+        <section class="next-actions-section" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800; padding: 0.75rem 1.25rem;">
+            <span style="font-size:0.85rem; color:#666;">🎬 演示数据（无需联网）：</span>
+            <a href="/source-items/{{ demo_source_item.id }}">资料</a> ·
+            <a href="/cards/{{ demo_card.id }}">InsightCard</a> ·
+            <a href="/cards/{{ demo_card.id }}/export-report">完整报告</a> ·
+            <a href="/cards/{{ demo_card.id }}/export-markdown">行动任务</a>
         </section>
         {% endif %}
 
         <!-- ── V1.0-alpha 推荐主流程 ─────────────────────────── -->
-        <section class="next-actions-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50;">
-            <h2 class="section-title">🚦 推荐主流程</h2>
-            <ol class="main-flow-list">
-                <li><a href="/source-items">先查看待编译资料</a></li>
-                <li>选择一条英文资料，<a href="/source-items">编译为中文 InsightCard</a></li>
-                <li><a href="/cards">生成中英双语核心理解</a> 并做出你的判断</li>
-                <li><a href="/cards?decision=to_action">标记为"转成行动"</a></li>
-                <li><a href="/cards">在 InsightCard 详情页导出完整 Markdown 报告</a></li>
-            </ol>
-            <p class="flow-note">完整报告适合长期保存和复盘；行动任务适合继续交给 AI 拆解执行。</p>
+        <section class="next-actions-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50; padding: 0.75rem 1.25rem;">
+            <span style="font-size:0.85rem; color:#1f4d2e; font-weight:600;">🚦 推荐主流程：</span>
+            <span style="font-size:0.85rem; color:#444;">
+                <a href="/source-items">查看资料</a> →
+                <a href="/source-items">编译</a> →
+                <a href="/cards">双语理解</a> →
+                <a href="/cards?decision=to_action">转行动</a> →
+                <a href="/cards">导出报告</a>
+            </span>
         </section>
 
         <!-- ── 下一步建议 ────────────────────────────────────── -->

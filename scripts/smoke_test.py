@@ -3828,10 +3828,10 @@ def test_v08_card_detail_no_bilingual_report_shows_generate_button():
         assert response.status_code == 200
 
         text = response.text
-        assert "还没有生成中英双语核心理解" in text, \
-            "Page should show '还没有生成中英双语核心理解'"
-        assert "生成中英双语报告" in text, \
-            "Page should show '生成中英双语报告' button"
+        assert "当前只有快速中文摘要" in text, \
+            "Page should explain that only quick Chinese summary exists"
+        assert "生成深度双语理解" in text, \
+            "Page should show '生成深度双语理解' button"
         assert "English Core Summary" not in text, \
             "Page should NOT show English Core Summary when no report exists"
 
@@ -3882,10 +3882,10 @@ def test_v08_card_detail_with_bilingual_report_shows_content():
             "Page should show '保真提示'"
         assert "解读边界" in text, \
             "Page should show '解读边界'"
-        assert "重新生成中英双语报告" in text, \
-            "Page should show '重新生成中英双语报告' button"
-        assert "还没有生成中英双语核心理解" not in text, \
-            "Page should NOT show empty state message"
+        assert "重新生成深度双语理解" in text, \
+            "Page should show '重新生成深度双语理解' button"
+        assert "当前只有快速中文摘要" not in text, \
+            "Page should NOT show empty state message when report exists"
 
         print("[OK] card_detail shows bilingual report content when it exists")
     finally:
