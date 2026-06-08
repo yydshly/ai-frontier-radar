@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.application.candidate_pool.services import CandidatePoolService
+from app.application.source_items.compile_service import SourceItemCompileService
 from app.models import Source
 
 router = APIRouter(prefix="/candidate-pool", tags=["candidate-pool"])
@@ -28,46 +29,56 @@ CANDIDATE_STATUS_OPTIONS = [
 
 
 def is_safe_external_url(url: str | None) -> bool:
-    """Check if a URL is a safe external URL (http/https only).
+    """Check if a URL is a safe external URL (http/https only, strict allowlist).
+
+    Uses urllib.parse.urlsplit for proper URL parsing and strict scheme allowlist.
+
+    Allows:
+    - http://example.com
+    - https://example.com
 
     Rejects:
-    - javascript:, data:, vbscript:, file:, blob:, about:
+    - javascript:, data:, vbscript:, file:, blob:, about:, mailto:, tel:, urn:
     - Scheme-relative URLs (//evil.com)
     - Empty or None URLs
-    - URLs with control characters
+    - URLs with ASCII control characters
+    - Any non-http/https scheme
     """
+    from urllib.parse import urlsplit
+
     if not url:
         return False
 
-    url = url.strip()
+    # Check for ASCII control characters (0x00–0x1F and 0x7F DEL) on the
+    # ORIGINAL input. We do this BEFORE .strip() because Python's default
+    # str.strip() removes 0x1F (Unicode whitespace) which would otherwise
+    # let attackers bypass the control-char check by suffixing their payload
+    # with 0x1F. No exceptions: tab, newline, carriage return are also rejected.
+    for c in url:
+        if ord(c) < 32 or ord(c) == 127:
+            return False
+
+    # Now strip only ASCII space (0x20); tab/newline/CR were already rejected.
+    url = url.strip(" ")
 
     # Empty after strip
     if not url:
         return False
 
-    # Control characters (except tab, CR, LF which might appear in real URLs)
-    if any(c < ' ' and c not in '\t\n\r' for c in url):
+    # Parse URL using urlsplit
+    try:
+        parsed = urlsplit(url)
+    except Exception:
         return False
 
-    # Check for dangerous schemes
-    dangerous_schemes = (
-        'javascript:', 'data:', 'vbscript:', 'file:', 'blob:',
-        'about:', 'tel:', 'URN:', 'urn:',
-    )
-    lower_url = url.lower()
-    for scheme in dangerous_schemes:
-        if lower_url.startswith(scheme):
-            return False
-
-    # Scheme-relative URL
-    if url.startswith('//'):
+    # Strict scheme allowlist: only http and https
+    scheme = parsed.scheme.lower()
+    if scheme not in ('http', 'https'):
         return False
 
-    # Must start with http:// or https:// (or be a relative path)
-    if '/' not in url and ':' in url:
-        # Has a scheme but not http/https
-        if not lower_url.startswith('http://') and not lower_url.startswith('https://'):
-            return False
+    # Reject empty netloc (e.g., "http:" or "http:///path")
+    if not parsed.netloc:
+        return False
 
     return True
 
@@ -225,5 +236,21 @@ def batch_compile_candidates(request: Request, candidate_ids: Annotated[list[str
         response = RedirectResponse(url="/candidate-pool", status_code=303)
         response.set_cookie(key="flash_message", value=quote(message), httponly=True, max_age=60)
         return response
+    finally:
+        db.close()
+
+
+@router.post("/{item_id}/compile")
+def compile_candidate_item(item_id: int):
+    """Compile a single candidate item from the candidate pool.
+
+    Delegates to SourceItemCompileService for the actual compilation logic.
+    After compilation, redirects back to the candidate pool list.
+    """
+    db = next(get_db())
+    try:
+        service = SourceItemCompileService(db)
+        result = service.compile_item(item_id)
+        return RedirectResponse(url="/candidate-pool", status_code=303)
     finally:
         db.close()

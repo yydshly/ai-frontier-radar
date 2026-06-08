@@ -65,6 +65,14 @@
                 <a href="/cards?decision=ignore" class="stat-mini">暂时忽略 <strong>{{ dashboard_stats.cards_ignore }}</strong></a>
                 <a href="/cards" class="stat-mini">全部卡片 <strong>{{ dashboard_stats.cards_total }}</strong></a>
             </div>
+
+            <!-- V1.0-beta.2: 候选池统计 -->
+            <div class="stats-secondary" style="margin-top: 0.5rem;">
+                <a href="/candidate-pool" class="stat-mini">候选池 <strong>{{ dashboard_stats.candidate_pool_total }}</strong></a>
+                <a href="/candidate-pool?status=discovered" class="stat-mini">待编译 <strong>{{ dashboard_stats.candidate_pool_discovered }}</strong></a>
+                <a href="/candidate-pool?status=compiling" class="stat-mini">编译中 <strong>{{ dashboard_stats.candidate_pool_compiling }}</strong></a>
+                <a href="/candidate-pool?status=failed" class="stat-mini">失败 <strong>{{ dashboard_stats.candidate_pool_failed }}</strong></a>
+            </div>
         </section>
 
         <!-- ── V1.0-alpha.1 演示数据入口 ────────────────────── -->

@@ -744,6 +744,7 @@ def test_source_item_detail_page():
 def test_source_item_compile_route_with_mock_compile_url():
     """Test POST /source-items/{id}/compile with mocked compile_url."""
     import app.main as main_module
+    import app.application.source_items.compile_service as service_module
     from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
     from app.db import SessionLocal
 
@@ -781,8 +782,10 @@ def test_source_item_compile_route_with_mock_compile_url():
         db.refresh(item)
         item_id = item.id
 
-        # Mock compile_url to return a successful card
-        original_compile_url = main_module.compile_url
+        # Mock compile_url in BOTH the main module and the service module
+        # to avoid the network call (service has its own bound reference)
+        original_compile_url_main = main_module.compile_url
+        original_compile_url_svc = service_module.compile_url
 
         def fake_compile_url(db, url):
             card = InsightCard(
@@ -800,6 +803,7 @@ def test_source_item_compile_route_with_mock_compile_url():
             return card
 
         main_module.compile_url = fake_compile_url
+        service_module.compile_url = fake_compile_url
         try:
             # Call compile route
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
@@ -820,7 +824,8 @@ def test_source_item_compile_route_with_mock_compile_url():
             print(f"[OK] SourceItem updated: status=compiled, insight_card_id={refreshed_item.insight_card_id}")
 
         finally:
-            main_module.compile_url = original_compile_url
+            main_module.compile_url = original_compile_url_main
+            service_module.compile_url = original_compile_url_svc
 
     finally:
         db.rollback()
@@ -830,6 +835,7 @@ def test_source_item_compile_route_with_mock_compile_url():
 def test_source_item_compile_route_with_failed_card():
     """Test POST /source-items/{id}/compile with a mocked failed card."""
     import app.main as main_module
+    import app.application.source_items.compile_service as service_module
     from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
     from app.db import SessionLocal
 
@@ -867,8 +873,9 @@ def test_source_item_compile_route_with_failed_card():
         db.refresh(item)
         item_id = item.id
 
-        # Mock compile_url to return a failed card
-        original_compile_url = main_module.compile_url
+        # Mock compile_url to return a failed card (patch both modules)
+        original_compile_url_main = main_module.compile_url
+        original_compile_url_svc = service_module.compile_url
 
         def fake_compile_url_failed(db, url):
             card = InsightCard(
@@ -885,6 +892,7 @@ def test_source_item_compile_route_with_failed_card():
             return card
 
         main_module.compile_url = fake_compile_url_failed
+        service_module.compile_url = fake_compile_url_failed
         try:
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
             assert response.status_code in (302, 303), \
@@ -903,7 +911,8 @@ def test_source_item_compile_route_with_failed_card():
             print(f"[OK] SourceItem updated: status=failed, error_message set")
 
         finally:
-            main_module.compile_url = original_compile_url
+            main_module.compile_url = original_compile_url_main
+            service_module.compile_url = original_compile_url_svc
 
     finally:
         db.rollback()
@@ -913,6 +922,7 @@ def test_source_item_compile_route_with_failed_card():
 def test_source_item_compile_already_compiled_is_idempotent():
     """Test that POST on an already-compiled SourceItem does NOT call compile_url."""
     import app.main as main_module
+    import app.application.source_items.compile_service as service_module
     from app.db import SessionLocal
     from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
 
@@ -966,15 +976,17 @@ def test_source_item_compile_already_compiled_is_idempotent():
         item_id = item.id
         original_card_id = card.id
 
-        # Mock compile_url to fail if called
+        # Mock compile_url to fail if called (patch both modules)
         call_count = [0]
-        original = main_module.compile_url
+        original_main = main_module.compile_url
+        original_svc = service_module.compile_url
 
         def counting_mock(db_session, url):
             call_count[0] += 1
-            return original(db_session, url)
+            return original_main(db_session, url)
 
         main_module.compile_url = counting_mock
+        service_module.compile_url = counting_mock
         try:
             # POST should redirect without calling compile_url
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
@@ -993,7 +1005,8 @@ def test_source_item_compile_already_compiled_is_idempotent():
                 f"insight_card_id changed from {original_card_id} to {refreshed.insight_card_id}"
             print(f"[OK] Already-compiled item: no re-compile, status unchanged")
         finally:
-            main_module.compile_url = original
+            main_module.compile_url = original_main
+            service_module.compile_url = original_svc
 
     finally:
         db.rollback()
@@ -1003,6 +1016,7 @@ def test_source_item_compile_already_compiled_is_idempotent():
 def test_source_item_compile_failed_retry_succeeds():
     """Test that a failed SourceItem can be retried and succeed."""
     import app.main as main_module
+    import app.application.source_items.compile_service as service_module
     from app.db import SessionLocal
     from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
 
@@ -1040,7 +1054,8 @@ def test_source_item_compile_failed_retry_succeeds():
         db.refresh(item)
         item_id = item.id
 
-        original = main_module.compile_url
+        original_main = main_module.compile_url
+        original_svc = service_module.compile_url
 
         def fake_success(db_session, url):
             card = InsightCard(
@@ -1058,6 +1073,7 @@ def test_source_item_compile_failed_retry_succeeds():
             return card
 
         main_module.compile_url = fake_success
+        service_module.compile_url = fake_success
         try:
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
             assert response.status_code == 303, f"Expected 303, got {response.status_code}"
@@ -1072,7 +1088,8 @@ def test_source_item_compile_failed_retry_succeeds():
                 f"error_message should be cleared after retry, got: {refreshed.error_message}"
             print(f"[OK] Failed item retried: status=compiled, error cleared")
         finally:
-            main_module.compile_url = original
+            main_module.compile_url = original_main
+            service_module.compile_url = original_svc
 
     finally:
         db.rollback()
@@ -6541,6 +6558,367 @@ def test_candidate_pool_does_not_break_existing_routes():
     print("[OK] Existing routes still work after candidate pool addition")
 
 
+# ── V1.0-beta.2 Candidate Pool Compile Bridge ────────────────────────────────
+
+def test_safe_external_url_strict_allowlist():
+    """Test that is_safe_external_url enforces strict http/https allowlist."""
+    from app.routes.candidate_pool import is_safe_external_url
+
+    # Allowed: http and https
+    assert is_safe_external_url("https://example.com") is True
+    assert is_safe_external_url("http://example.com") is True
+    assert is_safe_external_url("https://example.com/path?query=1") is True
+
+    # Blocked: dangerous schemes
+    assert is_safe_external_url("javascript:alert(1)") is False
+    assert is_safe_external_url("data:text/html,<script>") is False
+    assert is_safe_external_url("vbscript:msgbox(1)") is False
+    assert is_safe_external_url("file:///etc/passwd") is False
+    assert is_safe_external_url("blob:http://example.com/uuid") is False
+    assert is_safe_external_url("about:blank") is False
+    assert is_safe_external_url("mailto:test@example.com") is False
+    assert is_safe_external_url("tel:1234567890") is False
+    assert is_safe_external_url("urn:test") is False
+
+    # Blocked: scheme-relative URLs
+    assert is_safe_external_url("//evil.com") is False
+    assert is_safe_external_url("//evil.com/path") is False
+
+    # Blocked: empty / None
+    assert is_safe_external_url("") is False
+    assert is_safe_external_url(None) is False
+    assert is_safe_external_url("   ") is False
+
+    # Blocked: ASCII control characters (0x00–0x1F and 0x7F DEL)
+    assert is_safe_external_url("https://example.com\x00") is False
+    assert is_safe_external_url("https://example.com\x01") is False
+    assert is_safe_external_url("https://example.com\x1f") is False
+    assert is_safe_external_url("https://example.com\x7f") is False
+
+    # Blocked: tab, newline, carriage return are also rejected (no exceptions)
+    assert is_safe_external_url("https://example.com/a\tb") is False
+    assert is_safe_external_url("https://example.com/a\nb") is False
+    assert is_safe_external_url("https://example.com/a\rb") is False
+
+    print("[OK] is_safe_external_url enforces strict http/https allowlist")
+
+
+def test_source_item_compile_service_import():
+    """Test that SourceItemCompileService can be imported."""
+    from app.application.source_items.compile_service import (
+        SourceItemCompileService,
+        SourceItemCompileResult,
+    )
+
+    # Verify types
+    assert SourceItemCompileService is not None
+    assert SourceItemCompileResult is not None
+
+    # Verify SourceItemCompileResult fields
+    import dataclasses
+    fields = {f.name for f in dataclasses.fields(SourceItemCompileResult)}
+    assert "item_id" in fields
+    assert "ok" in fields
+    assert "status" in fields
+    assert "insight_card_id" in fields
+    assert "message" in fields
+
+    print("[OK] SourceItemCompileService imports correctly with expected fields")
+
+
+def test_candidate_pool_compile_button_in_page():
+    """Test that discovered candidate shows 'compile' POST button in candidate pool."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_cpool_compile_btn_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Compile Button",
+            description="Test source for compile button",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create a discovered source item
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/compile-btn-{uuid.uuid4().hex[:6]}",
+            title="Compile Button Test Item",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+
+        # Fetch candidate pool page filtered by source
+        response = client.get(f"/candidate-pool?source_key={test_key}")
+        assert response.status_code == 200, \
+            f"Expected 200, got {response.status_code}"
+        text = response.text
+
+        # The compile button form action should be present
+        expected_action = f"/candidate-pool/{item_id}/compile"
+        assert expected_action in text, \
+            f"Expected compile button action '{expected_action}' in page"
+
+        # The form must be POST, not GET
+        # Find the form element
+        assert f'action="{expected_action}"' in text, \
+            f"Expected action attribute pointing to compile route"
+        # Make sure it has method="post"
+        assert 'method="post"' in text, \
+            "Expected method='post' for compile form"
+
+        # No GET link to compile route
+        assert f'href="{expected_action}"' not in text, \
+            f"Compile should not be a GET link"
+
+        print(f"[OK] Candidate pool shows POST compile button for item {item_id}")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_candidate_pool_compile_route_with_mock():
+    """Test POST /candidate-pool/{id}/compile reuses SourceItemCompileService."""
+    import app.main as main_module
+    import app.application.source_items.compile_service as service_module
+    from app.models import InsightCard, CardStatus, SourceType, Source, SourceItem
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_cpool_compile_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Candidate Compile",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/candidate-compile-{uuid.uuid4().hex[:6]}",
+            title="Candidate Compile Test",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+
+        # Mock compile_url to return a successful card (patch both modules)
+        original_main = main_module.compile_url
+        original_svc = service_module.compile_url
+
+        def fake_compile_url(db_session, url):
+            card = InsightCard(
+                source_url=url,
+                source_type=SourceType.HTML,
+                source_title="Mock Candidate Compile",
+                content_hash="candidate-mock-hash",
+                status=CardStatus.COMPLETED,
+                summary_zh="Mock summary",
+                relevance_score=80,
+            )
+            db_session.add(card)
+            db_session.commit()
+            db_session.refresh(card)
+            return card
+
+        main_module.compile_url = fake_compile_url
+        service_module.compile_url = fake_compile_url
+        try:
+            response = client.post(
+                f"/candidate-pool/{item_id}/compile", follow_redirects=False
+            )
+            assert response.status_code == 303, \
+                f"Expected 303 redirect, got {response.status_code}"
+            location = response.headers.get("location", "")
+            assert location == "/candidate-pool", \
+                f"Expected redirect to /candidate-pool, got {location}"
+            print(f"[OK] POST /candidate-pool/{item_id}/compile redirects to /candidate-pool")
+
+            # Verify SourceItem was updated
+            db.expire_all()
+            refreshed = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+            assert refreshed.status == "compiled", \
+                f"Expected status='compiled', got '{refreshed.status}'"
+            assert refreshed.insight_card_id is not None, \
+                "insight_card_id should be set"
+            assert refreshed.error_message is None, \
+                f"error_message should be cleared, got: {refreshed.error_message}"
+            print(f"[OK] SourceItem updated via shared service: status=compiled, "
+                  f"insight_card_id={refreshed.insight_card_id}")
+        finally:
+            main_module.compile_url = original_main
+            service_module.compile_url = original_svc
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_candidate_pool_compile_route_empty_url():
+    """Test POST /candidate-pool/{id}/compile with empty URL → failed."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_cpool_empty_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Empty URL",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # SourceItem with empty URL
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="",
+            title="Empty URL Candidate",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        item_id = item.id
+
+        response = client.post(
+            f"/candidate-pool/{item_id}/compile", follow_redirects=False
+        )
+        assert response.status_code == 303, \
+            f"Expected 303, got {response.status_code}"
+
+        db.expire_all()
+        refreshed = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+        assert refreshed.status == "failed", \
+            f"Expected status='failed', got '{refreshed.status}'"
+        assert "url is empty" in (refreshed.error_message or "").lower(), \
+            f"Expected 'url is empty' in error_message, got: {refreshed.error_message}"
+        print(f"[OK] Empty URL candidate pool compile → status=failed")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_index_page_candidate_pool_stats():
+    """Test that the home page shows candidate pool statistics."""
+    response = client.get("/")
+    assert response.status_code == 200, \
+        f"Expected 200, got {response.status_code}"
+    text = response.text
+    # V1.0-beta.2: candidate pool stats section labels
+    assert "候选池" in text, "Missing '候选池' label in home page stats"
+    assert "待编译" in text, "Missing '待编译' label in home page stats"
+    assert "编译中" in text, "Missing '编译中' label in home page stats"
+    print("[OK] Home page shows candidate pool statistics (候选池 / 待编译 / 编译中)")
+
+
+def test_source_item_compile_service_direct_calls():
+    """Direct unit tests of SourceItemCompileService.compile_item()."""
+    from app.application.source_items.compile_service import (
+        SourceItemCompileService,
+        SourceItemCompileResult,
+    )
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_svc_direct_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Service Direct",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # 1. Empty URL guard
+        empty_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="",
+            title="Empty URL Service",
+            status="discovered",
+        )
+        db.add(empty_item)
+        db.commit()
+        db.refresh(empty_item)
+
+        service = SourceItemCompileService(db)
+        result = service.compile_item(empty_item.id)
+        assert result.ok is False, "Empty URL should return ok=False"
+        assert result.status == "failed", \
+            f"Expected status='failed', got '{result.status}'"
+        assert "url is empty" in (result.message or "").lower(), \
+            f"Expected 'url is empty' in message, got: {result.message}"
+        print(f"[OK] Direct service call: empty URL → ok=False, status=failed")
+
+        # 2. Non-existent item
+        result_404 = service.compile_item(999999999)
+        assert result_404.ok is False, "Non-existent item should return ok=False"
+        assert result_404.status == "not_found", \
+            f"Expected status='not_found', got '{result_404.status}'"
+        print(f"[OK] Direct service call: non-existent item → ok=False, status=not_found")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -6768,6 +7146,15 @@ if __name__ == "__main__":
     test_candidate_pool_unsafe_url_not_link()
     test_candidate_pool_repository_no_commit()
     test_candidate_pool_does_not_break_existing_routes()
+
+    # V1.0-beta.2 candidate pool compile bridge
+    test_safe_external_url_strict_allowlist()
+    test_source_item_compile_service_import()
+    test_candidate_pool_compile_button_in_page()
+    test_candidate_pool_compile_route_with_mock()
+    test_candidate_pool_compile_route_empty_url()
+    test_index_page_candidate_pool_stats()
+    test_source_item_compile_service_direct_calls()
 
     print("=" * 50)
     print("Smoke test completed!")
