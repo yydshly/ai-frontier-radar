@@ -46,33 +46,54 @@ def _build_arg_parser():
 
 
 def _delete_demo_data(db, source_key):
-    """Delete demo data associated with the given source_key."""
+    """Delete demo data associated with the given source_key.
+
+    Deletion order:
+    1. SourceItems (collect card_ids first)
+    2. CardDecision (by card_id)
+    3. InsightCardBilingualReport (by card_id)
+    4. InsightCard (by card_id)
+    5. Source
+    """
     from app.models import Source, SourceItem, InsightCard, CardDecision, InsightCardBilingualReport
 
     deleted_counts = {"sources": 0, "source_items": 0, "cards": 0, "decisions": 0, "reports": 0}
 
     # Get all SourceItems for this source
     source_items = db.query(SourceItem).filter(SourceItem.source_key == source_key).all()
-    source_item_ids = [si.id for si in source_items]
 
-    # Delete decisions and bilingual reports for associated cards
-    if source_item_ids:
-        for si_id in source_item_ids:
-            card = db.query(InsightCard).filter(InsightCard.source_url == SourceItem.url).first()
-            if card:
-                db.query(CardDecision).filter(CardDecision.card_id == card.id).delete()
-                db.query(InsightCardBilingualReport).filter(InsightCardBilingualReport.card_id == card.id).delete()
-                deleted_counts["reports"] += 1
-                deleted_counts["decisions"] += 1
+    # Collect all card_ids associated with these source_items
+    card_ids = set()
+    for item in source_items:
+        if item.insight_card_id:
+            card_ids.add(item.insight_card_id)
+        if item.url:
+            # Also find cards by matching source_url when insight_card_id is not set
+            cards_by_url = db.query(InsightCard).filter(InsightCard.source_url == item.url).all()
+            for card in cards_by_url:
+                card_ids.add(card.id)
+
+    # Delete CardDecision entries for these cards
+    if card_ids:
+        deleted_decisions = db.query(CardDecision).filter(CardDecision.card_id.in_(card_ids)).delete(synchronize_session=False)
+        deleted_counts["decisions"] = deleted_decisions
+
+        # Delete InsightCardBilingualReport entries for these cards
+        deleted_reports = db.query(InsightCardBilingualReport).filter(InsightCardBilingualReport.card_id.in_(card_ids)).delete(synchronize_session=False)
+        deleted_counts["reports"] = deleted_reports
+
+        # Delete InsightCards
+        deleted_cards = db.query(InsightCard).filter(InsightCard.id.in_(card_ids)).delete(synchronize_session=False)
+        deleted_counts["cards"] = deleted_cards
 
     # Delete SourceItems
-    if source_item_ids:
+    if source_items:
         db.query(SourceItem).filter(SourceItem.source_key == source_key).delete(synchronize_session=False)
-        deleted_counts["source_items"] = len(source_item_ids)
+        deleted_counts["source_items"] = len(source_items)
 
     # Delete Source
-    db.query(Source).filter(Source.source_key == source_key).delete(synchronize_session=False)
-    deleted_counts["sources"] = 1
+    deleted_sources = db.query(Source).filter(Source.source_key == source_key).delete(synchronize_session=False)
+    deleted_counts["sources"] = deleted_sources
 
     db.commit()
     return deleted_counts
@@ -92,7 +113,7 @@ def create_demo_data(source_key=DEMO_SOURCE_KEY):
     result = {"source_id": None, "source_item_id": None, "card_id": None, "created": False}
 
     try:
-        # Check if demo data already exists
+        # Check if demo data already exists and is complete
         existing_source = db.query(Source).filter(Source.source_key == source_key).first()
         if existing_source:
             # Check if it has a compiled SourceItem and card
@@ -108,6 +129,10 @@ def create_demo_data(source_key=DEMO_SOURCE_KEY):
                     }
                     print("[INFO] Demo data already exists, skipping creation.")
                     return result
+            else:
+                # Source exists but demo data is incomplete - clean and recreate
+                print(f"[WARN] Demo data incomplete for source_key={source_key}, cleaning and recreating...")
+                _delete_demo_data(db, source_key)
 
         # 1. Create Source
         source = Source(

@@ -29,6 +29,7 @@ python scripts/health_check.py --keep-db
 |------|--------|
 | `--quick` (默认) | Python 版本、依赖、目录、sources 配置、isolated DB 初始化、关键表、demo 数据、关键页面 |
 | `--full` | 以上全部 + smoke_test + acceptance_demo_data + acceptance_demo_flow |
+| `--full --skip-smoke` | quick 全部 + acceptance_demo_data + acceptance_demo_flow（跳过 smoke_test） |
 
 ### `--quick` 检查项
 
@@ -40,11 +41,15 @@ python scripts/health_check.py --keep-db
 6. **Demo 数据** — Source, SourceItem, InsightCard, BilingualReport, CardDecision
 7. **关键页面** — `/`, `/source-items`, `/source-items/{id}`, `/cards`, `/cards/{id}`, `/cards/{id}/export-report`, `/cards/{id}/export-markdown`
 
+> **注意**：`--quick` 模式不运行 smoke_test，也不运行 acceptance 脚本，速度更快，适合日常开发检查。
+
 ### `--full` 额外检查项
 
 8. **smoke_test** — `python scripts/smoke_test.py`
 9. **acceptance_demo_data** — `python scripts/acceptance_demo_data.py --isolated-db`
 10. **acceptance_demo_flow** — `python scripts/acceptance_demo_flow.py --isolated-db`
+
+> **注意**：`--full` 默认运行 smoke_test，如需跳过可加 `--skip-smoke`。`--full --skip-smoke` 等价于 quick + acceptance_demo_data + acceptance_demo_flow。
 
 ## 隔离说明
 

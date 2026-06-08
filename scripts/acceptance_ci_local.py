@@ -32,11 +32,13 @@ def _build_arg_parser():
     return parser
 
 
-def run_command(cmd: list, description: str, timeout: int = 120) -> tuple[int, str, str]:
+def run_command(cmd: list, description: str, timeout: int = 120, env: dict | None = None) -> tuple[int, str, str]:
     """Run a command and return (returncode, stdout, stderr)."""
     print(f"\n{'='*60}")
     print(f"[RUNNING] {description}")
     print(f"Command: {' '.join(str(c) for c in cmd)}")
+    if env:
+        print(f"Using env: DATABASE_URL={env.get('DATABASE_URL', 'not set')}")
     print("=" * 60)
 
     proc = subprocess.run(
@@ -47,6 +49,7 @@ def run_command(cmd: list, description: str, timeout: int = 120) -> tuple[int, s
         errors="replace",
         cwd=str(PROJECT_ROOT),
         timeout=timeout,
+        env=env,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -121,6 +124,7 @@ def main():
             step["cmd"],
             step["name"],
             timeout=step.get("timeout", 120),
+            env=env,
         )
 
         combined = stdout + stderr

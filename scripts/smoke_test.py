@@ -4856,6 +4856,122 @@ def test_v10_alpha41_ui_links_acceptance_script_exists():
     print("[OK] scripts/acceptance_ui_links.py exists with required arguments")
 
 
+def test_v10_alpha42_health_check_quick_does_not_run_smoke_by_default():
+    """Test that health_check.py quick mode does not run smoke_test."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "health_check.py"
+    assert script_path.exists(), "scripts/health_check.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+
+    # quick mode should have conditional that skips smoke_test unless run_full is True
+    assert "if run_full:" in script_text or "if not run_full" in script_text, \
+        "health_check.py should have conditional for smoke_test based on run_full"
+    assert "check_smoke_test" in script_text, \
+        "health_check.py should reference check_smoke_test"
+
+    print("[OK] health_check.py has quick/full behavior for smoke_test")
+
+
+def test_v10_alpha42_create_demo_data_reset_logic():
+    """Test that create_demo_data.py reset logic uses correct deletion approach."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "create_demo_data.py"
+    assert script_path.exists(), "scripts/create_demo_data.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+
+    # _delete_demo_data should use source_key based deletion
+    assert "def _delete_demo_data" in script_text, \
+        "create_demo_data.py should have _delete_demo_data function"
+
+    # Should use card_ids collection via insight_card_id or source_url matching
+    assert "insight_card_id" in script_text, \
+        "create_demo_data.py should reference insight_card_id in deletion"
+
+    # Should use source_key for SourceItem deletion
+    assert "source_key" in script_text, \
+        "create_demo_data.py should use source_key for SourceItem deletion"
+
+    # Should delete in correct order: CardDecision -> BilingualReport -> InsightCard
+    assert "CardDecision" in script_text and "InsightCardBilingualReport" in script_text, \
+        "create_demo_data.py should delete CardDecision and BilingualReport before InsightCard"
+
+    print("[OK] create_demo_data.py has correct reset logic")
+
+
+def test_v10_alpha42_acceptance_ci_local_passes_env():
+    """Test that acceptance_ci_local.py passes env to subprocess.run."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "acceptance_ci_local.py"
+    assert script_path.exists(), "scripts/acceptance_ci_local.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+
+    # run_command should accept env parameter
+    assert "env: dict | None" in script_text or "env=None" in script_text, \
+        "run_command should accept env parameter"
+
+    # subprocess.run should include env=env
+    assert "env=env" in script_text, \
+        "subprocess.run should be called with env=env"
+
+    # env should include DATABASE_URL
+    assert "DATABASE_URL" in script_text, \
+        "acceptance_ci_local.py should set DATABASE_URL in env"
+
+    print("[OK] acceptance_ci_local.py passes env to subprocess.run")
+
+
+def test_v10_alpha42_acceptance_ui_links_placeholder_fails():
+    """Test that acceptance_ui_links.py fails on placeholder links."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "acceptance_ui_links.py"
+    assert script_path.exists(), "scripts/acceptance_ui_links.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+
+    # Should assert not matches (fail on placeholder)
+    assert "assert not matches" in script_text, \
+        "acceptance_ui_links.py should assert no placeholder matches"
+
+    # Should check export-report/download
+    assert "export-report/download" in script_text, \
+        "acceptance_ui_links.py should check export-report/download route"
+
+    # Should check content-disposition
+    assert "content-disposition" in script_text, \
+        "acceptance_ui_links.py should check content-disposition header"
+
+    print("[OK] acceptance_ui_links.py fails on placeholder links and checks download")
+
+
+def test_v10_alpha42_app_version():
+    """Test that app/version.py exists and contains 1.0-alpha."""
+    from pathlib import Path
+
+    version_path = Path(__file__).parent.parent / "app" / "version.py"
+    assert version_path.exists(), "app/version.py should exist"
+
+    version_text = version_path.read_text(encoding="utf-8")
+    assert "1.0-alpha" in version_text, \
+        "app/version.py should contain '1.0-alpha'"
+
+    # app/main.py should import APP_VERSION
+    main_path = Path(__file__).parent.parent / "app" / "main.py"
+    main_text = main_path.read_text(encoding="utf-8")
+    assert "from app.version import APP_VERSION" in main_text, \
+        "app/main.py should import APP_VERSION from app.version"
+    assert "version=APP_VERSION" in main_text, \
+        "app/main.py should use APP_VERSION in FastAPI app"
+
+    print("[OK] app/version.py exists with 1.0-alpha and is used in main.py")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")

@@ -533,10 +533,14 @@ def main():
             # 7. Pages
             check_pages(result, source_item_id, card_id)
 
-        # 8. smoke_test
-        check_smoke_test(result, skip_smoke=skip_smoke)
+        # 8. smoke_test (only in --full mode)
+        if run_full:
+            check_smoke_test(result, skip_smoke=skip_smoke)
+        else:
+            result.section_header("Smoke Test")
+            result.ok("skipped in quick mode")
 
-        # 9. acceptance
+        # 9. acceptance (only in --full mode)
         check_acceptance(result, run_full=run_full)
 
     finally:

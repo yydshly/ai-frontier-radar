@@ -53,6 +53,8 @@ python scripts/health_check.py
 python scripts/acceptance_ci_local.py
 ```
 
+> **注意**：V1.0-alpha.4.2 起，`acceptance_ci_local.py` 会向子进程传递 `DATABASE_URL=sqlite:///data/ci.db`，确保子进程使用独立的 CI 数据库，不污染真实数据。
+
 ## 常见失败
 
 | 失败项 | 原因 | 修复方式 |

@@ -18,6 +18,7 @@ from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_de
 from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
 from app.exports.markdown_report import build_full_report_markdown
+from app.version import APP_VERSION
 
 # Setup
 setup_logging()
@@ -27,7 +28,7 @@ logger = get_logger(__name__)
 init_db()
 
 # FastAPI app
-app = FastAPI(title="AI Frontier Radar", version="0.1.0")
+app = FastAPI(title="AI Frontier Radar", version=APP_VERSION)
 
 # Base directory for templates and static
 BASE_DIR = Path(__file__).resolve().parent

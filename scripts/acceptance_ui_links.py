@@ -96,8 +96,7 @@ def _run_acceptance(args):
         # Match /cards/{some_id}/export-report but not a real id
         placeholder_pattern = re.compile(r"/cards/\{[^}]+\}/export-report")
         matches = placeholder_pattern.findall(text)
-        if matches:
-            print(f"[WARN] Found potential placeholder links: {matches}")
+        assert not matches, f"Found placeholder links on index: {matches}"
         print("[OK] No /cards/{{id}}/export-report placeholder found")
 
         # Check key elements exist
@@ -109,6 +108,15 @@ def _run_acceptance(args):
         for check_text, description in checks_index:
             if check_text in text:
                 print(f"[OK] Found on index: {description}")
+
+        # Check real export links exist on homepage (not placeholders)
+        assert f"/cards/{demo_card_id}/export-report" in text, \
+            f"Missing real /cards/{demo_card_id}/export-report link on index"
+        print(f"[OK] Real /cards/{demo_card_id}/export-report link exists on index")
+
+        assert f"/cards/{demo_card_id}/export-markdown" in text, \
+            f"Missing real /cards/{demo_card_id}/export-markdown link on index"
+        print(f"[OK] Real /cards/{demo_card_id}/export-markdown link exists on index")
 
         # Step 2: GET /source-items/{id}
         print(f"\n--- Step 2: GET /source-items/{demo_source_item_id} ---")
@@ -163,6 +171,16 @@ def _run_acceptance(args):
             assert check_text in text, \
                 f"Missing on /cards/{demo_card_id}/export-markdown: {description} ('{check_text}')"
             print(f"[OK] Found on /cards/{demo_card_id}/export-markdown: {description}")
+
+        # Step 6: GET /cards/{id}/export-report/download
+        print(f"\n--- Step 6: GET /cards/{demo_card_id}/export-report/download ---")
+        download_response = client.get(f"/cards/{demo_card_id}/export-report/download")
+        assert download_response.status_code == 200, \
+            f"GET /cards/{demo_card_id}/export-report/download failed: {download_response.status_code}"
+        content_disposition = download_response.headers.get("content-disposition", "")
+        assert f"insightcard-{demo_card_id}-report.md" in content_disposition, \
+            f"Content-Disposition missing 'insightcard-{demo_card_id}-report.md', got: {content_disposition}"
+        print(f"[OK] Full report download returns 200 with correct filename in Content-Disposition")
 
         print("\n" + "=" * 60)
         print("[PASS] ACCEPTANCE PASSED")

@@ -111,12 +111,17 @@ python scripts/acceptance_export_full_report.py --isolated-db --without-bilingua
 ### 本地健康检查
 
 ```bash
-# 快速检查环境、配置、DB、demo 数据和关键页面
+# 快速检查环境、配置、DB、demo 数据和关键页面（不跑 smoke_test）
 python scripts/health_check.py
 
 # 完整本地检查，额外运行 smoke_test 和 demo acceptance
 python scripts/health_check.py --full
+
+# 跳过 smoke_test，只跑 demo acceptance
+python scripts/health_check.py --full --skip-smoke
 ```
+
+> V1.0-alpha.4.2 修复了 `health_check.py` quick/full 行为：quick 模式不跑 smoke_test，更快；`--full --skip-smoke` 等价于 quick + acceptance。
 
 `health_check.py` 不访问真实网络，不调用真实 LLM，适合作为本地轻量 CI。
 详细说明见 [docs/HEALTH_CHECK.md](docs/HEALTH_CHECK.md)。
