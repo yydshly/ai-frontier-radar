@@ -68,11 +68,11 @@
         <!-- ── V1.0-alpha.1 演示数据入口 ────────────────────── -->
         {% if demo_card %}
         <section class="next-actions-section" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800; padding: 0.75rem 1.25rem;">
-            <span style="font-size:0.85rem; color:#666;">🎬 演示数据（无需联网）：</span>
-            <a href="/source-items/{{ demo_source_item.id }}">资料</a> ·
-            <a href="/cards/{{ demo_card.id }}">InsightCard</a> ·
-            <a href="/cards/{{ demo_card.id }}/export-report">完整报告</a> ·
-            <a href="/cards/{{ demo_card.id }}/export-markdown">行动任务</a>
+            <span style="font-size:0.85rem; color:#666;">🎬 演示数据入口（无需联网、无需 LLM）：</span>
+            <a href="/source-items/{{ demo_source_item.id }}">查看演示资料</a> ·
+            <a href="/cards/{{ demo_card.id }}">查看演示 InsightCard</a> ·
+            <a href="/cards/{{ demo_card.id }}/export-report">导出演示完整报告</a> ·
+            <a href="/cards/{{ demo_card.id }}/export-markdown">导出演示行动任务</a>
         </section>
         {% endif %}
 
@@ -82,9 +82,9 @@
             <span style="font-size:0.85rem; color:#444;">
                 <a href="/source-items">查看资料</a> →
                 <a href="/source-items">编译</a> →
-                <a href="/cards">双语理解</a> →
+                <a href="/cards">中英双语核心理解</a> →
                 <a href="/cards?decision=to_action">转行动</a> →
-                <a href="/cards">导出报告</a>
+                <a href="/cards">导出完整 Markdown 报告</a>
             </span>
         </section>
 
