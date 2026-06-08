@@ -4819,6 +4819,43 @@ def test_v10_alpha4_ci_docs_exist():
     print("[OK] docs/CI.md and README CI section exist")
 
 
+def test_v10_alpha41_ui_acceptance_doc_exists():
+    """Test that docs/V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md exists with required content."""
+    from pathlib import Path
+
+    doc_path = Path(__file__).parent.parent / "docs" / "V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md"
+    assert doc_path.exists(), "docs/V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md should exist"
+
+    doc_text = doc_path.read_text(encoding="utf-8")
+
+    required_content = [
+        "CI 与页面效果真实验收",
+        "本地页面验收",
+        "完整 Markdown 报告预览",
+    ]
+    for content in required_content:
+        assert content in doc_text, \
+            f"V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md should contain: {content}"
+
+    print("[OK] docs/V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md exists with required content")
+
+
+def test_v10_alpha41_ui_links_acceptance_script_exists():
+    """Test that scripts/acceptance_ui_links.py exists and supports required arguments."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "acceptance_ui_links.py"
+    assert script_path.exists(), "scripts/acceptance_ui_links.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+
+    for arg in ["--isolated-db", "--keep-db"]:
+        assert arg in script_text, \
+            f"acceptance_ui_links.py should support {arg}"
+
+    print("[OK] scripts/acceptance_ui_links.py exists with required arguments")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4971,6 +5008,10 @@ if __name__ == "__main__":
     # V1.0-alpha.4 CI
     test_v10_alpha4_ci_workflow_exists()
     test_v10_alpha4_ci_docs_exist()
+
+    # V1.0-alpha.4.1 CI and UI acceptance
+    test_v10_alpha41_ui_acceptance_doc_exists()
+    test_v10_alpha41_ui_links_acceptance_script_exists()
 
     print("=" * 50)
     print("Smoke test completed!")

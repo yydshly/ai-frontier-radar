@@ -136,6 +136,18 @@ CI 检查项：
 CI 不访问真实网络，不调用真实 LLM，不需要 MINIMAX_API_KEY。
 详细说明见 [docs/CI.md](docs/CI.md)。
 
+### 手动验收效果
+
+创建 demo 数据并启动服务后，建议手动打开以下页面确认效果：
+
+- `/` — 首页工作台，演示数据入口
+- `/source-items/{id}` — 演示资料详情
+- `/cards/{id}` — 演示 InsightCard 详情
+- `/cards/{id}/export-report` — 完整 Markdown 报告预览
+- `/cards/{id}/export-markdown` — Markdown 行动任务预览
+
+详细清单见 [docs/V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md](docs/V1.0_ALPHA_4_1_CI_AND_UI_ACCEPTANCE.md)。
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |
