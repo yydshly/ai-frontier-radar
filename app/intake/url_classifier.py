@@ -105,19 +105,30 @@ def classify_url_by_pattern(url: str) -> IntakeDecision:
         )
 
     # ── 6. Specific known listing domains ───────────────────────────
-    # DeepMind /blog/ is a listing page (but /blog/slug is an article)
+    # DeepMind /blog/, /discover/blog/, /discover/research/ are listing pages
+    # (but /blog/slug, /discover/blog/slug are articles)
     _domain = parsed.netloc.lower()
-    if _domain in ("deepmind.google.dev", "deepmind.google.com") and path.startswith("/blog"):
-        if path == "/blog" or path == "/blog/":
+    _deepmind_listing_paths = (
+        "/blog",
+        "/discover/blog",
+        "/discover/research",
+        "/research",
+    )
+    if _domain in ("deepmind.google.dev", "deepmind.google.com", "deepmind.google") and (
+        path.startswith("/blog") or path.startswith("/discover/") or path.startswith("/research")
+    ):
+        # Exact listing paths
+        if path in _deepmind_listing_paths or path in (p + "/" for p in _deepmind_listing_paths):
             return IntakeDecision(
                 url=url,
                 page_type=PageType.LISTING,
                 strategy=RecommendedStrategy.DISCOVERY_ONLY,
                 can_compile_directly=False,
                 confidence=0.90,
-                reason="DeepMind /blog is a listing page — discover articles from it.",
+                reason="DeepMind listing page — discover articles from it, not compile directly.",
             )
-        if re.search(r"/blog/page/\d+", path):
+        # Pagination: /blog/page/N, /discover/blog/page/N, etc.
+        if re.search(r"/(blog|discover/blog|discover/research|research)/page/\d+", path):
             return IntakeDecision(
                 url=url,
                 page_type=PageType.PAGINATION,
@@ -126,6 +137,11 @@ def classify_url_by_pattern(url: str) -> IntakeDecision:
                 confidence=0.95,
                 reason="DeepMind pagination page — use to discover articles, not compile directly.",
             )
+        # Specific article: /discover/blog/sima-2-agent, /blog/some-article
+        # Already handled by slug heuristic below; allow compile for known article patterns
+        if re.search(r"/(blog|discover/blog|discover/research|research)/[a-z]", path):
+            # It's a deeper path — likely an article (not /blog/page/N or /discover/blog/)
+            pass  # fall through to slug heuristic below
 
     # ── 7. Slug-like URL (probable article) ─────────────────────────
     # Heuristic: path has multiple segments or looks like a content slug

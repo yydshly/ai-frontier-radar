@@ -213,6 +213,29 @@ input[type="url"]:focus {
     color: white;
 }
 
+/* V1.0-alpha.8.6: status for blocked (intake-blocked) cards */
+.status-blocked {
+    background: #e67e22;
+    color: white;
+}
+
+/* V1.0-alpha.8.6: row highlighting for blocked/failed cards in /cards list */
+tr.row-blocked {
+    background: #fef9f3;
+}
+
+tr.row-blocked:hover {
+    background: #fdebd0;
+}
+
+tr.row-failed {
+    background: #fef5f5;
+}
+
+tr.row-failed:hover {
+    background: #fde8e8;
+}
+
 /* Card detail styles */
 .error-banner {
     background: #f8d7da;

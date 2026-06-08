@@ -22,6 +22,67 @@ from app.exports.markdown_task import build_action_markdown
 from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
 
+
+# ── Shared card display helper (V1.0-alpha.8.6) ─────────────────────────────
+def _build_card_display_data(card: InsightCard, decision_row: CardDecision | None = None) -> dict:
+    """Build display-friendly fields for an InsightCard.
+
+    Handles blocked/failed cards with friendly title fallback, status display,
+    and relevance score display. Used by both index and /cards list.
+    """
+    from urllib.parse import urlparse
+
+    decision_value = decision_row.decision if decision_row else None
+
+    # Determine if this is an intake-blocked card
+    is_intake_blocked = (
+        card.status == CardStatus.FAILED
+        and card.error_message
+        and "[intake:blocked]" in card.error_message
+    )
+    is_failed = card.status == CardStatus.FAILED
+
+    # Compute display title
+    if card.source_title:
+        display_title = card.source_title
+    elif is_intake_blocked:
+        parsed = urlparse(card.source_url)
+        path = parsed.path if parsed.path else ""
+        host_or_path = (parsed.netloc + path) if parsed.netloc else card.source_url
+        if len(host_or_path) > 60:
+            host_or_path = host_or_path[:57] + "..."
+        display_title = f"已拦截：{host_or_path}"
+    elif is_failed:
+        parsed = urlparse(card.source_url)
+        path = parsed.path if parsed.path else ""
+        host_or_path = (parsed.netloc + path) if parsed.netloc else card.source_url
+        if len(host_or_path) > 60:
+            host_or_path = host_or_path[:57] + "..."
+        display_title = f"处理失败：{host_or_path}"
+    else:
+        display_title = card.source_title or "无标题"
+
+    # Compute status display
+    if is_intake_blocked:
+        status_display = "已拦截"
+    elif is_failed:
+        status_display = "处理失败"
+    else:
+        status_display = card.status.value if card.status else "unknown"
+
+    # Relevance score display: "-" for failed/blocked
+    relevance_score_display = "-" if (is_intake_blocked or is_failed) else card.relevance_score
+
+    return {
+        "display_title": display_title,
+        "status_display": status_display,
+        "is_intake_blocked": is_intake_blocked,
+        "is_failed": is_failed,
+        "relevance_score_display": relevance_score_display,
+        "decision_value": decision_value,
+    }
+
+
 # Setup
 setup_logging()
 logger = get_logger(__name__)
@@ -82,13 +143,21 @@ def index(request: Request):
         # ── InsightCard statistics ──────────────────────────────────────────
         cards_total_count = db.query(InsightCard).count()
 
-        # Unhandled = cards without any CardDecision
-        all_card_ids = [r[0] for r in db.query(InsightCard.id).all()]
-        if all_card_ids:
+        # V1.0-alpha.8.6: unhandled = COMPLETED cards without any CardDecision
+        # (excludes failed / blocked cards from unhandled count)
+        completed_card_ids = [
+            r[0] for r in
+            db.query(InsightCard.id).filter(InsightCard.status == CardStatus.COMPLETED).all()
+        ]
+        if completed_card_ids:
             handled_card_ids = {
-                r[0] for r in db.query(CardDecision.card_id).distinct().all()
+                r[0] for r in
+                db.query(CardDecision.card_id)
+                .filter(CardDecision.card_id.in_(completed_card_ids))
+                .distinct()
+                .all()
             }
-            cards_unhandled_count = len(set(all_card_ids) - handled_card_ids)
+            cards_unhandled_count = len(set(completed_card_ids) - handled_card_ids)
         else:
             cards_unhandled_count = 0
 
@@ -329,7 +398,8 @@ def list_cards(request: Request, decision: str | None = None):
         cards_data = []
         for card in cards:
             decision_row = decision_by_card_id.get(card.id)
-            decision_value = decision_row.decision if decision_row else None
+            display = _build_card_display_data(card, decision_row)
+            decision_value = display["decision_value"]
 
             # Apply filter
             if filter_decision == "unhandled" and decision_value is not None:
@@ -340,14 +410,16 @@ def list_cards(request: Request, decision: str | None = None):
 
             cards_data.append({
                 "id": card.id,
-                "source_title": card.source_title,
+                "source_title": display["display_title"],
                 "source_url": card.source_url,
-                "status": card.status.value if card.status else "unknown",
+                "status": display["status_display"],
                 "status_value": card.status.value if card.status else "unknown",
-                "relevance_score": card.relevance_score,
+                "relevance_score": display["relevance_score_display"],
                 "created_at": card.created_at,
                 "decision_value": decision_value,
                 "decision_label": get_decision_label(decision_value),
+                "is_intake_blocked": display["is_intake_blocked"],
+                "is_failed": display["is_failed"],
             })
 
         # Determine filter label for template display
@@ -606,6 +678,15 @@ def delete_failed_card(card_id: int):
         if card.status != CardStatus.FAILED:
             logger.warning(f"Attempted to delete non-failed card {card_id} (status={card.status})")
             return RedirectResponse(url=f"/cards/{card_id}", status_code=303)
+
+        # V1.0-alpha.8.6: clear SourceItem references before deleting card
+        # to avoid dangling insight_card_id foreign keys
+        db.query(SourceItem).filter(SourceItem.insight_card_id == card_id).update({
+            "insight_card_id": None,
+            "status": "failed",
+            "error_message": "关联的失败记录已删除，可重新处理或忽略",
+            "updated_at": datetime.utcnow(),
+        })
 
         # Delete in correct order to handle foreign key constraints
         # 1. CardDecision

@@ -62,21 +62,21 @@
                 </thead>
                 <tbody>
                     {% for card in cards %}
-                    <tr>
+                    <tr class="{% if card.is_intake_blocked %}row-blocked{% elif card.is_failed %}row-failed{% endif %}">
                         <td>{{ card.id }}</td>
-                        <td class="title-cell">{{ card.source_title or '(无标题)' }}</td>
+                        <td class="title-cell">{{ card.source_title }}</td>
                         <td class="url-cell">
                             <a href="{{ card.source_url }}" target="_blank" rel="noopener">
                                 {{ card.source_url[:50] }}{% if card.source_url|length > 50 %}...{% endif %}
                             </a>
                         </td>
                         <td>
-                            <span class="status status-{{ card.status_value }}">{{ card.status_value }}</span>
+                            <span class="status status-{{ card.status_value }}">{{ card.status }}</span>
                         </td>
                         <td>
                             <span class="decision-badge decision-{{ card.decision_value or 'none' }}">{{ card.decision_label }}</span>
                         </td>
-                        <td>{{ card.relevance_score if card.relevance_score else 0 }}</td>
+                        <td>{{ card.relevance_score }}</td>
                         <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</td>
                         <td>
                             <a href="/cards/{{ card.id }}" class="btn-detail">查看详情</a>

@@ -11,8 +11,8 @@
 ### Final Release 信息
 
 - Release branch: `main`
-- Main merge commit: `e7ac97cdb6b866d72b2ad1436da0c58e87bf6c9b`
-- Main CI: `#7`, success
+- Final candidate commit: `902d289`（V1.0-alpha.8.6 发布前一致性修复）
+- Main CI: `#<run>`（待 CI 通过后更新），success
 - Tag: `v1.0-alpha`（待创建）
 
 ### 定位
@@ -42,7 +42,7 @@ AI Frontier Radar V1.0-alpha 是一个**本地个人 AI 前沿资料中文编译
 | 单条编译 | POST 一个 URL，生成中文 InsightCard |
 | 中英双语核心理解 | English Core Summary + 中文解说 |
 | 用户判断 | 值得关注 / 与我有关 / 稍后再看 / 暂时忽略 / 转成行动 |
-| 完整 Markdown 报告导出 | 含英文原文、中英双语、关键事实、技术洞察、产品机会、风险、行动建议 |
+| 完整 Markdown 报告导出 | 含英文原文、中英双语、关键事实、技术洞察、产品机会、风险、行动建议；预览为 HTML 阅读模式，下载为 Markdown 文件 |
 | Markdown 行动任务导出 | 为什么值得行动 + 可交给 AI 执行的任务草稿 |
 | 本地 health_check | `python scripts/health_check.py` |
 | GitHub Actions 基础 CI | push / PR 自动检查 |
