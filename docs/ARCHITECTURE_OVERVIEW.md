@@ -55,8 +55,10 @@ Markdown Action Task（行动任务导出）
 - **InsightCard**（数据库模型）：中文洞察卡，包含摘要、关键事实、技术洞察、产品机会、风险、行动建议、相关性评分
 - **InsightCardBilingualReport**（数据库模型）：中英双语报告，包含英文核心摘要、原文主张、证据点、术语对照、中文解说、保真提示、解读边界
 - **compile_url**（`app/services/insight_compiler.py`）：完整编译管线，fetch → extract → clean → dedup → LLM → save
-- **InsightCard 质量检查**（`app/sources/quality.py`）：规则检查，非 LLM，验证字段非空、语言正确性
-- **BilingualReport 质量检查**（`app/sources/quality.py`）：英文字段用英文、中文字段用中文
+- **SourceItem URL 质量分类**（`app/sources/quality.py`）：
+  - `classify_source_item_url()`、`is_expected_content_url()`、`is_suspected_listing_url()`
+- **InsightCard / BilingualReport 质量检查**（`app/services/insight_quality.py`）：
+  - `inspect_insight_card_quality()`、`inspect_bilingual_report_quality()`
 
 理解层是整个系统的核心价值：把英文原文变成结构化中文理解材料。
 

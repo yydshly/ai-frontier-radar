@@ -382,7 +382,6 @@ def generate_bilingual_report(card_id: int):
     """
     from app.services.bilingual_report import (
         build_bilingual_report_prompt,
-        parse_bilingual_report_response,
         upsert_bilingual_report,
         build_mock_bilingual_report,
     )
@@ -419,9 +418,16 @@ def generate_bilingual_report(card_id: int):
         else:
             # Call LLM for real report
             try:
-                from app.llm.caller import call_llm
-                raw_response = call_llm(prompt)
-                report_data = parse_bilingual_report_response(raw_response)
+                from app.llm.factory import create_llm_client
+
+                client = create_llm_client()
+                llm_result = client.generate_json(
+                    system_prompt="You are a helpful assistant that outputs JSON.",
+                    user_prompt=prompt,
+                )
+                # generate_json returns a dict directly; parse_bilingual_report_response
+                # is for raw string responses from call_llm, not needed here.
+                report_data = llm_result
             except Exception as e:
                 logger.error(f"LLM call failed for bilingual report: {e}")
                 # Store error info rather than failing
@@ -661,6 +667,8 @@ def list_source_items_page(
             })
 
         # Fixed status options
+        # Current active states: discovered / compiled / failed.
+        # Reserved for future pipeline stages: fetched / skipped_duplicate.
         status_options = [
             "discovered",
             "fetched",

@@ -48,7 +48,16 @@ uvicorn app.main:app --reload --port 8779
 - `canonical_url`：规范化后的 URL（去除 fragment 和追踪参数）
 - `title`、`author`、`published_at`：文章元数据
 - `content_hash`：正文内容的 SHA256（用于去重）
-- `status`：处理状态（discovered / compiled / failed）
+- `status`：处理状态
+
+  当前实际使用状态：
+  - `discovered`：已发现，待编译
+  - `compiled`：已编译，并关联 InsightCard
+  - `failed`：编译或处理失败
+
+  预留状态（未来更细粒度管线可能使用）：
+  - `fetched`：未来抓取正文阶段
+  - `skipped_duplicate`：未来更细粒度去重流程
 - `error_message`：失败原因
 - `insight_card_id`：关联的 InsightCard（编译完成后回写）
 

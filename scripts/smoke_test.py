@@ -4166,6 +4166,81 @@ def test_v083_project_docs_exist():
     print("     README.md: contains '项目理解与维护文档'")
 
 
+def test_v084_bilingual_report_route_uses_llm_factory():
+    """Test that /cards/{card_id}/bilingual-report uses create_llm_client, not app.llm.caller."""
+    from pathlib import Path
+
+    main_path = Path(__file__).parent.parent / "app" / "main.py"
+    assert main_path.exists(), "app/main.py not found"
+
+    main_text = main_path.read_text(encoding="utf-8")
+
+    # Must not reference the non-existent app.llm.caller
+    assert "app.llm.caller" not in main_text, \
+        "app/main.py must not import from app.llm.caller"
+
+    # Must use the factory pattern
+    assert "create_llm_client" in main_text, \
+        "app/main.py must use create_llm_client()"
+
+    # Both routes must exist
+    assert '"/cards/{card_id}/bilingual-report"' in main_text or \
+           "'/cards/{card_id}/bilingual-report'" in main_text, \
+        "app/main.py must define /cards/{card_id}/bilingual-report route"
+
+    assert '"/cards/{card_id}/decision"' in main_text or \
+           "'/cards/{card_id}/decision'" in main_text, \
+        "app/main.py must define /cards/{card_id}/decision route"
+
+    print("[OK] /cards/{card_id}/bilingual-report uses create_llm_client, not app.llm.caller")
+
+
+def test_v084_consistency_fixes():
+    """Test V0.8.4 consistency fixes: db imports, doc paths, no caller residue."""
+    from pathlib import Path
+
+    project_root = Path(__file__).parent.parent
+
+    # 1. app/db.py must import InsightCardBilingualReport explicitly
+    db_path = project_root / "app" / "db.py"
+    db_text = db_path.read_text(encoding="utf-8")
+    assert "InsightCardBilingualReport" in db_text, \
+        "app/db.py must import InsightCardBilingualReport"
+    print("[OK] app/db.py imports InsightCardBilingualReport")
+
+    # 2. ARCHITECTURE_OVERVIEW.md must not attribute InsightCard quality to app/sources/quality.py
+    arch_path = project_root / "docs" / "ARCHITECTURE_OVERVIEW.md"
+    arch_text = arch_path.read_text(encoding="utf-8")
+    assert "app/services/insight_quality.py" in arch_text, \
+        "ARCHITECTURE_OVERVIEW.md must reference app/services/insight_quality.py"
+    assert "SourceItem URL 质量分类" in arch_text, \
+        "ARCHITECTURE_OVERVIEW.md must explain SourceItem URL quality classification"
+    print("[OK] ARCHITECTURE_OVERVIEW.md has correct module paths for quality functions")
+
+    # 3. IMPLEMENTATION_GUIDE.md must document fetched/skipped_duplicate as reserved states
+    impl_path = project_root / "docs" / "IMPLEMENTATION_GUIDE.md"
+    impl_text = impl_path.read_text(encoding="utf-8")
+    assert "fetched" in impl_text and "skipped_duplicate" in impl_text, \
+        "IMPLEMENTATION_GUIDE.md must document fetched/skipped_duplicate as reserved states"
+    assert "预留状态" in impl_text, \
+        "IMPLEMENTATION_GUIDE.md must label fetched/skipped_duplicate as reserved"
+    print("[OK] IMPLEMENTATION_GUIDE.md documents SourceItem reserved states")
+
+    # 4. app/main.py must not contain app.llm.caller
+    main_path = project_root / "app" / "main.py"
+    main_text = main_path.read_text(encoding="utf-8")
+    assert "app.llm.caller" not in main_text, \
+        "app/main.py must not reference app.llm.caller"
+    print("[OK] app/main.py has no app.llm.caller residue")
+
+    # 5. app/main.py should have comment about reserved SourceItem states
+    assert "fetched" in main_text and "skipped_duplicate" in main_text, \
+        "app/main.py should reference reserved SourceItem states in comment"
+    assert "Reserved for future" in main_text or "reserved" in main_text.lower(), \
+        "app/main.py should comment that fetched/skipped_duplicate are reserved"
+    print("[OK] app/main.py has reserved state comment near status_options")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4281,6 +4356,10 @@ if __name__ == "__main__":
     test_v082_language_quality_mock_passes()
     test_v082_chinese_in_english_field_fails()
     test_v082_english_in_chinese_field_fails()
+
+    # V0.8.4 consistency fixes
+    test_v084_bilingual_report_route_uses_llm_factory()
+    test_v084_consistency_fixes()
 
     # V0.8.3 architecture and product docs
     test_v083_project_docs_exist()
