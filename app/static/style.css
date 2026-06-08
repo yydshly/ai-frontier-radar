@@ -1882,3 +1882,227 @@ footer {
     color: #1565c0;
     font-size: 0.85rem;
 }
+
+/* ── Export Report Reading Mode ──────────────────────────── */
+
+.report-page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 2rem;
+    font-family: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.8;
+    color: #333;
+}
+
+.report-page-desc {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+    border-left: 3px solid #ccc;
+}
+
+.report-download-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+}
+
+.report-download-actions .btn-primary,
+.report-download-actions .btn-secondary {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    display: inline-block;
+}
+
+.report-download-actions .btn-primary {
+    background: #1565c0;
+    color: white;
+}
+
+.report-download-actions .btn-secondary {
+    background: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
+.report-header-card {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%);
+    border: 1px solid #b3d4fc;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.report-title {
+    font-size: 1.5rem;
+    color: #1a237e;
+    margin: 0 0 0.5rem;
+    font-weight: 700;
+}
+
+.report-source-title {
+    font-size: 1.15rem;
+    color: #333;
+    margin: 0 0 1.25rem;
+    font-weight: 600;
+}
+
+.report-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem 1.5rem;
+}
+
+.report-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.report-meta-label {
+    font-size: 0.75rem;
+    color: #888;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.report-meta-value {
+    font-size: 0.9rem;
+    color: #333;
+    word-break: break-all;
+}
+
+.report-meta-value a {
+    color: #1565c0;
+    word-break: break-all;
+}
+
+.report-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e8e8e8;
+}
+
+.report-section:last-of-type {
+    border-bottom: none;
+}
+
+.report-section-title {
+    font-size: 1.05rem;
+    color: #1a1a1a;
+    font-weight: 700;
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #1565c0;
+    display: inline-block;
+}
+
+.report-sub-title {
+    font-size: 0.95rem;
+    color: #444;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem;
+}
+
+.report-text {
+    font-size: 0.95rem;
+    color: #333;
+    line-height: 1.9;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.report-english-text {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.95rem;
+    color: #2c3e50;
+    line-height: 1.8;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.report-list {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.report-list li {
+    font-size: 0.95rem;
+    color: #333;
+    margin-bottom: 0.5rem;
+    line-height: 1.7;
+}
+
+.report-list li:last-child {
+    margin-bottom: 0;
+}
+
+.report-list-ordered {
+    list-style-type: decimal;
+}
+
+.report-list-english li {
+    font-family: Georgia, "Times New Roman", serif;
+    color: #2c3e50;
+}
+
+.report-empty-hint {
+    font-size: 0.9rem;
+    color: #888;
+    font-style: italic;
+    margin: 0.25rem 0;
+}
+
+.report-term-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.report-term-table th {
+    background: #f0f4f8;
+    color: #333;
+    font-weight: 600;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+}
+
+.report-term-table td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    vertical-align: top;
+}
+
+.report-term-table td.report-english-text {
+    font-family: Georgia, "Times New Roman", serif;
+    color: #2c3e50;
+}
+
+.report-term-table tbody tr:nth-child(even) {
+    background: #fafafa;
+}
+
+.report-note-section {
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    border-left: 3px solid #ff9800;
+}
+
+.report-note-section .report-section-title {
+    color: #e65100;
+}

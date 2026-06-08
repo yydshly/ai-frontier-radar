@@ -4484,6 +4484,93 @@ def test_v09_cards_list_has_full_report_link():
     print("[OK] cards.html has link to full report export")
 
 
+def test_v10_alpha_85_export_report_reading_mode():
+    """Test that GET /cards/{id}/export-report shows structured HTML reading mode."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.db import SessionLocal
+    from app.models import InsightCard, CardStatus, SourceType
+
+    client = TestClient(app)
+    db = SessionLocal()
+    card_id = None
+    try:
+        # Create a test card with all fields for reading mode
+        card = InsightCard(
+            source_url="https://example.com/v085-smoke",
+            source_type=SourceType.HTML,
+            source_title="V1.0-alpha.8.5 Smoke Test Card",
+            content_hash="v085-smoke-hash",
+            status=CardStatus.COMPLETED,
+            summary_zh="这是中文摘要，用于快速了解资料内容。",
+            key_points_zh='["关键事实一：这是第一个事实", "关键事实二：这是第二个事实"]',
+            technical_insights_zh='["技术洞察一：模型有新能力", "技术洞察二：架构有改进"]',
+            product_opportunities_zh='["产品机会：智能助手", "产品机会：代码生成"]',
+            risks_zh='["风险：隐私问题", "风险：安全风险"]',
+            action_items_zh='["行动：评估新模型", "行动：更新技术栈"]',
+            relevance_score=85,
+            relevance_reasons_zh='["相关原因一：涉及AI模型", "相关原因二：和我的方向一致"]',
+            related_user_directions='["AI模型研发", "产品落地"]',
+            model_name="smoke-test-v085",
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        card_id = card.id
+
+        # GET the preview page
+        response = client.get(f"/cards/{card_id}/export-report")
+        assert response.status_code == 200, \
+            f"Expected 200, got {response.status_code}"
+        text = response.text
+
+        # Check key content sections
+        assert "完整报告预览" in text, \
+            "Page should contain '完整报告预览' heading"
+        assert "English Core Summary" in text, \
+            "Page should contain 'English Core Summary' section"
+        assert "中文摘要" in text, \
+            "Page should contain '中文摘要' section"
+        assert "保真提示" in text, \
+            "Page should contain '保真提示' section"
+        assert "解读边界" in text, \
+            "Page should contain '解读边界' section"
+
+        # Check structured sections
+        assert "关键事实" in text, \
+            "Page should contain '关键事实' section"
+        assert "技术洞察" in text, \
+            "Page should contain '技术洞察' section"
+        assert "产品机会" in text, \
+            "Page should contain '产品机会' section"
+        assert "风险" in text, \
+            "Page should contain '风险' section"
+        assert "行动建议" in text, \
+            "Page should contain '行动建议' section"
+
+        # Check that download button is present
+        assert f"/cards/{card_id}/export-report/download" in text, \
+            "Page should contain download link"
+
+        # Check that the page is NOT just a raw markdown dump (no giant <pre> with markdown)
+        assert "<pre" not in text.lower() or "report-preview" not in text.lower(), \
+            "Page should NOT be showing raw markdown in a <pre> block"
+
+        print(f"[OK] GET /cards/{card_id}/export-report shows structured HTML reading mode")
+
+        # Also verify download route still works
+        dl_response = client.get(f"/cards/{card_id}/export-report/download")
+        assert dl_response.status_code == 200
+        content_disp = dl_response.headers.get("Content-Disposition", "")
+        assert "attachment" in content_disp
+        assert f"insightcard-{card_id}-report.md" in content_disp
+        print(f"[OK] Download route still works: returns .md file")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 # ── V1.0-alpha demo flow guidance ──────────────────────────────────────────────
 
 def test_v10_alpha_demo_flow_guidance():
@@ -5495,6 +5582,9 @@ if __name__ == "__main__":
     test_v09_export_report_download_response()
     test_v09_card_detail_has_full_report_link()
     test_v09_cards_list_has_full_report_link()
+
+    # V1.0-alpha.8.5 full report reading mode
+    test_v10_alpha_85_export_report_reading_mode()
 
     # V1.0-alpha demo flow guidance
     test_v10_alpha_demo_flow_guidance()

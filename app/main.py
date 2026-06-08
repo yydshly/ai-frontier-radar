@@ -707,6 +707,7 @@ def card_export_report_preview(request: Request, card_id: int):
     """Preview the full bilingual markdown report for an InsightCard.
 
     V0.9: renders a full-page preview of the complete bilingual report.
+    V1.0-alpha.8.5: changed to structured HTML reading mode.
     Does not modify the database or call LLM.
     """
     db = next(get_db())
@@ -729,10 +730,104 @@ def card_export_report_preview(request: Request, card_id: int):
 
         markdown_text = build_full_report_markdown(card, decision_row, bilingual_report)
 
+        # ── Build structured view data for HTML preview ───────────────────────
+        import json as _json
+
+        def _safe_json_list(value):
+            if not value:
+                return []
+            try:
+                parsed = _json.loads(value)
+                return parsed if isinstance(parsed, list) else []
+            except (_json.JSONDecodeError, TypeError):
+                return []
+
+        def _safe_json_dict(value):
+            if not value:
+                return {}
+            try:
+                parsed = _json.loads(value)
+                return parsed if isinstance(parsed, dict) else {}
+            except (_json.JSONDecodeError, TypeError):
+                return {}
+
+        # Decision label
+        if decision_row:
+            from app.card_decisions import get_decision_label
+            decision_label = get_decision_label(decision_row.decision)
+            decision_note = decision_row.note or ""
+        else:
+            decision_label = "未处理"
+            decision_note = ""
+
+        # Parse bilingual report
+        if bilingual_report:
+            english_key_claims = _safe_json_list(bilingual_report.english_key_claims_json)
+            english_evidence_points = _safe_json_list(bilingual_report.english_evidence_points_json)
+            key_terms = _safe_json_list(bilingual_report.key_terms_json)
+            fidelity_notes = bilingual_report.fidelity_notes_zh or ""
+            interpretation_boundary = bilingual_report.interpretation_boundary_zh or ""
+        else:
+            english_key_claims = []
+            english_evidence_points = []
+            key_terms = []
+            fidelity_notes = ""
+            interpretation_boundary = ""
+
+        # Parse card JSON fields
+        key_points = _safe_json_list(card.key_points_zh)
+        technical_insights = _safe_json_list(card.technical_insights_zh)
+        product_opportunities = _safe_json_list(card.product_opportunities_zh)
+        risks = _safe_json_list(card.risks_zh)
+        action_items = _safe_json_list(card.action_items_zh)
+        relevance_reasons = _safe_json_list(card.relevance_reasons_zh)
+        related_directions = _safe_json_list(card.related_user_directions)
+
+        # Source fields
+        source_title = card.source_title or "(无标题)"
+        source_url = card.source_url or ""
+        source_type = card.source_type.value if card.source_type else "unknown"
+        source_author = card.source_author or "-"
+        source_published_at = card.source_published_at or "-"
+        relevance_score = card.relevance_score
+        summary_zh = card.summary_zh or "暂无"
+        model_name = card.model_name or "-"
+
+        # Has bilingual report flag
+        has_bilingual_report = bool(bilingual_report and bilingual_report.english_core_summary)
+
         return templates.TemplateResponse("card_export_report.html", {
             "request": request,
             "card": card,
             "markdown_text": markdown_text,
+            # Structured view data
+            "source_title": source_title,
+            "source_url": source_url,
+            "source_type": source_type,
+            "source_author": source_author,
+            "source_published_at": source_published_at,
+            "relevance_score": relevance_score,
+            "model_name": model_name,
+            "summary_zh": summary_zh,
+            "decision_label": decision_label,
+            "decision_note": decision_note,
+            # Lists
+            "key_points": key_points,
+            "technical_insights": technical_insights,
+            "product_opportunities": product_opportunities,
+            "risks": risks,
+            "action_items": action_items,
+            "relevance_reasons": relevance_reasons,
+            "related_directions": related_directions,
+            # Bilingual report
+            "has_bilingual_report": has_bilingual_report,
+            "english_core_summary": bilingual_report.english_core_summary if bilingual_report else "",
+            "english_key_claims": english_key_claims,
+            "english_evidence_points": english_evidence_points,
+            "key_terms": key_terms,
+            "chinese_explanation": bilingual_report.chinese_explanation if bilingual_report else "",
+            "fidelity_notes": fidelity_notes,
+            "interpretation_boundary": interpretation_boundary,
         })
     finally:
         db.close()
