@@ -6142,6 +6142,288 @@ def test_project_docs_renderer_onerror_in_code():
     print("[OK] onerror=alert(1) in fenced code block is preserved as inert text")
 
 
+# ── V1.0-beta Candidate Pool Foundation Tests ──────────────────────────────────
+
+def test_candidate_pool_imports():
+    """Test that CandidatePoolRepository and CandidatePoolService can be imported."""
+    from app.infrastructure.repositories.candidate_pool_repository import CandidatePoolRepository
+    from app.application.candidate_pool.services import CandidatePoolService, CandidateBatchResult
+    from app.domain.value_objects.candidate_status import CandidateStatus
+    from app.domain.value_objects.pagination import Pagination, CandidateFilters
+    print("[OK] CandidatePoolRepository, CandidatePoolService, CandidateBatchResult, CandidateStatus, Pagination, CandidateFilters all import successfully")
+
+
+def test_candidate_pool_pagination_validation():
+    """Test Pagination value object validation."""
+    from app.domain.value_objects.pagination import Pagination
+
+    # Test page < 1 gets corrected to 1
+    p = Pagination(page=0, page_size=20)
+    assert p.page == 1, f"page=0 should correct to 1, got {p.page}"
+
+    p = Pagination(page=-5, page_size=20)
+    assert p.page == 1, f"page=-5 should correct to 1, got {p.page}"
+
+    # Test page_size > 100 gets corrected to 100
+    p = Pagination(page=1, page_size=200)
+    assert p.page_size == 100, f"page_size=200 should correct to 100, got {p.page_size}"
+
+    p = Pagination(page=1, page_size=50)
+    assert p.page_size == 50, f"page_size=50 should stay 50, got {p.page_size}"
+
+    # Test default values
+    p = Pagination()
+    assert p.page == 1, f"default page should be 1, got {p.page}"
+    assert p.page_size == 20, f"default page_size should be 20, got {p.page_size}"
+
+    # Test offset calculation
+    p = Pagination(page=1, page_size=20)
+    assert p.offset == 0, f"page=1 should have offset=0, got {p.offset}"
+
+    p = Pagination(page=2, page_size=20)
+    assert p.offset == 20, f"page=2 with page_size=20 should have offset=20, got {p.offset}"
+
+    p = Pagination(page=3, page_size=50)
+    assert p.offset == 100, f"page=3 with page_size=50 should have offset=100, got {p.offset}"
+
+    print("[OK] Pagination validation works correctly")
+
+
+def test_candidate_pool_page_loads():
+    """Test that GET /candidate-pool returns 200."""
+    response = client.get("/candidate-pool")
+    assert response.status_code == 200, \
+        f"Expected status 200, got {response.status_code}"
+    assert "候选池" in response.text, \
+        "Page should contain '候选池'"
+    assert "candidate-pool" in response.text.lower() or "候选池" in response.text, \
+        "Page should mention candidate pool"
+    print("[OK] GET /candidate-pool returns 200 with candidate pool content")
+
+
+def test_candidate_pool_page_has_required_elements():
+    """Test that candidate pool page contains required UI elements."""
+    response = client.get("/candidate-pool")
+    assert response.status_code == 200
+    text = response.text
+
+    # Should have filter fields
+    assert "source_key" in text or "来源" in text, \
+        "Page should have source_key filter"
+    assert "status" in text or "状态" in text, \
+        "Page should have status filter"
+
+    # Should have batch action buttons
+    assert "批量忽略" in text, \
+        "Page should have '批量忽略' button"
+    assert "标记为待编译" in text or "待编译" in text, \
+        "Page should have '标记为待编译' button"
+
+    # Should have table headers
+    assert "ID" in text, "Page should have ID column"
+    assert "来源" in text, "Page should have source column"
+
+    print("[OK] /candidate-pool page has required UI elements")
+
+
+def test_candidate_pool_batch_ignore():
+    """Test batch-ignore operation for candidate pool."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        # Create test source
+        test_key = f"test_cpool_ignore_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Candidate Pool Ignore",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create items with different statuses
+        discovered_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/disc-{uuid.uuid4().hex[:6]}",
+            title="Discovered Item",
+            status="discovered",
+        )
+        failed_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/fail-{uuid.uuid4().hex[:6]}",
+            title="Failed Item",
+            status="failed",
+        )
+        compiled_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/comp-{uuid.uuid4().hex[:6]}",
+            title="Compiled Item",
+            status="compiled",
+        )
+        db.add_all([discovered_item, failed_item, compiled_item])
+        db.commit()
+        db.refresh(discovered_item)
+        db.refresh(failed_item)
+        db.refresh(compiled_item)
+
+        # Batch ignore discovered and failed items (but NOT compiled)
+        response = client.post(
+            "/candidate-pool/batch-ignore",
+            data={"candidate_ids": f"{discovered_item.id},{failed_item.id},{compiled_item.id}"},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 303), \
+            f"Expected redirect, got {response.status_code}"
+
+        # Verify states changed
+        db.expire_all()
+        disc = db.query(SourceItem).filter(SourceItem.id == discovered_item.id).first()
+        fail = db.query(SourceItem).filter(SourceItem.id == failed_item.id).first()
+        comp = db.query(SourceItem).filter(SourceItem.id == compiled_item.id).first()
+
+        assert disc.status == "ignored", \
+            f"discovered should become ignored, got {disc.status}"
+        assert fail.status == "ignored", \
+            f"failed should become ignored, got {fail.status}"
+        assert comp.status == "compiled", \
+            f"compiled should NOT change, got {comp.status}"
+
+        print("[OK] batch-ignore: discovered/failed -> ignored, compiled unchanged")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_candidate_pool_batch_compile():
+    """Test batch-compile preparation for candidate pool."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        # Create test source
+        test_key = f"test_cpool_compile_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Candidate Pool Compile",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create items with different statuses
+        discovered_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/disc-{uuid.uuid4().hex[:6]}",
+            title="Discovered Item",
+            status="discovered",
+        )
+        failed_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/fail-{uuid.uuid4().hex[:6]}",
+            title="Failed Item",
+            status="failed",
+        )
+        ignored_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/ign-{uuid.uuid4().hex[:6]}",
+            title="Ignored Item",
+            status="ignored",
+        )
+        compiled_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/comp-{uuid.uuid4().hex[:6]}",
+            title="Compiled Item",
+            status="compiled",
+        )
+        db.add_all([discovered_item, failed_item, ignored_item, compiled_item])
+        db.commit()
+        db.refresh(discovered_item)
+        db.refresh(failed_item)
+        db.refresh(ignored_item)
+        db.refresh(compiled_item)
+
+        # Batch prepare compile for discovered and failed items
+        response = client.post(
+            "/candidate-pool/batch-compile",
+            data={"candidate_ids": f"{discovered_item.id},{failed_item.id},{ignored_item.id},{compiled_item.id}"},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 303), \
+            f"Expected redirect, got {response.status_code}"
+
+        # Verify states changed
+        db.expire_all()
+        disc = db.query(SourceItem).filter(SourceItem.id == discovered_item.id).first()
+        fail = db.query(SourceItem).filter(SourceItem.id == failed_item.id).first()
+        ign = db.query(SourceItem).filter(SourceItem.id == ignored_item.id).first()
+        comp = db.query(SourceItem).filter(SourceItem.id == compiled_item.id).first()
+
+        assert disc.status == "compiling", \
+            f"discovered should become compiling, got {disc.status}"
+        assert fail.status == "compiling", \
+            f"failed should become compiling, got {fail.status}"
+        assert ign.status == "ignored", \
+            f"ignored should NOT change, got {ign.status}"
+        assert comp.status == "compiled", \
+            f"compiled should NOT change, got {comp.status}"
+
+        print("[OK] batch-compile: discovered/failed -> compiling, ignored/compiled unchanged")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_candidate_pool_does_not_break_existing_routes():
+    """Test that candidate pool changes don't break existing routes."""
+    # Health should still work
+    response = client.get("/health")
+    assert response.status_code == 200, "Health endpoint should still work"
+
+    # Index should still work
+    response = client.get("/")
+    assert response.status_code == 200, "Index should still work"
+
+    # Cards should still work
+    response = client.get("/cards")
+    assert response.status_code == 200, "Cards page should still work"
+
+    # Source items should still work
+    response = client.get("/source-items")
+    assert response.status_code == 200, "Source items page should still work"
+
+    print("[OK] Existing routes still work after candidate pool addition")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -6355,6 +6637,15 @@ if __name__ == "__main__":
     test_project_docs_renderer_href_bypass()
     test_project_docs_renderer_inline_in_paragraph()
     test_project_docs_renderer_onerror_in_code()
+
+    # V1.0-beta candidate pool foundation
+    test_candidate_pool_imports()
+    test_candidate_pool_pagination_validation()
+    test_candidate_pool_page_loads()
+    test_candidate_pool_page_has_required_elements()
+    test_candidate_pool_batch_ignore()
+    test_candidate_pool_batch_compile()
+    test_candidate_pool_does_not_break_existing_routes()
 
     print("=" * 50)
     print("Smoke test completed!")
