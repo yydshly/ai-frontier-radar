@@ -16,6 +16,7 @@ from app.schemas import HealthResponse
 from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
 from app.intake import classify_url_by_pattern
+from app.application.source_items.compile_service import SourceItemCompileService
 from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_decision_label
 from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
@@ -142,6 +143,19 @@ def index(request: Request):
             db.query(SourceItem).filter(SourceItem.status == "failed").count()
         )
 
+        # ── Candidate Pool statistics (V1.0-beta.2) ─────────────────────────
+        # Candidate pool uses the same SourceItem model with various statuses
+        candidate_pool_total_count = db.query(SourceItem).count()
+        candidate_pool_discovered_count = (
+            db.query(SourceItem).filter(SourceItem.status == "discovered").count()
+        )
+        candidate_pool_compiling_count = (
+            db.query(SourceItem).filter(SourceItem.status == "compiling").count()
+        )
+        candidate_pool_failed_count = (
+            db.query(SourceItem).filter(SourceItem.status == "failed").count()
+        )
+
         # ── InsightCard statistics ──────────────────────────────────────────
         cards_total_count = db.query(InsightCard).count()
 
@@ -265,6 +279,11 @@ def index(request: Request):
             "cards_read_later": cards_read_later_count,
             "cards_ignore": cards_ignore_count,
             "cards_to_action": cards_to_action_count,
+            # V1.0-beta.2: Candidate Pool statistics
+            "candidate_pool_total": candidate_pool_total_count,
+            "candidate_pool_discovered": candidate_pool_discovered_count,
+            "candidate_pool_compiling": candidate_pool_compiling_count,
+            "candidate_pool_failed": candidate_pool_failed_count,
         }
 
         return templates.TemplateResponse("index.html", {
@@ -1088,59 +1107,10 @@ def compile_source_item(item_id: int):
     Idempotent: if the item is already compiled with a valid insight_card_id,
     redirects back without re-calling compile_url.
     """
-    from datetime import datetime
-
     db = next(get_db())
     try:
-        item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
-        if not item:
-            return RedirectResponse(url="/source-items", status_code=303)
-
-        # Case A: already compiled — skip re-compilation (idempotent)
-        if item.status == "compiled" and item.insight_card_id is not None:
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        # Case D: empty URL guard
-        if not item.url:
-            item.status = "failed"
-            item.error_message = "SourceItem url is empty"
-            item.updated_at = datetime.utcnow()
-            db.commit()
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        # ── Intake classification gate ──────────────────────────────
-        decision = classify_url_by_pattern(item.url)
-        logger.info(f"SourceItem {item_id} compile: {decision.page_type.value} | "
-                    f"compile={decision.can_compile_directly} | {decision.reason}")
-
-        if not decision.can_compile_directly:
-            item.status = "failed"
-            item.error_message = f"[intake:blocked] {decision.reason}"
-            item.updated_at = datetime.utcnow()
-            db.commit()
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        try:
-            card = compile_url(db, item.url)
-        except Exception as e:
-            item.status = "failed"
-            item.error_message = f"Unexpected compile error: {e}"
-            item.updated_at = datetime.utcnow()
-            db.commit()
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        # Link card regardless of success/failure
-        item.insight_card_id = card.id
-        item.updated_at = datetime.utcnow()
-
-        if card.status.value == "completed":
-            item.status = "compiled"
-            item.error_message = None  # Clear old error on success
-        else:
-            item.status = "failed"
-            item.error_message = card.error_message or "InsightCard compilation failed"
-
-        db.commit()
+        service = SourceItemCompileService(db)
+        result = service.compile_item(item_id)
         return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
     finally:
         db.close()
