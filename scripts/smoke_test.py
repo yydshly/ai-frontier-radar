@@ -5082,6 +5082,34 @@ def test_v10_alpha5_real_acceptance_doc_corrected():
     print("[OK] V1.0-alpha.4.3 acceptance doc corrected")
 
 
+def test_v10_alpha_82_url_classifier():
+    """V1.0-alpha.8.2: URL classifier correctly routes listing pages away from compilation."""
+    from app.intake import classify_url_by_pattern
+
+    cases = [
+        # (url, expected_can_compile)
+        ("https://deepmind.google/blog/page/3/", False),   # pagination
+        ("https://deepmind.google/blog/", False),           # listing
+        ("https://deepmind.google/blog?tag=agents", False), # tag
+        ("https://example.com/feed.xml", False),            # feed
+        ("https://example.com/report.pdf", True),          # pdf
+        ("https://deepmind.google/discover/blog/sima-2-agent/", True),  # article slug
+        ("https://openai.com/news/chatgpt-update/", True),  # article
+        ("https://example.com/blog?page=2", False),        # pagination in query
+        ("https://example.com/category/ai", False),         # tag_or_category
+    ]
+
+    for url, expected_compile in cases:
+        d = classify_url_by_pattern(url)
+        assert d.can_compile_directly == expected_compile, (
+            f"URL {url}: expected can_compile_directly={expected_compile}, "
+            f"got {d.can_compile_directly} (type={d.page_type.value})"
+        )
+        print(f"[OK] {d.page_type.value:20s} compile={str(d.can_compile_directly):5s} | {url}")
+
+    print("[OK] V1.0-alpha.8.2 URL classifier routing")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -5253,6 +5281,9 @@ if __name__ == "__main__":
     test_v10_alpha5_release_docs_exist()
     test_v10_alpha5_release_candidate_script_exists()
     test_v10_alpha5_real_acceptance_doc_corrected()
+
+    # V1.0-alpha.8.2 URL classifier
+    test_v10_alpha_82_url_classifier()
 
     print("=" * 50)
     print("Smoke test completed!")

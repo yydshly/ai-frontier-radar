@@ -1,6 +1,7 @@
 """FastAPI main application."""
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form
@@ -14,6 +15,7 @@ from app.models import InsightCard, CardStatus, Source, SourceItem, CardDecision
 from app.schemas import HealthResponse
 from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
+from app.intake import classify_url_by_pattern
 from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_decision_label
 from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
@@ -208,11 +210,10 @@ def compile_source(url: str = Form(...)):
 
     Flow:
     1. Validate URL
-    2. Fetch, extract, clean content
-    3. Check for duplicates
-    4. Call LLM to generate InsightCard
-    5. Save to database
-    6. Redirect to detail page (always, including failed cards)
+    2. Classify URL type via intake classifier
+    3a. If blocked by strategy: create failed card with reason, redirect to it
+    3b. If allowed: proceed with compile_url pipeline
+    4. Redirect to card detail page (always, including failed cards)
     """
     logger.info(f"Received compile request for URL: {url}")
 
@@ -220,9 +221,32 @@ def compile_source(url: str = Form(...)):
     if not url.startswith(("http://", "https://")):
         return RedirectResponse(url="/", status_code=303)
 
+    # ── Intake classification gate ─────────────────────────────────
+    decision = classify_url_by_pattern(url)
+    logger.info(f"Intake classification: {decision.page_type.value} | "
+                f"strategy={decision.strategy.value} | compile={decision.can_compile_directly}")
+
     db = next(get_db())
     try:
-        # compile_url now always returns a card (never raises)
+        # ── Blocked by strategy: create failed card without calling LLM ──
+        if not decision.can_compile_directly:
+            from app.models import SourceType
+            card = InsightCard(
+                source_url=url,
+                source_type=SourceType.UNKNOWN,
+                status=CardStatus.FAILED,
+                error_message=f"[intake:blocked] {decision.reason}",
+                relevance_score=0,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+            )
+            db.add(card)
+            db.commit()
+            db.refresh(card)
+            logger.info(f"Intake blocked URL {url}: created failed card {card.id}")
+            return RedirectResponse(url=f"/cards/{card.id}", status_code=303)
+
+        # ── Allowed: proceed with normal compile pipeline ──
         card = compile_url(db, url)
         return RedirectResponse(url=f"/cards/{card.id}", status_code=303)
     except Exception as e:
@@ -845,6 +869,18 @@ def compile_source_item(item_id: int):
         if not item.url:
             item.status = "failed"
             item.error_message = "SourceItem url is empty"
+            item.updated_at = datetime.utcnow()
+            db.commit()
+            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+
+        # ── Intake classification gate ──────────────────────────────
+        decision = classify_url_by_pattern(item.url)
+        logger.info(f"SourceItem {item_id} compile: {decision.page_type.value} | "
+                    f"compile={decision.can_compile_directly} | {decision.reason}")
+
+        if not decision.can_compile_directly:
+            item.status = "failed"
+            item.error_message = f"[intake:blocked] {decision.reason}"
             item.updated_at = datetime.utcnow()
             db.commit()
             return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)

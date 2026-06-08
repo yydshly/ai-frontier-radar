@@ -168,6 +168,16 @@
                 <button type="submit" class="btn-primary" id="compile-btn" onclick="return startCompile(this)">编译为 InsightCard</button>
             </form>
             {% elif item.status == 'failed' %}
+            {% if '[intake:blocked]' in item.error_message %}
+            <p class="status-hint status-hint-error">⚠️ 该条目被识别为不适合直接编译</p>
+            <p class="status-helper">
+                {{ item.error_message.replace('[intake:blocked] ', '') }}
+            </p>
+            <p class="status-helper" style="background:#fff3e0; border-left:3px solid #ff9800;">
+                💡 <strong>推荐操作：</strong>从该来源的列表页发现具体文章 URL，再选择单篇文章编译。
+                请返回来源探测页或重新运行对应 source 的 probe 脚本。
+            </p>
+            {% else %}
             <p class="status-hint status-hint-error">上次编译失败：{{ item.error_message }}</p>
             <p class="status-helper">
                 失败可能来自：网页无法访问、正文抽取失败、API Key 缺失、LLM 调用失败。你可以查看错误信息后重试。
@@ -175,6 +185,7 @@
             <form method="post" action="/source-items/{{ item.id }}/compile" id="compile-form">
                 <button type="submit" class="btn-primary" id="compile-btn" onclick="return startCompile(this)">重新编译</button>
             </form>
+            {% endif %}
             {% elif item.status == 'compiled' %}
             <p class="status-hint status-hint-success">✅ 已编译，可查看关联 InsightCard。</p>
             <p class="status-helper">
@@ -194,7 +205,7 @@
         }
         </script>
 
-        <p class="page-note">V0.3.5 中文优先人工验收体验：让中文用户更容易从英文 SourceItem 中选择和理解下一步操作。</p>
+        <p class="page-note">V1.0-alpha.8.2：系统会阻止将列表页、分页页、标签页和 feed URL 直接编译为 InsightCard。</p>
     </main>
 
     <footer>
