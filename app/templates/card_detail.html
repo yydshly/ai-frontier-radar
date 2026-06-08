@@ -15,6 +15,14 @@
     </header>
 
     <main>
+        <!-- ── V1.0-alpha 主流程第 4～6 步提示 ─────────────── -->
+        {% if status_value == 'completed' %}
+        <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
+            <h3>🚦 你现在在主流程第 4～6 步</h3>
+            <p>阅读 InsightCard，生成中英双语核心理解，并做出你的判断。</p>
+        </div>
+        {% endif %}
+
         {% if status_value == 'failed' %}
         <div class="error-banner">
             <h2>❌ 处理失败</h2>
@@ -57,14 +65,14 @@
         {# V0.8: Bilingual Report Section #}
         <section class="bilingual-section">
             <h2>🌐 中英双语核心理解</h2>
-            <p class="bilingual-notice">
-                <small>
-                    英文核心内容用于保留原文主旨；中文解说用于帮助理解，不等同于原文逐字翻译。
-                </small>
-            </p>
 
             {% if bilingual_report %}
             {# Has bilingual report - display it #}
+            <p class="bilingual-notice" style="background: #fff8e1; border-left: 3px solid #ff9800; padding: 8px 12px; margin-bottom: 12px;">
+                <small>
+                    💡 如果你担心中文解说曲解原文，建议先看 <strong>English Core Summary</strong> 和 <strong>Original Key Claims</strong>，再看中文解说。
+                </small>
+            </p>
             <div class="bilingual-content">
                 {# English Core Summary #}
                 <div class="bilingual-block">
@@ -241,8 +249,8 @@
 
         <section class="decision-section">
             <h2>🧭 看完后的判断</h2>
-            <p class="decision-intro">
-                这一步不是让模型再判断，而是让你自己决定这篇资料对你有没有用。
+            <p class="decision-intro" style="background: #e8f5e9; border-left: 3px solid #4caf50; padding: 8px 12px; margin-bottom: 12px;">
+                💡 判断不是模型做的，而是你对这篇资料的个人处理结果。
             </p>
             <p class="decision-current">
                 当前判断：<strong>{{ current_decision_label }}</strong>
@@ -274,8 +282,9 @@
             </div>
 
             <div class="export-report-entry">
-                <p class="export-report-note">
-                    📄 完整报告适合长期沉淀；行动任务适合继续拆解执行。
+                <p class="export-report-note" style="background: #e3f2fd; border-left: 3px solid #2196f3; padding: 8px 12px; margin-bottom: 8px;">
+                    📄 <strong>完整报告</strong>：适合长期保存和复盘。<br>
+                    <strong>行动任务</strong>：适合继续交给 AI 拆解执行。
                 </p>
                 <a href="/cards/{{ card.id }}/export-report" class="btn-secondary">
                     📄 导出完整 Markdown 报告

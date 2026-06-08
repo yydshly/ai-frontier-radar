@@ -766,6 +766,56 @@ python scripts/acceptance_export_full_report.py --isolated-db --without-bilingua
 
 完整产品验收步骤见 [docs/V0.9_FULL_MARKDOWN_REPORT_ACCEPTANCE.md](docs/V0.9_FULL_MARKDOWN_REPORT_ACCEPTANCE.md)。
 
+## V1.0-alpha 可演示主流程
+
+V1.0-alpha 固定了一条从资料发现到完整报告导出的演示路径，让用户和后续执行模型都能清楚知道如何从"发现资料"走到"完整报告导出"。
+
+### 主流程
+
+```
+首页工作台
+→ SourceItem 收件箱（第 2 步）
+→ SourceItem 详情
+→ InsightCard（第 4～6 步）
+→ BilingualReport
+→ CardDecision
+→ Full Markdown Report
+→ Action Markdown Task
+```
+
+### 快速演示命令
+
+```bash
+python scripts/acceptance_demo_flow.py --isolated-db
+```
+
+### 手动演示步骤
+
+1. 启动服务：`uvicorn app.main:app --reload --port 8779`
+2. 打开首页：`/`
+3. 进入待编译资料收件箱：`/source-items`
+4. 选择一条资料并编译
+5. 打开 InsightCard
+6. 生成中英双语报告
+7. 标记用户判断
+8. 导出完整 Markdown 报告
+
+### 验收脚本
+
+如果没有真实数据，可以先运行来源探测脚本：
+
+```bash
+python scripts/acceptance_real_source_coverage.py --isolated-db --repeat 2 --timeout 15
+```
+
+也可以用 `acceptance_demo_flow.py` 验证页面链路是否完整：
+
+```bash
+python scripts/acceptance_demo_flow.py --isolated-db
+```
+
+详细文档见 [docs/V1.0_ALPHA_DEMO_FLOW.md](docs/V1.0_ALPHA_DEMO_FLOW.md)。
+
 ## 项目理解与维护文档
 
 如果你是第一次接手项目，建议先阅读 [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md)。

@@ -17,6 +17,22 @@
     </header>
 
     <main>
+        <!-- ── V1.0-alpha 主流程下一步提示 ────────────────── -->
+        <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
+            {% if item.status == 'discovered' %}
+            <h3>🚦 下一步</h3>
+            <p>点击「<strong>编译为 InsightCard</strong>」，生成中文洞察卡。</p>
+            {% elif item.status == 'compiled' %}
+            <h3>🚦 下一步</h3>
+            <p>打开关联 InsightCard，<a href="/cards/{{ item.insight_card_id }}">生成中英双语报告</a>并做判断。</p>
+            {% elif item.status == 'failed' %}
+            <h3>🚦 下一步</h3>
+            <p>查看失败原因，可以稍后重试或换一条资料。</p>
+            {% else %}
+            <h3>🚦 当前状态：{{ item.status }}</h3>
+            {% endif %}
+        </div>
+
         <div class="usage-guide">
             <h3>这是什么？</h3>
             <p>

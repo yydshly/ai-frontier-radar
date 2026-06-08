@@ -16,6 +16,18 @@
     </header>
 
     <main class="wide-page source-items-page">
+        <!-- ── V1.0-alpha 主流程第 2 步提示 ─────────────────── -->
+        <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
+            <h3>🚦 你现在在主流程第 2 步</h3>
+            <p>选择一条英文资料，编译为中文 InsightCard。</p>
+            <p class="flow-tip">优先选择标题像具体文章的条目，例如 <code>/news/...</code>、<code>/blog/...</code>，不要选择列表页或分页页。</p>
+            {% if not items %}
+            <p class="flow-tip">还没有发现资料？可以先运行来源探测脚本：<br>
+            <code>python scripts/acceptance_real_source_coverage.py --isolated-db --repeat 2 --timeout 15</code><br>
+            也可以先从<a href="/">首页手动提交 URL</a>。</p>
+            {% endif %}
+        </div>
+
         <div class="filter-bar">
             <form method="get" action="/source-items" class="filter-form">
                 <div class="filter-row">

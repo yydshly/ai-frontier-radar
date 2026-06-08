@@ -4484,6 +4484,61 @@ def test_v09_cards_list_has_full_report_link():
     print("[OK] cards.html has link to full report export")
 
 
+# ── V1.0-alpha demo flow guidance ──────────────────────────────────────────────
+
+def test_v10_alpha_demo_flow_guidance():
+    """Test that V1.0-alpha main flow guidance is present on key pages."""
+    from pathlib import Path
+
+    # 1. Index page has 推荐主流程
+    index_path = Path(__file__).parent.parent / "app" / "templates" / "index.html"
+    index_text = index_path.read_text(encoding="utf-8")
+    assert "推荐主流程" in index_text, \
+        "index.html should contain '推荐主流程'"
+    print("[OK] index.html has 推荐主流程 section")
+
+    # 2. Source items page has 主流程第 2 步
+    si_path = Path(__file__).parent.parent / "app" / "templates" / "source_items.html"
+    si_text = si_path.read_text(encoding="utf-8")
+    assert "主流程第 2 步" in si_text, \
+        "source_items.html should contain '主流程第 2 步'"
+    print("[OK] source_items.html has 主流程第 2 步 notice")
+
+    # 3. Card detail page has 中英双语核心理解 and 导出完整 Markdown 报告
+    card_path = Path(__file__).parent.parent / "app" / "templates" / "card_detail.html"
+    card_text = card_path.read_text(encoding="utf-8")
+    assert "中英双语核心理解" in card_text, \
+        "card_detail.html should contain '中英双语核心理解'"
+    assert "导出完整 Markdown 报告" in card_text, \
+        "card_detail.html should contain '导出完整 Markdown 报告'"
+    print("[OK] card_detail.html has main flow guidance elements")
+
+    # 4. Cards list page has 中文洞察卡工作台
+    cards_path = Path(__file__).parent.parent / "app" / "templates" / "cards.html"
+    cards_text = cards_path.read_text(encoding="utf-8")
+    assert "中文洞察卡工作台" in cards_text, \
+        "cards.html should contain '中文洞察卡工作台'"
+    print("[OK] cards.html has 中文洞察卡工作台 description")
+
+
+def test_v10_alpha_acceptance_script_exists():
+    """Test that acceptance_demo_flow.py exists and supports required arguments."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "acceptance_demo_flow.py"
+    assert script_path.exists(), \
+        "scripts/acceptance_demo_flow.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+    assert "--isolated-db" in script_text, \
+        "acceptance_demo_flow.py should support --isolated-db"
+    assert "--keep-db" in script_text, \
+        "acceptance_demo_flow.py should support --keep-db"
+    assert "ACCEPTANCE PASSED" in script_text, \
+        "acceptance_demo_flow.py should print ACCEPTANCE PASSED"
+    print("[OK] acceptance_demo_flow.py exists with required arguments")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4615,6 +4670,10 @@ if __name__ == "__main__":
     test_v09_export_report_download_response()
     test_v09_card_detail_has_full_report_link()
     test_v09_cards_list_has_full_report_link()
+
+    # V1.0-alpha demo flow guidance
+    test_v10_alpha_demo_flow_guidance()
+    test_v10_alpha_acceptance_script_exists()
 
     print("=" * 50)
     print("Smoke test completed!")
