@@ -11,7 +11,7 @@
 ### Final Release 信息
 
 - Release branch: `main`
-- Final candidate commit: `902d289`（V1.0-alpha.8.6 发布前一致性修复）
+- Final candidate commit: `937d47a`（V1.0-alpha.8.6 发布前一致性修复）
 - Main CI: `#<run>`（待 CI 通过后更新），success
 - Tag: `v1.0-alpha`（待创建）
 
