@@ -8,6 +8,13 @@
 - RC commit: `3355e0a0b899ec35138578a0676cb2a2f38ecdbf`
 - Base commit: `033a8b7554364fbe35ba66c5dcac4e351d07d5f6`
 
+### Final Release 信息
+
+- Release branch: `main`
+- Main merge commit: `e7ac97cdb6b866d72b2ad1436da0c58e87bf6c9b`
+- Main CI: `#7`, success
+- Tag: `v1.0-alpha`（待创建）
+
 ### 定位
 
 AI Frontier Radar V1.0-alpha 是一个**本地个人 AI 前沿资料中文编译工作台**。
