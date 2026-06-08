@@ -4705,6 +4705,60 @@ def test_v10_alpha2_readme_structure_doc_exists():
     print("[OK] docs/README_STRUCTURE.md exists with required content")
 
 
+def test_v10_alpha3_health_check_script_exists():
+    """Test that health_check.py exists and supports required arguments."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "health_check.py"
+    assert script_path.exists(), \
+        "scripts/health_check.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+
+    for arg in ["--quick", "--full", "--skip-smoke", "--keep-db"]:
+        assert arg in script_text, \
+            f"health_check.py should support {arg}"
+
+    # Verify --help works
+    import subprocess
+    result = subprocess.run(
+        [sys.executable, str(script_path), "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, \
+        "health_check.py --help should succeed"
+
+    print("[OK] scripts/health_check.py exists with required arguments")
+
+
+def test_v10_alpha3_health_check_doc_exists():
+    """Test that docs/HEALTH_CHECK.md exists with required content."""
+    from pathlib import Path
+
+    doc_path = Path(__file__).parent.parent / "docs" / "HEALTH_CHECK.md"
+    assert doc_path.exists(), "docs/HEALTH_CHECK.md should exist"
+
+    doc_text = doc_path.read_text(encoding="utf-8")
+
+    required_content = [
+        "本地项目健康检查",
+        "PASS_WITH_WARNINGS",
+        "本地轻量 CI",
+    ]
+    for content in required_content:
+        assert content in doc_text, \
+            f"HEALTH_CHECK.md should contain: {content}"
+
+    # Verify README mentions health check
+    readme_path = Path(__file__).parent.parent / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8")
+    assert "本地健康检查" in readme_text, \
+        "README.md should mention 本地健康检查"
+
+    print("[OK] docs/HEALTH_CHECK.md exists with required content")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -4849,6 +4903,10 @@ if __name__ == "__main__":
     # V1.0-alpha.2 README quickstart
     test_v10_alpha2_readme_quickstart_structure()
     test_v10_alpha2_readme_structure_doc_exists()
+
+    # V1.0-alpha.3 health check
+    test_v10_alpha3_health_check_script_exists()
+    test_v10_alpha3_health_check_doc_exists()
 
     print("=" * 50)
     print("Smoke test completed!")
