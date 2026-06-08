@@ -155,6 +155,22 @@ CI 不访问真实网络，不调用真实 LLM，不需要 MINIMAX_API_KEY。
 
 V1.0-alpha.4.3 增加真实浏览器与 GitHub Actions 验收记录，详见 [docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md](docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md)。
 
+## V1.0-alpha Release Candidate
+
+V1.0-alpha 已进入 Release Candidate 清理阶段，核心主流程、demo 数据、完整报告导出、本地健康检查和基础 CI 已具备。
+
+正式合并 main 或打 `v1.0-alpha` tag 前，应按 [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) 逐项确认。
+
+**RC 检查命令：**
+```bash
+python scripts/acceptance_release_candidate.py --skip-smoke
+```
+
+**文档入口：**
+- [RELEASE_NOTES.md](RELEASE_NOTES.md) — 发布说明、能力清单、演示流程
+- [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) — 发布前逐项检查
+- [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) — 已知限制详细说明
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |

@@ -5000,6 +5000,88 @@ def test_v10_alpha43_real_acceptance_doc_exists():
     print("[OK] docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md exists with required content")
 
 
+def test_v10_alpha5_release_docs_exist():
+    """Test that V1.0-alpha.5 release docs exist."""
+    from pathlib import Path
+
+    # RELEASE_NOTES.md at root
+    release_notes = Path(__file__).parent.parent / "RELEASE_NOTES.md"
+    assert release_notes.exists(), "RELEASE_NOTES.md should exist"
+
+    release_notes_text = release_notes.read_text(encoding="utf-8")
+    assert "V1.0-alpha" in release_notes_text, "RELEASE_NOTES.md should mention V1.0-alpha"
+    assert "当前可用能力" in release_notes_text, "RELEASE_NOTES.md should have 当前可用能力 section"
+
+    # docs/RELEASE_CHECKLIST.md
+    checklist = Path(__file__).parent.parent / "docs" / "RELEASE_CHECKLIST.md"
+    assert checklist.exists(), "docs/RELEASE_CHECKLIST.md should exist"
+
+    checklist_text = checklist.read_text(encoding="utf-8")
+    assert "Release Checklist" in checklist_text or "CHECKLIST" in checklist_text, \
+        "RELEASE_CHECKLIST.md should exist"
+
+    # docs/KNOWN_LIMITATIONS.md
+    limitations = Path(__file__).parent.parent / "docs" / "KNOWN_LIMITATIONS.md"
+    assert limitations.exists(), "docs/KNOWN_LIMITATIONS.md should exist"
+
+    limitations_text = limitations.read_text(encoding="utf-8")
+    assert "Known Limitations" in limitations_text or "限制" in limitations_text, \
+        "KNOWN_LIMITATIONS.md should exist"
+
+    # README should have RC section
+    readme_path = Path(__file__).parent.parent / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8")
+    assert "V1.0-alpha Release Candidate" in readme_text, \
+        "README.md should have V1.0-alpha Release Candidate section"
+
+    print("[OK] V1.0-alpha.5 release docs exist: RELEASE_NOTES.md, RELEASE_CHECKLIST.md, KNOWN_LIMITATIONS.md, RC section in README")
+
+
+def test_v10_alpha5_release_candidate_script_exists():
+    """Test that scripts/acceptance_release_candidate.py exists with required features."""
+    from pathlib import Path
+
+    script_path = Path(__file__).parent / "acceptance_release_candidate.py"
+    assert script_path.exists(), "scripts/acceptance_release_candidate.py should exist"
+
+    script_text = script_path.read_text(encoding="utf-8")
+
+    assert "--skip-smoke" in script_text, \
+        "acceptance_release_candidate.py should support --skip-smoke"
+
+    assert "RELEASE CANDIDATE CHECK PASSED" in script_text, \
+        "acceptance_release_candidate.py should output RELEASE CANDIDATE CHECK PASSED"
+
+    assert "acceptance_ci_local" in script_text, \
+        "acceptance_release_candidate.py should call acceptance_ci_local"
+
+    print("[OK] scripts/acceptance_release_candidate.py exists with required features")
+
+
+def test_v10_alpha5_real_acceptance_doc_corrected():
+    """Test that V1.0-alpha.4.3 acceptance doc has been corrected."""
+    from pathlib import Path
+
+    doc_path = Path(__file__).parent.parent / "docs" / "V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md"
+    assert doc_path.exists(), "docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md should exist"
+
+    doc_text = doc_path.read_text(encoding="utf-8")
+
+    # Should have correct latest commit
+    assert "033a8b7" in doc_text, \
+        "V1.0_ALPHA_4_3 doc should contain correct commit 033a8b7"
+
+    # Should NOT have the typo "导演出示完整报告"
+    assert "导演出示完整报告" not in doc_text, \
+        "V1.0_ALPHA_4_3 doc should NOT contain typo '导演出示完整报告'"
+
+    # Should have correct text "导出演示完整报告"
+    assert "导出演示完整报告" in doc_text, \
+        "V1.0_ALPHA_4_3 doc should contain correct '导出演示完整报告'"
+
+    print("[OK] V1.0-alpha.4.3 acceptance doc corrected")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -5166,6 +5248,11 @@ if __name__ == "__main__":
 
     # V1.0-alpha.4.3 real browser and CI acceptance
     test_v10_alpha43_real_acceptance_doc_exists()
+
+    # V1.0-alpha.5 release candidate cleanup
+    test_v10_alpha5_release_docs_exist()
+    test_v10_alpha5_release_candidate_script_exists()
+    test_v10_alpha5_real_acceptance_doc_corrected()
 
     print("=" * 50)
     print("Smoke test completed!")
