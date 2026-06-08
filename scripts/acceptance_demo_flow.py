@@ -281,7 +281,7 @@ def _run_acceptance(args):
         text = response.text
 
         checks_export_report = [
-            ("完整 Markdown 报告预览", "完整 Markdown 报告预览 heading"),
+            ("完整报告预览", "完整报告预览 heading"),
         ]
 
         for check_text, description in checks_export_report:

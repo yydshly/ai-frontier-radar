@@ -4918,7 +4918,7 @@ def test_v10_alpha41_ui_acceptance_doc_exists():
     required_content = [
         "CI 与页面效果真实验收",
         "本地页面验收",
-        "完整 Markdown 报告预览",
+        "完整报告预览",
     ]
     for content in required_content:
         assert content in doc_text, \

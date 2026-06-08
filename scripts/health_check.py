@@ -344,8 +344,8 @@ def check_pages(result: CheckResult, source_item_id, card_id):
         if response.status_code == 200:
             result.ok(f"GET {path}")
             text = response.text
-            if "完整 Markdown 报告预览" not in text:
-                result.warn("       missing expected text: 完整 Markdown 报告预览")
+            if "完整报告预览" not in text:
+                result.warn("       missing expected text: 完整报告预览")
         else:
             result.fail(f"GET {path} returned {response.status_code}")
 

@@ -147,8 +147,8 @@ def _run_acceptance(args):
         assert response.status_code == 200, \
             f"GET /cards/{card_id}/export-report failed: {response.status_code}"
         text = response.text
-        assert "完整 Markdown 报告预览" in text, \
-            "Preview page should contain '完整 Markdown 报告预览'"
+        assert "完整报告预览" in text, \
+            "Preview page should contain '完整报告预览'"
         assert "英文核心摘要" in text or "English Core Summary" in text, \
             "Preview should mention English Core Summary"
         assert "中文解说" in text, \
