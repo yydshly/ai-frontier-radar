@@ -2,6 +2,12 @@
 
 ## V1.0-alpha
 
+### Release Candidate 信息
+
+- RC branch: `feature/v1.0-alpha.5-release-candidate-cleanup`
+- RC commit: `3355e0a0b899ec35138578a0676cb2a2f38ecdbf`
+- Base commit: `033a8b7554364fbe35ba66c5dcac4e351d07d5f6`
+
 ### 定位
 
 AI Frontier Radar V1.0-alpha 是一个**本地个人 AI 前沿资料中文编译工作台**。
