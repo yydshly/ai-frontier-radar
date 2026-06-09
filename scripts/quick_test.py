@@ -923,6 +923,240 @@ def main():
     except Exception as e:
         check("/fetch-runs?include_test=1 shows test records", False, str(e))
 
+    # ── 13. validate_sources_live.py — unit-testable helpers ──────────────
+    print("\n[13] validate_sources_live helpers")
+
+    # 13a. Script is importable
+    try:
+        import scripts.validate_sources_live as val_live
+        check("validate_sources_live.py is importable", True)
+    except Exception as e:
+        check("validate_sources_live.py is importable", False, str(e))
+
+    # 13b. is_weak_title — case and whitespace normalization
+    try:
+        check("'Learn More' is weak (case-insensitive)",
+              val_live.is_weak_title("Learn More") is True)
+        check("'LEARN MORE' is weak",
+              val_live.is_weak_title("LEARN MORE") is True)
+        check("'  Learn   More  ' is weak (whitespace collapsed)",
+              val_live.is_weak_title("  Learn   More  ") is True)
+        check("'LEARN\\nMORE' is weak (newline normalized)",
+              val_live.is_weak_title("LEARN\nMORE") is True)
+        check("' FEATURED ' is weak (surrounding spaces)",
+              val_live.is_weak_title(" FEATURED ") is True)
+        check("'Meta AI MTIA Chip' is NOT weak",
+              val_live.is_weak_title("Meta AI MTIA Chip Announcement") is False)
+        check("None title is weak",
+              val_live.is_weak_title(None) is True)
+        check("empty string is weak",
+              val_live.is_weak_title("") is True)
+        check("whitespace-only is weak",
+              val_live.is_weak_title("   \n  ") is True)
+    except Exception as e:
+        check("is_weak_title helpers", False, str(e))
+
+    # 13c. Coverage helpers
+    try:
+        items = [
+            {"title": "Real Title", "summary": "Some summary", "published_at": "2024-01-01"},
+            {"title": "Learn More", "summary": None, "published_at": None},
+            {"title": "Featured", "summary": "", "published_at": ""},
+            {"title": "Another Real", "summary": "Desc", "published_at": "2024-01-02"},
+        ]
+        check("title_coverage 2/4 = 50%",
+              val_live.title_coverage(items) == 0.5)
+        check("summary_coverage 2/4 = 50%",
+              val_live.summary_coverage(items) == 0.5)
+        check("published_coverage 2/4 = 50%",
+              val_live.published_coverage(items) == 0.5)
+        check("title_coverage empty = 0",
+              val_live.title_coverage([]) == 0.0)
+    except Exception as e:
+        check("coverage helpers", False, str(e))
+
+    # 13d. Verdict logic — PASS / WARN / FAIL
+    try:
+        # FAIL: error + 0 items
+        v, s = val_live.make_verdict("HTTP 404", 0, 0.0, 0.0, 0.0, 0)
+        check("FAIL: error with 0 items", v == "FAIL")
+
+        # FAIL: no items
+        v, s = val_live.make_verdict(None, 0, 0.0, 0.0, 0.0, 0)
+        check("FAIL: no items found", v == "FAIL")
+
+        # FAIL: timeout
+        v, s = val_live.make_verdict("Timeout fetching feed after 20s", 0, 0.0, 0.0, 0.0, 0)
+        check("FAIL: timeout", v == "FAIL")
+
+        # FAIL: HTTP 404
+        v, s = val_live.make_verdict("HTTP 404: Not Found", 0, 0.0, 0.0, 0.0, 0)
+        check("FAIL: HTTP 404", v == "FAIL")
+
+        # WARN: low summary coverage
+        v, s = val_live.make_verdict(None, 5, 1.0, 0.3, 1.0, 0)
+        check("WARN: low summary coverage", v == "WARN")
+
+        # WARN: low published coverage
+        v, s = val_live.make_verdict(None, 5, 1.0, 1.0, 0.3, 0)
+        check("WARN: low published coverage", v == "WARN")
+
+        # WARN: weak titles present
+        v, s = val_live.make_verdict(None, 5, 0.8, 1.0, 1.0, 2)
+        check("WARN: weak titles", v == "WARN")
+
+        # PASS: healthy source
+        v, s = val_live.make_verdict(None, 10, 1.0, 1.0, 1.0, 0)
+        check("PASS: healthy source", v == "PASS")
+    except Exception as e:
+        check("verdict logic", False, str(e))
+
+    # 13e. Markdown report generation with mock data
+    try:
+        mock_results = [{
+            "source_key": "openai_news",
+            "name": "OpenAI News",
+            "fetch_strategy": "html_index",
+            "homepage_url": "https://openai.com/news/",
+            "feed_url": None,
+            "status": "success",
+            "items_found": 10,
+            "items_new": 5,
+            "items_updated": 3,
+            "items_failed": 2,
+            "error_message": None,
+            "title_coverage": 0.9,
+            "summary_coverage": 0.7,
+            "published_coverage": 0.6,
+            "weak_title_count": 1,
+            "sample_titles": ["OpenAI Announces GPT-5", "AI Safety Update"],
+            "sample_urls": ["https://openai.com/news/1", "https://openai.com/news/2"],
+            "verdict": "WARN",
+            "suggestion": "1 weak title(s) detected — check detail page title extraction.",
+        }]
+        md = val_live.build_markdown(mock_results, total=1, passed=0, warned=1, failed=0)
+        check("Markdown report contains source name", "OpenAI News" in md)
+        check("Markdown report contains verdict", "WARN" in md)
+        check("Markdown report contains items_found", "10" in md)
+        check("Markdown report contains suggestion", "weak title" in md)
+    except Exception as e:
+        check("markdown report generation", False, str(e))
+
+    # ── 14. SourceFetchService error_message write-through guarantee ────────
+    print("\n[14] SourceFetchService error_message write-through")
+
+    # 14a. error_message written to FetchRun when probe returns error_message
+    try:
+        import uuid
+        from app.db import SessionLocal as _SL
+        import app.application.sources.fetch_service as fetch_service_mod
+        from app.application.sources.fetch_service import SourceFetchService
+        from app.models import Source, SourceItem
+        from datetime import datetime
+
+        db_session = _SL()
+        original_probe = fetch_service_mod.probe_rss_source
+        keys_to_cleanup = []
+        try:
+            # Case 1: probe returns error_message and items_found == 0 -> failed with error.
+            test_key_1 = f"test_err_zero_{uuid.uuid4().hex[:8]}"
+            keys_to_cleanup.append(test_key_1)
+            test_src_1 = Source(
+                source_key=test_key_1,
+                name="Test Error Source",
+                description="Test source for error_message write-through validation",
+                source_type="rss",
+                category="test",
+                tags_json="[]",
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+                homepage_url="http://example.com",
+                feed_url="http://example.com/nonexistent.rss",
+                enabled=True,
+            )
+            db_session.add(test_src_1)
+            db_session.commit()
+
+            def fake_probe_failed(db, source, timeout_seconds=20):
+                return {
+                    "source_key": source.source_key,
+                    "items_found": 0,
+                    "items_new": 0,
+                    "items_updated": 0,
+                    "items_failed": 0,
+                    "error_message": "mock probe failed",
+                }
+
+            fetch_service_mod.probe_rss_source = fake_probe_failed
+            svc = SourceFetchService(db_session)
+            result = svc.run_source(test_key_1, timeout_seconds=5)
+
+            check("error_message write-through failed: FetchRun.status == failed",
+                  result.fetch_run.status == "failed")
+            check("error_message write-through failed: result.error_message written",
+                  result.error_message == "mock probe failed")
+            check("error_message write-through failed: fetch_run.error_message written",
+                  result.fetch_run.error_message == "mock probe failed")
+
+            # Case 2: probe returns error_message and items_found > 0 -> partial_failed with error.
+            test_key_2 = f"test_err_partial_{uuid.uuid4().hex[:8]}"
+            keys_to_cleanup.append(test_key_2)
+            test_src_2 = Source(
+                source_key=test_key_2,
+                name="Test Partial Error Source",
+                description="Test partial error_message write-through validation",
+                source_type="rss",
+                category="test",
+                tags_json="[]",
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+                homepage_url="http://example.com",
+                feed_url="http://example.com/feed.rss",
+                enabled=True,
+            )
+            db_session.add(test_src_2)
+            db_session.commit()
+            db_session.refresh(test_src_2)
+
+            def fake_probe_partial(db, source, timeout_seconds=20):
+                item = SourceItem(
+                    source_id=source.id,
+                    source_key=source.source_key,
+                    url=f"https://example.com/{uuid.uuid4().hex[:8]}",
+                    title="Mock Article",
+                    status="discovered",
+                    last_seen_at=datetime.utcnow(),
+                )
+                db.add(item)
+                db.commit()
+                return {
+                    "source_key": source.source_key,
+                    "items_found": 1,
+                    "items_new": 1,
+                    "items_updated": 0,
+                    "items_failed": 1,
+                    "error_message": "mock partial probe error",
+                }
+
+            fetch_service_mod.probe_rss_source = fake_probe_partial
+            result2 = svc.run_source(test_key_2, timeout_seconds=5)
+            check("error_message write-through partial: FetchRun.status == partial_failed",
+                  result2.fetch_run.status == "partial_failed")
+            check("error_message write-through partial: result.error_message written",
+                  result2.error_message == "mock partial probe error")
+            check("error_message write-through partial: fetch_run.error_message written",
+                  result2.fetch_run.error_message == "mock partial probe error")
+        finally:
+            fetch_service_mod.probe_rss_source = original_probe
+            db_session.query(SourceItem).filter(SourceItem.source_key.in_(keys_to_cleanup)).delete(synchronize_session=False)
+            db_session.query(Source).filter(Source.source_key.in_(keys_to_cleanup)).delete(synchronize_session=False)
+            db_session.commit()
+            db_session.close()
+    except Exception as e:
+        check("SourceFetchService error_message write-through", False, str(e))
+
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

@@ -9415,6 +9415,97 @@ def test_v10_beta8_unsupported_strategy_creates_failed_run():
         db.close()
 
 
+def test_v10_beta8_source_fetch_service_writes_probe_error_message():
+    """Probe error_message is persisted for failed and partial_failed FetchRuns."""
+    import uuid
+    from datetime import datetime
+
+    import app.application.sources.fetch_service as fetch_service_mod
+    from app.application.sources.fetch_service import SourceFetchService
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    original_probe = fetch_service_mod.probe_rss_source
+    keys: list[str] = []
+    try:
+        def make_source(key: str) -> Source:
+            src = Source(
+                source_key=key,
+                name="Test Probe Error",
+                description="Test",
+                source_type="rss",
+                homepage_url="https://example.com",
+                feed_url="https://example.com/feed.xml",
+                category="research",
+                tags_json="[]",
+                enabled=True,
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+            )
+            db.add(src)
+            db.commit()
+            db.refresh(src)
+            return src
+
+        failed_key = f"test_probe_failed_{uuid.uuid4().hex[:8]}"
+        keys.append(failed_key)
+        make_source(failed_key)
+
+        def probe_failed(db_session, source, timeout_seconds=20):
+            return {
+                "source_key": source.source_key,
+                "items_found": 0,
+                "items_new": 0,
+                "items_updated": 0,
+                "items_failed": 0,
+                "error_message": "mock hard failure",
+            }
+
+        fetch_service_mod.probe_rss_source = probe_failed
+        failed_result = SourceFetchService(db).run_source(failed_key)
+        assert failed_result.fetch_run.status == "failed"
+        assert failed_result.fetch_run.error_message == "mock hard failure"
+        assert failed_result.error_message == "mock hard failure"
+
+        partial_key = f"test_probe_partial_{uuid.uuid4().hex[:8]}"
+        keys.append(partial_key)
+        make_source(partial_key)
+
+        def probe_partial(db_session, source, timeout_seconds=20):
+            db_session.add(SourceItem(
+                source_id=source.id,
+                source_key=source.source_key,
+                url=f"https://example.com/{uuid.uuid4().hex[:8]}",
+                title="Mock Article",
+                status="discovered",
+                last_seen_at=datetime.utcnow(),
+            ))
+            db_session.commit()
+            return {
+                "source_key": source.source_key,
+                "items_found": 1,
+                "items_new": 1,
+                "items_updated": 0,
+                "items_failed": 1,
+                "error_message": "mock partial failure",
+            }
+
+        fetch_service_mod.probe_rss_source = probe_partial
+        partial_result = SourceFetchService(db).run_source(partial_key)
+        assert partial_result.fetch_run.status == "partial_failed"
+        assert partial_result.fetch_run.error_message == "mock partial failure"
+        assert partial_result.error_message == "mock partial failure"
+        print("[OK] SourceFetchService persists probe error_message for failed/partial_failed")
+    finally:
+        fetch_service_mod.probe_rss_source = original_probe
+        db.query(SourceItem).filter(SourceItem.source_key.in_(keys)).delete(synchronize_session=False)
+        db.query(Source).filter(Source.source_key.in_(keys)).delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
 def test_v10_beta8_rss_probe_creates_two_source_items():
     """Mock RSS probe returns 2 entries, creates 2 new SourceItems."""
     import uuid
@@ -10189,6 +10280,7 @@ if __name__ == "__main__":
     test_v10_beta8_source_fetch_service_import()
     test_v10_beta8_nonexistent_source_returns_not_found()
     test_v10_beta8_unsupported_strategy_creates_failed_run()
+    test_v10_beta8_source_fetch_service_writes_probe_error_message()
     test_v10_beta8_rss_probe_creates_two_source_items()
     test_v10_beta8_re_run_same_url_no_duplicate_seen()
     test_v10_beta8_post_source_fetch_returns_303()

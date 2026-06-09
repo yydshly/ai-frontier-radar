@@ -183,10 +183,12 @@ class SourceFetchService:
             if error_message:
                 if items_found == 0:
                     fetch_run.status = "failed"
+                    fetch_run.error_message = error_message
                     source.last_checked_at = datetime.utcnow()
                     source.last_error_message = error_message
                 else:
                     fetch_run.status = "partial_failed"
+                    fetch_run.error_message = error_message
                     source.last_checked_at = datetime.utcnow()
                     source.last_success_at = datetime.utcnow()
                     source.last_error_message = error_message
@@ -206,6 +208,10 @@ class SourceFetchService:
                 source.last_checked_at = datetime.utcnow()
                 source.last_success_at = datetime.utcnow()
                 source.last_error_message = None
+
+            # Fallback: failed/partial_failed must have error_message
+            if fetch_run.status in ("failed", "partial_failed") and not fetch_run.error_message:
+                fetch_run.error_message = "source fetch failed without explicit error message"
 
             # Write delta to metadata_json
             fetch_run.metadata_json = json.dumps({
@@ -228,7 +234,7 @@ class SourceFetchService:
                 items_new=items_new,
                 items_updated=items_updated,
                 items_failed=items_failed,
-                error_message=error_message,
+                error_message=fetch_run.error_message,
                 new_ids=new_ids,
                 seen_ids=seen_ids,
                 updated_ids=updated_ids,
