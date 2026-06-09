@@ -31,6 +31,11 @@ PASS = 0
 FAIL = 0
 
 
+def print_fatal_and_exit(message: str) -> None:
+    print(f"\n[FATAL] {message}")
+    sys.exit(1)
+
+
 def check(name: str, condition: bool, detail: str = ""):
     global PASS, FAIL
     if condition:
