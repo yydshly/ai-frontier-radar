@@ -173,12 +173,14 @@
                             <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
                             <td>
                                 <a href="/source-items/{{ item.id }}">详情</a>
-                                {% if item.status in ['discovered', 'compiling'] %}
-                                <form method="post" action="/candidate-pool/{{ item.id }}/compile" style="display:inline;">
-                                    <button type="submit" class="btn-small">生成 InsightCard</button>
+                                {% if item.status in ['discovered'] %}
+                                <form method="post" action="/candidate-pool/{{ item.id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-small">加入生成</button>
                                 </form>
+                                {% elif item.status == 'compiling' %}
+                                <span class="btn-small" style="background:#e3f2fd; color:#1565c0;">⚙️ 生成中</span>
                                 {% elif item.status == 'failed' %}
-                                <form method="post" action="/candidate-pool/{{ item.id }}/compile" style="display:inline;">
+                                <form method="post" action="/candidate-pool/{{ item.id }}/enqueue-compile" style="display:inline;">
                                     <button type="submit" class="btn-small">重试生成</button>
                                 </form>
                                 {% elif item.status == 'compiled' and item.insight_card_id %}

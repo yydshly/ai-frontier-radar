@@ -1,13 +1,17 @@
 """Candidate Pool routes - browsing, filtering, and batch operations for candidate items."""
 from app.application.candidate_quality.services import CandidateQualityService
 from typing import Annotated
-from fastapi import APIRouter, Request, Form, Query
+from fastapi import APIRouter, Request, Form, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.application.candidate_pool.services import CandidatePoolService
 from app.application.source_items.compile_service import SourceItemCompileService
+from app.application.source_items.background_compile import (
+    BackgroundCompileService,
+    run_source_item_compile_in_background,
+)
 from app.models import Source
 
 router = APIRouter(prefix="/candidate-pool", tags=["candidate-pool"])
@@ -248,7 +252,7 @@ def batch_compile_candidates(request: Request, candidate_ids: Annotated[list[str
 
 @router.post("/{item_id}/compile")
 def compile_candidate_item(item_id: int):
-    """Compile a single candidate item from the candidate pool.
+    """Compile a single candidate item from the candidate pool (synchronous).
 
     Delegates to SourceItemCompileService for the actual compilation logic.
     After compilation, redirects back to the candidate pool list.
@@ -260,3 +264,19 @@ def compile_candidate_item(item_id: int):
         return RedirectResponse(url="/candidate-pool", status_code=303)
     finally:
         db.close()
+
+
+@router.post("/{item_id}/enqueue-compile")
+def enqueue_candidate_compile(item_id: int, background_tasks: BackgroundTasks):
+    """Enqueue a candidate item for background InsightCard generation.
+
+    Sets status to 'compiling' immediately, then dispatches a background task.
+    Returns immediately without waiting.
+    """
+    service = BackgroundCompileService()
+    result = service.enqueue_item(item_id)
+
+    if result.accepted:
+        background_tasks.add_task(run_source_item_compile_in_background, item_id)
+
+    return RedirectResponse(url="/candidate-pool", status_code=303)

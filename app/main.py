@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -17,6 +17,10 @@ from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
 from app.intake import classify_url_by_pattern
 from app.application.source_items.compile_service import SourceItemCompileService
+from app.application.source_items.background_compile import (
+    BackgroundCompileService,
+    run_source_item_compile_in_background,
+)
 from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_decision_label
 from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
@@ -1127,7 +1131,7 @@ def source_item_detail(request: Request, item_id: int):
 
 @app.post("/source-items/{item_id}/compile")
 def compile_source_item(item_id: int):
-    """Manually compile a SourceItem into an InsightCard.
+    """Manually compile a SourceItem into an InsightCard (synchronous).
 
     Idempotent: if the item is already compiled with a valid insight_card_id,
     redirects back without re-calling compile_url.
@@ -1137,6 +1141,54 @@ def compile_source_item(item_id: int):
         service = SourceItemCompileService(db)
         result = service.compile_item(item_id)
         return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+    finally:
+        db.close()
+
+
+@app.post("/source-items/{item_id}/enqueue-compile")
+def enqueue_source_item_compile(item_id: int, background_tasks: BackgroundTasks):
+    """Enqueue a SourceItem for background InsightCard generation.
+
+    Sets status to 'compiling' immediately, then dispatches a background task
+    that calls SourceItemCompileService. Returns immediately (does not wait).
+
+    Idempotent: compiled/composing items are not re-enqueued.
+    """
+    service = BackgroundCompileService()
+    result = service.enqueue_item(item_id)
+
+    if result.accepted:
+        background_tasks.add_task(run_source_item_compile_in_background, item_id)
+        return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+    else:
+        # Not accepted (already compiled/composing) — just redirect back
+        return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+
+
+@app.get("/generation-queue", response_class=HTMLResponse)
+def generation_queue_page(request: Request):
+    """Display the InsightCard generation queue with items in compiling/compiled/failed states."""
+    db = next(get_db())
+    try:
+        from app.models import SourceItem
+        from sqlalchemy import desc
+
+        # Show items with status in compiling/compiled/failed, ordered by updated_at desc
+        items = (
+            db.query(SourceItem)
+            .filter(SourceItem.status.in_(["compiling", "compiled", "failed", "discovered"]))
+            .order_by(desc(SourceItem.updated_at))
+            .limit(50)
+            .all()
+        )
+
+        return templates.TemplateResponse(
+            "generation_queue.html",
+            {
+                "request": request,
+                "items": items,
+            },
+        )
     finally:
         db.close()
 

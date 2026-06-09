@@ -156,9 +156,15 @@
                                 <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
                                 {% if item.insight_card_id %}
                                 <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% elif item.status == 'compiling' %}
+                                <span class="btn-sm" style="background:#e3f2fd; color:#1565c0;">⚙️ 生成中</span>
+                                {% elif item.status == 'failed' %}
+                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm">重试生成</button>
+                                </form>
                                 {% else %}
-                                <form method="post" action="/source-items/{{ item.id }}/compile" style="display:inline;">
-                                    <button type="submit" class="btn-sm btn-primary">生成 InsightCard</button>
+                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">加入生成</button>
                                 </form>
                                 {% endif %}
                             </td>
@@ -236,9 +242,15 @@
                                 <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
                                 {% if item.insight_card_id %}
                                 <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% elif item.status == 'compiling' %}
+                                <span class="btn-sm" style="background:#e3f2fd; color:#1565c0;">⚙️ 生成中</span>
+                                {% elif item.status == 'failed' %}
+                                <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm">重试生成</button>
+                                </form>
                                 {% else %}
-                                <form method="post" action="/source-items/{{ item.item_id }}/compile" style="display:inline;">
-                                    <button type="submit" class="btn-sm btn-primary">生成 InsightCard</button>
+                                <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">加入生成</button>
                                 </form>
                                 {% endif %}
                                 {% else %}
@@ -292,9 +304,15 @@
                                 <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
                                 {% if item.insight_card_id %}
                                 <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% elif item.status == 'compiling' %}
+                                <span class="btn-sm" style="background:#e3f2fd; color:#1565c0;">⚙️ 生成中</span>
+                                {% elif item.status == 'failed' %}
+                                <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm">重试生成</button>
+                                </form>
                                 {% else %}
-                                <form method="post" action="/source-items/{{ item.item_id }}/compile" style="display:inline;">
-                                    <button type="submit" class="btn-sm btn-primary">生成 InsightCard</button>
+                                <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">加入生成</button>
                                 </form>
                                 {% endif %}
                                 {% else %}
@@ -348,9 +366,15 @@
                                 <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
                                 {% if item.insight_card_id %}
                                 <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% elif item.status == 'compiling' %}
+                                <span class="btn-sm" style="background:#e3f2fd; color:#1565c0;">⚙️ 生成中</span>
+                                {% elif item.status == 'failed' %}
+                                <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm">重试生成</button>
+                                </form>
                                 {% else %}
-                                <form method="post" action="/source-items/{{ item.item_id }}/compile" style="display:inline;">
-                                    <button type="submit" class="btn-sm btn-primary">生成 InsightCard</button>
+                                <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">加入生成</button>
                                 </form>
                                 {% endif %}
                                 {% else %}
