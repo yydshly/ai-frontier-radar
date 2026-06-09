@@ -1545,6 +1545,122 @@ def main():
         check("SourceFetchService error_message write-through", False, str(e))
 
     # ── Summary ───────────────────────────────────────────────────────────
+    print("\n[15] Candidate one-liner MVP")
+    try:
+        import json
+        import uuid
+        from datetime import datetime
+
+        from app.application.candidates.display import build_candidate_display_card
+        from app.application.candidates.one_liner import (
+            CandidateOneLinerService,
+            MockOneLinerProvider,
+            OneLinerInput,
+            OneLinerSettings,
+        )
+        from app.application.fetch_runs.delta import extract_lightweight_summary
+        from app.db import SessionLocal as _SL
+        from app.models import Source, SourceItem
+        import scripts.generate_one_liners as gen_one_liners
+
+        check("CandidateOneLinerService is importable", True)
+        check("generate_one_liners.py is importable", callable(gen_one_liners.select_items))
+
+        payload = OneLinerInput(
+            item_id=1,
+            source_key="openai_news",
+            source_name="OpenAI",
+            title="Codex for finance teams",
+            summary="Finance teams use code agents.",
+            url="https://example.com",
+            published_at=None,
+        )
+        mock_text = MockOneLinerProvider().generate(payload)
+        check("MockOneLinerProvider generates Chinese one-liner",
+              "候选内容" in mock_text and "OpenAI" in mock_text,
+              mock_text)
+
+        db_session = _SL()
+        test_key = f"test_one_liner_{uuid.uuid4().hex[:8]}"
+        try:
+            src = Source(
+                source_key=test_key,
+                name="Test One Liner Source",
+                description="Test",
+                source_type="rss",
+                homepage_url="https://example.com",
+                feed_url="https://example.com/feed.xml",
+                category="test",
+                tags_json="[]",
+                enabled=True,
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+            )
+            db_session.add(src)
+            db_session.commit()
+            db_session.refresh(src)
+
+            item = SourceItem(
+                source_id=src.id,
+                source_key=test_key,
+                url="https://example.com/article",
+                title="AI Article",
+                status="discovered",
+                raw_metadata_json=json.dumps({"description": "English summary"}),
+                first_seen_at=datetime.utcnow(),
+                last_seen_at=datetime.utcnow(),
+            )
+            ignored = SourceItem(
+                source_id=src.id,
+                source_key=test_key,
+                url="https://example.com/ignored",
+                title="Ignored Article",
+                status="ignored",
+                raw_metadata_json="{}",
+            )
+            existing = SourceItem(
+                source_id=src.id,
+                source_key=test_key,
+                url="https://example.com/existing",
+                title="Existing Article",
+                status="discovered",
+                raw_metadata_json=json.dumps({"zh_one_liner": "已有中文摘要"}),
+            )
+            db_session.add_all([item, ignored, existing])
+            db_session.commit()
+            db_session.refresh(item)
+            db_session.refresh(ignored)
+            db_session.refresh(existing)
+
+            service = CandidateOneLinerService(
+                db_session,
+                settings=OneLinerSettings(enabled=True, provider="mock"),
+            )
+            check("should_generate skips existing zh_one_liner",
+                  service.should_generate(existing) is False)
+            check("should_generate skips ignored",
+                  service.should_generate(ignored) is False)
+            result = service.generate_for_item(item)
+            db_session.refresh(item)
+            raw = json.loads(item.raw_metadata_json)
+            check("generate_for_item writes zh_one_liner",
+                  result.success and raw.get("zh_one_liner_status") == "success" and raw.get("zh_one_liner"),
+                  raw)
+            card = build_candidate_display_card(item)
+            check("CandidateDisplayCard prefers zh_one_liner",
+                  card.summary == raw.get("zh_one_liner"),
+                  card.summary)
+            check("FetchRun delta summary prefers zh_one_liner",
+                  extract_lightweight_summary(item) == raw.get("zh_one_liner"))
+        finally:
+            db_session.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
+            db_session.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
+            db_session.commit()
+            db_session.close()
+    except Exception as e:
+        check("Candidate one-liner MVP", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

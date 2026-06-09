@@ -8029,6 +8029,25 @@ def test_v10_beta6_extract_summary_priority():
     print("[OK] extract_lightweight_summary respects field priority")
 
 
+def test_v10_beta6_extract_summary_prefers_zh_one_liner():
+    """Generated Chinese one-liner takes display priority over English summaries."""
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.models import SourceItem
+    import json
+
+    item = SourceItem(
+        source_key="test",
+        url="https://example.com",
+        raw_metadata_json=json.dumps({
+            "zh_one_liner": "这是一条中文一句话摘要。",
+            "summary": "English summary",
+        }, ensure_ascii=False),
+    )
+    summary = extract_lightweight_summary(item)
+    assert summary == "这是一条中文一句话摘要。", f"Expected zh_one_liner first, got: {summary}"
+    print("[OK] extract_lightweight_summary prefers zh_one_liner")
+
+
 def test_v10_beta6_extract_summary_strips_html():
     """HTML tags are stripped from summaries."""
     from app.application.fetch_runs.delta import extract_lightweight_summary
@@ -9709,6 +9728,164 @@ def test_live_source_validation_coverage_helpers():
     print("[OK] Live source validation coverage helpers align with metadata fields")
 
 
+def test_candidate_one_liner_mvp():
+    """Candidate one-liner service writes metadata and display layers prefer it."""
+    import json
+    import subprocess
+    import sys
+    import uuid
+    from datetime import datetime
+
+    from app.application.candidates.display import build_candidate_display_card
+    from app.application.candidates.one_liner import (
+        CandidateOneLinerService,
+        MockOneLinerProvider,
+        OneLinerInput,
+        OneLinerSettings,
+    )
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    class FailingProvider:
+        model = "failing-provider"
+
+        def generate(self, payload):
+            raise RuntimeError("provider exploded")
+
+    payload = OneLinerInput(
+        item_id=1,
+        source_key="openai_news",
+        source_name="OpenAI",
+        title="Codex for finance teams",
+        summary="Finance teams use Codex.",
+        url="https://example.com",
+        published_at=None,
+    )
+    assert "候选内容" in MockOneLinerProvider().generate(payload)
+
+    db = SessionLocal()
+    test_key = f"test_one_liner_{uuid.uuid4().hex[:8]}"
+    try:
+        source = Source(
+            source_key=test_key,
+            name="Test One Liner Source",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="test",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        item = SourceItem(
+            source_id=source.id,
+            source_key=test_key,
+            url="https://example.com/article",
+            title="AI Article",
+            status="discovered",
+            raw_metadata_json=json.dumps({"description": "English description"}),
+            first_seen_at=datetime.utcnow(),
+            last_seen_at=datetime.utcnow(),
+        )
+        ignored = SourceItem(
+            source_id=source.id,
+            source_key=test_key,
+            url="https://example.com/ignored",
+            title="Ignored",
+            status="ignored",
+            raw_metadata_json="{}",
+        )
+        existing = SourceItem(
+            source_id=source.id,
+            source_key=test_key,
+            url="https://example.com/existing",
+            title="Existing",
+            status="discovered",
+            raw_metadata_json=json.dumps({"zh_one_liner": "已有中文摘要"}),
+        )
+        failing = SourceItem(
+            source_id=source.id,
+            source_key=test_key,
+            url="https://example.com/failing",
+            title="Failing",
+            status="discovered",
+            raw_metadata_json="{}",
+        )
+        dry = SourceItem(
+            source_id=source.id,
+            source_key=test_key,
+            url="https://example.com/dry",
+            title="Dry Run",
+            status="discovered",
+            raw_metadata_json="{}",
+        )
+        db.add_all([item, ignored, existing, failing, dry])
+        db.commit()
+        for row in (item, ignored, existing, failing, dry):
+            db.refresh(row)
+
+        service = CandidateOneLinerService(
+            db,
+            settings=OneLinerSettings(enabled=True, provider="mock"),
+        )
+        assert service.should_generate(existing) is False
+        assert service.should_generate(ignored) is False
+
+        result = service.generate_for_item(item)
+        db.refresh(item)
+        raw = json.loads(item.raw_metadata_json)
+        assert result.success is True
+        assert raw["zh_one_liner_status"] == "success"
+        assert raw.get("zh_one_liner")
+        assert build_candidate_display_card(item).summary == raw["zh_one_liner"]
+        assert extract_lightweight_summary(item) == raw["zh_one_liner"]
+
+        failing_service = CandidateOneLinerService(
+            db,
+            provider=FailingProvider(),
+            settings=OneLinerSettings(enabled=True, provider="mock"),
+        )
+        failed_result = failing_service.generate_for_item(failing)
+        db.refresh(failing)
+        failed_raw = json.loads(failing.raw_metadata_json)
+        assert failed_result.status == "failed"
+        assert failed_raw["zh_one_liner_status"] == "failed"
+        assert "provider exploded" in failed_raw["zh_one_liner_error"]
+
+        before_raw = dry.raw_metadata_json
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "scripts/generate_one_liners.py",
+                "--source-key",
+                test_key,
+                "--limit",
+                "1",
+                "--dry-run",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        db.refresh(dry)
+        assert dry.raw_metadata_json == before_raw
+        print("[OK] Candidate one-liner MVP service, display, failure, dry-run")
+    finally:
+        db.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
+        db.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
 def test_source_fetch_max_items_per_run_limit():
     """SourceFetchService limits RSS/HTML processing and records limit metadata."""
     import json
@@ -10751,6 +10928,7 @@ if __name__ == "__main__":
     test_v10_beta6_delta_digest_imports()
     test_v10_beta6_extract_summary_from_description()
     test_v10_beta6_extract_summary_priority()
+    test_v10_beta6_extract_summary_prefers_zh_one_liner()
     test_v10_beta6_extract_summary_strips_html()
     test_v10_beta6_extract_summary_truncates_long()
     test_v10_beta6_extract_summary_bad_json()
@@ -10789,6 +10967,7 @@ if __name__ == "__main__":
     test_v10_beta8_unsupported_strategy_creates_failed_run()
     test_v10_beta8_source_fetch_service_writes_probe_error_message()
     test_live_source_validation_coverage_helpers()
+    test_candidate_one_liner_mvp()
     test_source_fetch_max_items_per_run_limit()
     test_sources_page_hides_test_sources()
     test_html_index_probe_uses_default_headers()

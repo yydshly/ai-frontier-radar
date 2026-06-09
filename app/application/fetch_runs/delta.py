@@ -86,15 +86,16 @@ def extract_lightweight_summary(item: SourceItem) -> str:
     """Extract lightweight summary from SourceItem's raw_metadata_json.
 
     Priority order:
-    1. detail_description   (from article detail page og:description etc.)
-    2. summary
-    3. description
-    4. excerpt
-    5. content_snippet
-    6. og_description
-    7. meta_description
-    8. rss_summary
-    9. rss_description
+    1. zh_one_liner
+    2. detail_description   (from article detail page og:description etc.)
+    3. summary
+    4. description
+    5. excerpt
+    6. content_snippet
+    7. og_description
+    8. meta_description
+    9. rss_summary
+    10. rss_description
 
     Falls back to:
     - "来自 {source_key} 的候选资料：{title}"
@@ -112,6 +113,7 @@ def extract_lightweight_summary(item: SourceItem) -> str:
 
     # Priority-ordered list of summary field names
     summary_fields = [
+        "zh_one_liner",
         "detail_description",
         "summary",
         "description",

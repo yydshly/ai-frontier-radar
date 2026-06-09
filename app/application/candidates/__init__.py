@@ -1,1 +1,1 @@
-"""Candidate display layer — build display-ready card data from SourceItems."""
+"""Candidate application layer for display and lightweight candidate enrichment."""
