@@ -1206,8 +1206,46 @@ def compile_source_item(item_id: int):
         db.close()
 
 
+def _safe_return_to(return_to: str | None) -> str | None:
+    """Return a safe same-site relative redirect target, or None.
+
+    This prevents open redirects while allowing page-local workflow returns
+    such as /radar/today?section=...
+    """
+    if not return_to:
+        return None
+
+    value = return_to.strip()
+    if not value:
+        return None
+
+    # Only allow site-relative paths.
+    if not value.startswith("/"):
+        return None
+
+    # Reject protocol-relative URLs.
+    if value.startswith("//"):
+        return None
+
+    lowered = value.lower()
+
+    # Reject obvious slash/backslash encoded bypasses.
+    if lowered.startswith(("/\\", "/%5c", "/%2f")):
+        return None
+
+    # Reject CRLF injection.
+    if "\r" in value or "\n" in value:
+        return None
+
+    return value
+
+
 @app.post("/source-items/{item_id}/enqueue-compile")
-def enqueue_source_item_compile(item_id: int, background_tasks: BackgroundTasks):
+def enqueue_source_item_compile(
+    item_id: int,
+    background_tasks: BackgroundTasks,
+    return_to: str | None = Form(None),
+):
     """Enqueue a SourceItem for background InsightCard generation.
 
     Sets status to 'compiling' immediately, then dispatches a background task
@@ -1220,10 +1258,9 @@ def enqueue_source_item_compile(item_id: int, background_tasks: BackgroundTasks)
 
     if result.accepted:
         background_tasks.add_task(run_source_item_compile_in_background, item_id)
-        return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-    else:
-        # Not accepted (already compiled/composing) — just redirect back
-        return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
+
+    redirect_url = _safe_return_to(return_to) or f"/source-items/{item_id}"
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @app.get("/generation-queue", response_class=HTMLResponse)

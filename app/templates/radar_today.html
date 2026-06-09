@@ -177,6 +177,11 @@
                                 <a href="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}" class="btn-sm btn-primary">查看</a>
                                 {% if item.status == 'discovered' %}
                                 <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
+                                    <input
+                                        type="hidden"
+                                        name="return_to"
+                                        value="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
+                                    >
                                     <button type="submit" class="btn-sm">加入生成</button>
                                 </form>
                                 {% elif item.insight_card_id %}
@@ -246,6 +251,11 @@
                     {% endif %}
                     {% if sel.status == 'discovered' %}
                     <form method="post" action="/source-items/{{ sel.id }}/enqueue-compile" class="radar-panel-action-form">
+                        <input
+                            type="hidden"
+                            name="return_to"
+                            value="/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
+                        >
                         <button type="submit" class="btn-sm btn-primary">加入生成</button>
                     </form>
                     {% elif sel.insight_card_id %}

@@ -2047,6 +2047,45 @@ def main():
     except Exception as e:
         check("Today Radar pagination in toolbar checks", False, str(e))
 
+    # ── 16c. Today Radar: return_to for enqueue forms ─────────────────────────
+    print("\n[16c] Today Radar return_to for enqueue forms")
+    try:
+        main_py = (Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+
+        check("enqueue compile supports return_to form parameter",
+              "return_to: str | None = Form(None)" in main_py,
+              "enqueue route should accept return_to as an optional form parameter")
+
+        check("main.py has safe return_to helper",
+              "def _safe_return_to" in main_py
+              and 'value.startswith("//")' in main_py
+              and '\\r' in main_py
+              and '\\n' in main_py,
+              "return_to must be validated to prevent open redirects")
+
+        check("enqueue compile falls back to source item detail",
+              'or f"/source-items/{item_id}"' in main_py,
+              "missing or unsafe return_to should preserve old redirect behavior")
+
+        check("today radar card enqueue form carries return_to",
+              'name="return_to"' in radar_html
+              and "/radar/today?section={{ view.active_section }}&item_id={{ item.id }}" in radar_html,
+              "card enqueue form should return to selected radar item")
+
+        check("today radar panel enqueue form carries return_to",
+              "/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}" in radar_html,
+              "panel enqueue form should return to selected radar item")
+
+        check("today radar return_to preserves pagination context",
+              "hours={{ view.hours }}" in radar_html
+              and "limit={{ view.limit }}" in radar_html
+              and "page={{ view.page }}" in radar_html
+              and "per_page={{ view.per_page }}" in radar_html,
+              "return_to should preserve radar reading context")
+    except Exception as e:
+        check("Today Radar return_to checks", False, str(e))
+
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
     try:
