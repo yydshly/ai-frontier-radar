@@ -2550,6 +2550,53 @@ def main():
         import traceback
         check("SourceItem compile snapshot MVP", False, traceback.format_exc())
 
+    # ── 20. Today Radar: smart reading panel state ─────────────────────────────
+    print("\n[20] Today Radar smart reading panel state")
+    try:
+        radar_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("today radar has panel state dataclass",
+              "class RadarPanelState" in radar_py,
+              "right reading panel should have explicit display state")
+
+        check("today radar panel state reads raw metadata",
+              "def _read_raw_metadata" in radar_py
+              and "zh_one_liner" in radar_py
+              and "zh_summary" in radar_py,
+              "panel state should distinguish Chinese summary availability")
+
+        check("today radar panel state loads selected insight card",
+              "db.query(InsightCard)" in radar_py
+              and "selected_insight_card" in radar_py,
+              "compiled items should show InsightCard preview when available")
+
+        check("today radar view carries panel_state",
+              "panel_state" in radar_py
+              and "RadarTodayView" in radar_py,
+              "RadarTodayView should expose right panel state")
+
+        check("today radar template renders smart panel state",
+              "智能阅读面板" in radar_html
+              and "radar-panel-state-stack" in radar_html
+              and "view.panel_state.summary_label" in radar_html
+              and "view.panel_state.insight_label" in radar_html,
+              "right panel should display summary and insight generation states")
+
+        check("today radar template renders insight preview",
+              "InsightCard 预览" in radar_html
+              and "view.panel_state.selected_insight_card" in radar_html,
+              "right panel should preview generated InsightCard")
+
+        check("today radar panel state styles exist",
+              ".radar-panel-state-stack" in style_css
+              and ".radar-panel-insight-preview" in style_css
+              and ".radar-panel-state-failed" in style_css,
+              "right panel state styles should exist")
+    except Exception as e:
+        check("Today Radar panel state checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

@@ -22,11 +22,24 @@ from typing import Any
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
-from app.models import SourceItem
+from app.models import InsightCard, SourceItem
 from app.application.candidates.display import (
     CandidateDisplayCard,
     build_candidate_display_card,
 )
+
+
+# ── Panel state ─────────────────────────────────────────────────────────────
+@dataclass
+class RadarPanelState:
+    """Describes what the right reading panel should display for a selected item."""
+    summary_state: str          # zh_summary | zh_one_liner | metadata_fallback | missing
+    summary_label: str          # Human-readable label for the summary state
+    summary_note: str | None    # Optional note explaining the state
+    insight_state: str          # discovered | compiling | compiled | failed | compiled_missing_card | unknown
+    insight_label: str          # Human-readable label for the insight state
+    insight_note: str | None    # Optional note (e.g. error message for failed)
+    selected_insight_card: "InsightCard | None" = None
 
 
 # ── Query bounds ───────────────────────────────────────────────────────────
@@ -202,6 +215,8 @@ class RadarTodayView:
     active_section: str = ALL_KEY
     # ── Per-section item counts over the FULL result set (not current page) ─
     section_counts: dict = field(default_factory=dict)
+    # ── Right reading panel state ────────────────────────────────────────────
+    panel_state: RadarPanelState | None = None
 
 
 def _clamp(value: int, low: int, high: int) -> int:
@@ -306,6 +321,87 @@ def _categorize_item(item: SourceItem, card: CandidateDisplayCard | None) -> str
     if card is None:
         return OTHERS_KEY
     return _category_for(_classify_blob(item, card))
+
+
+def _read_raw_metadata(item: SourceItem | None) -> dict[str, Any]:
+    """Parse raw_metadata_json into a dict; return {} for None or invalid JSON."""
+    if item is None or not item.raw_metadata_json:
+        return {}
+    try:
+        parsed = json.loads(item.raw_metadata_json)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _build_panel_state(
+    db: Session,
+    item: SourceItem | None,
+) -> RadarPanelState | None:
+    """Build the reading-panel state for a selected SourceItem (read-only)."""
+    if item is None:
+        return None
+
+    raw = _read_raw_metadata(item)
+    has_zh_summary = bool(str(raw.get("zh_summary") or "").strip())
+    has_zh_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
+
+    if has_zh_summary:
+        summary_state = "zh_summary"
+        summary_label = "中文摘要已生成"
+        summary_note: str | None = None
+    elif has_zh_one_liner:
+        summary_state = "zh_one_liner"
+        summary_label = "已有中文一句话摘要"
+        summary_note = "中文详细摘要尚未生成。"
+    else:
+        summary_state = "metadata_fallback"
+        summary_label = "中文摘要未生成"
+        summary_note = "当前显示来源 metadata / RSS 摘要，信息可能不完整。"
+
+    selected_insight_card: InsightCard | None = None
+
+    if item.status == "discovered":
+        insight_state = "discovered"
+        insight_label = "待生成 InsightCard"
+        insight_note: str | None = "可点击「加入生成」生成结构化洞察卡。"
+    elif item.status == "compiling":
+        insight_state = "compiling"
+        insight_label = "InsightCard 生成中"
+        insight_note = "后台正在生成结构化洞察卡，稍后刷新查看结果。"
+    elif item.status == "failed":
+        insight_state = "failed"
+        insight_label = "InsightCard 生成失败"
+        insight_note = item.error_message or "未记录错误原因。"
+    elif item.status == "compiled":
+        if item.insight_card_id:
+            selected_insight_card = (
+                db.query(InsightCard)
+                .filter(InsightCard.id == item.insight_card_id)
+                .first()
+            )
+        if selected_insight_card is not None:
+            insight_state = "compiled"
+            insight_label = "已生成 InsightCard"
+            insight_note = None
+        else:
+            insight_state = "compiled_missing_card"
+            insight_label = "InsightCard 关联缺失"
+            insight_note = "当前条目标记为已生成，但未找到关联 InsightCard。"
+    else:
+        insight_state = "unknown"
+        insight_label = item.status or "状态未知"
+        insight_note = None
+
+    return RadarPanelState(
+        summary_state=summary_state,
+        summary_label=summary_label,
+        summary_note=summary_note,
+        insight_state=insight_state,
+        insight_label=insight_label,
+        insight_note=insight_note,
+        selected_insight_card=selected_insight_card,
+    )
 
 
 def _category_for(blob: str) -> str:
@@ -447,6 +543,8 @@ class RadarTodayService:
         if selected_item is not None and selected_item.id in full_display_map:
             display_map[selected_item.id] = full_display_map[selected_item.id]
 
+        panel_state = _build_panel_state(self.db, selected_item)
+
         return RadarTodayView(
             total_items=total_items_in_section,
             selected_item_id=selected_item_id,
@@ -464,6 +562,7 @@ class RadarTodayService:
             has_next=has_next,
             active_section=section,
             section_counts=section_counts,
+            panel_state=panel_state,
         )
 
     def _build_sections(

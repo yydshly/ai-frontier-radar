@@ -209,10 +209,48 @@
                 {% elif not sel %}
                 <div class="radar-panel-empty">暂无可阅读的内容。</div>
                 {% else %}
-                <div class="radar-panel-label">阅读面板</div>
+                <div class="radar-panel-label">智能阅读面板</div>
+
+                {% if view.panel_state %}
+                <div class="radar-panel-state-stack">
+                    <div class="radar-panel-state radar-panel-state-summary radar-panel-state-{{ view.panel_state.summary_state }}">
+                        <strong>{{ view.panel_state.summary_label }}</strong>
+                        {% if view.panel_state.summary_note %}
+                        <p>{{ view.panel_state.summary_note }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="radar-panel-state radar-panel-state-insight radar-panel-state-{{ view.panel_state.insight_state }}">
+                        <strong>{{ view.panel_state.insight_label }}</strong>
+                        {% if view.panel_state.insight_note %}
+                        <p>{{ view.panel_state.insight_note }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
 
                 {% if sel_card and sel_card.detail_summary %}
-                <div class="radar-panel-summary">{{ sel_card.detail_summary }}</div>
+                <section class="radar-panel-section">
+                    <h3>内容摘要</h3>
+                    <div class="radar-panel-summary">{{ sel_card.detail_summary }}</div>
+                </section>
+                {% endif %}
+
+                {% if view.panel_state and view.panel_state.selected_insight_card %}
+                {% set insight = view.panel_state.selected_insight_card %}
+                <section class="radar-panel-section radar-panel-insight-preview">
+                    <h3>InsightCard 预览</h3>
+                    {% if insight.relevance_score is not none %}
+                    <p class="radar-panel-score">相关性分数：{{ insight.relevance_score }}</p>
+                    {% endif %}
+                    {% if insight.summary_zh %}
+                    <div class="radar-panel-insight-summary">{{ insight.summary_zh }}</div>
+                    {% endif %}
+                    {% if insight.related_user_directions %}
+                    <p class="radar-panel-muted">相关方向：{{ insight.related_user_directions }}</p>
+                    {% endif %}
+                    <a href="/cards/{{ insight.id }}" class="btn-sm btn-primary">查看完整 InsightCard</a>
+                </section>
                 {% endif %}
 
                 <h2 class="radar-panel-title">
@@ -246,9 +284,6 @@
                 {% endif %}
 
                 <div class="radar-panel-actions">
-                    {% if panel_url %}
-                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm btn-primary">打开原文</a>
-                    {% endif %}
                     {% if sel.status == 'discovered' %}
                     <form method="post" action="/source-items/{{ sel.id }}/enqueue-compile" class="radar-panel-action-form">
                         <input
@@ -258,8 +293,11 @@
                         >
                         <button type="submit" class="btn-sm btn-primary">加入生成</button>
                     </form>
-                    {% elif sel.insight_card_id %}
+                    {% elif sel.status == 'compiled' and sel.insight_card_id %}
                     <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
+                    {% endif %}
+                    {% if panel_url %}
+                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
                     {% endif %}
                     <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
                 </div>

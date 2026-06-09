@@ -4149,6 +4149,96 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     margin: 0;
 }
 
+/* ── Smart reading panel state cards ──────────────────────────────────── */
+.radar-panel-state-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.radar-panel-state {
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+    background: #f6f8fa;
+    font-size: 0.85rem;
+}
+
+.radar-panel-state strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #24292f;
+}
+
+.radar-panel-state p {
+    margin: 0;
+    color: #57606a;
+    line-height: 1.45;
+}
+
+.radar-panel-state-zh_summary,
+.radar-panel-state-compiled {
+    background: #eaf4ff;
+    border-color: #b6e3ff;
+}
+
+.radar-panel-state-zh_one_liner,
+.radar-panel-state-discovered {
+    background: #fff8c5;
+    border-color: #eac54f;
+}
+
+.radar-panel-state-metadata_fallback,
+.radar-panel-state-compiled_missing_card {
+    background: #fff1e5;
+    border-color: #ffab70;
+}
+
+.radar-panel-state-failed {
+    background: #ffebe9;
+    border-color: #ff8182;
+}
+
+.radar-panel-state-compiling {
+    background: #f6f8fa;
+    border-color: #d0d7de;
+}
+
+.radar-panel-section {
+    margin-bottom: 0.85rem;
+}
+
+.radar-panel-section h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.9rem;
+    color: #24292f;
+}
+
+.radar-panel-insight-preview {
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 0.65rem;
+    background: #fff;
+}
+
+.radar-panel-score {
+    margin: 0 0 0.4rem;
+    color: #0969da;
+    font-weight: 700;
+}
+
+.radar-panel-insight-summary {
+    margin: 0.35rem 0;
+    line-height: 1.55;
+    color: #24292f;
+}
+
+.radar-panel-muted {
+    color: #57606a;
+    font-size: 0.82rem;
+}
+
 @media (max-width: 1024px) {
     body.app-shell.radar-workbench-shell {
         height: auto;
