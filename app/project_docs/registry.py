@@ -114,6 +114,14 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         description="当前版本的已知限制、无法支持的场景和变通方案。",
     ),
 
+    "first-usable-loop-check": DocEntry(
+        key="first-usable-loop-check",
+        title="First Usable Loop 验收",
+        path="docs/FIRST_USABLE_LOOP_CHECK.md",
+        category="运行与验收",
+        description="V1.0-beta First Usable Loop 完整链路验收步骤与预期说明。",
+    ),
+
     # Beta 规划
     "beta-roadmap": DocEntry(
         key="beta-roadmap",
@@ -128,6 +136,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         path="docs/V1.0_BETA_ARCHITECTURE_DECISIONS.md",
         category="Beta 规划",
         description="V1.0-beta 分层架构、UI 技术选型、性能约束和禁止事项。",
+    ),
+    "next-execution-plan": DocEntry(
+        key="next-execution-plan",
+        title="下一阶段执行计划",
+        path="docs/NEXT_EXECUTION_PLAN.md",
+        category="Beta 规划",
+        description="V1.0-beta 下一阶段优先级规划：P0/P1/P2 分级落地路径。",
     ),
 }
 
