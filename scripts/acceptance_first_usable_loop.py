@@ -78,9 +78,17 @@ def main() -> int:
     check("今日雷达使用雷达关注源词汇",
           "雷达关注源" in radar_html,
           "用户可见文案应使用雷达关注源")
-    check("更新路由限定雷达关注源范围",
-          "configured_keys" in radar_route_py and "Source.source_key.in_(configured_keys)" in radar_route_py,
-          "更新应限定在 configured_keys 范围内")
+    check("更新路由使用 due-source 计划限定雷达关注源范围",
+          "compute_due_sources" in radar_route_py
+          and "plan.due" in radar_route_py
+          and "enqueue_source" in radar_route_py,
+          "更新应通过 due-source plan 只启动到期雷达关注源")
+    check("更新路由不会启动 skipped/running/unsupported/missing 来源",
+          "plan.skipped" in radar_route_py
+          and "plan.running" in radar_route_py
+          and "plan.unsupported" in radar_route_py
+          and "plan.missing" in radar_route_py,
+          "非 due 来源应只用于解释，不应被 enqueue")
 
     print("\n[5] 工作台滚动模型")
     check("今日雷达使用工作台 shell 类",
