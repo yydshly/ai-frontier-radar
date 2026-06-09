@@ -128,30 +128,81 @@ def main():
                     pass
         check(f"Template keyword '{keyword}' found", found, f"checked: {expected_files}")
 
-    # ── 6. Weak title handling ─────────────────────────────────────────────
+    # ── 6. Weak title detection (case-insensitive) ─────────────────────────
     print("\n[6] Weak title detection in html_index_probe")
     try:
-        from app.sources.html_index_probe import _is_weak_title, _make_url_slug_fallback
+        from app.sources.html_index_probe import (
+            _is_weak_title, _make_url_slug_fallback, choose_candidate_title,
+        )
     except Exception as e:
         check("html_index_probe imports for weak title helpers", False, str(e))
     else:
+        # Case-insensitive weak title detection
         check("'Learn More' is detected as weak title",
               _is_weak_title("Learn More") is True)
         check("'FEATURED' is detected as weak title",
               _is_weak_title("FEATURED") is True)
+        check("'featured' (lowercase) is detected as weak title",
+              _is_weak_title("featured") is True)
         check("'Read More' is detected as weak title",
               _is_weak_title("Read More") is True)
         check("'Meta AI MTIA Chip Announcement' is NOT weak",
               _is_weak_title("Meta AI MTIA Chip Announcement") is False)
+        check("Empty string is detected as weak",
+              _is_weak_title("") is True)
+        check("Whitespace-only string is detected as weak",
+              _is_weak_title("   ") is True)
+
+        # URL slug fallback
         slug = _make_url_slug_fallback(
             "https://ai.meta.com/blog/meta-mtia-scale-ai-chips-for-billions/"
         )
         check("URL slug fallback extracts 'meta mtia scale ai chips for billions'",
               slug == "meta mtia scale ai chips for billions", f"got: {repr(slug)}")
-        check("Empty string is detected as weak",
-              _is_weak_title("") is True)
-        check("Whitespace-only string is detected as weak",
-              _is_weak_title("   ") is True)
+
+        # ── choose_candidate_title priority rules ────────────────────────
+        # 1. detail_metadata.title (if not weak) wins over link_text
+        detail_good = {"title": "Segment Anything Model 3", "title_source": "detail_og_title"}
+        title, src = choose_candidate_title("Learn More",
+                                            "https://ai.meta.com/blog/segment-anything-model-3/",
+                                            detail_good)
+        check("detail_metadata.title takes priority over weak link_text",
+              title == "Segment Anything Model 3" and src == "detail_og_title",
+              f"got: {title!r}, {src}")
+
+        # 2. weak link_text → detail title used if available
+        title2, src2 = choose_candidate_title("FEATURED",
+                                              "https://ai.meta.com/blog/meta-mtia/",
+                                              detail_good)
+        check("detail_og_title used when link_text is weak 'FEATURED'",
+              title2 == "Segment Anything Model 3" and src2 == "detail_og_title",
+              f"got: {title2!r}, {src2}")
+
+        # 3. no detail title + good link_text → link_text used
+        detail_empty: dict = {}
+        title3, src3 = choose_candidate_title("Meta AI MTIA Announcement",
+                                              "https://ai.meta.com/blog/xyz/",
+                                              detail_empty)
+        check("good link_text used when no detail title available",
+              title3 == "Meta AI MTIA Announcement" and src3 == "link_text",
+              f"got: {title3!r}, {src3}")
+
+        # 4. no detail title + weak link_text → URL slug fallback
+        title4, src4 = choose_candidate_title("Learn More",
+                                              "https://ai.meta.com/blog/tribe-v2-brain/",
+                                              detail_empty)
+        check("URL slug fallback used when link_text is weak and no detail title",
+              title4 == "tribe v2 brain" and src4 == "url_slug",
+              f"got: {title4!r}, {src4}")
+
+        # 5. good link_text beats weak detail title (unlikely but tested)
+        detail_weak = {"title": "More", "title_source": "detail_h1"}
+        title5, src5 = choose_candidate_title("Meta AI Tribe V2 Paper",
+                                              "https://ai.meta.com/blog/tribe/",
+                                              detail_weak)
+        check("good link_text used over weak detail_h1 title",
+              title5 == "Meta AI Tribe V2 Paper" and src5 == "link_text",
+              f"got: {title5!r}, {src5}")
 
     # ── 7. generation_queue.html section-header renaming ───────────────────
     print("\n[7] generation_queue.html section renaming")
