@@ -1800,6 +1800,13 @@ def main():
         check("style.css .radar-layout has overflow: hidden",
               "overflow: hidden" in radar_layout_block)
 
+        # ── Regression: no orphaned closing brace after .radar-card-actions .btn-sm ──
+        btn_sm_start = style_css.find(".radar-card-actions .btn-sm")
+        btn_sm_snippet = style_css[btn_sm_start:btn_sm_start + 240] if btn_sm_start >= 0 else ""
+        check("style.css .radar-card-actions .btn-sm has no orphaned closing brace",
+              "}\n}\n\n.radar-panel" not in btn_sm_snippet,
+              btn_sm_snippet)
+
         # GET endpoint returns 200.
         resp = client.get("/radar/today")
         check("GET /radar/today returns 200", resp.status_code == 200, f"status={resp.status_code}")
@@ -2030,9 +2037,9 @@ def main():
         check("radar 查看 link omits #radar-panel anchor",
               "#radar-panel" not in radar_resp.text)
 
-        # 7. Cards carry a stable radar-item-{id} id.
+        # 7. Cards carry a stable radar-item-{id} id (check template, not runtime).
         check("radar cards carry id=\"radar-item-...\"",
-              'id="radar-item-' in radar_resp.text)
+              'id="radar-item-{{ item.id }}"' in radar_html)
 
         # 8. Selected-card scroll script present.
         check("radar page includes selected-card scroll script",
