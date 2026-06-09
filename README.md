@@ -223,6 +223,25 @@ python scripts/quick_test.py
 python scripts/check_sources_health.py
 ```
 
+## V1.0-beta.1 Source Scheduling and Source Workspace
+
+下一阶段目标是让系统从"手动跑通"升级为"可持续运行"。
+
+核心问题：
+
+```
+哪些来源今天该探测？
+每个来源状态如何？
+来源池和雷达关注源如何区分？
+摘要生成如何排队和重试？
+```
+
+规划文档：
+
+- [docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md](docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md) — 架构说明、核心概念、due-source 设计
+- [docs/V1_BETA_1_EXECUTION_PLAN.md](docs/V1_BETA_1_EXECUTION_PLAN.md) — 任务拆分、推荐顺序、测试策略
+- [docs/V1_BETA_1_DECISION_RECORD.md](docs/V1_BETA_1_DECISION_RECORD.md) — 6 条关键架构决策
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |

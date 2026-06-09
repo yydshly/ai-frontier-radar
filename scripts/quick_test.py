@@ -3166,6 +3166,41 @@ def main():
               "PROJECT_DOCS_REGISTRY" in registry_py
               and "Path(" in registry_py,
               "project docs should remain registry-based and not open arbitrary files")
+
+        # 23c. V1 beta 1 planning docs exist
+        check("V1 beta 1 architecture doc exists",
+              (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md").exists(),
+              "V1 beta 1 source scheduling architecture doc should exist")
+        check("V1 beta 1 execution plan exists",
+              (project_root / "docs" / "V1_BETA_1_EXECUTION_PLAN.md").exists(),
+              "V1 beta 1 execution plan should exist")
+        check("V1 beta 1 decision record exists",
+              (project_root / "docs" / "V1_BETA_1_DECISION_RECORD.md").exists(),
+              "V1 beta 1 decision record should exist")
+
+        # 23d. V1 beta 1 architecture doc content
+        v1_beta_1_arch_md = (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md").read_text(encoding="utf-8")
+        check("V1 beta 1 docs describe due-source and source workspace",
+              "due-source" in v1_beta_1_arch_md
+              and "/sources/{source_key}" in v1_beta_1_arch_md
+              and "SourcePool" in v1_beta_1_arch_md
+              and "RadarSource" in v1_beta_1_arch_md,
+              "architecture doc should describe due-source scheduling and source workspace")
+
+        # 23e. V1 beta 1 docs in registry
+        check("project docs registry includes V1 beta 1 docs",
+              "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md" in registry_py
+              and "V1_BETA_1_EXECUTION_PLAN.md" in registry_py
+              and "V1_BETA_1_DECISION_RECORD.md" in registry_py,
+              "browser project docs should expose V1 beta 1 planning docs")
+
+        # 23f. README links V1 beta 1 planning docs
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+        check("README links V1 beta 1 planning docs",
+              "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md" in readme_md
+              and "V1_BETA_1_EXECUTION_PLAN.md" in readme_md
+              and "V1_BETA_1_DECISION_RECORD.md" in readme_md,
+              "README should link V1 beta 1 planning docs")
     except Exception as e:
         check("V1 beta checkpoint documentation checks", False, str(e))
 

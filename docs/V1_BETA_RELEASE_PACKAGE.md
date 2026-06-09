@@ -62,3 +62,18 @@ python scripts/check_sources_health.py
 - `docs/V1_BETA_CHECKPOINT.md`
 - `docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md`
 - `docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md`
+
+## 下一阶段
+
+V1.0-beta.1 将围绕来源调度和单来源工作台展开：
+
+- due-source 调度（判断哪些来源本轮该探测，并展示跳过原因）
+- 单来源工作台 `/sources/{source_key}`（来源状态、FetchRun、SourceItem、摘要、InsightCard 入口）
+- 来源池 / 雷达关注源概念分离（SourcePool vs RadarSource）
+- 摘要队列演进设计记录（当前 best-effort 与未来 SummaryJob 的关系）
+
+参考：
+
+- `docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md`
+- `docs/V1_BETA_1_EXECUTION_PLAN.md`
+- `docs/V1_BETA_1_DECISION_RECORD.md`

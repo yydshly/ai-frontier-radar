@@ -174,6 +174,29 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="Beta 规划",
         description="页面、抓取、中文摘要、InsightCard、导出和 checkpoint 的验收清单。",
     ),
+
+    # V1.0-beta.1 来源调度与来源工作台
+    "v1-beta-1-source-scheduling-architecture": DocEntry(
+        key="v1-beta-1-source-scheduling-architecture",
+        title="V1.0-beta.1 来源调度与来源工作台架构",
+        path="docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md",
+        category="V1.0-beta.1",
+        description="due-source 调度、单来源工作台、来源池与雷达关注源分离、摘要队列演进的架构设计。",
+    ),
+    "v1-beta-1-execution-plan": DocEntry(
+        key="v1-beta-1-execution-plan",
+        title="V1.0-beta.1 执行计划",
+        path="docs/V1_BETA_1_EXECUTION_PLAN.md",
+        category="V1.0-beta.1",
+        description="V1.0-beta.1 任务拆分、推荐顺序、测试策略和风险说明。",
+    ),
+    "v1-beta-1-decision-record": DocEntry(
+        key="v1-beta-1-decision-record",
+        title="V1.0-beta.1 架构决策记录",
+        path="docs/V1_BETA_1_DECISION_RECORD.md",
+        category="V1.0-beta.1",
+        description="V1.0-beta.1 六条关键架构决策：不定时任务、config 雷达源、due-source 基于 FetchRun 等。",
+    ),
 }
 
 
