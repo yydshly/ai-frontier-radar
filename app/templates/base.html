@@ -32,6 +32,12 @@
                     </a>
                 </li>
                 <li>
+                    <a href="/radar/today" class="sidebar-item {% if request.url.path == '/radar/today' %}active{% endif %}">
+                        <span class="sidebar-icon">📡</span>
+                        <span class="sidebar-label">今日雷达</span>
+                    </a>
+                </li>
+                <li>
                     <a href="/sources" class="sidebar-item {% if request.url.path.startswith('/sources') %}active{% endif %}">
                         <span class="sidebar-icon">🗺️</span>
                         <span class="sidebar-label">信息来源</span>

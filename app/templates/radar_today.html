@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}今日 AI 前沿雷达 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>今日 AI 前沿雷达</h1>
+            <p>最近发现的候选内容</p>
+        </div>
+
+        {% if items %}
+        <p class="result-count">共 {{ items|length }} 条（最近发现）</p>
+
+        <div class="candidate-list">
+            {% for item in items %}
+            {% set display = display_map.get(item.id) %}
+            <article class="candidate-card">
+                <div class="candidate-main">
+                    {# ── Title row ─────────────────────────────────────── #}
+                    <div class="candidate-title-row">
+                        {% if display and display.is_title_weak %}
+                            <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                标题待修复
+                            </span>
+                        {% else %}
+                            <a href="/source-items/{{ item.id }}" class="candidate-title">
+                                {{ (display.title if display else item.title) or '无标题' }}
+                            </a>
+                        {% endif %}
+                        <div class="candidate-badges">
+                            {% if item.status == 'discovered' %}
+                                <span class="status-badge status-pending">待处理</span>
+                            {% elif item.status == 'compiling' %}
+                                <span class="status-badge status-running">生成中</span>
+                            {% elif item.status == 'compiled' %}
+                                <span class="status-badge status-completed">已完成</span>
+                            {% elif item.status == 'failed' %}
+                                <span class="status-badge status-failed">失败</span>
+                            {% else %}
+                                <span class="status-badge">{{ item.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {# ── Weak title hint ─────────────────────────────────── #}
+                    {% if display and display.is_title_weak %}
+                    <div class="candidate-weak-title-hint">
+                        原始标题：{{ item.title | escape }}
+                    </div>
+                    {% endif %}
+
+                    {# ── Summary ─────────────────────────────────────── #}
+                    {% if display and display.summary %}
+                    <div class="candidate-summary">{{ display.summary }}</div>
+                    {% endif %}
+
+                    {# ── URL ─────────────────────────────────────────── #}
+                    <div class="candidate-url">
+                        {% set safe_url = safe_external_url(display.url if display else item.url) %}
+                        {% if safe_url %}
+                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ (display.url if display else item.url) | escape }}">
+                            {{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}
+                        </a>
+                        {% else %}
+                        <span title="{{ (display.url if display else item.url) | escape }}">{{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}</span>
+                        {% endif %}
+                    </div>
+
+                    {# ── Source + time label ─────────────────────────── #}
+                    <div class="candidate-meta">
+                        <code>{{ item.source_key }}</code>
+                        {% if display %}
+                            <span>{{ display.time_label }}</span>
+                        {% else %}
+                            <span>首次发现 {{ item.first_seen_at.strftime('%m-%d %H:%M') if item.first_seen_at else '-' }}</span>
+                        {% endif %}
+                        <small class="muted">#{{ item.id }}</small>
+                    </div>
+                </div>
+                <div class="candidate-actions">
+                    {% if item.status == 'discovered' %}
+                    <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                        <button type="submit" class="btn-sm btn-primary">加入生成</button>
+                    </form>
+                    {% elif item.insight_card_id %}
+                    <a href="/cards/{{ item.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
+                    {% endif %}
+                    <a href="/source-items/{{ item.id }}" class="btn-sm">详情</a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <p class="empty-state">暂无候选内容。</p>
+        {% endif %}
+
+        <p class="page-note">V1.0-beta.8：每日雷达展示最近发现的候选内容。</p>
+{% endblock %}
