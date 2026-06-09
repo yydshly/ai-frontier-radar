@@ -66,7 +66,12 @@
                 <th>URL</th>
                 <td>
                     {% if item.url %}
-                    <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.url }}</a>
+                    {% set safe_url = safe_external_url(item.url) %}
+                    {% if safe_url %}
+                    <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer">{{ item.url }}</a>
+                    {% else %}
+                    <span title="{{ item.url }}">{{ item.url[:100] }}{% if item.url|length > 100 %}...{% endif %}</span>
+                    {% endif %}
                     {% else %}
                     -
                     {% endif %}
@@ -106,6 +111,72 @@
                     {% endif %}
                 </td>
             </tr>
+        </table>
+
+        {# V1.0-beta.5: Candidate Quality Assessment #}
+        <h2>候选质量评估</h2>
+        <table class="detail-table">
+            <tr>
+                <th>质量等级</th>
+                <td>
+                    {% if quality.level.value == 'high' %}
+                    <span class="quality-badge quality-high">高</span>
+                    {% elif quality.level.value == 'medium' %}
+                    <span class="quality-badge quality-medium">中</span>
+                    {% elif quality.level.value == 'low' %}
+                    <span class="quality-badge quality-low">低</span>
+                    {% else %}
+                    <span class="quality-badge quality-noise">噪音</span>
+                    {% endif %}
+                    <span class="muted">({{ quality.score }} 分)</span>
+                </td>
+            </tr>
+            <tr>
+                <th>推荐动作</th>
+                <td>
+                    {% if quality.action_label == '建议生成' %}
+                    <span class="action-badge action-compile">{{ quality.action_label }}</span>
+                    {% elif quality.action_label == '人工复核' %}
+                    <span class="action-badge action-review">{{ quality.action_label }}</span>
+                    {% elif quality.action_label == '建议忽略' %}
+                    <span class="action-badge action-ignore">{{ quality.action_label }}</span>
+                    {% else %}
+                    <span class="action-badge action-manual">{{ quality.action_label }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% if quality.matched_interests_list() %}
+            <tr>
+                <th>匹配方向</th>
+                <td>
+                    {% for interest in quality.matched_interests_list() %}
+                    <span class="interest-tag">{{ interest }}</span>
+                    {% endfor %}
+                </td>
+            </tr>
+            {% endif %}
+            {% if quality.reasons_list() %}
+            <tr>
+                <th>判断理由</th>
+                <td>
+                    <ul style="margin:0.25rem 0 0 1.25rem; padding:0;">
+                    {% for reason in quality.reasons_list() %}
+                    <li>{{ reason }}</li>
+                    {% endfor %}
+                    </ul>
+                </td>
+            </tr>
+            {% endif %}
+            {% if quality.warning_flags_list() %}
+            <tr>
+                <th>风险标记</th>
+                <td>
+                    {% for flag in quality.warning_flags_list() %}
+                    <span class="muted" style="font-size:0.85rem;">{{ flag }}{{ '；' if not loop.last else '' }}</span>
+                    {% endfor %}
+                </td>
+            </tr>
+            {% endif %}
         </table>
 
         <h2>Source 信息</h2>

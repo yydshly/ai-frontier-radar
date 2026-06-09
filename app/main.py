@@ -1104,11 +1104,21 @@ def source_item_detail(request: Request, item_id: int):
         if item.insight_card_id:
             card = db.query(InsightCard).filter(InsightCard.id == item.insight_card_id).first()
 
+        # V1.0-beta.5: compute candidate quality
+        from app.application.candidate_quality.services import CandidateQualityService
+        quality_service = CandidateQualityService()
+        quality = quality_service.evaluate(item)
+
+        # Import safe_external_url helper
+        from app.routes.fetch_runs import safe_external_url
+
         context = {
             "request": request,
             "item": item,
             "source": source,
             "card": card,
+            "quality": quality,
+            "safe_external_url": safe_external_url,
         }
         return templates.TemplateResponse("source_item_detail.html", context)
     finally:

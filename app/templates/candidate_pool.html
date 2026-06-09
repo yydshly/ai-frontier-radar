@@ -81,19 +81,39 @@
                             <th>☑</th>
                             <th>ID</th>
                             <th>来源</th>
+                            <th>质量</th>
                             <th>标题</th>
                             <th>URL</th>
                             <th>状态</th>
+                            <th>建议</th>
+                            <th>匹配方向</th>
                             <th>首次发现</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in items %}
+                        {% set quality = quality_map.get(item.id) %}
                         <tr>
                             <td><input type="checkbox" name="candidate_ids" value="{{ item.id }}"></td>
                             <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
                             <td><code>{{ item.source_key }}</code></td>
+                            {# V1.0-beta.5: Quality level badge #}
+                            <td>
+                                {% if quality %}
+                                    {% if quality.level.value == 'high' %}
+                                    <span class="quality-badge quality-high" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">高</span>
+                                    {% elif quality.level.value == 'medium' %}
+                                    <span class="quality-badge quality-medium" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">中</span>
+                                    {% elif quality.level.value == 'low' %}
+                                    <span class="quality-badge quality-low" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">低</span>
+                                    {% else %}
+                                    <span class="quality-badge quality-noise" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">噪音</span>
+                                    {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
                             <td class="title-cell">{{ item.title or '无标题' }}</td>
                             <td class="url-cell">
                                 {% set safe_url = safe_external_url(item.url) %}
@@ -122,6 +142,34 @@
                                 <strong>{{ item.status }}</strong>
                                 {% endif %}
                             </td>
+                            {# V1.0-beta.5: Recommended action #}
+                            <td>
+                                {% if quality %}
+                                    {% if quality.action_label == '建议生成' %}
+                                    <span class="action-badge action-compile">建议生成</span>
+                                    {% elif quality.action_label == '人工复核' %}
+                                    <span class="action-badge action-review">人工复核</span>
+                                    {% elif quality.action_label == '建议忽略' %}
+                                    <span class="action-badge action-ignore">建议忽略</span>
+                                    {% else %}
+                                    <span class="action-badge action-manual">需人工判断</span>
+                                    {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            {# V1.0-beta.5: Matched interests #}
+                            <td class="interests-cell">
+                                {% if quality and quality.matched_interests_list() %}
+                                <span class="interests-tags">
+                                    {% for interest in quality.matched_interests_list()[:3] %}
+                                    <span class="interest-tag">{{ interest }}</span>
+                                    {% endfor %}
+                                </span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
                             <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M') if item.first_seen_at else '-' }}</td>
                             <td>
                                 <a href="/source-items/{{ item.id }}">详情</a>
@@ -140,7 +188,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="8" class="empty-state">
+                            <td colspan="11" class="empty-state">
                                 暂无候选条目
                             </td>
                         </tr>
