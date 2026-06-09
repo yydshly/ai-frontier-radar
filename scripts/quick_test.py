@@ -2153,6 +2153,9 @@ def main():
         check("today radar route accepts section query param",
               "section: str" in radar_py or "section=section" in radar_py or "section: section" in radar_py,
               "route should accept section query param")
+        check("today radar precomputes today focus ids",
+              "today_focus_ids = {i.id for i in items[:TODAY_FOCUS_SIZE]}" in radar_py,
+              "today focus id set should be precomputed outside page item loop")
 
         # ── Per-page selector (header GET form) ────────────────────────────
         check("today radar has per_page selector",
@@ -2164,6 +2167,17 @@ def main():
         check("today radar per_page change resets page to 1",
               'name="page" value="1"' in radar_html,
               "changing page size should reset to first page")
+
+        # ── Section state preservation across navigation ─────────────────
+        check("today radar per_page form preserves active section",
+              'name="section" value="{{ view.active_section }}"' in radar_html,
+              "per_page form should preserve active section")
+        check("today radar view link preserves active section",
+              "/radar/today?section={{ view.active_section }}&item_id={{ item.id }}" in radar_html,
+              "view link should preserve active section")
+        check("today radar pagination preserves active section",
+              "'/radar/today?section=' ~ view.active_section" in radar_html,
+              "pagination links should preserve active section")
 
         # ── Sidebar categories (V1-beta: all / today_focus / refined buckets) ──
         check("today radar has all section",

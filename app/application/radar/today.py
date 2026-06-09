@@ -427,8 +427,9 @@ class RadarTodayService:
         # show every category with its full-set count, even if the current
         # page has 0 items in a category.
         full_buckets: dict[str, list] = {key: [] for key, _ in SECTION_ORDER}
+        today_focus_ids = {i.id for i in items[:TODAY_FOCUS_SIZE]}
         for item in page_items:
-            if item.id in {i.id for i in items[:TODAY_FOCUS_SIZE]} and section in (ALL_KEY, TODAY_FOCUS_KEY):
+            if item.id in today_focus_ids and section in (ALL_KEY, TODAY_FOCUS_KEY):
                 full_buckets[TODAY_FOCUS_KEY].append(item)
             else:
                 key = _categorize_item(item, full_display_map.get(item.id))

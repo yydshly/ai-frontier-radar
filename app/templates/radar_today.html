@@ -26,6 +26,7 @@
                 </div>
 
                 <form method="get" action="/radar/today" class="radar-page-size-form">
+                    <input type="hidden" name="section" value="{{ view.active_section }}">
                     <input type="hidden" name="hours" value="{{ view.hours }}">
                     <input type="hidden" name="limit" value="{{ view.limit }}">
                     <input type="hidden" name="page" value="1">
@@ -150,7 +151,7 @@
                             </div>
 
                             <div class="radar-card-actions">
-                                <a href="/radar/today?item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}" class="btn-sm btn-primary">查看</a>
+                                <a href="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}" class="btn-sm btn-primary">查看</a>
                                 {% if item.status == 'discovered' %}
                                 <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
                                     <button type="submit" class="btn-sm">加入生成</button>
@@ -173,7 +174,7 @@
                 {# ── Pagination control ────────────────────────────────── #}
                 {% if view.total_pages > 1 %}
                 <nav class="radar-pagination" aria-label="分页">
-                    {% set base_q = '/radar/today?hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&per_page=' ~ view.per_page %}
+                    {% set base_q = '/radar/today?section=' ~ view.active_section ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&per_page=' ~ view.per_page %}
                     {% if view.has_prev %}
                     <a href="{{ base_q }}&page={{ view.page - 1 }}" class="btn-sm">上一页</a>
                     {% else %}
