@@ -3,21 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>信息来源列表 - AI Frontier Radar</title>
+    <title>信息来源 - AI Frontier Radar</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <h1>📡 信息来源列表</h1>
+        <h1>🗺️ 信息来源</h1>
         <nav>
             <a href="/">← 返回首页</a>
+            <a href="/fetch-runs">运行记录</a>
             <a href="/candidate-pool">候选池</a>
+            <a href="/generation-queue">生成队列</a>
+            <a href="/cards">InsightCard</a>
             <a href="/source-items">原始资料</a>
-            <a href="/fetch-runs">来源运行</a>
         </nav>
     </header>
 
-    <main>
+    <main class="wide-page">
+        <!-- Sync stats banner -->
         {% if sync_result %}
         <div class="sync-stats">
             <span>同步统计：</span>
@@ -28,57 +31,38 @@
         </div>
         {% endif %}
 
+        <!-- Usage guide -->
+        <div class="usage-guide">
+            <h3>使用流程</h3>
+            <ol>
+                <li>选择一个来源，点击<strong>运行探测</strong></li>
+                <li>等待跳转到<strong>运行记录</strong>查看本次抓取结果</li>
+                <li>在<strong>候选池</strong>中浏览发现的内容</li>
+                <li>选择感兴趣的内容，点击<strong>加入生成</strong></li>
+                <li>在<strong>生成队列</strong>查看生成状态，完成后到 <strong>InsightCard</strong> 查看结果</li>
+            </ol>
+        </div>
+
         {% if sources %}
-        <table class="sources-table">
-            <thead>
-                <tr>
-                    <th>source_key</th>
-                    <th>名称</th>
-                    <th>分类</th>
-                    <th>类型</th>
-                    <th>抓取策略</th>
-                    <th>启用</th>
-                    <th>主页</th>
-                    <th>间隔(h)</th>
-                    <th>最后检查</th>
-                    <th>最后成功</th>
-                    <th>最后错误</th>
-                    <th>最近运行状态</th>
-                    <th>发现</th>
-                    <th>新增</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in sources %}
-                <tr>
-                    <td class="key-cell"><code>{{ s.source_key }}</code></td>
-                    <td>{{ s.name }}</td>
-                    <td>{{ s.category }}</td>
-                    <td>{{ s.source_type }}</td>
-                    <td>{{ s.fetch_strategy }}</td>
-                    <td>{{ '是' if s.enabled else '否' }}</td>
-                    <td class="url-cell">
-                        {% if s.homepage_url %}
-                        <a href="{{ s.homepage_url }}" target="_blank" rel="noopener">
-                            {{ s.homepage_url[:50] }}{% if s.homepage_url|length > 50 %}...{% endif %}
-                        </a>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                    <td>{{ s.fetch_interval_hours }}</td>
-                    <td>{{ s.last_checked_at.strftime('%Y-%m-%d %H:%M') if s.last_checked_at else '-' }}</td>
-                    <td>{{ s.last_success_at.strftime('%Y-%m-%d %H:%M') if s.last_success_at else '-' }}</td>
-                    <td class="error-cell">
-                        {% if s.last_error_message %}
-                        <span class="error-msg" title="{{ s.last_error_message }}">{{ s.last_error_message[:60] }}{% if s.last_error_message|length > 60 %}...{% endif %}</span>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                    {# V1.0-beta.4: FetchRun health columns #}
-                    <td>
+        <!-- Source cards grid -->
+        <div class="sources-grid">
+            {% for s in sources %}
+            <div class="source-card">
+                <!-- Card header -->
+                <div class="source-card-header">
+                    <div class="source-card-title">
+                        <span class="source-icon">📡</span>
+                        <div>
+                            <div class="source-name">{{ s.name }}</div>
+                            <div class="source-meta">
+                                <span class="category-tag">{{ s.category }}</span>
+                                <span class="source-type-tag">{{ s.source_type }}</span>
+                                <span class="strategy-tag">{{ s.fetch_strategy }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Status badge -->
+                    <div class="source-status">
                         {% if s.fetch_run_status == 'success' %}
                         <span class="status-badge status-compiled">成功</span>
                         {% elif s.fetch_run_status == 'running' %}
@@ -90,33 +74,79 @@
                         {% elif s.fetch_run_status == 'pending' %}
                         <span class="status-badge status-discovered">等待中</span>
                         {% else %}
-                        <span class="muted">-</span>
+                        <span class="muted">未运行</span>
                         {% endif %}
-                    </td>
-                    <td>{{ s.fetch_run_items_found if s.fetch_run_items_found is not none else '-' }}</td>
-                    <td>{{ s.fetch_run_items_new if s.fetch_run_items_new is not none else '-' }}</td>
-                    <td class="action-cell">
-                        <form method="POST" action="/sources/{{ s.source_key }}/fetch" style="display:inline;">
-                            <button type="submit" class="btn-link">运行探测</button>
-                        </form>
-                        <a href="/fetch-runs?source_key={{ s.source_key }}" class="btn-link">运行记录</a>
-                        <a href="/candidate-pool?source_key={{ s.source_key }}" class="btn-link">候选池</a>
-                        <a href="/source-items?source_key={{ s.source_key }}" class="btn-link">原始资料</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </div>
+                </div>
+
+                <!-- Card stats -->
+                <div class="source-card-stats">
+                    <div class="source-stat">
+                        <span class="stat-val">{{ s.fetch_run_items_found if s.fetch_run_items_found is not none else '-' }}</span>
+                        <span class="stat-key">发现</span>
+                    </div>
+                    <div class="source-stat">
+                        <span class="stat-val">{{ s.fetch_run_items_new if s.fetch_run_items_new is not none else '-' }}</span>
+                        <span class="stat-key">新增</span>
+                    </div>
+                    <div class="source-stat">
+                        <span class="stat-val">
+                            {% if s.last_success_at %}
+                            {{ s.last_success_at.strftime('%m-%d %H:%M') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </span>
+                        <span class="stat-key">最近成功</span>
+                    </div>
+                </div>
+
+                <!-- Card actions -->
+                <div class="source-card-actions">
+                    <form method="POST" action="/sources/{{ s.source_key }}/fetch" style="display:inline;">
+                        <button type="submit" class="btn-fetch">运行探测</button>
+                    </form>
+                    <a href="/fetch-runs?source_key={{ s.source_key }}" class="btn-link">运行记录</a>
+                    <a href="/candidate-pool?source_key={{ s.source_key }}" class="btn-link">候选池</a>
+                    <a href="/source-items?source_key={{ s.source_key }}" class="btn-link">原始资料</a>
+                </div>
+
+                <!-- Technical details (collapsed by default) -->
+                {% if s.last_error_message or s.homepage_url %}
+                <details class="source-tech-details">
+                    <summary>技术详情</summary>
+                    {% if s.homepage_url %}
+                    <div class="tech-row">
+                        <span class="tech-label">主页：</span>
+                        <a href="{{ s.homepage_url }}" target="_blank" rel="noopener">{{ s.homepage_url[:60] }}{% if s.homepage_url|length > 60 %}...{% endif %}</a>
+                    </div>
+                    {% endif %}
+                    {% if s.last_error_message %}
+                    <div class="tech-row">
+                        <span class="tech-label">错误：</span>
+                        <span class="error-msg">{{ s.last_error_message[:80] }}{% if s.last_error_message|length > 80 %}...{% endif %}</span>
+                    </div>
+                    {% endif %}
+                    {% if s.fetch_interval_hours %}
+                    <div class="tech-row">
+                        <span class="tech-label">抓取间隔：</span>
+                        <span>{{ s.fetch_interval_hours }} 小时</span>
+                    </div>
+                    {% endif %}
+                </details>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
         {% else %}
         <p class="empty-state">没有找到信息来源配置。</p>
         {% endif %}
 
-        <p class="page-note">V0.3 展示来源配置，可通过首页「精选来源」快速进入。</p>
-        <p><a href="/source-items">查看所有发现条目 →</a></p>
+        <p class="page-note">信息来源配置由 config/sources.yaml 管理，修改后刷新页面同步。</p>
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.3</p>
+        <p>AI Frontier Radar</p>
     </footer>
 </body>
 </html>

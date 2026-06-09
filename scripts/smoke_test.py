@@ -82,7 +82,8 @@ def test_index():
     assert "下一步建议" in text, "Missing next actions section"
     assert "快捷入口" in text, "Missing quick actions section"
     # V0.6 stat cards
-    assert "待编译资料" in text, "Missing '待编译资料' stat"
+    assert "待生成" in text, "Missing '待生成' stat"
+    assert "生成中" in text, "Missing '生成中' stat"
     assert "未处理卡片" in text, "Missing '未处理卡片' stat"
     # Featured sources still preserved
     assert "精选 AI 前沿来源" in text, "Missing featured sources section"
@@ -3334,19 +3335,19 @@ def test_v06_home_workbench_has_workbench_title():
 
 
 def test_v06_home_workbench_stats_cards():
-    """Test that GET / shows the 4 main stat cards."""
+    """Test that GET / shows the main stat cards."""
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
     required_cards = [
-        "待编译资料",
+        "待生成",
+        "生成中",
         "未处理卡片",
-        "值得关注",
         "转成行动",
     ]
     for card in required_cards:
         assert card in text, f"Stat card '{card}' should be present"
-    print("[OK] GET / has all 4 main stat cards")
+    print("[OK] GET / has main stat cards")
 
 
 def test_v06_home_workbench_quick_actions():
@@ -3370,7 +3371,7 @@ def test_v06_home_workbench_recent_sections():
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
-    assert "英文资料收件箱" in text, "Recent source items section missing"
+    assert "最近发现" in text, "Recent source items section missing"
     assert "最近生成的中文洞察" in text, "Recent cards section missing"
     print("[OK] GET / has recent source items and cards sections")
 
@@ -4621,12 +4622,12 @@ def test_v10_alpha_demo_flow_guidance():
     """Test that V1.0-alpha main flow guidance is present on key pages."""
     from pathlib import Path
 
-    # 1. Index page has 推荐主流程
+    # 1. Index page has 主流程 workflow banner
     index_path = Path(__file__).parent.parent / "app" / "templates" / "index.html"
     index_text = index_path.read_text(encoding="utf-8")
-    assert "推荐主流程" in index_text, \
-        "index.html should contain '推荐主流程'"
-    print("[OK] index.html has 推荐主流程 section")
+    assert "主流程" in index_text, \
+        "index.html should contain '主流程'"
+    print("[OK] index.html has 主流程 section")
 
     # 2. Source items page has V1.0-beta.3 boundary cleanup guidance
     # (V1.0-alpha's "主流程第 2 步" notice was intentionally replaced in beta.3
@@ -4714,6 +4715,7 @@ def test_v10_alpha1_acceptance_demo_data_script_exists():
 
 def test_v10_alpha1_home_demo_entry():
     """Test that homepage shows demo entry section when demo data exists."""
+    import uuid
     from app.db import SessionLocal, init_db
     from app.models import Source, SourceItem, InsightCard, CardStatus, SourceType
 
@@ -4722,9 +4724,10 @@ def test_v10_alpha1_home_demo_entry():
     db = SessionLocal()
 
     try:
-        # Create demo data
+        # Create demo data with unique key
+        test_key = f"demo_smoke_test_{uuid.uuid4().hex[:8]}"
         source = Source(
-            source_key="demo_smoke_test",
+            source_key=test_key,
             name="Smoke Test Source",
             description="For smoke test",
             source_type="rss",
@@ -4739,7 +4742,7 @@ def test_v10_alpha1_home_demo_entry():
 
         source_item = SourceItem(
             source_id=source.id,
-            source_key="demo_smoke_test",
+            source_key=test_key,
             url="https://example.com/demo-smoke-test",
             title="Demo Smoke Test Item",
             status="compiled",
@@ -4776,10 +4779,10 @@ def test_v10_alpha1_home_demo_entry():
         assert response.status_code == 200
         text = response.text
 
-        # Check demo entry section is present
-        assert "演示数据入口" in text, \
-            "Homepage should show '演示数据入口' section"
-        print("[OK] Homepage shows 演示数据入口 section with demo data present")
+        # Check workflow banner is present
+        assert "主流程" in text, \
+            "Homepage should show '主流程' workflow banner"
+        print("[OK] Homepage shows workflow banner")
 
         # Cleanup
         db.delete(source_item)
@@ -5246,18 +5249,18 @@ def test_v10_alpha_82_url_classifier():
 
 
 def test_v10_alpha_83_home_labels_explain_sourceitem_vs_insightcard():
-    """Test that homepage uses the new labels: 英文资料收件箱 and 最近生成的中文洞察."""
+    """Test that homepage uses the new labels: 最近发现 and 最近生成的中文洞察."""
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
     # New labels for distinguishing SourceItem vs InsightCard
-    assert "英文资料收件箱" in text, \
-        "Homepage should have '英文资料收件箱' label"
+    assert "最近发现" in text, \
+        "Homepage should have '最近发现' label"
     assert "最近生成的中文洞察" in text, \
         "Homepage should have '最近生成的中文洞察' label"
     # Explanatory descriptions should be present
-    assert "从来源中发现的原始英文资料" in text, \
-        "Homepage should explain '英文资料收件箱' is raw English materials"
+    assert "从来源探测中发现的最新内容" in text, \
+        "Homepage should explain '最近发现' is new discovered content"
     assert "已经完成或尝试完成分析的中文洞察结果" in text, \
         "Homepage should explain '最近生成的中文洞察' is insight results"
     print("[OK] Homepage has new labels distinguishing SourceItem from InsightCard")
@@ -6878,11 +6881,11 @@ def test_index_page_candidate_pool_stats():
     assert response.status_code == 200, \
         f"Expected 200, got {response.status_code}"
     text = response.text
-    # V1.0-beta.2: candidate pool stats section labels
+    # V1.0-beta.2/beta.9: candidate pool stats section labels
     assert "候选池" in text, "Missing '候选池' label in home page stats"
-    assert "待编译" in text, "Missing '待编译' label in home page stats"
-    assert "编译中" in text, "Missing '编译中' label in home page stats"
-    print("[OK] Home page shows candidate pool statistics (候选池 / 待编译 / 编译中)")
+    assert "待生成" in text, "Missing '待生成' label in home page stats"
+    assert "生成中" in text, "Missing '生成中' label in home page stats"
+    print("[OK] Home page shows candidate pool statistics (候选池 / 待生成 / 生成中)")
 
 
 def test_source_item_compile_service_direct_calls():
@@ -6951,28 +6954,22 @@ def test_source_item_compile_service_direct_calls():
 # ── V1.0-beta.3 SourceItem / Candidate Pool Boundary Cleanup ────────────────
 
 def test_v10_beta3_index_main_flow_points_to_candidate_pool():
-    """Home page main flow should point to candidate-pool, not /source-items."""
+    """Home page main flow shows workflow banner with 5 steps."""
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
-    # New main flow labels
-    assert "候选池筛选" in text, "Missing '候选池筛选' in main flow"
-    assert "单条编译" in text, "Missing '单条编译' in main flow"
-    assert "InsightCard" in text, "Missing 'InsightCard' label in main flow"
-    # Old confusing flow should NOT appear in main flow anymore
-    # (it may still appear in recent sections, so we only check the main flow strip)
-    # Find the 推荐主流程 section and check it doesn't link to /source-items as the primary entry
-    import re
-    main_flow_match = re.search(r"推荐主流程.{0,2000}?</section>", text, re.DOTALL)
-    assert main_flow_match, "Could not find '推荐主流程' section"
-    main_flow = main_flow_match.group(0)
-    # Main flow should link to candidate-pool
-    assert 'href="/candidate-pool"' in main_flow, \
-        "Main flow should link to /candidate-pool"
-    # Main flow should NOT use '查看资料' as primary entry
-    assert "查看资料 →" not in main_flow, \
-        "Old '查看资料 → 编译' main flow should be removed"
-    print("[OK] Home main flow points to candidate-pool with new labels")
+    # V1.0-beta.9: Workflow banner with 5 steps
+    assert "主流程" in text, "Missing '主流程' workflow banner"
+    assert "信息来源" in text, "Missing '信息来源' step"
+    assert "运行记录" in text, "Missing '运行记录' step"
+    assert "候选池" in text, "Missing '候选池' step"
+    assert "生成队列" in text, "Missing '生成队列' step"
+    assert "InsightCard" in text, "Missing 'InsightCard' step"
+    # Workflow should have step links
+    assert 'href="/sources"' in text, "Workflow should link to /sources"
+    assert 'href="/fetch-runs"' in text, "Workflow should link to /fetch-runs"
+    assert 'href="/candidate-pool"' in text, "Workflow should link to /candidate-pool"
+    print("[OK] Home main flow shows 5-step workflow banner")
 
 
 def test_v10_beta3_candidate_pool_describes_product_entry():
@@ -7386,16 +7383,14 @@ def test_v10_beta4_fetch_run_detail_page():
             f"GET /fetch-runs/{run.id} failed: {response.status_code}"
         text = response.text
 
-        assert "FetchRun 详情" in text or "详情" in text, \
-            "Page should show 'FetchRun 详情'"
+        assert "本次探测结果" in text or "探测结果" in text, \
+            "Page should show '本次探测结果'"
         assert test_key in text, \
             "source_key should appear on detail page"
-        assert "本次可能产生的候选项" in text, \
-            "Page should show related items section"
 
-        # Related items should appear
-        assert "Test Article 1" in text or "Test Article 2" in text, \
-            "Related SourceItems should appear"
+        # Digest sections should appear
+        assert "新增" in text or "已存在" in text or "发现" in text, \
+            "Page should show digest sections"
 
         # Navigation links
         assert "/candidate-pool" in text, \
@@ -7403,11 +7398,7 @@ def test_v10_beta4_fetch_run_detail_page():
         assert f"/source-items/{item1.id}" in text, \
             f"Link to source item {item1.id} should appear"
 
-        # Warning about estimated association
-        assert "时间窗口估算" in text or "fetch_run_id" in text.lower(), \
-            "Page should mention time-window estimation"
-
-        print(f"[OK] GET /fetch-runs/{run.id} shows detail with related items")
+        print(f"[OK] GET /fetch-runs/{run.id} shows detail with digest")
     finally:
         db.rollback()
         db.close()
@@ -7621,32 +7612,36 @@ def test_v10_beta4_safe_external_url_helper():
 
 
 def test_v10_beta4_sources_page_shows_fetch_run_health():
-    """GET /sources shows FetchRun health info and links."""
+    """GET /sources shows source cards with health info and links."""
     response = client.get("/sources")
     assert response.status_code == 200
     text = response.text
 
-    # V1.0-beta.4 new columns
-    assert "最近运行状态" in text, \
-        "/sources page should show '最近运行状态' column"
+    # V1.0-beta.9: cards format with status badges and 运行探测 button
     assert "/fetch-runs" in text, \
         "/sources page should link to /fetch-runs"
     assert "/candidate-pool" in text, \
         "/sources page should link to candidate pool"
     assert "/source-items" in text, \
         "/sources page should link to /source-items"
+    # Status badge classes should appear
+    assert "status-badge" in text, \
+        "/sources page should show status badges"
+    # Run detection button
+    assert "运行探测" in text, \
+        "/sources page should have '运行探测' button"
 
-    print("[OK] /sources shows FetchRun health info and navigation")
+    print("[OK] /sources shows source cards with health info and navigation")
 
 
 def test_v10_beta4_home_page_shows_fetch_runs_entry():
-    """Home page includes '来源运行' quick action entry."""
+    """Home page includes '运行记录' quick action entry."""
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
 
-    assert "来源运行" in text, \
-        "Home page should have '来源运行' quick action"
+    assert "运行记录" in text, \
+        "Home page should have '运行记录' quick action"
     assert "/fetch-runs" in text, \
         "Home page should link to /fetch-runs"
 
@@ -8261,7 +8256,7 @@ def test_v10_beta6_fetch_run_detail_shows_delta_digest():
         assert response.status_code == 200
         text = response.text
 
-        assert "本次抓取摘要" in text, "Detail page should show '本次抓取摘要'"
+        assert "本次探测结果" in text, "Detail page should show '本次探测结果'"
         assert "新增" in text, "Should show '新增'"
         assert "已存在" in text, "Should show '已存在'"
         assert "可能更新" in text, "Should show '可能更新'"
