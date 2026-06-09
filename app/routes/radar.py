@@ -33,6 +33,31 @@ from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
 from app.models import SourceItem, Source
 from app.routes.fetch_runs import safe_external_url
 
+
+def _dedupe_sources_by_key(sources: list[Source]) -> tuple[list[Source], int]:
+    """Keep one Source row per source_key, preferring the newest id.
+
+    The route already queries enabled sources, but this helper protects local
+    databases that contain duplicate source rows from older development runs.
+    """
+    selected: dict[str, Source] = {}
+    duplicate_count = 0
+
+    for source in sources:
+        existing = selected.get(source.source_key)
+        if existing is None:
+            selected[source.source_key] = source
+            continue
+
+        duplicate_count += 1
+
+        # Prefer the newest row when duplicate keys exist.
+        if source.id > existing.id:
+            selected[source.source_key] = source
+
+    return list(selected.values()), duplicate_count
+
+
 router = APIRouter(prefix="/radar", tags=["radar"])
 
 _radar_templates = Jinja2Templates(
@@ -58,6 +83,8 @@ def radar_today_page(
     update_unsupported: int | None = Query(None, ge=0),
     update_failed: int | None = Query(None, ge=0),
     update_truncated: int | None = Query(None, ge=0),
+    update_unique_sources: int | None = Query(None, ge=0),
+    update_duplicate_sources: int | None = Query(None, ge=0),
 ):
     """Render today's AI frontier radar reading view."""
     db = next(get_db())
@@ -91,6 +118,8 @@ def radar_today_page(
             update_unsupported,
             update_failed,
             update_truncated,
+            update_unique_sources,
+            update_duplicate_sources,
         ]):
             update_result = {
                 "started": update_started or 0,
@@ -98,6 +127,8 @@ def radar_today_page(
                 "unsupported": update_unsupported or 0,
                 "failed": update_failed or 0,
                 "truncated": update_truncated or 0,
+                "unique_sources": update_unique_sources or 0,
+                "duplicate_sources": update_duplicate_sources or 0,
             }
 
         return _radar_templates.TemplateResponse(
@@ -204,16 +235,19 @@ def update_today_radar(
         sources = (
             db.query(Source)
             .filter(Source.enabled == True)  # noqa: E712
-            .order_by(Source.source_key.asc())
+            .order_by(Source.source_key.asc(), Source.id.asc())
             .all()
         )
     finally:
         db.close()
 
+    # Deduplicate by source_key (protects against legacy duplicate rows)
+    unique_sources, duplicate_sources = _dedupe_sources_by_key(sources)
+
     # Separate eligible (supported) vs unsupported sources
     eligible_sources = []
     unsupported = []
-    for source in sources:
+    for source in unique_sources:
         if source.fetch_strategy in SUPPORTED_STRATEGIES:
             eligible_sources.append(source)
         else:
@@ -278,5 +312,7 @@ def update_today_radar(
         f"&update_unsupported={len(unsupported)}"
         f"&update_failed={failed}"
         f"&update_truncated={truncated_count}"
+        f"&update_unique_sources={len(unique_sources)}"
+        f"&update_duplicate_sources={duplicate_sources}"
     )
     return RedirectResponse(url=redirect_url, status_code=303)

@@ -2181,6 +2181,10 @@ def main():
         )
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        check_sources_health_py = (
+            (Path(__file__).resolve().parents[1] / "scripts" / "check_sources_health.py")
+            .read_text(encoding="utf-8")
+        )
 
         check("today radar has update route",
               '@router.post("/today/update")' in radar_route_py,
@@ -2224,6 +2228,37 @@ def main():
         check("style.css defines radar-update-result styles",
               "radar-update-result" in style_css,
               "update result banner should be styled")
+
+        # Dedup checks
+        check("sources health script exists",
+              Path("scripts/check_sources_health.py").exists(),
+              "should provide a read-only source health diagnostic script")
+
+        check("sources health script is read-only",
+              "delete" not in check_sources_health_py.lower()
+              and ".delete(" not in check_sources_health_py
+              and ".commit(" not in check_sources_health_py,
+              "source health script must not mutate database")
+
+        check("today radar update dedupes sources by source_key",
+              "def _dedupe_sources_by_key" in radar_route_py
+              and "source.source_key" in radar_route_py,
+              "batch update should dedupe duplicate Source rows")
+
+        check("today radar update reports duplicate source rows",
+              "update_duplicate_sources" in radar_route_py
+              and "duplicate_sources" in radar_html,
+              "update result should report duplicate source rows")
+
+        check("today radar update reports unique sources",
+              "update_unique_sources" in radar_route_py
+              and "unique_sources" in radar_html,
+              "update result should report unique source count")
+
+        check("today radar update uses deduped sources for eligibility",
+              "unique_sources" in radar_route_py
+              and "for source in unique_sources" in radar_route_py,
+              "eligible source filtering should use deduped sources")
     except Exception as e:
         check("Today Radar manual update route", False, str(e))
 
