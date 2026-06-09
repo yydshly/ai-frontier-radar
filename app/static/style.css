@@ -3037,6 +3037,35 @@ footer {
     text-decoration: underline;
 }
 
+.candidate-title-weak {
+    color: #9ca3af;
+    font-weight: 700;
+    font-style: italic;
+    text-decoration: none;
+    cursor: default;
+}
+
+.candidate-weak-title-hint {
+    font-size: 0.8rem;
+    color: #d97706;
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding: 0.2rem 0.6rem;
+    margin-bottom: 0.4rem;
+    border-radius: 3px;
+}
+
+.candidate-summary {
+    font-size: 0.875rem;
+    color: #374151;
+    line-height: 1.5;
+    margin-bottom: 0.4rem;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
 .candidate-badges,
 .candidate-signals,
 .insight-card-actions,

@@ -81,20 +81,21 @@ def extract_lightweight_summary(item: SourceItem) -> str:
     """Extract lightweight summary from SourceItem's raw_metadata_json.
 
     Priority order:
-    1. summary
-    2. description
-    3. excerpt
-    4. content_snippet
-    5. og_description
-    6. meta_description
-    7. rss_summary
-    8. rss_description
+    1. detail_description   (from article detail page og:description etc.)
+    2. summary
+    3. description
+    4. excerpt
+    5. content_snippet
+    6. og_description
+    7. meta_description
+    8. rss_summary
+    9. rss_description
 
     Falls back to:
     - "来自 {source_key} 的候选资料：{title}"
     - "来自 {source_key} 的候选资料，暂无摘要。"
 
-    Does NOT call LLM. Limits to 180 chars.
+    Does NOT call LLM. Limits to 180 chars. Strips HTML tags.
     """
     raw_metadata: dict[str, Any] = {}
 
@@ -106,6 +107,7 @@ def extract_lightweight_summary(item: SourceItem) -> str:
 
     # Priority-ordered list of summary field names
     summary_fields = [
+        "detail_description",
         "summary",
         "description",
         "excerpt",

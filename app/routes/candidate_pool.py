@@ -1,5 +1,6 @@
 """Candidate Pool routes - browsing, filtering, and batch operations for candidate items."""
 from app.application.candidate_quality.services import CandidateQualityService
+from app.application.candidates.display import build_candidate_display_card
 from typing import Annotated
 from fastapi import APIRouter, Request, Form, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -159,12 +160,16 @@ def candidate_pool_page(
         quality_service = CandidateQualityService()
         quality_map = quality_service.evaluate_many(result_page.items)
 
+        # Build display cards for each item (V1.0-beta.7)
+        display_map = {item.id: build_candidate_display_card(item) for item in result_page.items}
+
         return _candidate_pool_templates.TemplateResponse(
             "candidate_pool.html",
             {
                 "request": request,
                 "items": result_page.items,
                 "quality_map": quality_map,
+                "display_map": display_map,
                 "total": result_page.total,
                 "page": result_page.page,
                 "page_size": result_page.page_size,

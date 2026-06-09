@@ -325,6 +325,64 @@ def main():
         check("'未处理' is NOT used as section header (renamed)",
               "🆕 未处理 (" not in content)
 
+    # ── 8. Candidate pool display improvements ─────────────────────────────
+    print("\n[8] Candidate pool display improvements")
+
+    # 8a. extract_lightweight_summary prioritises detail_description
+    try:
+        from app.application.fetch_runs.delta import extract_lightweight_summary
+        from app.models import SourceItem
+        from dataclasses import dataclass
+        from datetime import datetime
+        from unittest.mock import MagicMock
+
+        # Mock a SourceItem with detail_description in raw_metadata_json
+        mock_item = MagicMock(spec=SourceItem)
+        mock_item.raw_metadata_json = '{"detail_description": "This is from the article detail page."}'
+        mock_item.title = "Learn More"
+        mock_item.source_key = "meta_ai_blog"
+        summary = extract_lightweight_summary(mock_item)
+        check("detail_description is extracted (priority over link_text)",
+              "article detail page" in summary,
+              f"got: {summary!r}")
+    except Exception as e:
+        check("extract_lightweight_summary handles detail_description", False, str(e))
+
+    # 8b. build_candidate_display_card weak title handling
+    try:
+        from app.application.candidates.display import build_candidate_display_card, _is_weak_title
+    except Exception as e:
+        check("candidates.display imports", False, str(e))
+    else:
+        check("'Learn More' is weak title (display module)",
+              _is_weak_title("Learn More") is True)
+        check("'FEATURED' is weak title (display module)",
+              _is_weak_title("FEATURED") is True)
+        check("'featured' (lowercase) is weak title",
+              _is_weak_title("featured") is True)
+        check("'Real Article Title' is NOT weak",
+              _is_weak_title("Real Article Title") is False)
+
+    # 8c. candidate_pool.html contains new display elements
+    tpl_path2 = templates_dir / "candidate_pool.html"
+    try:
+        content2 = tpl_path2.read_text(encoding="utf-8")
+    except Exception as e:
+        check("candidate_pool.html is readable", False, str(e))
+    else:
+        check("candidate_pool.html uses display_map",
+              "{% set display = display_map.get(item.id) %}" in content2)
+        check("candidate_pool.html shows '标题待修复' for weak titles",
+              "标题待修复" in content2)
+        check("candidate_pool.html shows weak title raw hint",
+              "原始标题：" in content2)
+        check("candidate_pool.html shows candidate-summary div",
+              "candidate-summary" in content2)
+        check("candidate_pool.html shows display.time_label (published vs discovered)",
+              "display.time_label" in content2)
+        check("candidate_pool.html de-emphasises #ID (small muted)",
+              "candidate-id" in content2 or "#{{ item.id }}" in content2)
+
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
