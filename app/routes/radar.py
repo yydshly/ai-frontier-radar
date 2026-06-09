@@ -31,6 +31,7 @@ from app.application.radar.today import (
 from app.application.sources.background_fetch import SourceFetchBackgroundService
 from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
 from app.models import SourceItem, Source
+from app.sources.config_loader import list_sources
 from app.routes.fetch_runs import safe_external_url
 
 
@@ -85,6 +86,8 @@ def radar_today_page(
     update_truncated: int | None = Query(None, ge=0),
     update_unique_sources: int | None = Query(None, ge=0),
     update_duplicate_sources: int | None = Query(None, ge=0),
+    update_configured_sources: int | None = Query(None, ge=0),
+    update_filtered_sources: int | None = Query(None, ge=0),
 ):
     """Render today's AI frontier radar reading view."""
     db = next(get_db())
@@ -120,6 +123,8 @@ def radar_today_page(
             update_truncated,
             update_unique_sources,
             update_duplicate_sources,
+            update_configured_sources,
+            update_filtered_sources,
         ]):
             update_result = {
                 "started": update_started or 0,
@@ -129,6 +134,8 @@ def radar_today_page(
                 "truncated": update_truncated or 0,
                 "unique_sources": update_unique_sources or 0,
                 "duplicate_sources": update_duplicate_sources or 0,
+                "configured_sources": update_configured_sources or 0,
+                "filtered_sources": update_filtered_sources or 0,
             }
 
         return _radar_templates.TemplateResponse(
@@ -229,12 +236,28 @@ def update_today_radar(
 
     Returns to /radar/today with update result stats.
     """
-    # Query enabled sources
+    # Get configured enabled source keys (whitelist for today's radar)
+    configured_sources = [s for s in list_sources() if s.enabled]
+    configured_keys = {s.source_key for s in configured_sources}
+    configured_count = len(configured_keys)
+
+    # Count enabled DB sources not in config for filtered-out stat
     db = next(get_db())
     try:
+        db_enabled_keys = {
+            row[0] for row in (
+                db.query(Source.source_key)
+                .filter(Source.enabled == True)  # noqa: E712
+                .all()
+            )
+        }
+        filtered_out_count = len(db_enabled_keys - configured_keys)
+
+        # Query DB sources: enabled AND in configured keys, then dedupe
         sources = (
             db.query(Source)
             .filter(Source.enabled == True)  # noqa: E712
+            .filter(Source.source_key.in_(configured_keys))
             .order_by(Source.source_key.asc(), Source.id.asc())
             .all()
         )
@@ -314,5 +337,7 @@ def update_today_radar(
         f"&update_truncated={truncated_count}"
         f"&update_unique_sources={len(unique_sources)}"
         f"&update_duplicate_sources={duplicate_sources}"
+        f"&update_configured_sources={configured_count}"
+        f"&update_filtered_sources={filtered_out_count}"
     )
     return RedirectResponse(url=redirect_url, status_code=303)

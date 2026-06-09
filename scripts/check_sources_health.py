@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.db import SessionLocal
 from app.models import Source
 from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
+from app.sources.config_loader import list_sources
 
 
 def main():
@@ -67,6 +68,35 @@ def main():
             print(f"  Batch update will dedupe by source_key automatically.")
         else:
             print("Source table is healthy — no duplicate source_key rows found.")
+
+        # Config vs DB comparison
+        configured = list_sources()
+        configured_all_keys = {s.source_key for s in configured}
+        configured_enabled_keys = {s.source_key for s in configured if s.enabled}
+
+        db_enabled_keys = {s.source_key for s in enabled}
+        enabled_not_in_config = db_enabled_keys - configured_enabled_keys
+        configured_missing_in_db = configured_enabled_keys - db_enabled_keys
+
+        print()
+        print("Config vs DB comparison:")
+        print(f"configured_sources: {len(configured_all_keys)}")
+        print(f"configured_enabled_sources: {len(configured_enabled_keys)}")
+        print(f"db_enabled_unique_sources: {len(db_enabled_keys)}")
+        print(f"enabled_not_in_config: {len(enabled_not_in_config)}")
+        print(f"configured_missing_in_db: {len(configured_missing_in_db)}")
+
+        if enabled_not_in_config:
+            print()
+            print("Enabled sources not in config:")
+            for key in sorted(enabled_not_in_config)[:20]:
+                print(f"  - {key}")
+
+        if configured_missing_in_db:
+            print()
+            print("Configured sources missing in DB:")
+            for key in sorted(configured_missing_in_db)[:20]:
+                print(f"  - {key}")
     finally:
         db.close()
 

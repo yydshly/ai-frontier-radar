@@ -159,11 +159,15 @@
                 <div class="radar-update-result">
                     今日雷达更新已启动：
                     唯一来源 {{ update_result.unique_sources }} 个，
+                    配置精选来源 {{ update_result.configured_sources }} 个，
                     启动 {{ update_result.started }} 个，
                     已在运行 {{ update_result.running }} 个，
                     不支持 {{ update_result.unsupported }} 个，
                     失败 {{ update_result.failed }} 个{% if update_result.truncated %}，
-                    因数量限制暂缓 {{ update_result.truncated }} 个唯一来源{% endif %}。
+                    因数量限制暂缓 {{ update_result.truncated }} 个精选来源{% endif %}。
+                    {% if update_result.filtered_sources > 0 %}
+                    已忽略非精选 enabled 来源 {{ update_result.filtered_sources }} 个。
+                    {% endif %}
                     {% if update_result.duplicate_sources > 0 %}
                     检测到重复来源行 {{ update_result.duplicate_sources }} 条，已按 source_key 去重处理。
                     {% endif %}

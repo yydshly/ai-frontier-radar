@@ -2259,6 +2259,32 @@ def main():
               "unique_sources" in radar_route_py
               and "for source in unique_sources" in radar_route_py,
               "eligible source filtering should use deduped sources")
+
+        # Config whitelist checks
+        check("today radar update uses configured source whitelist",
+              "list_sources" in radar_route_py
+              and "configured_keys" in radar_route_py,
+              "today radar update should be scoped to configured curated sources")
+
+        check("today radar update filters db sources by configured keys",
+              "Source.source_key.in_(configured_keys)" in radar_route_py,
+              "batch update should ignore enabled sources outside config")
+
+        check("today radar update reports configured source count",
+              "update_configured_sources" in radar_route_py
+              and "configured_sources" in radar_html,
+              "update result should report configured source count")
+
+        check("today radar update reports filtered enabled sources",
+              "update_filtered_sources" in radar_route_py
+              and "filtered_sources" in radar_html,
+              "update result should report non-config enabled sources ignored")
+
+        check("sources health compares db sources with config",
+              "list_sources" in check_sources_health_py
+              and "enabled_not_in_config" in check_sources_health_py
+              and "configured_missing_in_db" in check_sources_health_py,
+              "source health check should compare DB with configured curated sources")
     except Exception as e:
         check("Today Radar manual update route", False, str(e))
 
