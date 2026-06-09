@@ -176,11 +176,10 @@ def _run_acceptance(args):
 
         checks_index = [
             ("推荐主流程", "推荐主流程 section"),
-            ("待编译资料", "待编译资料 link in flow"),
-            ("中文 InsightCard", "中文 InsightCard text in flow"),
-            ("中英双语核心理解", "bilingual report text in flow"),
-            ("转成行动", "转成行动 text in flow"),
-            ("导出完整 Markdown 报告", "export full report text in flow"),
+            ("候选池筛选", "候选池筛选 text in flow"),
+            ("单条编译", "单条编译 text in flow"),
+            ("InsightCard", "InsightCard text in flow"),
+            ("行动建议", "行动建议 text in flow"),
             ("工作台概览", "工作台概览 section"),
             ("下一步建议", "下一步建议 section"),
         ]
@@ -190,6 +189,9 @@ def _run_acceptance(args):
                 f"Missing on index: {description} ('{check_text}')"
             print(f"[OK] Found on index: {description}")
 
+        assert "/candidate-pool" in text, \
+            "Missing /candidate-pool link on index"
+
         # ── 9. GET /source-items ────────────────────────────────
         print("\n--- Step 2: GET /source-items ---")
         response = client.get("/source-items")
@@ -198,15 +200,44 @@ def _run_acceptance(args):
         text = response.text
 
         checks_si = [
-            ("主流程第 2 步", "主流程第 2 步 notice"),
-            ("编译为中文 InsightCard", "compile to InsightCard text"),
-            ("编译为 InsightCard", "compile to InsightCard text variant"),
+            ("原始 SourceItem 列表", "raw SourceItem list boundary heading"),
+            ("调试抓取状态", "debug source item state text"),
+            ("候选池", "candidate pool link"),
+            ("生成 InsightCard", "generate InsightCard action text"),
         ]
 
         for check_text, description in checks_si:
             assert check_text in text, \
                 f"Missing on /source-items: {description} ('{check_text}')"
             print(f"[OK] Found on /source-items: {description}")
+
+        assert "/candidate-pool" in text, \
+            "Missing /candidate-pool link on /source-items"
+        assert "编译为 InsightCard" not in text, \
+            "Stale '编译为 InsightCard' should not appear on /source-items"
+        assert text.count("如何使用这个页面？") == 1, \
+            f"'如何使用这个页面？' should appear exactly once, found {text.count('如何使用这个页面？')}"
+
+        # ── 9b. GET /candidate-pool ────────────────────────────
+        print("\n--- Step 2b: GET /candidate-pool ---")
+        response = client.get("/candidate-pool")
+        # candidate-pool redirects to /candidate-pool/; follow it
+        response = client.get("/candidate-pool", follow_redirects=True)
+        assert response.status_code == 200, \
+            f"GET /candidate-pool failed: {response.status_code}"
+        text = response.text
+
+        checks_candidate_pool = [
+            ("候选资料入口", "candidate pool product entry text"),
+            ("处理决策", "candidate pool decision workspace text"),
+            ("生成 InsightCard", "generate InsightCard action text"),
+            ("/source-items", "raw source items link"),
+        ]
+
+        for check_text, description in checks_candidate_pool:
+            assert check_text in text, \
+                f"Missing on /candidate-pool: {description} ('{check_text}')"
+            print(f"[OK] Found on /candidate-pool: {description}")
 
         # ── 10. GET /source-items/{id} ─────────────────────────
         print(f"\n--- Step 3: GET /source-items/{source_item_id} ---")
