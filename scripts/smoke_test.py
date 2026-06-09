@@ -8269,6 +8269,168 @@ def test_v10_beta6_fetch_run_detail_shows_delta_digest():
         db.close()
 
 
+def test_v10_beta7_fetch_run_detail_display_improvements():
+    """FetchRun detail page uses content cards with display_title, summary, URL, time."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    import json
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_frd_disp_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test FetchRun Display",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+            items_new=1,
+            metadata_json="{}",
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        # Item with weak title to verify "标题待修复" display
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Learn More",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+            last_seen_at=now + timedelta(seconds=30),
+            raw_metadata_json=json.dumps({"description": "This is a real article description."}),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # candidate-card layout used
+        assert "candidate-card" in text, \
+            "FetchRun detail should use candidate-card layout"
+        # Summary shown
+        assert "candidate-summary" in text, \
+            "FetchRun detail should show candidate-summary (description)"
+        # URL shown
+        assert "candidate-url" in text, \
+            "FetchRun detail should show candidate-url"
+        # Time label shown
+        assert "candidate-meta" in text, \
+            "FetchRun detail should show candidate-meta (time label)"
+        # Weak title → "标题待修复"
+        assert "标题待修复" in text, \
+            "Weak title 'Learn More' should display as '标题待修复'"
+        # 加入生成 POST form preserved
+        assert 'method="post"' in text, \
+            "FetchRun detail should have POST forms for 加入生成"
+        assert f"/fetch-runs/{run.id}/source-items/" in text, \
+            "FetchRun detail should have enqueue-compile form actions"
+        print(f"[OK] FetchRun detail uses content cards for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_fetch_run_detail_failure_banner():
+    """FetchRun detail shows prominent failure banner when run.status == failed."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_frd_fail_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Failed Run",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="failed",
+            started_at=datetime.utcnow(),
+            finished_at=datetime.utcnow(),
+            error_message="unsupported fetch_strategy: manual",
+            items_found=0,
+            items_new=0,
+            metadata_json="{}",
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Failure banner should appear
+        assert "run-failure-banner" in text, \
+            "Failed FetchRun should show run-failure-banner"
+        assert "探测失败" in text, \
+            "Failed FetchRun should show '探测失败' heading"
+        assert "unsupported fetch_strategy" in text, \
+            "Failure banner should show the error message"
+        # Suggestion for unsupported strategy
+        assert "fetch_strategy" in text and ("rss" in text or "html_index" in text), \
+            "Failure banner should suggest checking fetch_strategy"
+        # Tech details still present
+        assert "技术详情" in text, \
+            "Tech details panel should still be present"
+        print(f"[OK] FetchRun detail shows failure banner for run {run.id}")
+
+        db.delete(run)
+        db.delete(src)
+        db.commit()
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_v10_beta6_fetch_run_detail_compile_is_post():
     """Generate InsightCard button is POST form on detail page."""
     from app.db import SessionLocal
@@ -9729,6 +9891,8 @@ if __name__ == "__main__":
     test_v10_beta6_fetch_run_detail_unsafe_url_not_link()
     test_v10_beta6_delta_digest_safe_url_rendered()
     test_v10_beta6_delta_digest_new_section_url_unsafe()
+    test_v10_beta7_fetch_run_detail_display_improvements()
+    test_v10_beta7_fetch_run_detail_failure_banner()
 
     # V1.0-beta.7 Background InsightCard Generation
     test_v10_beta7_background_compile_imports()

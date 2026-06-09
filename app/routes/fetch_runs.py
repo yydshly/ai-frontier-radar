@@ -191,6 +191,23 @@ def fetch_run_detail_page(request: Request, run_id: int):
         digest_service = FetchDeltaDigestService(db)
         digest = digest_service.build_for_run(detail.run)
 
+        # Build run_error_display for failure banner
+        run_error_display = None
+        if detail.run.status == "failed" and detail.run.error_message:
+            msg = detail.run.error_message
+            if "unsupported fetch_strategy" in msg.lower():
+                run_error_display = {
+                    "heading": "探测失败",
+                    "reason": msg,
+                    "suggestion": "当前来源暂不支持手动探测，请检查 fetch_strategy 是否为 rss 或 html_index。",
+                }
+            else:
+                run_error_display = {
+                    "heading": "探测失败",
+                    "reason": msg,
+                    "suggestion": "请检查来源配置、网络状态，或打开原站确认页面结构。",
+                }
+
         return _fetch_runs_templates.TemplateResponse(
             "fetch_run_detail.html",
             {
@@ -201,6 +218,7 @@ def fetch_run_detail_page(request: Request, run_id: int):
                 "digest": digest,
                 "get_status_display": get_status_display,
                 "safe_external_url": safe_external_url,
+                "run_error_display": run_error_display,
             },
         )
     finally:

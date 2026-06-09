@@ -493,6 +493,92 @@ def main():
         check("generation_queue.html has weak title hint for discovered items",
               "原始标题：" in content_gq)
 
+    # ── 10. FetchRun detail display improvements ────────────────────────────
+    print("\n[10] FetchRun detail display improvements")
+
+    # 10a. FetchDeltaItem dataclass has display fields
+    try:
+        from app.application.fetch_runs.delta import FetchDeltaItem
+        delta_fields = [f.name for f in FetchDeltaItem.__dataclass_fields__.values()]
+        check("FetchDeltaItem has display_title field",
+              "display_title" in delta_fields)
+        check("FetchDeltaItem has is_title_weak field",
+              "is_title_weak" in delta_fields)
+        check("FetchDeltaItem has raw_title field",
+              "raw_title" in delta_fields)
+        check("FetchDeltaItem has time_label field",
+              "time_label" in delta_fields)
+    except Exception as e:
+        check("FetchDeltaItem display fields exist", False, str(e))
+
+    # 10b. _enrich_display sets display_title correctly
+    try:
+        from app.application.fetch_runs.delta import FetchDeltaDigestService, FetchDeltaItem
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        # Mock SourceItem with weak title
+        mock_item = MagicMock()
+        mock_item.id = 1
+        mock_item.title = "Learn More"
+        mock_item.raw_metadata_json = "{}"
+        mock_item.source_key = "test_blog"
+        mock_item.status = "discovered"
+        mock_item.insight_card_id = None
+        mock_item.published_at = None
+        mock_item.first_seen_at = datetime(2026, 6, 1, 12, 0, 0)
+        mock_item.canonical_url = None
+        mock_item.url = "https://example.com/article"
+
+        service = FetchDeltaDigestService(db=None)
+        delta = FetchDeltaItem(
+            item_id=1, title="Learn More", url="https://example.com/article",
+            source_key="test_blog", published_at=None,
+            summary="Some summary", status="discovered",
+            insight_card_id=None, delta_type="new",
+        )
+        service._enrich_display(delta, mock_item)
+        check("weak title → display_title is '标题待修复'",
+              delta.display_title == "标题待修复")
+        check("weak title → is_title_weak is True",
+              delta.is_title_weak is True)
+        check("weak title → raw_title is original title",
+              delta.raw_title == "Learn More")
+        check("weak title → time_label shows 发现于",
+              "发现于" in delta.time_label)
+    except Exception as e:
+        check("_enrich_display weak title handling", False, str(e))
+
+    # 10c. fetch_run_detail.html uses candidate-card layout and display fields
+    tpl_frd = templates_dir / "fetch_run_detail.html"
+    try:
+        content_frd = tpl_frd.read_text(encoding="utf-8")
+    except Exception as e:
+        check("fetch_run_detail.html is readable", False, str(e))
+    else:
+        check("fetch_run_detail.html uses candidate-card class",
+              "candidate-card" in content_frd)
+        check("fetch_run_detail.html shows candidate-summary",
+              "candidate-summary" in content_frd)
+        check("fetch_run_detail.html shows candidate-url",
+              "candidate-url" in content_frd)
+        check("fetch_run_detail.html shows candidate-meta (time_label)",
+              "candidate-meta" in content_frd)
+        check("fetch_run_detail.html shows '标题待修复' for weak titles",
+              "标题待修复" in content_frd)
+        check("fetch_run_detail.html shows run_error_display failure banner",
+              "run-failure-banner" in content_frd)
+        check("fetch_run_detail.html shows 失败原因 in banner",
+              "失败原因" in content_frd)
+        check("fetch_run_detail.html shows 建议 in banner",
+              "建议" in content_frd)
+        check("fetch_run_detail.html has 加入生成 POST form",
+              'method="post" action="/fetch-runs/{{ run.id }}/source-items/' in content_frd)
+        check("fetch_run_detail.html has candidate-title-row for display_title",
+              "candidate-title-row" in content_frd)
+        check("fetch_run_detail.html has candidate-weak-title-hint",
+              "candidate-weak-title-hint" in content_frd)
+
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

@@ -37,6 +37,11 @@ class FetchDeltaItem:
     status: str
     insight_card_id: int | None
     delta_type: str  # "new" | "seen" | "updated" | "failed"
+    # Display-ready fields (populated by _enrich_display)
+    display_title: str = ""      # title or "标题待修复" for weak titles
+    is_title_weak: bool = False
+    raw_title: str | None = None  # original weak title if is_title_weak
+    time_label: str = ""          # "发布于 YYYY-MM-DD" or "发现于 YYYY-MM-DD"
 
 
 @dataclass
@@ -174,6 +179,46 @@ def _has_update_marker(raw_metadata: dict[str, Any]) -> bool:
     return False
 
 
+# Weak/CTA titles — same set as used in html_index_probe.py and candidates/display.py.
+_WEAK_TITLES = frozenset(
+    w.lower() for w in (
+        "featured",
+        "learn more",
+        "read more",
+        "more",
+        "view",
+        "explore",
+        "see more",
+        "continue reading",
+        "details",
+    )
+)
+
+
+def _is_weak_title(title: str | None) -> bool:
+    """Return True if title is a weak/CTA string (case-insensitive, whitespace-normalized)."""
+    if not title or not title.strip():
+        return True
+    normalized = " ".join(title.strip().split())
+    return normalized.lower() in _WEAK_TITLES
+
+
+def _format_date(value: Any) -> str | None:
+    """Format a date/datetime/string to YYYY-MM-DD, or return None."""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, str) and value.strip():
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(value.strip()[:19], fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                pass
+        return value.strip()[:10]
+    return None
+
+
 class FetchDeltaDigestService:
     """Service for building FetchDeltaDigest from a FetchRun."""
 
@@ -286,8 +331,8 @@ class FetchDeltaDigestService:
         return failed
 
     def _item_to_delta(self, item: SourceItem, delta_type: str) -> FetchDeltaItem:
-        """Convert a SourceItem to FetchDeltaItem."""
-        return FetchDeltaItem(
+        """Convert a SourceItem to FetchDeltaItem with display enrichment."""
+        delta_item = FetchDeltaItem(
             item_id=item.id,
             title=item.title or "无标题",
             url=item.url,
@@ -298,3 +343,32 @@ class FetchDeltaDigestService:
             insight_card_id=item.insight_card_id,
             delta_type=delta_type,
         )
+        self._enrich_display(delta_item, item)
+        return delta_item
+
+    def _enrich_display(self, delta_item: FetchDeltaItem, item: SourceItem) -> None:
+        """Populate display_title, is_title_weak, raw_title, time_label on delta_item."""
+        title = delta_item.title
+        is_weak = _is_weak_title(title)
+        delta_item.is_title_weak = is_weak
+        delta_item.raw_title = title if is_weak else None
+        delta_item.display_title = "标题待修复" if is_weak else title
+
+        # time_label: published_at > metadata > first_seen_at
+        pub_date = _format_date(item.published_at)
+        if not pub_date:
+            raw_meta = _parse_metadata_json(item.raw_metadata_json)
+            for meta_key in ("published_at", "article_published_time", "date", "pub_date"):
+                pub_date = _format_date(raw_meta.get(meta_key))
+                if pub_date:
+                    break
+        if pub_date:
+            delta_item.time_label = f"发布于 {pub_date}"
+        elif item.first_seen_at:
+            delta_item.time_label = f"发现于 {_format_date(item.first_seen_at)}"
+        else:
+            delta_item.time_label = "时间未知"
+
+        # Weak title summary protection: if title is weak and summary contains it, replace
+        if is_weak and title and title in delta_item.summary:
+            delta_item.summary = "暂无摘要。请重新探测该来源或运行标题修复脚本。"
