@@ -24,15 +24,58 @@
 
     <main class="home-workbench">
 
+        <!-- ── V1.0-beta.9: 主流程工作流 ──────────────────────── -->
+        <section class="workflow-banner">
+            <div class="workflow-title">🚦 主流程</div>
+            <div class="workflow-steps">
+                <a href="/sources" class="workflow-step step-1">
+                    <span class="step-num">1</span>
+                    <span class="step-label">信息来源</span>
+                    <span class="step-desc">选择来源，运行探测</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/fetch-runs" class="workflow-step step-2">
+                    <span class="step-num">2</span>
+                    <span class="step-label">运行记录</span>
+                    <span class="step-desc">查看本次抓取结果</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/candidate-pool" class="workflow-step step-3">
+                    <span class="step-num">3</span>
+                    <span class="step-label">候选池</span>
+                    <span class="step-desc">浏览发现的内容</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/generation-queue" class="workflow-step step-4">
+                    <span class="step-num">4</span>
+                    <span class="step-label">生成队列</span>
+                    <span class="step-desc">查看生成中 / 已完成</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/cards" class="workflow-step step-5">
+                    <span class="step-num">5</span>
+                    <span class="step-label">InsightCard</span>
+                    <span class="step-desc">查看中文洞察</span>
+                </a>
+            </div>
+        </section>
+
         <!-- ── 工作台统计卡片 ─────────────────────────────────── -->
         <section class="stats-section">
             <h2 class="section-title">📊 工作台概览</h2>
             <div class="stats-grid">
-                <a href="/source-items" class="stat-card stat-source">
-                    <div class="stat-icon">📡</div>
+                <a href="/candidate-pool?status=discovered" class="stat-card stat-source">
+                    <div class="stat-icon">📥</div>
                     <div class="stat-body">
-                        <div class="stat-number">{{ dashboard_stats.source_items_discovered }}</div>
-                        <div class="stat-label">待编译资料</div>
+                        <div class="stat-number">{{ dashboard_stats.candidate_pool_discovered }}</div>
+                        <div class="stat-label">待生成</div>
+                    </div>
+                </a>
+                <a href="/generation-queue" class="stat-card stat-compiling">
+                    <div class="stat-icon">⚙️</div>
+                    <div class="stat-body">
+                        <div class="stat-number">{{ dashboard_stats.candidate_pool_compiling }}</div>
+                        <div class="stat-label">生成中</div>
                     </div>
                 </a>
                 <a href="/cards?decision=unhandled" class="stat-card stat-unhandled">
@@ -40,13 +83,6 @@
                     <div class="stat-body">
                         <div class="stat-number">{{ dashboard_stats.cards_unhandled }}</div>
                         <div class="stat-label">未处理卡片</div>
-                    </div>
-                </a>
-                <a href="/cards?decision=worth_attention" class="stat-card stat-worth">
-                    <div class="stat-icon">⭐</div>
-                    <div class="stat-body">
-                        <div class="stat-number">{{ dashboard_stats.cards_worth_attention }}</div>
-                        <div class="stat-label">值得关注</div>
                     </div>
                 </a>
                 <a href="/cards?decision=to_action" class="stat-card stat-action">
@@ -60,43 +96,11 @@
 
             <!-- 次级统计 -->
             <div class="stats-secondary">
+                <a href="/cards?decision=worth_attention" class="stat-mini">值得关注 <strong>{{ dashboard_stats.cards_worth_attention }}</strong></a>
                 <a href="/cards?decision=related_to_me" class="stat-mini">与我有关 <strong>{{ dashboard_stats.cards_related_to_me }}</strong></a>
                 <a href="/cards?decision=read_later" class="stat-mini">稍后再看 <strong>{{ dashboard_stats.cards_read_later }}</strong></a>
-                <a href="/cards?decision=ignore" class="stat-mini">暂时忽略 <strong>{{ dashboard_stats.cards_ignore }}</strong></a>
                 <a href="/cards" class="stat-mini">全部卡片 <strong>{{ dashboard_stats.cards_total }}</strong></a>
             </div>
-
-            <!-- V1.0-beta.2: 候选池统计 -->
-            <div class="stats-secondary" style="margin-top: 0.5rem;">
-                <a href="/candidate-pool" class="stat-mini">候选池 <strong>{{ dashboard_stats.candidate_pool_total }}</strong></a>
-                <a href="/candidate-pool?status=discovered" class="stat-mini">待编译 <strong>{{ dashboard_stats.candidate_pool_discovered }}</strong></a>
-                <a href="/candidate-pool?status=compiling" class="stat-mini">编译中 <strong>{{ dashboard_stats.candidate_pool_compiling }}</strong></a>
-                <a href="/candidate-pool?status=failed" class="stat-mini">失败 <strong>{{ dashboard_stats.candidate_pool_failed }}</strong></a>
-            </div>
-        </section>
-
-        <!-- ── V1.0-alpha.1 演示数据入口 ────────────────────── -->
-        {% if demo_card %}
-        <section class="next-actions-section" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800; padding: 0.75rem 1.25rem;">
-            <span style="font-size:0.85rem; color:#666;">🎬 演示数据入口（无需联网、无需 LLM）：</span>
-            <a href="/source-items/{{ demo_source_item.id }}">查看演示资料</a> ·
-            <a href="/cards/{{ demo_card.id }}">查看演示 InsightCard</a> ·
-            <a href="/cards/{{ demo_card.id }}/export-report">导出演示完整报告</a> ·
-            <a href="/cards/{{ demo_card.id }}/export-markdown">导出演示行动任务</a>
-        </section>
-        {% endif %}
-
-        <!-- ── V1.0-beta.3 推荐主流程（候选池优先） ────────────── -->
-        <section class="next-actions-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50; padding: 0.75rem 1.25rem;">
-            <span style="font-size:0.85rem; color:#1f4d2e; font-weight:600;">🚦 推荐主流程：</span>
-            <span style="font-size:0.85rem; color:#444;">
-                <a href="/candidate-pool">候选池筛选</a> →
-                <a href="/candidate-pool">单条编译</a> →
-                <a href="/cards">InsightCard</a> →
-                <a href="/cards?decision=to_action">行动建议</a>
-            </span>
-            <br>
-            <small class="muted" style="font-size:0.75rem;">需要排查原始 SourceItem？<a href="/source-items">打开原始资料 / 调试列表</a></small>
         </section>
 
         <!-- ── 下一步建议 ────────────────────────────────────── -->
@@ -115,50 +119,52 @@
                 <li>你有 <strong>{{ dashboard_stats.cards_to_action }}</strong> 张已标记为"转成行动"的卡片，可以导出 Markdown 任务继续拆解。</li>
                 {% endif %}
                 {% if dashboard_stats.candidate_pool_discovered == 0 and dashboard_stats.cards_unhandled == 0 and dashboard_stats.cards_to_action == 0 and dashboard_stats.source_items_discovered == 0 %}
-                <li>还没有发现资料。可以先运行来源探测脚本，或直接提交一个 URL 编译。</li>
+                <li>还没有发现资料。从首页快捷入口进入 <a href="/sources">信息来源</a>，选择一个来源点击"运行探测"。</li>
                 {% endif %}
             </ul>
         </section>
 
-        <!-- ── 快捷入口 ─────────────────────────────────────── -->
+        <!-- ── 快捷入口（按主流程顺序） ─────────────────────── -->
         <section class="quick-actions-section">
             <h2 class="section-title">⚡ 快捷入口</h2>
             <div class="quick-actions-grid">
-                <a href="/candidate-pool" class="quick-action-card">
-                    <span class="qa-icon">📥</span>
-                    <span class="qa-label">候选池</span>
-                </a>
-                <a href="/cards" class="quick-action-card">
-                    <span class="qa-icon">📋</span>
-                    <span class="qa-label">InsightCard 工作台</span>
-                </a>
-                <a href="/cards?decision=to_action" class="quick-action-card">
-                    <span class="qa-icon">🚀</span>
-                    <span class="qa-label">转成行动</span>
-                </a>
                 <a href="/sources" class="quick-action-card">
                     <span class="qa-icon">🗺️</span>
                     <span class="qa-label">信息来源</span>
+                    <span class="qa-desc">选择来源，运行探测</span>
                 </a>
-                <a href="/source-items" class="quick-action-card" title="原始资料 / 调试列表">
-                    <span class="qa-icon">🔧</span>
-                    <span class="qa-label">原始资料</span>
-                </a>
-                <a href="/fetch-runs" class="quick-action-card" title="来源探测运行记录">
+                <a href="/fetch-runs" class="quick-action-card">
                     <span class="qa-icon">📡</span>
-                    <span class="qa-label">来源运行</span>
+                    <span class="qa-label">运行记录</span>
+                    <span class="qa-desc">查看每次抓取结果</span>
                 </a>
-                <a href="/generation-queue" class="quick-action-card" title="查看正在生成和已完成的 InsightCard">
+                <a href="/candidate-pool" class="quick-action-card">
+                    <span class="qa-icon">📥</span>
+                    <span class="qa-label">候选池</span>
+                    <span class="qa-desc">查看累计候选资料</span>
+                </a>
+                <a href="/generation-queue" class="quick-action-card">
                     <span class="qa-icon">⚙️</span>
                     <span class="qa-label">生成队列</span>
+                    <span class="qa-desc">查看生成中 / 已完成</span>
+                </a>
+                <a href="/cards" class="quick-action-card">
+                    <span class="qa-icon">🧠</span>
+                    <span class="qa-label">InsightCard</span>
+                    <span class="qa-desc">查看已生成中文洞察</span>
+                </a>
+                <a href="/source-items" class="quick-action-card" title="调试入口">
+                    <span class="qa-icon">🔧</span>
+                    <span class="qa-label">原始资料</span>
+                    <span class="qa-desc">调试入口</span>
                 </a>
             </div>
         </section>
 
-        <!-- ── 英文资料收件箱 ───────────────────────────────── -->
+        <!-- ── 候选资料（最近发现） ─────────────────────────── -->
         <section class="recent-section">
-            <h2 class="section-title">📥 英文资料收件箱</h2>
-            <p class="section-desc" style="font-size:0.85rem; color:#666; margin:-0.5rem 0 0.75rem;">从来源中发现的原始英文资料，选择后可编译为 InsightCard。</p>
+            <h2 class="section-title">📥 最近发现</h2>
+            <p class="section-desc" style="font-size:0.85rem; color:#666; margin:-0.5rem 0 0.75rem;">从来源探测中发现的最新内容，选择后可生成 InsightCard。</p>
             {% if recent_source_items %}
             <table class="recent-table">
                 <thead>
@@ -310,7 +316,7 @@
     </main>
 
     <footer>
-        <p>AI Frontier Radar V0.6 · <a href="/source-items">待编译资料</a> · <a href="/cards">洞察卡工作台</a> · <a href="/sources">信息来源</a></p>
+        <p>AI Frontier Radar · <a href="/sources">信息来源</a> · <a href="/fetch-runs">运行记录</a> · <a href="/candidate-pool">候选池</a> · <a href="/generation-queue">生成队列</a> · <a href="/cards">InsightCard</a> · <a href="/source-items">原始资料</a></p>
     </footer>
 </body>
 </html>

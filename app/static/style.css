@@ -1155,6 +1155,299 @@ footer {
 }
 
 /* ============================================================
+   V1.0-beta.9 — Workflow Banner
+   ============================================================ */
+
+.workflow-banner {
+    background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.workflow-title {
+    color: #a8d0f5;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.workflow-steps {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.workflow-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    text-decoration: none;
+    color: white;
+    transition: background 0.15s, border-color 0.15s;
+    min-width: 0;
+}
+
+.workflow-step:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(255,255,255,0.3);
+    text-decoration: none;
+}
+
+.workflow-step .step-num {
+    width: 1.5rem;
+    height: 1.5rem;
+    background: #3498db;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.workflow-step .step-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.workflow-step .step-desc {
+    font-size: 0.72rem;
+    color: #a8d0f5;
+    white-space: nowrap;
+}
+
+.workflow-arrow {
+    color: #5a7a9a;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+/* Quick action card with description */
+.quick-action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.6rem 0.4rem;
+    background: #f5f7fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #2c3e50;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.quick-action-card:hover {
+    background: #e8eef5;
+    border-color: #3498db;
+    text-decoration: none;
+}
+
+.quick-action-card .qa-icon {
+    font-size: 1.3rem;
+}
+
+.quick-action-card .qa-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.quick-action-card .qa-desc {
+    font-size: 0.65rem;
+    color: #888;
+    text-align: center;
+}
+
+/* Stat card for compiling */
+.stat-compiling { background: #e3f2fd; border-color: #b3d4fc; }
+.stat-compiling:hover { background: #d8edfc; }
+
+/* ============================================================
+   V1.0-beta.9 — Source Cards
+   ============================================================ */
+
+.sources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.source-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border: 1px solid #e8e8e8;
+}
+
+.source-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.source-card-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.source-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.source-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    line-height: 1.3;
+}
+
+.source-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.category-tag,
+.source-type-tag,
+.strategy-tag {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: #f0f4f8;
+    color: #555;
+}
+
+.strategy-tag {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.source-status .status-badge {
+    font-size: 0.75rem;
+}
+
+.source-card-stats {
+    display: flex;
+    gap: 1rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.source-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    flex: 1;
+}
+
+.stat-val {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.stat-key {
+    font-size: 0.72rem;
+    color: #888;
+}
+
+.source-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.btn-fetch {
+    background: #2c5aa0;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-fetch:hover {
+    background: #1a4080;
+}
+
+.source-tech-details {
+    font-size: 0.78rem;
+    color: #666;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 0.5rem;
+}
+
+.source-tech-details summary {
+    cursor: pointer;
+    color: #888;
+    user-select: none;
+}
+
+.tech-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.tech-label {
+    color: #888;
+    flex-shrink: 0;
+}
+
+.tech-row a {
+    color: #3498db;
+    word-break: break-all;
+}
+
+.sync-stats {
+    background: #e8f4fb;
+    border-left: 3px solid #3498db;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.88rem;
+    color: #2c3e50;
+}
+
+@media (max-width: 600px) {
+    .sources-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================
    V0.6 — Home Workbench
    ============================================================ */
 
@@ -2195,3 +2488,260 @@ footer {
 .report-note-section .report-section-title {
     color: #e65100;
 }
+
+.digest-url-unsafe {
+    color: #ef5350 !important;
+    font-size: 0.72rem;
+}
+
+
+/* ============================================================
+   V1.0-beta.9 — FetchRun Detail Result Summary
+   ============================================================ */
+
+/* Run summary banner */
+.run-summary-banner {
+    background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.run-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.run-source-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.run-source-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.run-nav-links {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.run-nav-links .btn-link {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.run-nav-links .btn-link:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.run-stats-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.run-stat {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    text-align: center;
+    min-width: 80px;
+}
+
+.run-stat-val {
+    display: block;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.run-stat-key {
+    display: block;
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.run-stat-new { border-color: rgba(46, 125, 50, 0.6); background: rgba(46, 125, 50, 0.2); }
+.run-stat-new .run-stat-val { color: #66bb6a; }
+.run-stat-seen { border-color: rgba(25, 118, 210, 0.6); background: rgba(25, 118, 210, 0.2); }
+.run-stat-seen .run-stat-val { color: #64b5f6; }
+.run-stat-updated { border-color: rgba(245, 124, 0, 0.6); background: rgba(245, 124, 0, 0.2); }
+.run-stat-updated .run-stat-val { color: #ffb74d; }
+.run-stat-failed { border-color: rgba(198, 40, 40, 0.6); background: rgba(198, 40, 40, 0.2); }
+.run-stat-failed .run-stat-val { color: #ef5350; }
+
+.run-time-info {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.6);
+    flex-wrap: wrap;
+}
+
+.run-error-msg {
+    background: rgba(198, 40, 40, 0.3);
+    border: 1px solid rgba(198, 40, 40, 0.5);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    color: #ef9a9a;
+    margin-top: 0.5rem;
+}
+
+.run-error-msg strong {
+    color: #ef5350;
+}
+
+/* Content tabs hint */
+.content-tabs-hint {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0;
+}
+
+/* Digest section title */
+.digest-section-title {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid;
+}
+
+.digest-new { color: #2e7d32; border-color: #4caf50; }
+.digest-seen { color: #1565c0; border-color: #2196f3; }
+.digest-updated { color: #ef6c00; border-color: #ff9800; }
+.digest-failed { color: #c62828; border-color: #f44336; }
+
+/* Digest cards grid */
+.digest-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.digest-card {
+    background: white;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.digest-card-new { border-left: 3px solid #4caf50; }
+.digest-card-seen { border-left: 3px solid #2196f3; }
+.digest-card-updated { border-left: 3px solid #ff9800; }
+.digest-card-failed { border-left: 3px solid #f44336; background: #fef5f5; }
+
+.digest-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.digest-card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1.4;
+}
+
+.digest-card-summary {
+    font-size: 0.82rem;
+    color: #555;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.digest-card-meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+    color: #888;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.digest-source {
+    background: #f0f4f8;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    color: #555;
+}
+
+.digest-url {
+    color: #3498db;
+    word-break: break-all;
+    font-size: 0.78rem;
+}
+
+.digest-card-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 0.25rem;
+}
+
+/* Technical details panel */
+.tech-details-panel {
+    margin-top: 1.5rem;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+}
+
+.tech-details-panel summary {
+    cursor: pointer;
+    color: #666;
+    font-size: 0.88rem;
+    user-select: none;
+}
+
+.tech-details-panel .detail-table {
+    margin-top: 0.75rem;
+}
+
+.digest-section-title {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid;
+}
+
+@media (max-width: 600px) {
+    .digest-cards {
+        grid-template-columns: 1fr;
+    }
+    .run-summary-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+

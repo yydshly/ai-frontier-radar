@@ -175,11 +175,12 @@ def _run_acceptance(args):
         text = response.text
 
         checks_index = [
-            ("推荐主流程", "推荐主流程 section"),
-            ("候选池筛选", "候选池筛选 text in flow"),
-            ("单条编译", "单条编译 text in flow"),
-            ("InsightCard", "InsightCard text in flow"),
-            ("行动建议", "行动建议 text in flow"),
+            ("主流程", "主流程 workflow banner"),
+            ("信息来源", "信息来源 step"),
+            ("运行记录", "运行记录 step"),
+            ("候选池", "候选池 step"),
+            ("生成队列", "生成队列 step"),
+            ("InsightCard", "InsightCard step"),
             ("工作台概览", "工作台概览 section"),
             ("下一步建议", "下一步建议 section"),
         ]
