@@ -3719,16 +3719,33 @@ body.app-shell .main-content {
     font-size: 0.9rem;
 }
 
+.radar-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
 .radar-layout {
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr) 320px;
     gap: 1.25rem;
-    align-items: start;
+    align-items: stretch;
+    height: calc(100vh - 220px);
+    min-height: 520px;
+    overflow: hidden;
 }
 
 .radar-sidebar {
-    position: sticky;
-    top: 1rem;
+    height: 100%;
+    overflow-y: auto;
+    align-self: stretch;
+}
+
+.radar-main {
+    min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 0.35rem;
 }
 
 .radar-sidebar-label,
@@ -3840,8 +3857,9 @@ body.app-shell .main-content {
 }
 
 .radar-panel {
-    position: sticky;
-    top: 1rem;
+    height: 100%;
+    overflow-y: auto;
+    align-self: stretch;
     border: 1px solid #d0d7de;
     border-radius: 8px;
     padding: 1rem;
@@ -3898,10 +3916,15 @@ body.app-shell .main-content {
 @media (max-width: 1024px) {
     .radar-layout {
         grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
     }
 
+    .radar-main,
     .radar-sidebar,
     .radar-panel {
-        position: static;
+        height: auto;
+        max-height: none;
+        overflow: visible;
     }
 }

@@ -107,6 +107,7 @@ def main():
     # ── 5. Template keyword presence ────────────────────────────────────────
     print("\n[5] Template keyword presence")
     templates_dir = Path(__file__).resolve().parents[1] / "app" / "templates"
+    static_dir = Path(__file__).resolve().parents[1] / "app" / "static"
     keyword_templates = {
         "信息来源": ["index.html", "sources.html"],
         "运行记录": ["fetch_runs.html", "fetch_run_detail.html"],
@@ -1712,6 +1713,48 @@ def main():
               "内容不存在或已被清理" in radar_html)
         check("radar_today.html renders left catalog + reading panel",
               "radar-sidebar" in radar_html and "radar-panel" in radar_html and "radar-card" in radar_html)
+
+        # ── Layout: independent scrolling panes ─────────────────────────────
+        # radar-page wrapper or equivalent page-level class present.
+        check("radar_today.html has radar-page wrapper",
+              "radar-page" in radar_html)
+
+        # 查看 link no longer anchors to #radar-panel (prevents page jump).
+        check("查看 link has no #radar-panel anchor",
+              "#radar-panel" not in radar_html.split('查看')[1].split('>')[0] if "查看" in radar_html else True)
+
+        # style.css must have overflow-y: auto for .radar-main and .radar-panel,
+        # and overflow: hidden for .radar-layout.
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        # Extract .radar-main rule
+        radar_main_start = style_css.find(".radar-main")
+        radar_main_block = ""
+        if radar_main_start >= 0:
+            brace_start = style_css.find("{", radar_main_start)
+            brace_end = style_css.find("}", brace_start)
+            radar_main_block = style_css[brace_start+1:brace_end]
+        check("style.css .radar-main has overflow-y: auto",
+              "overflow-y: auto" in radar_main_block)
+
+        # Extract .radar-panel rule
+        radar_panel_start = style_css.find(".radar-panel {", radar_main_start) if radar_main_start >= 0 else style_css.find(".radar-panel")
+        radar_panel_block = ""
+        if radar_panel_start >= 0:
+            brace_start = style_css.find("{", radar_panel_start)
+            brace_end = style_css.find("}", brace_start)
+            radar_panel_block = style_css[brace_start+1:brace_end]
+        check("style.css .radar-panel has overflow-y: auto",
+              "overflow-y: auto" in radar_panel_block)
+
+        # Extract .radar-layout rule
+        radar_layout_start = style_css.find(".radar-layout")
+        radar_layout_block = ""
+        if radar_layout_start >= 0:
+            brace_start = style_css.find("{", radar_layout_start)
+            brace_end = style_css.find("}", brace_start)
+            radar_layout_block = style_css[brace_start+1:brace_end]
+        check("style.css .radar-layout has overflow: hidden",
+              "overflow: hidden" in radar_layout_block)
 
         # GET endpoint returns 200.
         resp = client.get("/radar/today")
