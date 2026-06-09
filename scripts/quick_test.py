@@ -2086,6 +2086,72 @@ def main():
     except Exception as e:
         check("Today Radar return_to checks", False, str(e))
 
+    # ── 16d. Today Radar: fetch run summary ─────────────────────────────────
+    print("\n[16d] Today Radar fetch run summary")
+    try:
+        radar_py = (Path(__file__).resolve().parents[1] / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
+        radar_route_py = (Path(__file__).resolve().parents[1] / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("RadarFetchRunSummary dataclass exists",
+              "class RadarFetchRunSummary" in radar_py,
+              "today radar should have RadarFetchRunSummary dataclass")
+        check("RadarFetchRunSummary has total field",
+              "total: int" in radar_py and "class RadarFetchRunSummary" in radar_py)
+        check("RadarFetchRunSummary has running/success/failed/partial_failed fields",
+              "running: int" in radar_py and "success: int" in radar_py
+              and "failed: int" in radar_py and "partial_failed: int" in radar_py)
+        check("RadarFetchRunSummary has items_new/items_updated/items_found fields",
+              "items_new: int" in radar_py and "items_updated: int" in radar_py
+              and "items_found: int" in radar_py)
+        check("RadarFetchRunSummary has latest_started_at/latest_finished_at fields",
+              "latest_started_at" in radar_py and "latest_finished_at" in radar_py)
+
+        check("RadarTodayView has fetch_run_summary field",
+              "fetch_run_summary:" in radar_py and "RadarTodayView" in radar_py,
+              "RadarTodayView should include fetch_run_summary field")
+
+        check("build_fetch_run_summary method exists",
+              "def build_fetch_run_summary" in radar_py,
+              "RadarTodayService should have build_fetch_run_summary method")
+        check("build_fetch_run_summary queries FetchRun",
+              "FetchRun" in radar_py and "build_fetch_run_summary" in radar_py,
+              "fetch run summary should query FetchRun records")
+        check("build_fetch_run_summary is scoped by source_keys",
+              "source_keys: set[str]" in radar_py,
+              "fetch run summary should be filtered by source keys")
+
+        check("build_today_view accepts fetch_run_source_keys parameter",
+              "fetch_run_source_keys:" in radar_py,
+              "build_today_view should accept optional fetch_run_source_keys")
+        check("build_today_view calls build_fetch_run_summary when keys provided",
+              "build_fetch_run_summary(fetch_run_source_keys)" in radar_py,
+              "build_today_view should build summary when source keys are provided")
+
+        check("radar route passes configured_keys to build_today_view",
+              "fetch_run_source_keys=configured_keys" in radar_route_py,
+              "radar route should pass configured source keys to the view builder")
+
+        check("radar_today.html renders fetch status summary",
+              "最近探测状态" in radar_html and "radar-fetch-summary" in radar_html,
+              "template should show recent fetch status module")
+        check("radar_today.html shows /fetch-runs link in summary",
+              "/fetch-runs" in radar_html and "radar-fetch-summary" in radar_html,
+              "summary should provide link to fetch runs page")
+        check("radar_today.html shows '暂无探测记录' when no runs",
+              "暂无探测记录" in radar_html,
+              "template should handle empty fetch run state")
+
+        check("style.css has .radar-fetch-summary styles",
+              ".radar-fetch-summary" in style_css,
+              "fetch status summary should have CSS styles")
+        check("style.css has .radar-fetch-summary-grid styles",
+              ".radar-fetch-summary-grid" in style_css,
+              "fetch status grid should have CSS styles")
+    except Exception as e:
+        check("Today Radar fetch run summary checks", False, str(e))
+
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
     try:

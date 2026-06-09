@@ -83,6 +83,35 @@
                             <button type="submit" class="btn-sm btn-primary">更新今日雷达</button>
                         </form>
                     </div>
+
+                    {% if view.fetch_run_summary %}
+                    <div class="radar-fetch-summary">
+                        <div class="radar-fetch-summary-title">最近探测状态</div>
+
+                        {% if view.fetch_run_summary.total %}
+                        <div class="radar-fetch-summary-grid">
+                            <span>运行中 <strong>{{ view.fetch_run_summary.running }}</strong></span>
+                            <span>成功 <strong>{{ view.fetch_run_summary.success }}</strong></span>
+                            <span>失败 <strong>{{ view.fetch_run_summary.failed }}</strong></span>
+                            <span>部分失败 <strong>{{ view.fetch_run_summary.partial_failed }}</strong></span>
+                        </div>
+                        <div class="radar-fetch-summary-meta">
+                            新增 {{ view.fetch_run_summary.items_new }}，
+                            更新 {{ view.fetch_run_summary.items_updated }}，
+                            发现 {{ view.fetch_run_summary.items_found }}
+                        </div>
+                        {% if view.fetch_run_summary.latest_started_at %}
+                        <div class="radar-fetch-summary-meta">
+                            最近启动：{{ view.fetch_run_summary.latest_started_at }}
+                        </div>
+                        {% endif %}
+                        {% else %}
+                        <div class="radar-fetch-summary-empty">暂无探测记录</div>
+                        {% endif %}
+
+                        <a href="/fetch-runs" class="btn-sm">查看运行记录</a>
+                    </div>
+                    {% endif %}
                 </div>
             </nav>
 

@@ -92,6 +92,9 @@ def radar_today_page(
     """Render today's AI frontier radar reading view."""
     db = next(get_db())
     try:
+        configured_sources = [s for s in list_sources() if s.enabled]
+        configured_keys = {s.source_key for s in configured_sources}
+
         service = RadarTodayService(db)
         view = service.build_today_view(
             selected_item_id=item_id,
@@ -100,6 +103,7 @@ def radar_today_page(
             page=page,
             per_page=per_page,
             section=section,
+            fetch_run_source_keys=configured_keys,
         )
 
         summary_result = None

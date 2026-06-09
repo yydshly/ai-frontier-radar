@@ -22,7 +22,7 @@ from typing import Any
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
-from app.models import InsightCard, SourceItem
+from app.models import FetchRun, InsightCard, SourceItem
 from app.application.candidates.display import (
     CandidateDisplayCard,
     build_candidate_display_card,
@@ -40,6 +40,22 @@ class RadarPanelState:
     insight_label: str          # Human-readable label for the insight state
     insight_note: str | None    # Optional note (e.g. error message for failed)
     selected_insight_card: "InsightCard | None" = None
+
+
+@dataclass
+class RadarFetchRunSummary:
+    total: int
+    running: int
+    success: int
+    failed: int
+    partial_failed: int
+    pending: int
+    items_found: int
+    items_new: int
+    items_updated: int
+    items_failed: int
+    latest_started_at: "datetime | None"
+    latest_finished_at: "datetime | None"
 
 
 # ── Query bounds ───────────────────────────────────────────────────────────
@@ -217,6 +233,8 @@ class RadarTodayView:
     section_counts: dict = field(default_factory=dict)
     # ── Right reading panel state ────────────────────────────────────────────
     panel_state: RadarPanelState | None = None
+    # ── Recent fetch run status summary ────────────────────────────────────
+    fetch_run_summary: "RadarFetchRunSummary | None" = None
 
 
 def _clamp(value: int, low: int, high: int) -> int:
@@ -427,6 +445,7 @@ class RadarTodayService:
         page: int = 1,
         per_page: int = DEFAULT_PER_PAGE,
         section: str = ALL_KEY,
+        fetch_run_source_keys: "set[str] | None" = None,
     ) -> RadarTodayView:
         hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
         limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
@@ -545,6 +564,12 @@ class RadarTodayService:
 
         panel_state = _build_panel_state(self.db, selected_item)
 
+        fetch_run_summary = (
+            self.build_fetch_run_summary(fetch_run_source_keys)
+            if fetch_run_source_keys is not None
+            else None
+        )
+
         return RadarTodayView(
             total_items=total_items_in_section,
             selected_item_id=selected_item_id,
@@ -563,6 +588,7 @@ class RadarTodayService:
             active_section=section,
             section_counts=section_counts,
             panel_state=panel_state,
+            fetch_run_summary=fetch_run_summary,
         )
 
     def _build_sections(
@@ -622,3 +648,64 @@ class RadarTodayService:
         if item.id not in display_map:
             display_map[item.id] = build_candidate_display_card(item)
         return item, False
+
+    def build_fetch_run_summary(
+        self,
+        source_keys: set[str],
+        *,
+        limit: int = 30,
+    ) -> RadarFetchRunSummary:
+        if not source_keys:
+            return RadarFetchRunSummary(
+                total=0,
+                running=0,
+                success=0,
+                failed=0,
+                partial_failed=0,
+                pending=0,
+                items_found=0,
+                items_new=0,
+                items_updated=0,
+                items_failed=0,
+                latest_started_at=None,
+                latest_finished_at=None,
+            )
+
+        runs = (
+            self.db.query(FetchRun)
+            .filter(FetchRun.source_key.in_(source_keys))
+            .order_by(FetchRun.started_at.desc().nullslast(), FetchRun.id.desc())
+            .limit(limit)
+            .all()
+        )
+
+        running = sum(1 for r in runs if r.status == "running")
+        success = sum(1 for r in runs if r.status == "success")
+        failed = sum(1 for r in runs if r.status == "failed")
+        partial_failed = sum(1 for r in runs if r.status == "partial_failed")
+        pending = sum(1 for r in runs if r.status == "pending")
+
+        items_found = sum(r.items_found or 0 for r in runs)
+        items_new = sum(r.items_new or 0 for r in runs)
+        items_updated = sum(r.items_updated or 0 for r in runs)
+        items_failed = sum(r.items_failed or 0 for r in runs)
+
+        started_ats = [r.started_at for r in runs if r.started_at is not None]
+        finished_ats = [r.finished_at for r in runs if r.finished_at is not None]
+        latest_started_at = max(started_ats) if started_ats else None
+        latest_finished_at = max(finished_ats) if finished_ats else None
+
+        return RadarFetchRunSummary(
+            total=len(runs),
+            running=running,
+            success=success,
+            failed=failed,
+            partial_failed=partial_failed,
+            pending=pending,
+            items_found=items_found,
+            items_new=items_new,
+            items_updated=items_updated,
+            items_failed=items_failed,
+            latest_started_at=latest_started_at,
+            latest_finished_at=latest_finished_at,
+        )
