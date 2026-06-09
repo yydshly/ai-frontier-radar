@@ -2,7 +2,7 @@
 
 {% block title %}今日 AI 前沿雷达 - AI Frontier Radar{% endblock %}
 
-{% block main_class %}wide-page{% endblock %}
+{% block main_class %}wide-page radar-workbench-page{% endblock %}
 
 {% set sel = view.selected_item %}
 {% set sel_card = display_map.get(sel.id) if sel else None %}
@@ -180,7 +180,7 @@
                     <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm btn-primary">打开原文</a>
                     {% endif %}
                     {% if sel.status == 'discovered' %}
-                    <form method="post" action="/source-items/{{ sel.id }}/enqueue-compile" style="display:inline;">
+                    <form method="post" action="/source-items/{{ sel.id }}/enqueue-compile" class="radar-panel-action-form">
                         <button type="submit" class="btn-sm btn-primary">加入生成</button>
                     </form>
                     {% elif sel.insight_card_id %}

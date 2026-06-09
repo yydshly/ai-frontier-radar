@@ -2116,6 +2116,20 @@ def main():
         check("style.css .radar-layout has overflow: hidden",
               "overflow: hidden" in radar_layout_block)
 
+        # ── Workbench App Shell control ──────────────────────────────────────
+        check("today radar uses radar-workbench-page main class",
+              "{% block main_class %}wide-page radar-workbench-page{% endblock %}" in radar_html,
+              "radar today should control App Shell height with a page-specific class")
+        check("radar-page no longer uses hard-coded viewport calc height",
+              "height: calc(100vh - 108px)" not in style_css,
+              "radar-page should use flex height instead of hard-coded calc")
+        check("radar workbench page controls main-content height",
+              ".main-content.radar-workbench-page" in style_css and "overflow: hidden" in style_css,
+              "radar workbench should control App Shell scroll model")
+        check("radar panel actions are vertical",
+              ".radar-panel-actions" in style_css and "flex-direction: column" in style_css,
+              "right reading panel actions should be stacked vertically")
+
         radar_card_start = style_css.find(".radar-card {")
         radar_card_block = ""
         if radar_card_start >= 0:

@@ -3747,21 +3747,37 @@ body.app-shell .main-content {
     font-size: 0.9rem;
 }
 
-.radar-page {
+/* ── Radar workbench: App Shell control ─────────────────────────────── */
+body.app-shell .main-content.radar-workbench-page {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 108px);
+    padding: 1rem 1.25rem;
+}
+
+.radar-page {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.radar-header {
+    flex: 0 0 auto;
 }
 
 .radar-layout {
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr) 320px;
     gap: 1.25rem;
     align-items: stretch;
-    overflow: hidden;
 }
 
 /* ── Radar pagination ───────────────────────────────────────────────────── */
@@ -3972,11 +3988,26 @@ body.app-shell .main-content {
 
 .radar-panel-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+}
+
+.radar-panel-actions .btn-sm {
+    min-width: 84px;
+}
+
+.radar-panel-action-form {
+    margin: 0;
 }
 
 @media (max-width: 1024px) {
+    body.app-shell .main-content.radar-workbench-page {
+        height: auto;
+        overflow: visible;
+        padding: 1rem;
+    }
+
     .radar-page {
         height: auto;
         overflow: visible;
