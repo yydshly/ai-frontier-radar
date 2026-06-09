@@ -366,18 +366,17 @@ def main():
     parser = _build_arg_parser()
     args = parser.parse_args()
 
-    isolated_db_path = None
-    if args.isolated_db:
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        db_name = f"acceptance_v10_{timestamp}.db"
-        isolated_db_path = os.path.join("data", db_name)
-        os.makedirs("data", exist_ok=True)
-        os.environ["DATABASE_URL"] = f"sqlite:///{os.path.abspath(isolated_db_path)}"
-        print(f"[INFO] Using isolated DB: {isolated_db_path}")
+    # Always use isolated DB to avoid colliding with smoke_test's test_smoke.db
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    db_name = f"acceptance_v10_{timestamp}.db"
+    isolated_db_path = os.path.join("data", db_name)
+    os.makedirs("data", exist_ok=True)
+    os.environ["DATABASE_URL"] = f"sqlite:///{os.path.abspath(isolated_db_path)}"
+    print(f"[INFO] Using isolated DB: {isolated_db_path}")
 
     _run_acceptance(args)
 
-    if isolated_db_path and not args.keep_db:
+    if not args.keep_db:
         # Dispose engine to release file locks before deletion
         try:
             from app.db import engine
