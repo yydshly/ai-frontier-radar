@@ -21,39 +21,42 @@
 
 ## 2. 任务拆分
 
-### Task 1：due-source 计算服务
+### Task 1：due-source 计算服务 ✅ 已实现
 
 **范围**：
-- 新增 `DueSourceService` 或 `compute_due_sources()` 函数
-- 不改 DB
-- 基于 FetchRun 历史计算 last_run / running / failed
-- 输出结构：`DueSourceResult(due, skipped, running, unsupported, failed_to_enqueue)`
+- 新增 `compute_due_sources()` 函数
+- 不改 DB（只读查询）
+- 基于 FetchRun 历史计算 last_run / running / skipped
+- 输出结构：`DueSourcePlan(due, skipped, running, unsupported, missing)`
 
-**关键字段**：
+**实现产物**：
+- `app/application/sources/due_sources.py` — 核心计算服务（只读）
+- `scripts/check_due_sources.py` — 诊断脚本（只读，不触发抓取）
+
+**关键数据结构**：
 ```python
-@dataclass
-class DueSource:
+@dataclass(frozen=True)
+class DueSourceDecision:
     source_key: str
-    reason: str = ""  # optional, for logging
+    source_name: str
+    status: str  # "due" | "skipped" | "running" | "unsupported" | "missing"
+    reason: str  # never_fetched | interval_elapsed | not_due_yet | already_running | unsupported_strategy | missing_source_record | max_sources_limit
 
-@dataclass
-class SkippedSource:
-    source_key: str
-    reason: str  # not_in_radar_scope | unsupported_strategy | already_running | not_due_yet | cooldown_after_failure | max_sources_limit | missing_source_record
-
-@dataclass
-class DueSourceResult:
-    due_sources: List[DueSource]
-    skipped_sources: List[SkippedSource]
-    running_sources: List[str]
-    unsupported_sources: List[str]
-    failed_to_enqueue: List[str]
+@dataclass(frozen=True)
+class DueSourcePlan:
+    generated_at: datetime
+    total_configured: int
+    due: list[DueSourceDecision]
+    skipped: list[DueSourceDecision]
+    running: list[DueSourceDecision]
+    unsupported: list[DueSourceDecision]
+    missing: list[DueSourceDecision]
 ```
 
 **验收**：
-- `quick_test` 通过
-- 脚本验证：计算结果与实际 FetchRun 记录一致
-- 今日雷达更新结果可显示 due / skipped 数量
+- `quick_test` 通过（含新增只读断言）
+- `python scripts/check_due_sources.py` 输出 due / skipped / running / unsupported / missing 数量
+- 不创建任何 FetchRun，不写数据库，不调用 LLM
 
 ---
 

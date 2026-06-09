@@ -6,6 +6,14 @@ V1.0-beta 已证明单次 First Usable Loop 可以跑通。
 
 V1.0-beta.1 的目标是让系统从"手动跑通"升级为"可持续运行"。
 
+### V1.0-beta.1 第一阶段实现状态
+
+V1.0-beta.1 分两个阶段推进：
+
+- **第一阶段（本次）**：只读 due-source 计算服务 `compute_due_sources()`。
+  它判断哪些来源该探测、哪些该跳过、哪些已在运行，但**不触发抓取、不写数据库、不改变今日雷达 update 行为**。
+- **第二阶段**：接入 `/radar/today/update`，让今日雷达真正使用 due-source 结果。
+
 ### 当前不是做
 
 - 完整 SaaS

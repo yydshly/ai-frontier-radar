@@ -3204,6 +3204,41 @@ def main():
     except Exception as e:
         check("V1 beta checkpoint documentation checks", False, str(e))
 
+    # ── 24. Due-source computation service ────────────────────────────────────
+    print("\n[24] Due-source computation service")
+    try:
+        due_sources_py = (project_root / "app" / "application" / "sources" / "due_sources.py").read_text(encoding="utf-8")
+        check_due_sources_py = (project_root / "scripts" / "check_due_sources.py").read_text(encoding="utf-8")
+
+        check("due source service exists",
+              (project_root / "app" / "application" / "sources" / "due_sources.py").exists(),
+              "due-source scheduling service should exist")
+        check("due source service defines plan and decision dataclasses",
+              "class DueSourceDecision" in due_sources_py
+              and "class DueSourcePlan" in due_sources_py,
+              "due-source service should expose structured result models")
+        check("due source service computes due sources",
+              "def compute_due_sources" in due_sources_py
+              and "not_due_yet" in due_sources_py
+              and "already_running" in due_sources_py
+              and "unsupported_strategy" in due_sources_py,
+              "due-source service should compute due/skipped/running/unsupported states")
+        check("due source service is read only",
+              ".commit(" not in due_sources_py
+              and ".add(" not in due_sources_py
+              and "enqueue" not in due_sources_py,
+              "due-source computation should not write DB or enqueue fetches")
+        check("due source check script exists",
+              (project_root / "scripts" / "check_due_sources.py").exists(),
+              "read-only due-source diagnostic script should exist")
+        check("due source check script does not trigger fetches",
+              "run_source_fetch" not in check_due_sources_py
+              and "enqueue_source" not in check_due_sources_py
+              and "CandidateOneLinerService" not in check_due_sources_py,
+              "due-source diagnostic script should be read-only")
+    except Exception as e:
+        check("due source service checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
