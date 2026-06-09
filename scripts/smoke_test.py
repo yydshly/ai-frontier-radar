@@ -673,6 +673,33 @@ def test_source_items_page():
             "Items with status=discovered should appear"
         print("[OK] /source-items?status=discovered filter works")
 
+        # ── V1.0-beta.3 boundary copy assertions ────────────────────
+        # 1. Only one occurrence of "如何使用这个页面？"
+        count = response.text.count("如何使用这个页面？")
+        assert count == 1, \
+            f"Expected 1 occurrence of '如何使用这个页面？', found {count}"
+        print("[OK] /source-items has exactly one '如何使用这个页面？'")
+
+        # 2. No残留 "编译为 InsightCard"
+        assert "编译为 InsightCard" not in response.text, \
+            "'编译为 InsightCard' should not appear (replaced with '生成 InsightCard')"
+        print("[OK] /source-items no longer contains '编译为 InsightCard'")
+
+        # 3. Still contains "生成 InsightCard"
+        assert "生成 InsightCard" in response.text, \
+            "'生成 InsightCard' should appear on the page"
+        print("[OK] /source-items still contains '生成 InsightCard'")
+
+        # 4. Still contains boundary heading
+        assert "原始 SourceItem 列表" in response.text, \
+            "Boundary heading '原始 SourceItem 列表' should appear"
+        print("[OK] /source-items still contains '原始 SourceItem 列表'")
+
+        # 5. Still contains /candidate-pool link
+        assert "/candidate-pool" in response.text, \
+            "Link to /candidate-pool should appear on the page"
+        print("[OK] /source-items still contains /candidate-pool link")
+
     finally:
         db.rollback()
         db.close()
@@ -2066,8 +2093,8 @@ def test_source_items_v035_usage_guide():
     # Check Chinese usage guide header and key bullet points
     assert "如何使用这个页面" in text, \
         "Page should have '如何使用这个页面' Chinese guide header"
-    assert "编译为 InsightCard" in text, \
-        "Page should mention '编译为 InsightCard' action"
+    assert "生成 InsightCard" in text, \
+        "Page should mention '生成 InsightCard' action"
     assert "当前阶段不自动批量编译" in text, \
         "Page should note '当前阶段不自动批量编译'"
     print("[OK] /source-items has V0.3.5 Chinese usage guide")
