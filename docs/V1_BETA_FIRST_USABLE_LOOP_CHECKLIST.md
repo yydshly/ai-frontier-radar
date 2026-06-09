@@ -109,3 +109,17 @@ python scripts/check_sources_health.py
 - [ ] 分类分页不应丢 section
 - [ ] 页面不应出现底部巨大空白
 - [ ] 选中卡片后不应跳到顶部（scrollIntoView）
+
+## 10. 抓取后自动摘要验收
+
+点击"更新今日雷达"，等待后台完成后检查：
+
+- [ ] FetchRun 正常进入 success / partial_failed / failed
+- [ ] 抓取成功时，FetchRun.metadata_json 中包含 auto_summary
+- [ ] auto_summary 显示 candidate_count / selected_count / success / skipped / failed
+- [ ] 新增或更新 SourceItem 中，最多 AUTO_SUMMARY_MAX_PER_FETCH_RUN（默认 5）条会自动生成 zh_one_liner / zh_summary
+- [ ] 今日雷达中间卡片优先显示中文概述（zh_one_liner）
+- [ ] 右侧阅读面板显示中文详细摘要（zh_summary）
+- [ ] 如果 LLM 失败，FetchRun 抓取状态不应因此变 failed
+- [ ] 自动摘要失败原因只写入 metadata_json.auto_summary / 日志，不影响抓取结果
+- [ ] 不生成 InsightCard（那是"加入生成"按钮的责任）

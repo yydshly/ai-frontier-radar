@@ -36,6 +36,7 @@ def main() -> int:
     radar_route_py = read("app/routes/radar.py")
     style_css = read("app/static/style.css")
     main_py = read("app/main.py")
+    background_fetch_py = read("app/application/sources/background_fetch.py")
 
     print("[1] 今日雷达主链路入口")
     check("今日雷达有更新入口",
@@ -154,6 +155,20 @@ def main() -> int:
     check("今日雷达卡片优先显示中文概述",
           "display.primary_text" in radar_html and "uses_zh_one_liner" in radar_html,
           "中间卡片应优先显示中文一句话概述")
+
+    print("\n[14] 抓取后自动摘要")
+    check("后台抓取触发自动摘要",
+          "_auto_generate_summaries_for_fetch_run" in background_fetch_py,
+          "抓取完成后应自动生成中文摘要")
+    check("自动摘要复用 CandidateOneLinerService",
+          "CandidateOneLinerService" in background_fetch_py,
+          "应复用已有 CandidateOneLinerService")
+    check("自动摘要写入 metadata_json",
+          "auto_summary" in background_fetch_py,
+          "自动摘要结果应写入 metadata_json")
+    check("自动摘要有数量限制",
+          "get_auto_summary_max_per_fetch_run" in background_fetch_py,
+          "应有配置控制每次抓取的自动摘要数量")
 
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")

@@ -997,6 +997,36 @@ def main():
     except Exception as e:
         check("background_fetch max_items integration", False, str(e))
 
+    # ── 11c. Background fetch: auto-summarize new/updated items ─────────────────
+    print("\n[11c] Background fetch auto-summarize after fetch")
+    try:
+        bg_fetch_py = (Path(__file__).resolve().parents[1] / "app" / "application" / "sources" / "background_fetch.py").read_text(encoding="utf-8")
+
+        check("background_fetch has AUTO_SUMMARY_MAX_PER_FETCH_RUN env var check",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN" in bg_fetch_py,
+              "should read AUTO_SUMMARY_MAX_PER_FETCH_RUN env var")
+        check("background_fetch has get_auto_summary_max_per_fetch_run function",
+              "def get_auto_summary_max_per_fetch_run" in bg_fetch_py,
+              "should have config function for auto summary max")
+        check("background_fetch triggers auto summaries after commit",
+              "_auto_generate_summaries_for_fetch_run" in bg_fetch_py
+              and "new_ids + updated_ids" in bg_fetch_py,
+              "background fetch should summarize new and updated items after fetch")
+        check("background_fetch auto summary reuses CandidateOneLinerService",
+              "CandidateOneLinerService" in bg_fetch_py
+              and "generate_for_items" in bg_fetch_py,
+              "auto summary should reuse CandidateOneLinerService")
+        check("background_fetch auto summary writes metadata",
+              "auto_summary" in bg_fetch_py
+              and "_write_auto_summary_metadata" in bg_fetch_py,
+              "auto summary result should be recorded in FetchRun metadata")
+        check("background_fetch auto summary is best-effort",
+              "must not change FetchRun.status" in bg_fetch_py
+              and "logger.exception" in bg_fetch_py,
+              "auto summary should be best-effort and not affect fetch status")
+    except Exception as e:
+        check("Background fetch auto-summarize checks", False, str(e))
+
     # ── 12. FetchRun display polish: test-source hiding and error display ──
     print("\n[12] FetchRun display polish")
 

@@ -59,6 +59,8 @@
 - 今日雷达支持补齐当前页中文摘要
 - 支持 fill_missing_summary 修复旧数据
 - 轻量摘要优先读取 detail_description
+- FetchRun 完成后对本轮 new / updated SourceItem 自动生成中文摘要（最多 AUTO_SUMMARY_MAX_PER_FETCH_RUN=5 条，超出可继续用"补齐当前页中文摘要"处理）
+- 自动摘要是 best-effort，不影响 FetchRun 抓取状态
 
 ### 3.4 InsightCard
 
@@ -82,7 +84,9 @@
 ## 5. 当前已知限制
 
 - 今日雷达更新仍是手动触发，不是定时
-- 探测完成后不会自动生成中文摘要（需手动点"补齐当前页中文摘要"）
+- 探测完成后会对本轮 new / updated SourceItem 进行有限数量的自动中文摘要生成；超过限制的条目仍可通过"补齐当前页中文摘要"处理
+- AUTO_SUMMARY_MAX_PER_FETCH_RUN 控制每次抓取后的自动摘要数量，默认 5，最大 20，设为 0 可关闭
+- 自动摘要是 best-effort，不影响 FetchRun 抓取状态
 - 中文摘要补齐是同步 POST，LLM 慢时页面会等待
 - 最近探测状态统计的是最近 N 条 FetchRun（limit=30），不是严格 batch_id
 - Source 表可能包含历史测试来源（test_* / orphan_key 被排除在生产视图外）
