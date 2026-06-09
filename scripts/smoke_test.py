@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 """
-Smoke test for AI Frontier Radar.
+Smoke test for AI Frontier Radar — PR-ready full regression.
+
+Test suite organization:
+    quick_test.py             Development fast self-check (imports, core routes,
+                              service imports, template keywords)
+    smoke_test.py             PR-before full regression (health, static assets,
+                              compile flow, config loading)
+    acceptance_demo_flow.py   Full user-flow acceptance (chain: discover →
+                              compile → decision → export)
+    acceptance_demo_data.py   Demo data completeness validation
+
+Does NOT require a real API key for basic smoke tests.
 
 Validates:
 - GET /health returns ok
@@ -9,8 +20,6 @@ Validates:
 - GET /cards returns 200
 - POST /compile creates failed card when API key is missing
 - Profile config loading works without real API key
-
-Does NOT require a real API key for basic smoke tests.
 """
 import os
 import sys

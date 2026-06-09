@@ -73,9 +73,15 @@ open http://127.0.0.1:8779/
 ### 基础检查
 
 ```bash
+# 开发中快速自检
 python -m compileall app scripts
-python scripts/check_sources_config.py
+python scripts/quick_test.py
+
+# PR 前完整检查
 python scripts/smoke_test.py
+python scripts/acceptance_demo_flow.py
+python scripts/acceptance_demo_data.py
+python scripts/health_check.py --quick
 ```
 
 ### Demo 演示
