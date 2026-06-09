@@ -37,6 +37,22 @@
                 </div>
             </div>
 
+            <!-- Running banner — shown while fetch is in progress -->
+            {% if run.status == 'running' %}
+            <div class="run-running-banner" style="background:#e3f2fd; border:2px solid #1976d2; border-radius:6px; padding:16px; margin:12px 0;">
+                <div style="font-size:1.1em; font-weight:bold; color:#1565c0; margin-bottom:8px;">
+                    🔄 探测运行中
+                </div>
+                <div style="color:#333; margin-bottom:8px;">
+                    系统正在后台抓取来源内容。请稍后刷新页面查看结果。
+                </div>
+                <div>
+                    <a href="/fetch-runs/{{ run.id }}" class="btn-sm btn-primary" style="display:inline-block; margin-right:8px;">🔄 刷新结果</a>
+                    <a href="/sources" class="btn-sm" style="display:inline-block;">返回信息来源</a>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Failure banner — prominent, above stats -->
             {% if run_error_display %}
             <div class="run-failure-banner" style="background:#fff3f3; border:2px solid #c62828; border-radius:6px; padding:16px; margin:12px 0;">

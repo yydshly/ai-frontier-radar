@@ -9606,6 +9606,207 @@ def test_v10_beta8_post_source_fetch_returns_303():
         db.close()
 
 
+def test_v10_beta8_background_fetch_creates_fetch_run_and_redirects():
+    """POST /sources/{key}/fetch creates a FetchRun and returns 303 redirect."""
+    import uuid
+    from unittest.mock import patch
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_bg_run_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test BG Run",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Mock network so background task succeeds
+        with patch("httpx.get") as mock_get:
+            mock_response = type("MockResponse", (), {
+                "status_code": 200, "text": "<xml/>",
+                "raise_for_status": lambda self: None
+            })()
+            mock_get.return_value = mock_response
+            with patch("feedparser.parse") as mock_parse:
+                mock_feed = type("MockFeed", (), {"bozo": False, "entries": []})()
+                mock_parse.return_value = mock_feed
+                response = client.post(f"/sources/{test_key}/fetch", follow_redirects=False)
+
+        assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+
+        # Verify FetchRun was created and redirected to correct URL
+        location = response.headers.get("location", "")
+        assert "/fetch-runs/" in location, f"Expected redirect to /fetch-runs/, got {location}"
+        run_id = int(location.split("/")[-1])
+        run = db.query(FetchRun).filter(FetchRun.id == run_id).first()
+        assert run is not None, f"FetchRun {run_id} should exist"
+        assert run.source_key == test_key, f"Expected source_key={test_key}, got {run.source_key!r}"
+
+        print(f"[OK] POST /sources/{test_key}/fetch returns 303 → /fetch-runs/{run_id}, run status={run.status}")
+
+        db.delete(run)
+        db.delete(src)
+        db.commit()
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta8_fetch_run_detail_shows_running_banner():
+    """FetchRun detail page shows '探测运行中' banner when run.status == running."""
+    import uuid
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_frd_run_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Running Banner",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="running",
+            started_at=datetime.utcnow(),
+            finished_at=None,
+            items_found=0,
+            items_new=0,
+            metadata_json="{}",
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        assert "探测运行中" in text, \
+            "Running FetchRun detail should show '探测运行中' banner"
+        assert "刷新结果" in text, \
+            "Running FetchRun detail should show '刷新结果' button"
+        assert "返回信息来源" in text, \
+            "Running FetchRun detail should show '返回信息来源' link"
+
+        print(f"[OK] FetchRun detail shows '探测运行中' banner for run {run.id}")
+
+        db.delete(run)
+        db.delete(src)
+        db.commit()
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta8_background_fetch_nonexistent_source_returns_404():
+    """POST /sources/nonexistent_key/fetch returns 404 JSON."""
+    response = client.post("/sources/definitely_not_a_real_source_key_12345/fetch")
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    import json
+    body = json.loads(response.text)
+    assert "not found" in body.get("detail", "").lower(), \
+        f"Expected 'not found' in detail, got {body!r}"
+    print("[OK] POST /sources/nonexistent_key/fetch returns 404")
+
+
+def test_v10_beta8_background_fetch_already_running_idempotent():
+    """Duplicate POST to same source within 10min returns the existing running run."""
+    import uuid
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_dup_run_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Dup Run",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create first running FetchRun
+        run1 = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="running",
+            started_at=datetime.utcnow(),
+            finished_at=None,
+            items_found=0,
+            items_new=0,
+            metadata_json="{}",
+        )
+        db.add(run1)
+        db.commit()
+        db.refresh(run1)
+
+        # Second POST should return same run_id (idempotent within window)
+        from app.application.sources.background_fetch import SourceFetchBackgroundService
+        svc = SourceFetchBackgroundService()
+        result = svc.enqueue_source(test_key)  # no background_tasks
+
+        assert result.accepted is False, \
+            f"Second enqueue should not create new run (accepted=False), got accepted={result.accepted}"
+        assert result.status == "already_running", \
+            f"Expected status='already_running', got {result.status!r}"
+        assert result.run_id == run1.id, \
+            f"Expected run_id={run1.id}, got {result.run_id}"
+
+        print(f"[OK] Duplicate enqueue within 10min returns existing run id={run1.id}")
+
+        db.delete(run1)
+        db.delete(src)
+        db.commit()
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_v10_beta8_sources_page_contains_run_button():
     """GET /sources page contains '运行探测' button text."""
     response = client.get("/sources")
@@ -9990,6 +10191,10 @@ if __name__ == "__main__":
     test_v10_beta8_rss_probe_creates_two_source_items()
     test_v10_beta8_re_run_same_url_no_duplicate_seen()
     test_v10_beta8_post_source_fetch_returns_303()
+    test_v10_beta8_background_fetch_creates_fetch_run_and_redirects()
+    test_v10_beta8_fetch_run_detail_shows_running_banner()
+    test_v10_beta8_background_fetch_nonexistent_source_returns_404()
+    test_v10_beta8_background_fetch_already_running_idempotent()
     test_v10_beta8_sources_page_contains_run_button()
     test_v10_beta8_fetch_run_detail_shows_delta()
 

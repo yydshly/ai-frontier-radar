@@ -618,6 +618,38 @@ def main():
               "candidate-title-row" in content_frd)
         check("fetch_run_detail.html has candidate-weak-title-hint",
               "candidate-weak-title-hint" in content_frd)
+        check("fetch_run_detail.html shows '探测运行中' banner for running status",
+              "探测运行中" in content_frd)
+        check("fetch_run_detail.html shows refresh button for running status",
+              "刷新结果" in content_frd)
+
+    # ── 11. Background source fetch service ───────────────────────────────
+    print("\n[11] Background source fetch service")
+    try:
+        from app.application.sources.background_fetch import (
+            SourceFetchBackgroundService,
+            SourceFetchEnqueueResult,
+            run_source_fetch_in_background,
+        )
+        check("SourceFetchBackgroundService is importable", True)
+        check("SourceFetchEnqueueResult is importable", True)
+        check("run_source_fetch_in_background is importable", True)
+    except Exception as e:
+        check("Background fetch imports", False, str(e))
+
+    # enqueue_source with non-existent source
+    try:
+        from app.application.sources.background_fetch import SourceFetchBackgroundService
+        svc = SourceFetchBackgroundService()
+        result = svc.enqueue_source("nonexistent_source_xyz")
+        check("enqueue_source for non-existent source returns accepted=False",
+              result.accepted is False)
+        check("enqueue_source for non-existent source returns status=not_found",
+              result.status == "not_found")
+        check("enqueue_source for non-existent source returns run_id=None",
+              result.run_id is None)
+    except Exception as e:
+        check("enqueue_source not-found handling", False, str(e))
 
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")

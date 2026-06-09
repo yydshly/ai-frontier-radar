@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -1042,28 +1042,25 @@ def list_sources_page(request: Request):
 
 
 @app.post("/sources/{source_key}/fetch")
-def trigger_source_fetch(source_key: str):
-    """Manually trigger a fetch for the specified source.
+def trigger_source_fetch(source_key: str, background_tasks: BackgroundTasks):
+    """Manually trigger a background fetch for the specified source.
 
     POST only — no GET allowed.
 
-    Creates a FetchRun and redirects to its detail page.
+    Creates a FetchRun(status=running) immediately and redirects to its
+    detail page. The actual probe runs in the background.
     Returns 404 if source_key does not exist.
     """
-    db = next(get_db())
-    try:
-        from app.application.sources.fetch_service import SourceFetchService
-        service = SourceFetchService(db)
-        result = service.run_source(source_key)
+    from app.application.sources.background_fetch import SourceFetchBackgroundService
 
-        if result is None:
-            from fastapi.responses import JSONResponse
-            return JSONResponse(status_code=404, content={"detail": f"Source '{source_key}' not found"})
+    service = SourceFetchBackgroundService()
+    result = service.enqueue_source(source_key, background_tasks=background_tasks)
 
-        # Redirect to the FetchRun detail page
-        return RedirectResponse(url=f"/fetch-runs/{result.fetch_run.id}", status_code=303)
-    finally:
-        db.close()
+    if result.status == "not_found":
+        return JSONResponse(status_code=404, content={"detail": result.message})
+
+    # Redirect to the FetchRun detail page (either new or already-running)
+    return RedirectResponse(url=f"/fetch-runs/{result.run_id}", status_code=303)
 
 
 @app.get("/source-items", response_class=HTMLResponse)
