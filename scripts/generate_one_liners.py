@@ -54,11 +54,19 @@ def main() -> int:
     try:
         items = select_items(db, args.source_key, limit)
         print(f"selected={len(items)} limit={limit} dry_run={args.dry_run}")
-        print(f"enabled={settings.enabled} provider={settings.provider} model={settings.model or '-'}")
+        print(f"enabled={settings.enabled} provider={settings.provider}")
 
         if args.dry_run:
             for item in items:
                 print(f"DRY item_id={item.id} source={item.source_key} title={(item.title or '')[:80]}")
+            return 0
+
+        if not settings.enabled:
+            print("ONE_LINER_ENABLED=false; no one-liner generation will run.")
+            print(
+                "Set ONE_LINER_ENABLED=true and ONE_LINER_PROVIDER=llm_profile "
+                "to use the configured LLM profile."
+            )
             return 0
 
         service = CandidateOneLinerService(db, settings=settings)
