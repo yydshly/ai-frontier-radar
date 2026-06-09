@@ -9567,7 +9567,7 @@ def test_v10_beta8_source_fetch_service_writes_probe_error_message():
         keys.append(failed_key)
         make_source(failed_key)
 
-        def probe_failed(db_session, source, timeout_seconds=20):
+        def probe_failed(db_session, source, timeout_seconds=20, max_items=None):
             return {
                 "source_key": source.source_key,
                 "items_found": 0,
@@ -9575,6 +9575,10 @@ def test_v10_beta8_source_fetch_service_writes_probe_error_message():
                 "items_updated": 0,
                 "items_failed": 0,
                 "error_message": "mock hard failure",
+                "total_seen": 0,
+                "processed_count": 0,
+                "truncated": False,
+                "max_items_per_run": max_items,
             }
 
         fetch_service_mod.probe_rss_source = probe_failed
@@ -9587,7 +9591,7 @@ def test_v10_beta8_source_fetch_service_writes_probe_error_message():
         keys.append(partial_key)
         make_source(partial_key)
 
-        def probe_partial(db_session, source, timeout_seconds=20):
+        def probe_partial(db_session, source, timeout_seconds=20, max_items=None):
             db_session.add(SourceItem(
                 source_id=source.id,
                 source_key=source.source_key,
@@ -9604,6 +9608,10 @@ def test_v10_beta8_source_fetch_service_writes_probe_error_message():
                 "items_updated": 0,
                 "items_failed": 1,
                 "error_message": "mock partial failure",
+                "total_seen": 1,
+                "processed_count": 1,
+                "truncated": False,
+                "max_items_per_run": max_items,
             }
 
         fetch_service_mod.probe_rss_source = probe_partial
@@ -9699,6 +9707,136 @@ def test_live_source_validation_coverage_helpers():
     assert "published coverage fields" in md
     assert "metadata.article_published_time" in md
     print("[OK] Live source validation coverage helpers align with metadata fields")
+
+
+def test_source_fetch_max_items_per_run_limit():
+    """SourceFetchService limits RSS/HTML processing and records limit metadata."""
+    import json
+    import os
+    import uuid
+
+    import httpx
+
+    from app.application.sources.fetch_service import (
+        SourceFetchService,
+        get_source_fetch_max_items_per_run,
+    )
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    original_get = httpx.get
+    original_env = os.environ.get("SOURCE_FETCH_MAX_ITEMS_PER_RUN")
+    db = SessionLocal()
+    keys: list[str] = []
+    try:
+        os.environ.pop("SOURCE_FETCH_MAX_ITEMS_PER_RUN", None)
+        assert get_source_fetch_max_items_per_run() == 50
+        os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = "not-an-int"
+        assert get_source_fetch_max_items_per_run() == 50
+        os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = "50"
+
+        rss_items = "\n".join(
+            f"""
+            <item>
+              <title>RSS Article {i}</title>
+              <link>https://example.com/rss/article-{i}</link>
+              <pubDate>2026-06-09T00:00:00Z</pubDate>
+            </item>
+            """
+            for i in range(100)
+        )
+        rss_xml = f"<?xml version='1.0'?><rss version='2.0'><channel>{rss_items}</channel></rss>"
+
+        class FakeResponse:
+            status_code = 200
+            reason_phrase = "OK"
+
+            def __init__(self, text: str):
+                self.text = text
+
+            def raise_for_status(self):
+                return None
+
+        def fake_rss_get(url, timeout=None, follow_redirects=None, headers=None):
+            return FakeResponse(rss_xml)
+
+        httpx.get = fake_rss_get
+        rss_key = f"test_limit_rss_{uuid.uuid4().hex[:8]}"
+        keys.append(rss_key)
+        rss_source = Source(
+            source_key=rss_key,
+            name="Test RSS Limit",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(rss_source)
+        db.commit()
+        rss_result = SourceFetchService(db).run_source(rss_key, timeout_seconds=5)
+        rss_limit = json.loads(rss_result.fetch_run.metadata_json)["source_fetch_limit"]
+        assert rss_result.items_found == 50
+        assert db.query(SourceItem).filter(SourceItem.source_key == rss_key).count() == 50
+        assert rss_limit["total_seen"] == 100
+        assert rss_limit["processed_count"] == 50
+        assert rss_limit["truncated"] is True
+        assert rss_limit["max_items_per_run"] == 50
+
+        links = "\n".join(
+            f"<a href='/blog/article-{i}'>HTML Article {i}</a>"
+            for i in range(100)
+        )
+        html = f"<html><body><main>{links}</main></body></html>"
+        detail = "<html><head><title>Detail Article</title></head><body></body></html>"
+
+        def fake_html_get(url, timeout=None, follow_redirects=None, headers=None):
+            if url == "https://example.com":
+                return FakeResponse(html)
+            return FakeResponse(detail)
+
+        httpx.get = fake_html_get
+        html_key = f"test_limit_html_{uuid.uuid4().hex[:8]}"
+        keys.append(html_key)
+        html_source = Source(
+            source_key=html_key,
+            name="Test HTML Limit",
+            description="Test",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(html_source)
+        db.commit()
+        html_result = SourceFetchService(db).run_source(html_key, timeout_seconds=5)
+        html_limit = json.loads(html_result.fetch_run.metadata_json)["source_fetch_limit"]
+        assert html_result.items_found == 50
+        assert db.query(SourceItem).filter(SourceItem.source_key == html_key).count() == 50
+        assert html_limit["total_seen"] == 100
+        assert html_limit["processed_count"] == 50
+        assert html_limit["truncated"] is True
+        assert html_limit["max_items_per_run"] == 50
+        print("[OK] Source fetch max-items limit applies to RSS and HTML probes")
+    finally:
+        httpx.get = original_get
+        if original_env is None:
+            os.environ.pop("SOURCE_FETCH_MAX_ITEMS_PER_RUN", None)
+        else:
+            os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = original_env
+        db.query(SourceItem).filter(SourceItem.source_key.in_(keys)).delete(synchronize_session=False)
+        db.query(Source).filter(Source.source_key.in_(keys)).delete(synchronize_session=False)
+        db.commit()
+        db.close()
 
 
 def test_v10_beta8_rss_probe_creates_two_source_items():
@@ -10477,6 +10615,7 @@ if __name__ == "__main__":
     test_v10_beta8_unsupported_strategy_creates_failed_run()
     test_v10_beta8_source_fetch_service_writes_probe_error_message()
     test_live_source_validation_coverage_helpers()
+    test_source_fetch_max_items_per_run_limit()
     test_sources_page_hides_test_sources()
     test_html_index_probe_uses_default_headers()
     test_v10_beta8_rss_probe_creates_two_source_items()

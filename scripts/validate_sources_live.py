@@ -253,6 +253,12 @@ def validate_source(db, source_key: str, cfg: dict[str, Any], timeout: int) -> d
     source = _create_source(db, source_key, cfg)
     result = SourceFetchService(db).run_source(source_key, timeout_seconds=timeout)
     items = _items_for_source(db, source_key)
+    fetch_limit = {}
+    if result and result.fetch_run.metadata_json:
+        try:
+            fetch_limit = json.loads(result.fetch_run.metadata_json).get("source_fetch_limit") or {}
+        except json.JSONDecodeError:
+            fetch_limit = {}
 
     title_cov = title_coverage(items)
     summary_cov = summary_coverage(items)
@@ -289,6 +295,10 @@ def validate_source(db, source_key: str, cfg: dict[str, Any], timeout: int) -> d
         "items_new": items_new,
         "items_updated": items_updated,
         "items_failed": items_failed,
+        "total_seen": fetch_limit.get("total_seen", items_found),
+        "processed_count": fetch_limit.get("processed_count", items_found),
+        "truncated": bool(fetch_limit.get("truncated", False)),
+        "max_items_per_run": fetch_limit.get("max_items_per_run"),
         "source_item_count": len(items),
         "error_message": error_message,
         "title_coverage": round(title_cov, 3),
@@ -332,6 +342,10 @@ def build_markdown(results: list[dict[str, Any]], total: int, passed: int, warne
             f"- strategy: {r['fetch_strategy']}",
             f"- verdict: {r['verdict']}",
             f"- items_found: {r['items_found']}",
+            f"- total_seen: {r.get('total_seen', r['items_found'])}",
+            f"- processed_count: {r.get('processed_count', r['items_found'])}",
+            f"- truncated: {r.get('truncated', False)}",
+            f"- max_items_per_run: {r.get('max_items_per_run') or '-'}",
             f"- title coverage: {r['title_coverage']:.0%}",
             f"- summary coverage: {r['summary_coverage']:.0%}",
             f"- published coverage: {r['published_coverage']:.0%}",

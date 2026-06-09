@@ -449,7 +449,10 @@ def _is_probable_article_url(url: str, source_homepage_url: str) -> bool:
 
 
 def probe_html_index_source(
-    db: Session, source: Source, timeout_seconds: int = 20
+    db: Session,
+    source: Source,
+    timeout_seconds: int = 20,
+    max_items: int | None = None,
 ) -> dict:
     """Probe a single HTML index source and discover article links.
 
@@ -470,7 +473,12 @@ def probe_html_index_source(
         "items_failed": 0,
         "error_message": None,
         "error_kind": None,
+        "total_seen": 0,
+        "processed_count": 0,
+        "truncated": False,
+        "max_items_per_run": max_items,
     }
+    effective_max_items = max_items if max_items is not None and max_items > 0 else 50
 
     # Validate homepage_url
     if not source.homepage_url:
@@ -540,6 +548,10 @@ def probe_html_index_source(
             # Log off-topic URLs for debugging (but don't store them)
             continue
 
+        result["total_seen"] += 1
+        if len(candidates) >= effective_max_items:
+            continue
+
         # Get link text from the <a> tag on the list page
         link_text = a_tag.get_text(strip=True)
 
@@ -571,12 +583,9 @@ def probe_html_index_source(
             "detail_fetch_reason": detail_fetch_reason,
         })
 
-        # Cap at 50 candidates to avoid noise
-        if len(candidates) >= 50:
-            break
-
     # If no candidates found, return partial failure
     if not candidates:
+        result["truncated"] = result["total_seen"] > effective_max_items
         result["error_message"] = "No candidate article links found"
         result["error_kind"] = "no_candidates"
         return result
@@ -589,6 +598,9 @@ def probe_html_index_source(
             continue
         seen_urls.add(candidate["url"])
         deduped_candidates.append(candidate)
+
+    result["processed_count"] = len(deduped_candidates)
+    result["truncated"] = result["total_seen"] > effective_max_items
 
     # Process each candidate
     for candidate in deduped_candidates:

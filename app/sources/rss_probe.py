@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session
 from app.models import Source, SourceItem, FetchRun
 
 
-def probe_rss_source(db: Session, source: Source, timeout_seconds: int = 20) -> dict:
+def probe_rss_source(
+    db: Session,
+    source: Source,
+    timeout_seconds: int = 20,
+    max_items: int | None = None,
+) -> dict:
     """Probe a single RSS source and discover items.
 
     Args:
@@ -31,6 +36,10 @@ def probe_rss_source(db: Session, source: Source, timeout_seconds: int = 20) -> 
         "items_updated": 0,
         "items_failed": 0,
         "error_message": None,
+        "total_seen": 0,
+        "processed_count": 0,
+        "truncated": False,
+        "max_items_per_run": max_items,
     }
 
     # Validate feed_url
@@ -63,9 +72,18 @@ def probe_rss_source(db: Session, source: Source, timeout_seconds: int = 20) -> 
         result["error_message"] = "Feed is malformed or empty"
         return result
 
+    entries = list(feed.entries or [])
+    result["total_seen"] = len(entries)
+    if max_items is not None and max_items > 0:
+        entries_to_process = entries[:max_items]
+        result["truncated"] = len(entries) > max_items
+    else:
+        entries_to_process = entries
+
     # Process entries, deduplicating by URL
     seen_urls: set[str] = set()
-    for entry in feed.entries:
+    for entry in entries_to_process:
+        result["processed_count"] += 1
         # Get URL — required
         url = getattr(entry, "link", None)
         if not url:

@@ -1172,6 +1172,10 @@ def main():
             "items_new": 5,
             "items_updated": 3,
             "items_failed": 2,
+            "total_seen": 100,
+            "processed_count": 50,
+            "truncated": True,
+            "max_items_per_run": 50,
             "error_message": None,
             "title_coverage": 0.9,
             "summary_coverage": 0.7,
@@ -1186,6 +1190,8 @@ def main():
         check("Markdown report contains source name", "OpenAI News" in md)
         check("Markdown report contains verdict", "WARN" in md)
         check("Markdown report contains items_found", "10" in md)
+        check("Markdown report contains source fetch limit fields",
+              "total_seen" in md and "processed_count" in md and "truncated" in md)
         check("Markdown report contains suggestion", "weak title" in md)
         check("Markdown report contains summary coverage criteria",
               "summary coverage fields" in md and "zh_one_liner" in md and "rss_summary" in md)
@@ -1202,7 +1208,10 @@ def main():
         import uuid
         from app.db import SessionLocal as _SL
         import app.application.sources.fetch_service as fetch_service_mod
-        from app.application.sources.fetch_service import SourceFetchService
+        from app.application.sources.fetch_service import (
+            SourceFetchService,
+            get_source_fetch_max_items_per_run,
+        )
         from app.models import Source, SourceItem
         from datetime import datetime
 
@@ -1230,7 +1239,19 @@ def main():
             db_session.add(test_src_1)
             db_session.commit()
 
-            def fake_probe_failed(db, source, timeout_seconds=20):
+            original_env = os.environ.get("SOURCE_FETCH_MAX_ITEMS_PER_RUN")
+            os.environ.pop("SOURCE_FETCH_MAX_ITEMS_PER_RUN", None)
+            check("source fetch max default is 50", get_source_fetch_max_items_per_run() == 50)
+            os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = "bad"
+            check("source fetch max invalid fallback is 50", get_source_fetch_max_items_per_run() == 50)
+            os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = "501"
+            check("source fetch max above cap fallback is 50", get_source_fetch_max_items_per_run() == 50)
+            if original_env is None:
+                os.environ.pop("SOURCE_FETCH_MAX_ITEMS_PER_RUN", None)
+            else:
+                os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = original_env
+
+            def fake_probe_failed(db, source, timeout_seconds=20, max_items=None):
                 return {
                     "source_key": source.source_key,
                     "items_found": 0,
@@ -1238,6 +1259,10 @@ def main():
                     "items_updated": 0,
                     "items_failed": 0,
                     "error_message": "mock probe failed",
+                    "total_seen": 0,
+                    "processed_count": 0,
+                    "truncated": False,
+                    "max_items_per_run": max_items,
                 }
 
             fetch_service_mod.probe_rss_source = fake_probe_failed
@@ -1272,7 +1297,7 @@ def main():
             db_session.commit()
             db_session.refresh(test_src_2)
 
-            def fake_probe_partial(db, source, timeout_seconds=20):
+            def fake_probe_partial(db, source, timeout_seconds=20, max_items=None):
                 item = SourceItem(
                     source_id=source.id,
                     source_key=source.source_key,
@@ -1290,6 +1315,10 @@ def main():
                     "items_updated": 0,
                     "items_failed": 1,
                     "error_message": "mock partial probe error",
+                    "total_seen": 1,
+                    "processed_count": 1,
+                    "truncated": False,
+                    "max_items_per_run": max_items,
                 }
 
             fetch_service_mod.probe_rss_source = fake_probe_partial

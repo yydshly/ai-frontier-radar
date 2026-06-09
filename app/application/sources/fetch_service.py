@@ -14,6 +14,7 @@ Does NOT:
 - Use Celery/Redis/RQ
 """
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -26,6 +27,34 @@ from app.sources.html_index_probe import probe_html_index_source
 
 # Supported fetch strategies
 SUPPORTED_STRATEGIES = {"rss", "html_index"}
+DEFAULT_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 50
+MIN_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 1
+MAX_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 500
+
+
+def get_source_fetch_max_items_per_run() -> int:
+    """Return the per-run source item import/update limit."""
+    raw_value = os.getenv("SOURCE_FETCH_MAX_ITEMS_PER_RUN")
+    if raw_value is None:
+        return DEFAULT_SOURCE_FETCH_MAX_ITEMS_PER_RUN
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_SOURCE_FETCH_MAX_ITEMS_PER_RUN
+    if value < MIN_SOURCE_FETCH_MAX_ITEMS_PER_RUN or value > MAX_SOURCE_FETCH_MAX_ITEMS_PER_RUN:
+        return DEFAULT_SOURCE_FETCH_MAX_ITEMS_PER_RUN
+    return value
+
+
+def _source_fetch_limit_metadata(probe_result: dict, max_items: int, items_found: int) -> dict:
+    total_seen = probe_result.get("total_seen", items_found)
+    processed_count = probe_result.get("processed_count", items_found)
+    return {
+        "max_items_per_run": probe_result.get("max_items_per_run", max_items),
+        "truncated": bool(probe_result.get("truncated", False)),
+        "total_seen": int(total_seen or 0),
+        "processed_count": int(processed_count or 0),
+    }
 
 
 @dataclass
@@ -90,6 +119,7 @@ class SourceFetchService:
         seen_ids: list[int] = []
         updated_ids: list[int] = []
         failed_urls: list[str] = []
+        max_items = get_source_fetch_max_items_per_run()
 
         try:
             strategy = source.fetch_strategy
@@ -99,6 +129,20 @@ class SourceFetchService:
                 fetch_run.status = "failed"
                 fetch_run.error_message = f"unsupported fetch_strategy: {strategy}"
                 fetch_run.finished_at = datetime.utcnow()
+                fetch_run.metadata_json = json.dumps({
+                    "delta": {
+                        "new_ids": [],
+                        "seen_ids": [],
+                        "updated_ids": [],
+                        "failed_urls": [],
+                    },
+                    "source_fetch_limit": {
+                        "max_items_per_run": max_items,
+                        "truncated": False,
+                        "total_seen": 0,
+                        "processed_count": 0,
+                    },
+                }, ensure_ascii=False)
                 source.last_checked_at = datetime.utcnow()
                 source.last_error_message = f"unsupported fetch_strategy: {strategy}"
                 self.db.commit()
@@ -121,9 +165,19 @@ class SourceFetchService:
 
             # Call appropriate probe
             if strategy == "rss":
-                probe_result = probe_rss_source(self.db, source, timeout_seconds=timeout_seconds)
+                probe_result = probe_rss_source(
+                    self.db,
+                    source,
+                    timeout_seconds=timeout_seconds,
+                    max_items=max_items,
+                )
             elif strategy == "html_index":
-                probe_result = probe_html_index_source(self.db, source, timeout_seconds=timeout_seconds)
+                probe_result = probe_html_index_source(
+                    self.db,
+                    source,
+                    timeout_seconds=timeout_seconds,
+                    max_items=max_items,
+                )
             else:
                 # Should not reach here due to check above
                 probe_result = {
@@ -132,6 +186,10 @@ class SourceFetchService:
                     "items_updated": 0,
                     "items_failed": 0,
                     "error_message": f"unknown fetch_strategy: {strategy}",
+                    "total_seen": 0,
+                    "processed_count": 0,
+                    "truncated": False,
+                    "max_items_per_run": max_items,
                 }
 
             items_found = probe_result["items_found"]
@@ -139,6 +197,7 @@ class SourceFetchService:
             items_updated = probe_result["items_updated"]
             items_failed = probe_result["items_failed"]
             error_message = probe_result["error_message"]
+            source_fetch_limit = _source_fetch_limit_metadata(probe_result, max_items, items_found)
 
             # Collect IDs of new/seen/updated items from SourceItems just created/updated
             # The probe already committed items. We re-query to get IDs.
@@ -220,7 +279,8 @@ class SourceFetchService:
                     "seen_ids": seen_ids,
                     "updated_ids": updated_ids,
                     "failed_urls": failed_urls,
-                }
+                },
+                "source_fetch_limit": source_fetch_limit,
             }, ensure_ascii=False)
 
             self.db.commit()
@@ -257,7 +317,13 @@ class SourceFetchService:
                     "seen_ids": [],
                     "updated_ids": [],
                     "failed_urls": [],
-                }
+                },
+                "source_fetch_limit": {
+                    "max_items_per_run": max_items,
+                    "truncated": False,
+                    "total_seen": 0,
+                    "processed_count": 0,
+                },
             }, ensure_ascii=False)
 
             self.db.commit()
