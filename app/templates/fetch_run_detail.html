@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+
+{% block title %}本次探测结果 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <!-- Run summary banner -->
+        <div class="run-summary-banner">
+            <div class="run-summary-header">
+                <div class="run-source-info">
+                    {% if source %}
+                    <span class="run-source-name">{{ source.name }}</span>
+                    {% else %}
+                    <span class="run-source-name">{{ run.source_key }}</span>
+                    {% endif %}
+                    <span class="run-status-badge">
+                        {% if run.status == 'success' %}
+                        <span class="status-badge status-compiled">成功</span>
+                        {% elif run.status == 'running' %}
+                        <span class="status-badge" style="background:#1976d2; color:white;">运行中</span>
+                        {% elif run.status == 'partial_failed' %}
+                        <span class="status-badge" style="background:#f57c00; color:white;">部分失败</span>
+                        {% elif run.status == 'failed' %}
+                        <span class="status-badge status-failed">失败</span>
+                        {% elif run.status == 'pending' %}
+                        <span class="status-badge status-discovered">等待中</span>
+                        {% else %}
+                        <span class="muted">{{ run.status }}</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="run-nav-links">
+                    <a href="/sources" class="btn-link">返回信息来源</a>
+                    <a href="/candidate-pool?source_key={{ run.source_key }}" class="btn-link">查看候选池</a>
+                    <a href="/generation-queue" class="btn-link">查看生成队列</a>
+                </div>
+            </div>
+
+            <!-- Running banner — shown while fetch is in progress -->
+            {% if run.status == 'running' %}
+            <div class="run-running-banner" style="background:#e3f2fd; border:2px solid #1976d2; border-radius:6px; padding:16px; margin:12px 0;">
+                <div style="font-size:1.1em; font-weight:bold; color:#1565c0; margin-bottom:8px;">
+                    🔄 探测运行中
+                </div>
+                <div style="color:#333; margin-bottom:8px;">
+                    系统正在后台抓取来源内容。请稍后刷新页面查看结果。
+                </div>
+                <div>
+                    <a href="/fetch-runs/{{ run.id }}" class="btn-sm btn-primary" style="display:inline-block; margin-right:8px;">🔄 刷新结果</a>
+                    <a href="/sources" class="btn-sm" style="display:inline-block;">返回信息来源</a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Failure banner — prominent, above stats -->
+            {% if run_error_display %}
+            <div class="run-failure-banner" style="background:#fff3f3; border:2px solid #c62828; border-radius:6px; padding:16px; margin:12px 0;">
+                <div style="font-size:1.1em; font-weight:bold; color:#c62828; margin-bottom:8px;">
+                    ⚠️ {{ run_error_display.heading }}
+                </div>
+                <div style="margin-bottom:6px;">
+                    <strong>失败原因：</strong>
+                    <span style="color:#333;">{{ run_error_display.reason }}</span>
+                </div>
+                <div style="color:#555; font-size:0.9em;">
+                    💡 <strong>建议：</strong>{{ run_error_display.suggestion }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Summary stats -->
+            <div class="run-stats-row">
+                <div class="run-stat">
+                    <span class="run-stat-val">{{ run.items_found if run.items_found is not none else 0 }}</span>
+                    <span class="run-stat-key">发现</span>
+                </div>
+                <div class="run-stat run-stat-new">
+                    <span class="run-stat-val">{{ digest.new_count }}</span>
+                    <span class="run-stat-key">新增</span>
+                </div>
+                <div class="run-stat run-stat-seen">
+                    <span class="run-stat-val">{{ digest.seen_count }}</span>
+                    <span class="run-stat-key">已存在</span>
+                </div>
+                <div class="run-stat run-stat-updated">
+                    <span class="run-stat-val">{{ digest.updated_count }}</span>
+                    <span class="run-stat-key">可能更新</span>
+                </div>
+                <div class="run-stat run-stat-failed">
+                    <span class="run-stat-val">{{ digest.failed_count }}</span>
+                    <span class="run-stat-key">失败</span>
+                </div>
+            </div>
+
+            <!-- Run time info -->
+            <div class="run-time-info">
+                {% if run.started_at %}
+                <span>开始：{{ run.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                {% endif %}
+                {% if run.finished_at %}
+                <span>结束：{{ run.finished_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                {% endif %}
+                {% if run.started_at and run.finished_at %}
+                {% set duration = (run.finished_at - run.started_at).total_seconds() %}
+                <span>
+                    {% if duration < 60 %}{{ "%.1f"|format(duration) }} 秒
+                    {% elif duration < 3600 %}{{ "%.1f"|format(duration / 60) }} 分钟
+                    {% else %}{{ "%.1f"|format(duration / 3600) }} 小时
+                    {% endif %}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Content tabs hint -->
+        <div class="content-tabs-hint">
+            <span>👇 本次抓取内容（按类型浏览）</span>
+        </div>
+
+        {# ─── Helper: render a delta item card ─── #}
+        {# Expects: item (FetchDeltaItem), run, section_type (new/seen/updated) #}
+
+        <!-- Delta Digest: New Items -->
+        {% if digest.new_items %}
+        <div class="detail-section">
+            <h2 class="digest-section-title digest-new">🆕 新增内容 ({{ digest.new_count }})</h2>
+            <div class="candidate-list">
+                {% for item in digest.new_items %}
+                <article class="candidate-card">
+                    <div class="candidate-main">
+                        {# ── Title row ─────────────────────────────────────── #}
+                        <div class="candidate-title-row">
+                            {% if item.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.item_id }}" class="candidate-title">
+                                    {{ item.display_title or item.title or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                <span class="status-badge status-pending">新增</span>
+                                {% if item.insight_card_id %}
+                                <span class="status-badge status-completed">已生成</span>
+                                {% elif item.status == 'compiling' %}
+                                <span class="status-badge status-running">生成中</span>
+                                {% elif item.status == 'failed' %}
+                                <span class="status-badge status-failed">失败</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {# ── Weak title hint ─────────────────────────────────── #}
+                        {% if item.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                        </div>
+                        {% endif %}
+
+                        {# ── Summary ─────────────────────────────────────── #}
+                        {% if item.summary %}
+                        <div class="candidate-summary">{{ item.summary }}</div>
+                        {% endif %}
+
+                        {# ── URL ─────────────────────────────────────────── #}
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                {{ item.url | truncate(96, true, '...') if item.url else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ item.url | escape }}">{{ item.url | truncate(96, true, '...') if item.url else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        {# ── Source + time label ─────────────────────────── #}
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            <span>{{ item.time_label }}</span>
+                            <small class="muted">#{{ item.item_id }}</small>
+                        </div>
+                    </div>
+                    <div class="candidate-actions">
+                        {% set safe_url = safe_external_url(item.url) %}
+                        {% if safe_url %}
+                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">查看原文</a>
+                        {% endif %}
+                        <a href="/source-items/{{ item.item_id }}" class="btn-sm">详情</a>
+                        {% if item.insight_card_id %}
+                        <a href="/cards/{{ item.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
+                        {% elif item.status == 'compiling' %}
+                        <span class="btn-sm" style="background:#e3f2fd; color:#1565c0;">⚙️ 生成中</span>
+                        {% elif item.status == 'failed' %}
+                        <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                            <button type="submit" class="btn-sm btn-primary">重试生成</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                            <button type="submit" class="btn-sm btn-primary">加入生成</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Delta Digest: Seen Items -->
+        {% if digest.seen_items %}
+        <div class="detail-section">
+            <h2 class="digest-section-title digest-seen">📦 已存在内容 ({{ digest.seen_count }})</h2>
+            <div class="candidate-list">
+                {% for item in digest.seen_items %}
+                <article class="candidate-card">
+                    <div class="candidate-main">
+                        <div class="candidate-title-row">
+                            {% if item.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.item_id }}" class="candidate-title">
+                                    {{ item.display_title or item.title or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                <span class="status-badge" style="background:#e0e0e0; color:#555;">已存在</span>
+                                {% if item.insight_card_id %}
+                                <span class="status-badge status-completed">已生成</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if item.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                        </div>
+                        {% endif %}
+
+                        {% if item.summary %}
+                        <div class="candidate-summary">{{ item.summary }}</div>
+                        {% endif %}
+
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                {{ item.url | truncate(96, true, '...') if item.url else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ item.url | escape }}">{{ item.url | truncate(96, true, '...') if item.url else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            <span>{{ item.time_label }}</span>
+                            <small class="muted">#{{ item.item_id }}</small>
+                        </div>
+                    </div>
+                    <div class="candidate-actions">
+                        {% set safe_url = safe_external_url(item.url) %}
+                        {% if safe_url %}
+                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">查看原文</a>
+                        {% endif %}
+                        <a href="/source-items/{{ item.item_id }}" class="btn-sm">详情</a>
+                        {% if item.insight_card_id %}
+                        <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Delta Digest: Updated Items -->
+        {% if digest.updated_items %}
+        <div class="detail-section">
+            <h2 class="digest-section-title digest-updated">🔄 可能更新 ({{ digest.updated_count }})</h2>
+            <div class="candidate-list">
+                {% for item in digest.updated_items %}
+                <article class="candidate-card">
+                    <div class="candidate-main">
+                        <div class="candidate-title-row">
+                            {% if item.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.item_id }}" class="candidate-title">
+                                    {{ item.display_title or item.title or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                <span class="status-badge" style="background:#fff3e0; color:#e65100;">可能更新</span>
+                                {% if item.insight_card_id %}
+                                <span class="status-badge status-completed">已生成</span>
+                                {% elif item.status == 'compiling' %}
+                                <span class="status-badge status-running">生成中</span>
+                                {% elif item.status == 'failed' %}
+                                <span class="status-badge status-failed">失败</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if item.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                        </div>
+                        {% endif %}
+
+                        {% if item.summary %}
+                        <div class="candidate-summary">{{ item.summary }}</div>
+                        {% endif %}
+
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                {{ item.url | truncate(96, true, '...') if item.url else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ item.url | escape }}">{{ item.url | truncate(96, true, '...') if item.url else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            <span>{{ item.time_label }}</span>
+                            <small class="muted">#{{ item.item_id }}</small>
+                        </div>
+                    </div>
+                    <div class="candidate-actions">
+                        {% set safe_url = safe_external_url(item.url) %}
+                        {% if safe_url %}
+                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">查看原文</a>
+                        {% endif %}
+                        <a href="/source-items/{{ item.item_id }}" class="btn-sm">详情</a>
+                        {% if item.insight_card_id %}
+                        <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                        {% elif item.status == 'compiling' %}
+                        <span class="btn-sm" style="background:#e3f2fd; color:#1565c0;">⚙️ 生成中</span>
+                        {% elif item.status == 'failed' %}
+                        <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                            <button type="submit" class="btn-sm btn-primary">重试生成</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="/fetch-runs/{{ run.id }}/source-items/{{ item.item_id }}/enqueue-compile" style="display:inline;">
+                            <button type="submit" class="btn-sm btn-primary">加入生成</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Delta Digest: Failed Items -->
+        {% if digest.failed_items %}
+        <div class="detail-section">
+            <h2 class="digest-section-title digest-failed">❌ 失败项 ({{ digest.failed_count }})</h2>
+            <div class="candidate-list">
+                {% for item in digest.failed_items %}
+                <article class="candidate-card" style="border-left:4px solid #c62828;">
+                    <div class="candidate-main">
+                        <div class="candidate-title-row">
+                            <span class="candidate-title" style="color:#c62828;">
+                                ❌ 抓取失败
+                            </span>
+                            <div class="candidate-badges">
+                                <span class="status-badge status-failed">失败</span>
+                            </div>
+                        </div>
+
+                        {% if item.summary %}
+                        <div class="candidate-summary" style="color:#c62828;">
+                            {{ item.summary }}
+                        </div>
+                        {% endif %}
+
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                {{ item.url | truncate(120, true, '...') if item.url else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ item.url | escape }}">{{ item.url | truncate(120, true, '...') if item.url else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            <small class="muted">#{{ item.item_id if item.item_id else '?' }}</small>
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if digest.total_count == 0 %}
+        <div class="detail-section">
+            <p class="empty-state">本次抓取暂无内容。</p>
+        </div>
+        {% endif %}
+
+        <!-- Technical details (collapsed) -->
+        <details class="tech-details-panel">
+            <summary>🔧 技术详情</summary>
+            <table class="detail-table">
+                <tbody>
+                    <tr>
+                        <th>Run ID</th>
+                        <td><code>{{ run.id }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>来源 Key</th>
+                        <td><code>{{ run.source_key }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>运行类型</th>
+                        <td>{{ run.run_type }}</td>
+                    </tr>
+                    {% if run.error_message %}
+                    <tr>
+                        <th>错误信息</th>
+                        <td><code>{{ run.error_message }}</code></td>
+                    </tr>
+                    {% endif %}
+                    {% if run.metadata_json %}
+                    <tr>
+                        <th>Raw Metadata</th>
+                        <td>
+                            <pre class="metadata-pre">{{ run.metadata_json[:1000] }}{% if run.metadata_json|length > 1000 %}...{% endif %}</pre>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </details>
+
+        <p class="page-note">
+            <a href="/fetch-runs">← 返回运行记录列表</a>
+        </p>
+{% endblock %}

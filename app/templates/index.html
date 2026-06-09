@@ -1,292 +1,124 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Frontier Radar - 个人工作台</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header class="workbench-header">
-        <div class="header-inner">
-            <div class="header-brand">
-                <h1>🤖 AI Frontier Radar</h1>
-                <p class="header-tagline">全球 AI 前沿资料中文编译工作台</p>
-            </div>
-            <div class="header-description">
-                <p>把全球英文 AI 前沿资料，转成中文洞察、个人判断和可执行任务。</p>
-                <p class="header-target">适合 AI 从业者、独立开发者和产品探索者，用来追踪前沿报告、研究博客、公司公告和产品机会。</p>
-                <p class="header-about-link"><a href="/about">🔧 了解系统如何工作：来源控制、数据获取、URL 识别、LLM 分析边界</a></p>
-            </div>
+{% extends "base.html" %}
+
+{% block title %}AI Frontier Radar - 前沿信息工作台{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>首页工作台</h1>
+            <p>从信息来源探测、单篇 URL 输入、生成队列和 InsightCard 四个入口开始处理前沿资料。</p>
         </div>
-    </header>
 
-    <main class="home-workbench">
-
-        <!-- ── 工作台统计卡片 ─────────────────────────────────── -->
-        <section class="stats-section">
-            <h2 class="section-title">📊 工作台概览</h2>
-            <div class="stats-grid">
-                <a href="/source-items" class="stat-card stat-source">
-                    <div class="stat-icon">📡</div>
-                    <div class="stat-body">
-                        <div class="stat-number">{{ dashboard_stats.source_items_discovered }}</div>
-                        <div class="stat-label">待编译资料</div>
-                    </div>
+        <section class="workbench-start-section">
+            <h2 class="section-title">从哪里开始？</h2>
+            <div class="start-grid">
+                <a href="/sources" class="start-card">
+                    <span class="start-icon">🗺️</span>
+                    <span class="start-label">运行一个信息来源</span>
+                    <span class="start-desc">选择来源并运行探测，查看本次抓取摘要</span>
                 </a>
-                <a href="/cards?decision=unhandled" class="stat-card stat-unhandled">
-                    <div class="stat-icon">📋</div>
-                    <div class="stat-body">
-                        <div class="stat-number">{{ dashboard_stats.cards_unhandled }}</div>
-                        <div class="stat-label">未处理卡片</div>
-                    </div>
+                <a href="#url-input" class="start-card">
+                    <span class="start-icon">🔗</span>
+                    <span class="start-label">粘贴一个文章 URL</span>
+                    <span class="start-desc">在顶部输入英文 AI 文章或报告 URL</span>
                 </a>
-                <a href="/cards?decision=worth_attention" class="stat-card stat-worth">
-                    <div class="stat-icon">⭐</div>
-                    <div class="stat-body">
-                        <div class="stat-number">{{ dashboard_stats.cards_worth_attention }}</div>
-                        <div class="stat-label">值得关注</div>
-                    </div>
+                <a href="/generation-queue" class="start-card">
+                    <span class="start-icon">⚙️</span>
+                    <span class="start-label">查看生成队列</span>
+                    <span class="start-desc">查看生成中、已完成、失败和未处理状态</span>
                 </a>
-                <a href="/cards?decision=to_action" class="stat-card stat-action">
-                    <div class="stat-icon">🚀</div>
-                    <div class="stat-body">
-                        <div class="stat-number">{{ dashboard_stats.cards_to_action }}</div>
-                        <div class="stat-label">转成行动</div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- 次级统计 -->
-            <div class="stats-secondary">
-                <a href="/cards?decision=related_to_me" class="stat-mini">与我有关 <strong>{{ dashboard_stats.cards_related_to_me }}</strong></a>
-                <a href="/cards?decision=read_later" class="stat-mini">稍后再看 <strong>{{ dashboard_stats.cards_read_later }}</strong></a>
-                <a href="/cards?decision=ignore" class="stat-mini">暂时忽略 <strong>{{ dashboard_stats.cards_ignore }}</strong></a>
-                <a href="/cards" class="stat-mini">全部卡片 <strong>{{ dashboard_stats.cards_total }}</strong></a>
-            </div>
-        </section>
-
-        <!-- ── V1.0-alpha.1 演示数据入口 ────────────────────── -->
-        {% if demo_card %}
-        <section class="next-actions-section" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800; padding: 0.75rem 1.25rem;">
-            <span style="font-size:0.85rem; color:#666;">🎬 演示数据入口（无需联网、无需 LLM）：</span>
-            <a href="/source-items/{{ demo_source_item.id }}">查看演示资料</a> ·
-            <a href="/cards/{{ demo_card.id }}">查看演示 InsightCard</a> ·
-            <a href="/cards/{{ demo_card.id }}/export-report">导出演示完整报告</a> ·
-            <a href="/cards/{{ demo_card.id }}/export-markdown">导出演示行动任务</a>
-        </section>
-        {% endif %}
-
-        <!-- ── V1.0-alpha 推荐主流程 ─────────────────────────── -->
-        <section class="next-actions-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50; padding: 0.75rem 1.25rem;">
-            <span style="font-size:0.85rem; color:#1f4d2e; font-weight:600;">🚦 推荐主流程：</span>
-            <span style="font-size:0.85rem; color:#444;">
-                <a href="/source-items">查看资料</a> →
-                <a href="/source-items">编译</a> →
-                <a href="/cards">中英双语核心理解</a> →
-                <a href="/cards?decision=to_action">转行动</a> →
-                <a href="/cards">导出完整 Markdown 报告</a>
-            </span>
-        </section>
-
-        <!-- ── 下一步建议 ────────────────────────────────────── -->
-        <section class="next-actions-section">
-            <h2 class="section-title">💡 下一步建议</h2>
-            <ul class="next-actions-list">
-                {% if dashboard_stats.source_items_discovered > 0 %}
-                <li>你当前有 <strong>{{ dashboard_stats.source_items_discovered }}</strong> 条待编译资料，建议先从收件箱选择一条英文资料编译为中文 InsightCard。</li>
-                {% endif %}
-                {% if dashboard_stats.cards_unhandled > 0 %}
-                <li>你有 <strong>{{ dashboard_stats.cards_unhandled }}</strong> 张未处理卡片，建议回看并标记处理状态（值得关注 / 暂时忽略 / 转成行动）。</li>
-                {% endif %}
-                {% if dashboard_stats.cards_to_action > 0 %}
-                <li>你有 <strong>{{ dashboard_stats.cards_to_action }}</strong> 张已标记为"转成行动"的卡片，可以导出 Markdown 任务继续拆解。</li>
-                {% endif %}
-                {% if dashboard_stats.source_items_discovered == 0 and dashboard_stats.cards_unhandled == 0 and dashboard_stats.cards_to_action == 0 %}
-                <li>还没有发现资料。可以先运行来源探测脚本，或直接提交一个 URL 编译。</li>
-                {% endif %}
-            </ul>
-        </section>
-
-        <!-- ── 快捷入口 ─────────────────────────────────────── -->
-        <section class="quick-actions-section">
-            <h2 class="section-title">⚡ 快捷入口</h2>
-            <div class="quick-actions-grid">
-                <a href="/source-items" class="quick-action-card">
-                    <span class="qa-icon">📡</span>
-                    <span class="qa-label">待编译资料收件箱</span>
-                </a>
-                <a href="/cards" class="quick-action-card">
-                    <span class="qa-icon">📋</span>
-                    <span class="qa-label">中文洞察卡工作台</span>
-                </a>
-                <a href="/cards?decision=to_action" class="quick-action-card">
-                    <span class="qa-icon">🚀</span>
-                    <span class="qa-label">转成行动</span>
-                </a>
-                <a href="/sources" class="quick-action-card">
-                    <span class="qa-icon">🗺️</span>
-                    <span class="qa-label">信息来源</span>
+                <a href="/cards" class="start-card">
+                    <span class="start-icon">🗂️</span>
+                    <span class="start-label">查看 InsightCard</span>
+                    <span class="start-desc">回看已经生成的中文洞察卡片</span>
                 </a>
             </div>
         </section>
 
-        <!-- ── 英文资料收件箱 ───────────────────────────────── -->
+        <section class="workflow-banner">
+            <div class="workflow-title">主流程</div>
+            <div class="workflow-steps">
+                <a href="/sources" class="workflow-step">
+                    <span class="step-num">1</span>
+                    <span class="step-label">信息来源</span>
+                    <span class="step-desc">运行探测</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/fetch-runs" class="workflow-step">
+                    <span class="step-num">2</span>
+                    <span class="step-label">本次摘要</span>
+                    <span class="step-desc">查看新增、已存在、失败</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/candidate-pool" class="workflow-step">
+                    <span class="step-num">3</span>
+                    <span class="step-label">候选池</span>
+                    <span class="step-desc">筛选资料并加入生成</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/generation-queue" class="workflow-step">
+                    <span class="step-num">4</span>
+                    <span class="step-label">生成队列</span>
+                    <span class="step-desc">查看后台生成状态</span>
+                </a>
+                <span class="workflow-arrow">→</span>
+                <a href="/cards" class="workflow-step">
+                    <span class="step-num">5</span>
+                    <span class="step-label">InsightCard</span>
+                    <span class="step-desc">阅读中文洞察</span>
+                </a>
+            </div>
+        </section>
+
         <section class="recent-section">
-            <h2 class="section-title">📥 英文资料收件箱</h2>
-            <p class="section-desc" style="font-size:0.85rem; color:#666; margin:-0.5rem 0 0.75rem;">从来源中发现的原始英文资料，选择后可编译为 InsightCard。</p>
-            {% if recent_source_items %}
-            <table class="recent-table">
-                <thead>
-                    <tr>
-                        <th>标题</th>
-                        <th>来源</th>
-                        <th>状态</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in recent_source_items %}
-                    <tr>
-                        <td>
-                            <a href="{{ item.url }}" target="_blank" rel="noopener" title="{{ item.url }}">
-                                {{ item.title }}
-                            </a>
-                        </td>
-                        <td class="td-source">{{ item.source_key }}</td>
-                        <td>
-                            {% if item.status == 'discovered' %}<span class="status-badge status-discovered">待编译</span>
-                            {% elif item.status == 'compiled' %}<span class="status-badge status-compiled">已编译</span>
-                            {% elif item.status == 'failed' %}<span class="status-badge status-failed">失败</span>
-                            {% else %}<span class="status-badge">{{ item.status }}</span>{% endif %}
-                        </td>
-                        <td><a href="/source-items/{{ item.id }}" class="btn-sm">查看详情</a></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="section-heading-row">
+                <h2 class="section-title">最近探测</h2>
+                <a href="/fetch-runs" class="btn-link">查看全部</a>
+            </div>
+            {% if recent_fetch_runs %}
+            <div class="recent-run-grid">
+                {% for run in recent_fetch_runs %}
+                <a href="/fetch-runs/{{ run.id }}" class="workflow-card">
+                    <div class="workflow-card-title">{{ run.source_key }}</div>
+                    <div class="workflow-card-meta">
+                        <span class="status-badge status-{{ run.status }}">{{ run.status }}</span>
+                        <span>{{ run.started_at.strftime('%m-%d %H:%M') if run.started_at else run.created_at.strftime('%m-%d %H:%M') if run.created_at else '-' }}</span>
+                    </div>
+                    <div class="workflow-card-stats">
+                        <span>新增 <strong>{{ run.items_new }}</strong></span>
+                        <span>发现 <strong>{{ run.items_found }}</strong></span>
+                        <span>失败 <strong>{{ run.items_failed }}</strong></span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
             {% else %}
-            <p class="empty-hint">还没有发现资料。可以先运行来源探测脚本，或手动提交 URL 编译。</p>
+            <p class="empty-state">还没有探测记录。先从 <a href="/sources">信息来源</a> 运行一次探测。</p>
             {% endif %}
         </section>
 
-        <!-- ── 最近生成的中文洞察 ───────────────────────────────── -->
         <section class="recent-section">
-            <h2 class="section-title">🧠 最近生成的中文洞察</h2>
-            <p class="section-desc" style="font-size:0.85rem; color:#666; margin:-0.5rem 0 0.75rem;">已经完成或尝试完成分析的中文洞察结果，可查看、导出或清理。</p>
+            <div class="section-heading-row">
+                <h2 class="section-title">最近生成</h2>
+                <a href="/cards" class="btn-link">查看 InsightCard</a>
+            </div>
             {% if recent_cards %}
-            <table class="recent-table">
-                <thead>
-                    <tr>
-                        <th>标题</th>
-                        <th>处理状态</th>
-                        <th>相关性</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for card in recent_cards %}
-                    <tr {% if card.is_intake_blocked %}style="background:#fff8f0;"{% elif card.status == 'failed' %}style="background:#fff5f5;"{% endif %}>
-                        <td>
-                            <a href="{{ card.source_url }}" target="_blank" rel="noopener">
-                                {{ card.source_title }}
-                            </a>
-                        </td>
-                        <td>
-                            {% if card.is_intake_blocked %}
-                            <span class="decision-badge" style="background:#ff9800; color:white;">已拦截</span>
-                            {% elif card.status == 'failed' %}
-                            <span class="decision-badge" style="background:#ef5350; color:white;">处理失败</span>
-                            {% elif card.decision_value == 'to_action' %}
-                            <span class="decision-badge decision-to_action">{{ card.decision_label }}</span>
-                            {% if card.decision_note %}<br><small class="note-preview">{{ card.decision_note }}</small>{% endif %}
-                            {% elif card.decision_value %}
-                            <span class="decision-badge decision-{{ card.decision_value }}">{{ card.decision_label }}</span>
-                            {% else %}
-                            <span class="decision-badge decision-none">未处理</span>
-                            {% endif %}
-                        </td>
-                        <td class="td-score">{% if card.is_intake_blocked or card.status == 'failed' %}-{% else %}{{ card.relevance_score if card.relevance_score else 0 }}{% endif %}</td>
-                        <td>
-                            <a href="/cards/{{ card.id }}" class="btn-sm">{% if card.is_intake_blocked or card.status == 'failed' %}查看原因{% else %}查看详情{% endif %}</a>
-                            {% if card.is_intake_blocked %}
-                            <form method="post" action="/cards/{{ card.id }}/delete" style="display:inline;" onsubmit="return confirm('确认删除这条记录？该操作不可恢复。')">
-                                <button type="submit" class="btn-sm" style="background:#ef5350; color:white; border:none; cursor:pointer; padding:2px 8px; border-radius:3px;">删除记录</button>
-                            </form>
-                            {% elif card.decision_value == 'to_action' %}
-                            <a href="/cards/{{ card.id }}/export-markdown" class="btn-sm btn-export">导出任务</a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p class="empty-hint">还没有中文洞察卡。可以先从待编译资料中选择一条编译。</p>
-            {% endif %}
-        </section>
-
-        <!-- ── 手动 URL 编译 ────────────────────────────────── -->
-        <section class="compile-section">
-            <h2 class="section-title">📥 手动编译英文资料 URL</h2>
-            <p class="section-desc">适合临时看到一篇英文文章、报告或公告，直接生成中文 InsightCard。</p>
-            <form action="/compile" method="post" class="url-form">
-                <div class="form-group">
-                    <input
-                        type="url"
-                        name="url"
-                        id="url-input"
-                        placeholder="https://example.com/ai-article.html"
-                        required
-                        autofocus
-                    >
-                </div>
-                <button type="submit" class="btn-primary">🚀 编译 InsightCard</button>
-            </form>
-        </section>
-
-        <!-- ── 精选来源 ─────────────────────────────────────── -->
-        <section class="featured-sources-section">
-            <h2 class="section-title">🗺️ 精选 AI 前沿来源</h2>
-            <p class="section-desc">这些是当前阶段优先关注的高价值来源。</p>
-            <div class="featured-source-grid">
-                {% for source in featured_sources %}
-                <div class="featured-source-card priority-{{ source.priority }}">
-                    <div class="featured-source-header">
-                        <span class="featured-source-icon">{{ source.icon }}</span>
-                        <div class="featured-source-title">
-                            <span class="featured-source-name">{{ source.display_name }}</span>
-                            <span class="featured-source-meta">
-                                <span class="category-badge">{{ source.category }}</span>
-                                <span class="priority-badge priority-{{ source.priority }}">{{ source.priority }}</span>
-                            </span>
+            <div class="recent-card-list">
+                {% for card in recent_cards %}
+                <div class="queue-card">
+                    <div>
+                        <a href="/cards/{{ card.id }}" class="queue-card-title">{{ card.source_title }}</a>
+                        <div class="queue-card-meta">
+                            <span>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</span>
+                            <span>{{ card.decision_label }}</span>
+                            <span>相关度 {{ card.relevance_score }}</span>
                         </div>
                     </div>
-                    <div class="featured-source-focus">
-                        <p>{{ source.focus }}</p>
-                    </div>
-                    <div class="featured-source-why">
-                        <p>{{ source.why }}</p>
-                    </div>
-                    <div class="featured-source-tags">
-                        {% for tag in source.tags %}
-                        <span class="tag">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
-                    <div class="featured-source-actions">
-                        <a href="{{ source.homepage_url }}" target="_blank" rel="noopener" class="btn-icon">🌐 访问官网</a>
-                        <a href="/sources" class="btn-icon">📡 系统来源</a>
-                        <a href="/source-items?source_key={{ source.source_key }}" class="btn-icon">🔍 发现条目</a>
-                    </div>
+                    <a href="/cards/{{ card.id }}" class="btn-sm">查看</a>
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <p class="empty-state">还没有 InsightCard。可以从顶部 URL 输入，或从候选池加入生成。</p>
+            {% endif %}
         </section>
-
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar V0.6 · <a href="/source-items">待编译资料</a> · <a href="/cards">洞察卡工作台</a> · <a href="/sources">信息来源</a></p>
-    </footer>
-</body>
-</html>
+{% endblock %}

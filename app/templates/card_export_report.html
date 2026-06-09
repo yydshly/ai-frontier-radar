@@ -1,75 +1,56 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>完整报告预览 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>📄 完整报告预览</h1>
-        <nav>
-            <a href="/cards/{{ card.id }}">← 返回卡片详情</a> |
-            <a href="/cards">← 返回中文洞察卡工作台</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main class="report-page">
+{% block title %}完整报告预览 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}{% endblock %}
+
+{% block content %}
+        <section class="export-preview-hero">
+            <h1>完整 InsightCard Markdown 报告</h1>
+            <p>用于长期归档、复盘和二次整理，包含内容摘要、洞察判断、技术/产品/风险/行动建议和补充阅读。</p>
+        </section>
+
+        <section class="export-preview-meta">
+            <div>
+                <span class="export-preview-label">来源标题</span>
+                <span class="export-preview-value">{{ source_title }}</span>
+            </div>
+            <div>
+                <span class="export-preview-label">文件名</span>
+                <code>{{ download_filename }}</code>
+            </div>
+            <div>
+                <span class="export-preview-label">导出类型</span>
+                <span class="export-preview-value">完整 Markdown 报告</span>
+            </div>
+        </section>
 
         <div class="report-download-actions">
-            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">
-                📥 下载完整 Markdown 报告
-            </a>
-            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回详情页</a>
+            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">📥 下载：完整 Markdown 报告</a>
+            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回完整 InsightCard</a>
             <a href="/cards" class="btn-secondary">返回列表</a>
         </div>
 
         <p class="report-page-desc">
-            这是根据当前 InsightCard 生成的结构化阅读页。
-            下载按钮会导出原始 Markdown 文件。
+            这是完整 InsightCard 的结构化报告预览。下载后将保存为 Markdown 文件，适合归档、复盘或继续编辑。
         </p>
 
         <!-- ── 报告头部 ─────────────────────────────── -->
         <div class="report-header-card">
-            <h1 class="report-title">AI 前沿资料编译报告</h1>
+            <h1 class="report-title">完整 InsightCard 报告</h1>
             <h2 class="report-source-title">{{ source_title }}</h2>
-
             <div class="report-meta-grid">
                 <div class="report-meta-item">
                     <span class="report-meta-label">原文链接</span>
-                    <span class="report-meta-value">
-                        {% if source_url %}
-                        <a href="{{ source_url }}" target="_blank" rel="noopener">{{ source_url }}</a>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </span>
+                    <span class="report-meta-value">{% if source_url %}<a href="{{ source_url }}" target="_blank" rel="noopener">{{ source_url }}</a>{% else %}—{% endif %}</span>
                 </div>
-                <div class="report-meta-item">
-                    <span class="report-meta-label">来源类型</span>
-                    <span class="report-meta-value">{{ source_type }}</span>
-                </div>
-                <div class="report-meta-item">
-                    <span class="report-meta-label">作者</span>
-                    <span class="report-meta-value">{{ source_author }}</span>
-                </div>
-                <div class="report-meta-item">
-                    <span class="report-meta-label">发布时间</span>
-                    <span class="report-meta-value">{{ source_published_at }}</span>
-                </div>
-                <div class="report-meta-item">
-                    <span class="report-meta-label">编译模型</span>
-                    <span class="report-meta-value">{{ model_name }}</span>
-                </div>
-                <div class="report-meta-item">
-                    <span class="report-meta-label">相关性评分</span>
-                    <span class="report-meta-value">{% if relevance_score is not none %}{{ relevance_score }}/100{% else %}-{% endif %}</span>
-                </div>
-                <div class="report-meta-item">
-                    <span class="report-meta-label">当前状态</span>
-                    <span class="report-meta-value">{{ decision_label }}</span>
-                </div>
+                <div class="report-meta-item"><span class="report-meta-label">来源类型</span><span class="report-meta-value">{{ source_type }}</span></div>
+                <div class="report-meta-item"><span class="report-meta-label">生成依据</span><span class="report-meta-value">{{ generation_basis_label }}</span></div>
+                <div class="report-meta-item"><span class="report-meta-label">作者</span><span class="report-meta-value">{{ source_author }}</span></div>
+                <div class="report-meta-item"><span class="report-meta-label">发布时间</span><span class="report-meta-value">{{ source_published_at }}</span></div>
+                <div class="report-meta-item"><span class="report-meta-label">编译模型</span><span class="report-meta-value">{{ model_name }}</span></div>
+                <div class="report-meta-item"><span class="report-meta-label">相关性评分</span><span class="report-meta-value">{% if relevance_score is not none %}{{ relevance_score }}/100{% else %}—{% endif %}</span></div>
+                <div class="report-meta-item"><span class="report-meta-label">当前状态</span><span class="report-meta-value">{{ decision_label }}</span></div>
             </div>
         </div>
 
@@ -79,55 +60,35 @@
             {% if has_bilingual_report and english_core_summary %}
             <p class="report-english-text">{{ english_core_summary }}</p>
             {% else %}
-            <p class="report-empty-hint">尚未生成中英双语核心理解。</p>
-            <p class="report-empty-hint">
-                <a href="/cards/{{ card.id }}">← 返回卡片详情页生成深度双语理解</a>
-            </p>
+            <p class="report-empty-hint">尚未生成中英双语核心理解。<a href="/cards/{{ card.id }}">← 返回卡片详情页生成深度双语理解</a></p>
             {% endif %}
         </div>
 
-        <!-- ── Original Key Claims ─────────────────── -->
         {% if has_bilingual_report and english_key_claims %}
         <div class="report-section">
             <h3 class="report-section-title">📌 Original Key Claims</h3>
-            <ul class="report-list report-list-english">
-                {% for claim in english_key_claims %}
-                <li>{{ claim }}</li>
-                {% endfor %}
-            </ul>
+            <ul class="report-list report-list-english">{% for claim in english_key_claims %}<li>{{ claim }}</li>{% endfor %}</ul>
         </div>
         {% endif %}
 
-        <!-- ── Key Evidence Points ────────────────── -->
         {% if has_bilingual_report and english_evidence_points %}
         <div class="report-section">
             <h3 class="report-section-title">🔬 Key Evidence Points</h3>
-            <ul class="report-list report-list-english">
-                {% for point in english_evidence_points %}
-                <li>{{ point }}</li>
-                {% endfor %}
-            </ul>
+            <ul class="report-list report-list-english">{% for point in english_evidence_points %}<li>{{ point }}</li>{% endfor %}</ul>
         </div>
         {% endif %}
 
-        <!-- ── Key Terms EN-ZH ────────────────────── -->
         {% if has_bilingual_report and key_terms %}
         <div class="report-section">
             <h3 class="report-section-title">📖 Key Terms EN-ZH</h3>
             <table class="report-term-table">
-                <thead>
-                    <tr>
-                        <th>English</th>
-                        <th>中文</th>
-                        <th>说明</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>English</th><th>中文</th><th>说明</th></tr></thead>
                 <tbody>
                     {% for term in key_terms %}
                     <tr>
-                        <td class="report-english-text">{{ term.en if term.en else '' }}</td>
-                        <td>{{ term.zh if term.zh else '' }}</td>
-                        <td>{{ term.note_zh if term.note_zh else '' }}</td>
+                        <td class="report-english-text">{{ term.en or '' }}</td>
+                        <td>{{ term.zh or '' }}</td>
+                        <td>{{ term.note_zh or '' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -135,7 +96,6 @@
         </div>
         {% endif %}
 
-        <!-- ── 中文解说 ─────────────────────────────── -->
         {% if has_bilingual_report and chinese_explanation %}
         <div class="report-section">
             <h3 class="report-section-title">💬 中文解说</h3>
@@ -149,108 +109,48 @@
             <p class="report-text">{{ summary_zh }}</p>
         </div>
 
-        <!-- ── 关键事实 ─────────────────────────── -->
         {% if key_points %}
         <div class="report-section">
             <h3 class="report-section-title">🔑 关键事实</h3>
-            <ul class="report-list">
-                {% for point in key_points %}
-                <li>{{ point }}</li>
-                {% endfor %}
-            </ul>
+            <ul class="report-list">{% for point in key_points %}<li>{{ point }}</li>{% endfor %}</ul>
         </div>
         {% endif %}
 
-        <!-- ── 技术洞察 ─────────────────────────── -->
         {% if technical_insights %}
         <div class="report-section">
             <h3 class="report-section-title">💡 技术洞察</h3>
-            <ul class="report-list">
-                {% for insight in technical_insights %}
-                <li>{{ insight }}</li>
-                {% endfor %}
-            </ul>
+            <ul class="report-list">{% for insight in technical_insights %}<li>{{ insight }}</li>{% endfor %}</ul>
         </div>
         {% endif %}
 
-        <!-- ── 产品机会 ─────────────────────────── -->
         {% if product_opportunities %}
         <div class="report-section">
             <h3 class="report-section-title">🚀 产品机会</h3>
-            <ul class="report-list">
-                {% for opp in product_opportunities %}
-                <li>{{ opp }}</li>
-                {% endfor %}
-            </ul>
+            <ul class="report-list">{% for opp in product_opportunities %}<li>{{ opp }}</li>{% endfor %}</ul>
         </div>
         {% endif %}
 
-        <!-- ── 风险与注意事项 ─────────────────── -->
         {% if risks %}
         <div class="report-section">
             <h3 class="report-section-title">⚠️ 风险与注意事项</h3>
-            <ul class="report-list">
-                {% for risk in risks %}
-                <li>{{ risk }}</li>
-                {% endfor %}
-            </ul>
+            <ul class="report-list">{% for risk in risks %}<li>{{ risk }}</li>{% endfor %}</ul>
         </div>
         {% endif %}
 
-        <!-- ── 行动建议 ─────────────────────────── -->
         {% if action_items %}
         <div class="report-section">
             <h3 class="report-section-title">✅ 行动建议</h3>
-            <ul class="report-list">
-                {% for item in action_items %}
-                <li>{{ item }}</li>
-                {% endfor %}
-            </ul>
+            <ul class="report-list">{% for item in action_items %}<li>{{ item }}</li>{% endfor %}</ul>
         </div>
         {% endif %}
-
-        <!-- ── 相关性判断 ─────────────────────── -->
-        <div class="report-section">
-            <h3 class="report-section-title">🎯 相关性判断</h3>
-            <div class="report-meta-grid">
-                <div class="report-meta-item">
-                    <span class="report-meta-label">相关性评分</span>
-                    <span class="report-meta-value">{% if relevance_score is not none %}{{ relevance_score }}/100{% else %}-{% endif %}</span>
-                </div>
-            </div>
-
-            {% if related_directions %}
-            <h4 class="report-sub-title">匹配的关注方向</h4>
-            <ul class="report-list">
-                {% for direction in related_directions %}
-                <li>{{ direction }}</li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-
-            {% if relevance_reasons %}
-            <h4 class="report-sub-title">判断理由</h4>
-            <ul class="report-list">
-                {% for reason in relevance_reasons %}
-                <li>{{ reason }}</li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-        </div>
 
         <!-- ── 用户判断 ─────────────────────────── -->
         <div class="report-section">
             <h3 class="report-section-title">🧭 用户判断</h3>
             <div class="report-meta-grid">
-                <div class="report-meta-item">
-                    <span class="report-meta-label">当前判断</span>
-                    <span class="report-meta-value">{{ decision_label }}</span>
-                </div>
+                <div class="report-meta-item"><span class="report-meta-label">当前判断</span><span class="report-meta-value">{{ decision_label }}</span></div>
                 {% if decision_note %}
-                <div class="report-meta-item">
-                    <span class="report-meta-label">用户备注</span>
-                    <span class="report-meta-value">{{ decision_note }}</span>
-                </div>
+                <div class="report-meta-item"><span class="report-meta-label">用户备注</span><span class="report-meta-value">{{ decision_note }}</span></div>
                 {% endif %}
             </div>
         </div>
@@ -261,9 +161,7 @@
             {% if fidelity_notes %}
             <p class="report-text">{{ fidelity_notes }}</p>
             {% else %}
-            <p class="report-text">
-                本报告基于当前 InsightCard 和已生成的双语理解整理。请区分：
-            </p>
+            <p class="report-text">本报告基于当前 InsightCard 和已生成的双语理解整理。请区分：</p>
             <ul class="report-list">
                 <li><strong>原文事实</strong>：文章明确描述的事件、数据、结果</li>
                 <li><strong>原文观点</strong>：文章作者表达的立场和判断</li>
@@ -279,35 +177,13 @@
             {% if interpretation_boundary %}
             <p class="report-text">{{ interpretation_boundary }}</p>
             {% else %}
-            <p class="report-text">
-                产品机会、风险分析和行动建议属于模型辅助分析，不等同于原文作者或来源机构的官方结论。
-            </p>
+            <p class="report-text">产品机会、风险分析和行动建议属于模型辅助分析，不等同于原文作者或来源机构的官方结论。</p>
             {% endif %}
         </div>
 
-        <!-- ── 后续问题 ─────────────────────────── -->
-        <div class="report-section report-note-section">
-            <h3 class="report-section-title">💬 后续可继续追问的问题</h3>
-            <ol class="report-list report-list-ordered">
-                <li>这篇资料和我的项目有什么关系？</li>
-                <li>哪些结论是原文明确说的？</li>
-                <li>哪些部分属于模型推论？</li>
-                <li>哪些方向值得继续调研？</li>
-            </ol>
-        </div>
-
         <div class="report-download-actions">
-            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">
-                📥 下载完整 Markdown 报告
-            </a>
-            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回详情页</a>
+            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">📥 下载：完整 Markdown 报告</a>
+            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回完整 InsightCard</a>
             <a href="/cards" class="btn-secondary">返回列表</a>
         </div>
-
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar V1.0-alpha · <a href="/">返回首页</a></p>
-    </footer>
-</body>
-</html>
+{% endblock %}

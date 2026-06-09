@@ -1,52 +1,49 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>导出 Markdown 任务 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>📤 导出 Markdown 任务</h1>
-        <nav>
-            <a href="/cards/{{ card.id }}">← 返回卡片详情</a> |
-            <a href="/cards">← 返回中文洞察卡工作台</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main>
+{% block title %}行动任务草稿预览 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}{% endblock %}
+
+{% block content %}
+        <section class="export-preview-hero">
+            <h1>Markdown 行动任务草稿</h1>
+            <p>把这张 InsightCard 转成可复制、可归档、可继续拆解的行动任务。</p>
+        </section>
+
+        <section class="export-preview-meta">
+            <div>
+                <span class="export-preview-label">来源标题</span>
+                <span class="export-preview-value">{{ card.source_title or "无标题" }}</span>
+            </div>
+            <div>
+                <span class="export-preview-label">文件名</span>
+                <code>{{ download_filename }}</code>
+            </div>
+            <div>
+                <span class="export-preview-label">导出类型</span>
+                <span class="export-preview-value">行动任务 Markdown</span>
+            </div>
+        </section>
+
         <section class="export-info">
-            <p>
-                这份 Markdown 是基于当前 InsightCard 自动整理的任务草稿，
-                不会再次调用 LLM。
-            </p>
+            <p>这是基于当前 InsightCard 自动整理的 Markdown 行动任务草稿，不会再次调用 LLM。</p>
             {% if decision and decision.decision == 'to_action' %}
-            <p class="export-hint">
-                <strong>✅ 你已标记为"转成行动"</strong>，可以导出为 Markdown 任务继续拆解。
-            </p>
+            <p class="export-hint"><strong>✅ 你已标记为"转成行动"</strong>，可以导出为 Markdown 任务继续拆解。</p>
             {% else %}
-            <p class="export-hint">
-                通常建议对"转成行动"的卡片导出任务；其他状态也可导出用于记录。
-            </p>
+            <p class="export-hint">通常建议对"转成行动"的卡片导出任务；其他状态也可导出用于记录。</p>
             {% endif %}
         </section>
 
         <section class="export-actions">
-            <a href="/cards/{{ card.id }}/export-markdown/download" class="btn-primary">
-                📥 下载 Markdown 文件
-            </a>
-            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回详情页</a>
+            <a href="/cards/{{ card.id }}/export-markdown/download" class="btn-primary">📥 下载：行动任务 Markdown</a>
+            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回完整 InsightCard</a>
         </section>
 
-        <section class="markdown-preview">
-            <h2>Markdown 预览</h2>
-            <pre class="markdown-body">{{ markdown_text }}</pre>
+        <section class="markdown-preview export-markdown-preview">
+            <div class="export-preview-heading">
+                <h2>Markdown 原文预览</h2>
+                <p>下载后可直接复制到 Obsidian、Notion、GitHub Issue 或任务系统。</p>
+            </div>
+            <pre class="markdown-body markdown-body-readable">{{ markdown_text }}</pre>
         </section>
-    </main>
-
-    <footer>
-        <p>V0.5 将 InsightCard 导出为 Markdown 任务</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

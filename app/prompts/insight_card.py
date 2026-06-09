@@ -38,14 +38,50 @@ INSIGHT_SYSTEM_PROMPT = """你是一个专业的AI前沿技术分析师，擅长
 """
 
 
+# Notice injected when generation is based only on RSS / source metadata
+# (a snapshot), not the full article body.
+SOURCE_SNAPSHOT_NOTICE = """重要：以下内容来自 RSS / 来源 metadata，不是全文。
+请基于已给信息生成轻量 InsightCard。
+不要声称已经阅读原文全文。
+不要推断 metadata 中没有的信息。
+如果信息不足，请在 risks_zh 或备注中说明“全文未抓取，结论基于公开摘要”。
+summary_zh 必须说明这是基于公开摘要 / 来源 metadata 的总结。"""
+
+
 def build_insight_user_prompt(
     source_content: str,
     user_directions: list[str],
     max_chars: int,
+    source_basis: str = "full_text",
 ) -> str:
-    """Build the user prompt for InsightCard generation."""
+    """Build the user prompt for InsightCard generation.
+
+    Args:
+        source_content: The content to analyze (article body or source snapshot).
+        user_directions: User focus areas for relevance scoring.
+        max_chars: Max chars of source_content to include.
+        source_basis: "full_text" (default) for full article body, or
+            "source_snapshot" when only RSS / source metadata is available.
+            Snapshot mode injects an explicit notice telling the model the
+            content is NOT the full text and to avoid over-claiming.
+    """
     directions_str = "\n".join(f"- {d}" for d in user_directions)
     truncated_content = source_content[:max_chars]
+
+    if source_basis == "source_snapshot":
+        return f"""请基于以下来源摘要 / RSS metadata，生成结构化的中文洞察卡片。
+
+{SOURCE_SNAPSHOT_NOTICE}
+
+用户关注方向（相关性判断参考）：
+{directions_str}
+
+来源摘要 / metadata 内容（非全文）：
+---
+{truncated_content}
+---
+
+请生成JSON格式的洞察卡片："""
 
     return f"""请分析以下AI前沿文章内容，生成结构化的中文洞察卡片。
 

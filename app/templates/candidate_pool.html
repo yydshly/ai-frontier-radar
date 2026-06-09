@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}候选池 Candidate Pool - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <!-- candidate-pool-template -->
+        <div class="page-header">
+            <h1>候选池</h1>
+            <p>筛选累计发现的候选资料，决定是否加入 InsightCard 生成。</p>
+        </div>
+
+        <div class="usage-guide" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50;">
+            <h3>💡 什么是候选池？</h3>
+            <p>候选池是从已配置 AI 信息源中探测到的<strong>候选资料入口</strong>。这里不是原始抓取日志，而是面向<strong>处理决策</strong>的工作台：</p>
+            <p>你可以筛选、忽略、标记待编译，或对单条候选资料<strong>生成 InsightCard</strong>。</p>
+            <p class="muted" style="font-size:0.8rem; margin-top:0.5rem;">需要排查原始 SourceItem 状态？前往 <a href="/source-items">原始资料 / 调试列表</a>。</p>
+        </div>
+
+        {% if flash_message %}
+        <div class="flash-message">{{ flash_message }}</div>
+        {% endif %}
+
+        <div class="filter-bar">
+            <form method="get" action="/candidate-pool" class="filter-form">
+                <div class="filter-row">
+                    <label>
+                        来源：
+                        <select name="source_key">
+                            <option value="">全部</option>
+                            {% for src in sources %}
+                            <option value="{{ src.source_key }}" {% if filter_source_key == src.source_key %}selected{% endif %}>
+                                {{ src.source_key }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label>
+                        状态：
+                        <select name="status">
+                            <option value="">全部</option>
+                            {% for s in status_options %}
+                            <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>
+                                {{ s }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label>
+                        搜索：
+                        <input type="text" name="q" value="{{ filter_q or '' }}" placeholder="标题或URL关键词">
+                    </label>
+
+                    <button type="submit" class="btn-primary">查询</button>
+                    <a href="/candidate-pool" class="btn-secondary">清空筛选</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Single form wrapping the table - buttons use formaction to target different endpoints -->
+        <form method="post" id="batchForm">
+            <p class="result-count">
+                共 {{ total }} 条记录，
+                当前第 {{ page }}/{{ total_pages }} 页
+            </p>
+
+            <div class="candidate-list">
+                {% for item in items %}
+                {% set display = display_map.get(item.id) %}
+                {% set quality = quality_map.get(item.id) %}
+                <article class="candidate-card">
+                    <div class="candidate-select">
+                        <input type="checkbox" name="candidate_ids" value="{{ item.id }}" aria-label="选择候选条目">
+                    </div>
+                    <div class="candidate-main">
+                        {# ── Title row ─────────────────────────────────────── #}
+                        <div class="candidate-title-row">
+                            {% if display and display.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.id }}" class="candidate-title">
+                                    {{ item.title or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                {% if item.status == 'discovered' %}
+                                <span class="status-badge status-pending">待编译</span>
+                                {% elif item.status == 'ignored' %}
+                                <span class="status-badge status-ignored">已忽略</span>
+                                {% elif item.status == 'compiling' %}
+                                <span class="status-badge status-running">生成中</span>
+                                {% elif item.status == 'compiled' %}
+                                <span class="status-badge status-completed">已编译</span>
+                                {% elif item.status == 'failed' %}
+                                <span class="status-badge status-failed">失败</span>
+                                {% elif item.status == 'manual_required' %}
+                                <span class="status-badge status-manual">需人工</span>
+                                {% else %}
+                                <span class="status-badge">{{ item.status }}</span>
+                                {% endif %}
+                                {% if quality %}
+                                    {% if quality.level.value == 'high' %}
+                                    <span class="quality-badge quality-high" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">高质量</span>
+                                    {% elif quality.level.value == 'medium' %}
+                                    <span class="quality-badge quality-medium" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">中质量</span>
+                                    {% elif quality.level.value == 'low' %}
+                                    <span class="quality-badge quality-low" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">低质量</span>
+                                    {% else %}
+                                    <span class="quality-badge quality-noise" title="分数 {{ quality.score }}：{{ quality.reasons_list() | join('；') }}">噪音</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {# ── Weak title hint ─────────────────────────────────── #}
+                        {% if display and display.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                            <span style="font-size:0.75em;color:#999;">（请运行 repair 脚本修复）</span>
+                        </div>
+                        {% endif %}
+
+                        {# ── Summary ──────────────────────────────────────── #}
+                        {% if display and display.summary %}
+                        <div class="candidate-summary">{{ display.summary }}</div>
+                        {% endif %}
+
+                        {# ── URL ─────────────────────────────────────────── #}
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(display.url if display else item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ (display.url if display else item.url) | escape }}">
+                                {{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ (display.url if display else item.url) | escape }}">{{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        {# ── Source + time label ─────────────────────────── #}
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            {% if display %}
+                                <span>{{ display.time_label }}</span>
+                            {% else %}
+                                <span>首次发现 {{ item.first_seen_at.strftime('%m-%d %H:%M') if item.first_seen_at else '-' }}</span>
+                            {% endif %}
+                            <small class="muted">#{{ item.id }}</small>
+                        </div>
+
+                        {# ── Quality signals ─────────────────────────────── #}
+                        <div class="candidate-signals">
+                            {% if quality %}
+                                {% if quality.action_label == '建议生成' %}
+                                <span class="action-badge action-compile">建议生成</span>
+                                {% elif quality.action_label == '人工复核' %}
+                                <span class="action-badge action-review">人工复核</span>
+                                {% elif quality.action_label == '建议忽略' %}
+                                <span class="action-badge action-ignore">建议忽略</span>
+                                {% else %}
+                                <span class="action-badge action-manual">需人工判断</span>
+                                {% endif %}
+                                {% if quality.matched_interests_list() %}
+                                <span class="interests-tags">
+                                    {% for interest in quality.matched_interests_list()[:3] %}
+                                    <span class="interest-tag">{{ interest }}</span>
+                                    {% endfor %}
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span class="muted">暂无质量建议</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="candidate-actions">
+                        <a href="/source-items/{{ item.id }}" class="btn-sm">详情</a>
+                        {% if item.status in ['discovered'] %}
+                        <button type="submit" formaction="/candidate-pool/{{ item.id }}/enqueue-compile" class="btn-small">加入生成</button>
+                        {% elif item.status == 'compiling' %}
+                        <span class="btn-small btn-static">生成中</span>
+                        {% elif item.status == 'failed' %}
+                        <button type="submit" formaction="/candidate-pool/{{ item.id }}/enqueue-compile" class="btn-small">重试生成</button>
+                        {% elif item.status == 'compiled' and item.insight_card_id %}
+                        <a href="/cards/{{ item.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
+                        {% endif %}
+                    </div>
+                </article>
+                {% else %}
+                <p class="empty-state">暂无候选条目</p>
+                {% endfor %}
+            </div>
+
+            <div class="batch-actions" style="margin-top: 0.5rem;">
+                <button type="submit" formaction="/candidate-pool/batch-ignore" class="btn-warning"
+                    onclick="return confirm('确定要忽略选中的条目吗？')">批量忽略</button>
+                <button type="submit" formaction="/candidate-pool/batch-compile" class="btn-primary"
+                    onclick="return confirm('确定要将选中的条目标记为待编译吗？')">标记为待编译</button>
+                <small class="muted">（请先勾选要操作的条目）</small>
+            </div>
+        </form>
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if has_prev %}
+            <a href="{{ build_pagination_url(page - 1, page_size) }}" class="btn-secondary">← 上一页</a>
+            {% endif %}
+            <span class="pagination-info">第 {{ page }} / {{ total_pages }} 页（共 {{ total }} 条）</span>
+            {% if has_next %}
+            <a href="{{ build_pagination_url(page + 1, page_size) }}" class="btn-secondary">下一页 →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+{% endblock %}

@@ -80,9 +80,11 @@ def _run_acceptance(args):
         text = response.text
 
         checks_index = [
-            ("演示数据入口", "演示数据入口 section"),
-            ("查看演示 InsightCard", "查看演示 InsightCard link"),
-            ("导出演示完整报告", "导出演示完整报告 link"),
+            ("信息来源", "workflow source entry"),
+            ("运行记录", "workflow fetch run entry"),
+            ("候选池", "workflow candidate pool entry"),
+            ("生成队列", "workflow generation queue entry"),
+            ("InsightCard", "workflow InsightCard entry"),
         ]
 
         for check_text, description in checks_index:

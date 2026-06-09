@@ -1,22 +1,14 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Frontier Radar 如何工作 — AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>🤖 AI Frontier Radar 如何工作</h1>
-        <nav>
-            <a href="/">← 返回首页</a> | <a href="/sources">信息来源</a> | <a href="/cards">洞察卡工作台</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main>
+{% block title %}AI Frontier Radar 如何工作 — AI Frontier Radar{% endblock %}
 
-        <p class="page-lead">从精选来源到中文洞察卡：一个可信的 AI 前沿资料编译流水线</p>
+{% block main_class %}{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>关于系统</h1>
+            <p>AI Frontier Radar 如何从精选来源生成可信的中文 InsightCard。</p>
+        </div>
 
         <!-- ── 模块 1：系统定位 ─────────────────────────────── -->
         <section class="about-section">
@@ -107,59 +99,14 @@
                 <p><strong>产品原则：优先精选高价值来源，而不是全网乱爬。</strong></p>
                 <p>V1.0-alpha 精选来源：OpenAI / Anthropic / Google DeepMind / Hugging Face / Stanford HAI / MIT News AI / NVIDIA AI / Microsoft AI / Mistral / Cohere 等。</p>
             </div>
-
-            <div class="about-block">
-                <p><strong>未来方向：</strong></p>
-                <ul>
-                    <li>首次接入来源时做有限历史整理</li>
-                    <li>后续基于时间游标（SourceCursor）只关注新增资料</li>
-                    <li>支持用户自定义来源优先级</li>
-                </ul>
-            </div>
         </section>
 
         <!-- ── 模块 4：来源数据如何获取 ───────────────────── -->
         <section class="about-section">
-            <h2>🔍 来源数据如何获取</h2>
-
-            <p>当前支持的获取方式：</p>
-
-            <table class="about-table">
-                <thead>
-                    <tr><th>方式</th><th>作用</th><th>说明</th></tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>RSS 探测</strong></td>
-                        <td>从订阅源发现候选文章</td>
-                        <td>定期探测 RSS feed，提取文章链接、标题、发布时间</td>
-                    </tr>
-                    <tr>
-                        <td><strong>HTML index 探测</strong></td>
-                        <td>从新闻 / 博客列表页发现候选文章</td>
-                        <td>抓取列表页，识别正文文章链接，过滤导航/分页/标签页</td>
-                    </tr>
-                    <tr>
-                        <td><strong>手动 URL 输入</strong></td>
-                        <td>直接输入单篇文章或报告</td>
-                        <td>在首页手动提交 URL，系统进行类型判断后编译</td>
-                    </tr>
-                    <tr>
-                        <td><strong>PDF 解析</strong></td>
-                        <td>编译报告类资料</td>
-                        <td>识别 PDF 类型 URL，允许直接编译</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Demo 数据</strong></td>
-                        <td>不联网、不调用 LLM 的本地演示</td>
-                        <td>无需配置 API Key，可完整体验编译链路</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div class="about-block about-warning">
-                <p>⚠️ <strong>重要：来源探测只负责发现候选资料，不等于直接生成 InsightCard。</strong></p>
-                <p>发现后的资料需要经过 URL 类型识别，才能决定是否允许进入编译环节。</p>
+            <h2>来源数据如何获取</h2>
+            <div class="about-block">
+                <p>信息来源页通过现有 SourceFetchService 运行探测，按来源配置选择 RSS 或 HTML index 策略。</p>
+                <p>每次探测都会生成 FetchRun，记录发现数量、新增数量、更新数量和失败数量；单条候选资料进入 SourceItem / 候选池，后续再由用户加入生成队列。</p>
             </div>
         </section>
 
@@ -168,7 +115,7 @@
             <h2>🏷️ URL / 文档类型识别与策略路由</h2>
 
             <div class="about-block">
-                <p>用户输入 URL 后，系统先判断它是什么类型，再决定怎么处理（V1.0-alpha.8.2 新增）。</p>
+                <p>用户输入 URL 后，系统先判断它是什么类型，再决定怎么处理。</p>
                 <p>类型判断由 <code>app/intake/url_classifier.py</code> 的规则分类器完成，不需要 LLM。</p>
             </div>
 
@@ -197,7 +144,7 @@
                     </tr>
                     <tr>
                         <td><code>pagination</code></td>
-                        <td><code>/blog/page/3/</code></td>
+                        <td><code>https://deepmind.google/blog/page/3/</code></td>
                         <td>🚫 阻止编译</td>
                         <td>分页页，不是内容页</td>
                     </tr>
@@ -208,12 +155,6 @@
                         <td>标签页 / 分类页，不是内容</td>
                     </tr>
                     <tr>
-                        <td><code>feed</code></td>
-                        <td><code>/feed.xml</code></td>
-                        <td>🚫 只用于发现</td>
-                        <td>RSS/Atom Feed，用于发现候选 URL</td>
-                    </tr>
-                    <tr>
                         <td><code>unknown</code></td>
                         <td>无法判断</td>
                         <td>⚠️ 谨慎尝试</td>
@@ -221,83 +162,20 @@
                     </tr>
                 </tbody>
             </table>
-
-            <div class="about-block about-example">
-                <p><strong>典型反例 — DeepMind 分页页：</strong></p>
-                <p><code>https://deepmind.google/blog/page/3/</code></p>
-                <p>这是第 3 页的文章列表页，不是单篇文章。</p>
-                <p>系统不应把它直接总结成 InsightCard。</p>
-                <p>正确做法是从中发现具体文章 URL（如 <code>/blog/sima-2-agent/</code>），再选择单篇文章编译。</p>
-            </div>
         </section>
 
         <!-- ── 模块 6：遇到阻塞和失败怎么办 ───────────────── -->
         <section class="about-section">
-            <h2>⚠️ 遇到阻塞和失败怎么办</h2>
-
+            <h2>遇到阻塞和失败怎么办</h2>
             <div class="about-block">
-                <p>这些情况不会伪装成正常报告，系统会显式告知：</p>
-                <table class="about-table">
-                    <thead>
-                        <tr><th>失败类型</th><th>原因</th><th>当前处理</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>HTTP 403/404</td><td>页面禁止访问或不存在</td><td>保存 failed card，显示错误原因</td></tr>
-                        <tr><td>正文抽取失败</td><td>页面结构无法解析</td><td>保存 failed card，允许重试</td></tr>
-                        <tr><td>API Key 缺失</td><td>MINIMAX_API_KEY 未配置</td><td>保存 failed card，提示配置</td></tr>
-                        <tr><td>LLM 调用失败</td><td>网络或 API 问题</td><td>保存 failed card，可重试</td></tr>
-                        <tr><td>URL 类型被拦截</td><td>列表页 / 分页页 / Feed</td><td>显示"不适合直接编译"，不生成 card</td></tr>
-                        <tr><td>内容过短</td><td>疑似导航页</td><td>归类为 failed，提示内容不足</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="about-block">
-                <p><strong>intake blocked 与 failed 的区别：</strong></p>
-                <ul>
-                    <li><strong>intake blocked</strong>：系统主动识别到 URL 不适合直接编译，这是预期行为，不是系统坏了</li>
-                    <li><strong>failed</strong>：尝试编译后遇到了技术问题（网络、API、结构等），可能值得重试</li>
-                </ul>
-            </div>
-
-            <div class="about-block about-note">
-                <p><strong>未来方向：</strong></p>
-                <ul>
-                    <li>更细的状态：<code>blocked_by_intake</code> / <code>needs_discovery</code> / <code>failed_fetch</code> / <code>failed_llm</code></li>
-                    <li>失败重试策略（指数退避）</li>
-                    <li>候选文章发现入口（从 blocked 的列表页中提取具体文章）</li>
-                </ul>
+                <p>列表页、分页页、Feed 等入口不会直接进入总结；系统会创建可解释的失败或阻塞记录，帮助用户知道问题出在哪里。</p>
+                <p>生成失败的候选资料可以在候选池、运行详情或生成队列里重试，所有生成动作保持 POST 提交。</p>
             </div>
         </section>
 
         <!-- ── 模块 7：LLM 分析和输出边界 ─────────────────── -->
         <section class="about-section">
             <h2>🧠 LLM 分析和输出边界</h2>
-
-            <div class="about-block">
-                <p>LLM 分析链路：</p>
-                <ol class="about-list">
-                    <li>正文清洗（去除广告、导航、HTML 噪声）</li>
-                    <li>内容截断（超长文章只取前 N 字符）</li>
-                    <li>Prompt 注入防护（去除用户输入干扰）</li>
-                    <li>LLM JSON 输出（结构化 InsightCard）</li>
-                    <li>JSON 解析失败处理（降级或保存原始文本）</li>
-                    <li>InsightCard 保存到数据库</li>
-                    <li>可选：中英双语核心理解生成</li>
-                    <li>用户做出个人判断</li>
-                    <li>Markdown 报告 / 行动任务导出</li>
-                </ol>
-            </div>
-
-            <div class="about-block about-warning">
-                <p>⚠️ <strong>保真原则：输出要区分</strong></p>
-                <ul>
-                    <li><strong>原文事实</strong>：文章明确描述的事件、数据、结果</li>
-                    <li><strong>原文观点</strong>：文章作者表达的立场和判断</li>
-                    <li><strong>模型推论</strong>：LLM 基于原文的合理延伸（需标注）</li>
-                    <li><strong>个人建议</strong>：你基于理解做出的行动判断</li>
-                </ul>
-            </div>
 
             <div class="about-block">
                 <p><strong>中文摘要 vs 中英双语核心理解：</strong></p>
@@ -321,11 +199,6 @@
                             <td>摘要 + 关键事实 + 技术洞察</td>
                             <td>英文核心观点 + 原文主张 + 关键词汇 + 中文解说 + 保真提示</td>
                         </tr>
-                        <tr>
-                            <td><strong>生成速度</strong></td>
-                            <td>较快</td>
-                            <td>较慢（需要更多 LLM 调用）</td>
-                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -343,71 +216,10 @@
 
         <!-- ── 模块 8：关键技术选型 ───────────────────────── -->
         <section class="about-section">
-            <h2>⚙️ 关键技术选型</h2>
-
-            <table class="about-table">
-                <thead>
-                    <tr><th>模块</th><th>当前选择</th><th>原因</th></tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>后端框架</strong></td>
-                        <td>FastAPI</td>
-                        <td>轻量、适合本地工具和快速验证，异步支持好</td>
-                    </tr>
-                    <tr>
-                        <td><strong>页面渲染</strong></td>
-                        <td>Jja2</td>
-                        <td>MVP 阶段避免复杂前端框架，快速迭代</td>
-                    </tr>
-                    <tr>
-                        <td><strong>数据库</strong></td>
-                        <td>SQLite</td>
-                        <td>本地个人工作台足够，方便演示，无运维依赖</td>
-                    </tr>
-                    <tr>
-                        <td><strong>来源配置</strong></td>
-                        <td>YAML + DB 同步</td>
-                        <td>便于人工精选和版本管理</td>
-                    </tr>
-                    <tr>
-                        <td><strong>来源抓取</strong></td>
-                        <td>httpx + RSS/HTML index probe</td>
-                        <td>先验证稳定获取链路，避免过早引入爬虫复杂度</td>
-                    </tr>
-                    <tr>
-                        <td><strong>正文解析</strong></td>
-                        <td>HTML / PDF extractor</td>
-                        <td>覆盖文章和报告两种主要格式</td>
-                    </tr>
-                    <tr>
-                        <td><strong>LLM 输出</strong></td>
-                        <td>结构化 InsightCard</td>
-                        <td>不是翻译，而是洞察编译，保留判断空间</td>
-                    </tr>
-                    <tr>
-                        <td><strong>URL 识别</strong></td>
-                        <td>rule-based intake classifier</td>
-                        <td>alpha 阶段可解释、可控，避免 LLM 误判</td>
-                    </tr>
-                    <tr>
-                        <td><strong>CI</strong></td>
-                        <td>GitHub Actions</td>
-                        <td>远端自动验收，无需本地配置</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div class="about-block about-note">
-                <p><strong>V1.0-alpha 不追求最终架构，优先验证可信信息处理流水线。</strong></p>
-                <p>技术选型的核心标准是：可解释、可本地运行、可人工验收。</p>
+            <h2>关键技术选型</h2>
+            <div class="about-block">
+                <p>当前应用保持 FastAPI + Jinja2 + SQLite + 纯 HTML/CSS 的轻量形态，不引入前端框架或新的构建链路。</p>
+                <p>URL 安全由 safe_external_url 做 http/https 白名单过滤；来源探测、候选池和生成队列继续复用现有服务。</p>
             </div>
         </section>
-
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar V1.0-alpha · <a href="/">返回首页</a> · <a href="/source-items">英文资料收件箱</a> · <a href="/cards">洞察卡工作台</a></p>
-    </footer>
-</body>
-</html>
+{% endblock %}

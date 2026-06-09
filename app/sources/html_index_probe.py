@@ -49,8 +49,203 @@ LISTING_QUERY_PARAMS = {
     "q", "author", "topic",
 }
 
+# Weak/CTA titles — case-insensitive set for comparison.
+# When a link text matches this set, we fall back to article detail metadata
+# or URL slug.
+WEAK_TITLES = frozenset(
+    w.lower() for w in (
+        "featured",
+        "learn more",
+        "read more",
+        "more",
+        "view",
+        "explore",
+        "see more",
+        "continue reading",
+        "details",
+    )
+)
+
 # Regex for 4-digit year in path
 YEAR_PATTERN = re.compile(r"/\d{4}/|" r"-\d{4}/|" r"/\d{4}$")
+
+# Maximum number of candidates per source that trigger a detail-page fetch.
+# Beyond this limit candidates use URL slug fallback without fetching the article.
+MAX_DETAIL_FETCHES_PER_SOURCE = 15
+
+DEFAULT_HTML_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8",
+}
+
+
+def _is_weak_title(title: str) -> bool:
+    """Return True if title is a weak/CTA string (case-insensitive).
+
+    An empty or whitespace-only string is also considered weak.
+    """
+    if not title or not title.strip():
+        return True
+    return title.strip().lower() in WEAK_TITLES
+
+
+def _make_url_slug_fallback(url: str) -> str:
+    """Extract a human-readable fallback title from a URL's last path segment.
+
+    Args:
+        url: Absolute URL to extract slug from.
+
+    Returns:
+        Cleaned title derived from the URL's last path segment,
+        or empty string if no usable segment exists.
+    """
+    parsed = urlparse(url)
+    path_segments = [s for s in parsed.path.split("/") if s]
+    if path_segments:
+        slug = path_segments[-1]
+        # Common URL slug separators → spaces
+        slug = slug.replace("-", " ").replace("_", " ").strip()
+        return slug
+    return ""
+
+
+def fetch_article_metadata(url: str, timeout_seconds: float = 5.0) -> dict:
+    """Fetch article detail page and extract title/description metadata.
+
+    Extraction priority for title:
+        1. meta[property="og:title"]
+        2. meta[name="twitter:title"]
+        3. <title>
+        4. <h1>
+
+    Extraction priority for description:
+        1. meta[property="og:description"]
+        2. meta[name="twitter:description"]
+        3. meta[name="description"]
+
+    Args:
+        url: Absolute URL of the article detail page.
+        timeout_seconds: HTTP request timeout (default 5 s).
+
+    Returns:
+        dict with keys:
+            title (str or None): Best title found on the detail page.
+            description (str or None): Best description found.
+            title_source (str or None): Where the title came from
+                ("detail_og_title" | "detail_twitter_title" | "detail_title" | "detail_h1").
+            fetch_error (str or None): Error message if the fetch/parse failed.
+    """
+    result = {
+        "title": None,
+        "description": None,
+        "title_source": None,
+        "fetch_error": None,
+    }
+
+    try:
+        response = httpx.get(
+            url,
+            timeout=timeout_seconds,
+            follow_redirects=True,
+            headers=DEFAULT_HTML_HEADERS,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        result["fetch_error"] = str(exc)
+        return result
+
+    try:
+        soup = BeautifulSoup(response.text, "html.parser")
+    except Exception as exc:
+        result["fetch_error"] = f"parse failed: {exc}"
+        return result
+
+    # ── Title extraction — sequential fallback, each only runs if no title yet ──
+    # 1. og:title
+    og_title_tag = soup.find("meta", property="og:title")
+    if og_title_tag and og_title_tag.get("content", "").strip():
+        result["title"] = og_title_tag["content"].strip()
+        result["title_source"] = "detail_og_title"
+
+    # 2. twitter:title (only if no og:title found)
+    if not result["title"]:
+        twitter_title_tag = soup.find("meta", attrs={"name": "twitter:title"})
+        if twitter_title_tag and twitter_title_tag.get("content", "").strip():
+            result["title"] = twitter_title_tag["content"].strip()
+            result["title_source"] = "detail_twitter_title"
+
+    # 3. <title> (only if no og:title or twitter:title found)
+    if not result["title"]:
+        title_tag = soup.find("title")
+        if title_tag and title_tag.get_text(strip=True):
+            result["title"] = title_tag.get_text(strip=True)
+            result["title_source"] = "detail_title"
+
+    # 4. <h1> (only if no previous title found)
+    if not result["title"]:
+        h1_tag = soup.find("h1")
+        if h1_tag and h1_tag.get_text(strip=True):
+            result["title"] = h1_tag.get_text(strip=True)
+            result["title_source"] = "detail_h1"
+
+    # ── Description extraction (always attempt, independent of title) ──
+    for meta_tag, _key in [
+        (soup.find("meta", property="og:description"), "og_description"),
+        (soup.find("meta", attrs={"name": "twitter:description"}), "twitter_description"),
+        (soup.find("meta", attrs={"name": "description"}), "description"),
+    ]:
+        if meta_tag and meta_tag.get("content", "").strip():
+            result["description"] = meta_tag["content"].strip()
+            break
+
+    return result
+
+
+def choose_candidate_title(
+    link_text: str,
+    url: str,
+    detail_metadata: dict,
+) -> tuple[str, str]:
+    """Choose the best title for a candidate based on available sources.
+
+    Priority (highest to lowest):
+        1. detail_metadata.title (if present and not weak)
+        2. link_text (if not weak)
+        3. URL slug fallback
+
+    Args:
+        link_text: Raw text inside the <a> tag from the list page.
+        url: Normalized candidate URL.
+        detail_metadata: Result from fetch_article_metadata().
+
+    Returns:
+        A (title, title_source) tuple.
+        title_source values:
+            "detail_og_title" | "detail_twitter_title" | "detail_title" | "detail_h1"
+            | "link_text" | "url_slug" | "url"
+    """
+    # 1. Detail page title — highest priority
+    if detail_metadata.get("title"):
+        title = detail_metadata["title"]
+        if not _is_weak_title(title):
+            return title, detail_metadata.get("title_source", "detail_og_title")
+
+    # 2. link_text (only if not weak)
+    if link_text and not _is_weak_title(link_text):
+        return link_text, "link_text"
+
+    # 3. URL slug fallback
+    slug = _make_url_slug_fallback(url)
+    if slug:
+        return slug, "url_slug"
+
+    # 4. Absolute last resort — use the URL itself
+    return url, "url"
 
 
 def _normalize_candidate_url(url: str) -> str:
@@ -111,6 +306,45 @@ def _has_pagination_or_listing_query(url: str) -> bool:
         if param.lower() in LISTING_QUERY_PARAMS:
             return True
 
+    return False
+
+
+def _should_update_title(existing_title: str | None, candidate: dict) -> bool:
+    """Determine whether an existing SourceItem.title should be overwritten.
+
+    Priority: detail title > good link_text > url_slug fallback
+
+    Rules:
+      - detail title (non-weak): always wins, overwrites anything
+      - url_slug fallback: only overwrites weak existing titles
+      - good link_text: overwrites weak existing titles only
+
+    Args:
+        existing_title: The current SourceItem.title (may be None/empty).
+        candidate: A candidate dict from the probe loop; must contain
+            title, title_source.
+
+    Returns:
+        True if the existing title should be replaced with candidate.title.
+    """
+    existing_is_weak = _is_weak_title(existing_title) if existing_title else True
+    new_title = candidate.get("title", "")
+    new_is_from_detail = candidate.get("title_source", "") in (
+        "detail_og_title", "detail_twitter_title", "detail_title", "detail_h1"
+    )
+    new_is_weak = _is_weak_title(new_title)
+    new_is_url_slug = candidate.get("title_source", "") == "url_slug"
+
+    if new_is_from_detail and not new_is_weak:
+        # Real article title from detail page → always update
+        return True
+    if new_is_url_slug:
+        # url_slug fallback: only allowed to fix weak existing titles
+        return existing_is_weak
+    if not new_is_weak:
+        # Good new title (link_text): only overwrites weak existing
+        return existing_is_weak
+    # new is weak (shouldn't normally reach here) → keep existing
     return False
 
 
@@ -215,7 +449,10 @@ def _is_probable_article_url(url: str, source_homepage_url: str) -> bool:
 
 
 def probe_html_index_source(
-    db: Session, source: Source, timeout_seconds: int = 20
+    db: Session,
+    source: Source,
+    timeout_seconds: int = 20,
+    max_items: int | None = None,
 ) -> dict:
     """Probe a single HTML index source and discover article links.
 
@@ -236,7 +473,12 @@ def probe_html_index_source(
         "items_failed": 0,
         "error_message": None,
         "error_kind": None,
+        "total_seen": 0,
+        "processed_count": 0,
+        "truncated": False,
+        "max_items_per_run": max_items,
     }
+    effective_max_items = max_items if max_items is not None and max_items > 0 else 50
 
     # Validate homepage_url
     if not source.homepage_url:
@@ -244,18 +486,13 @@ def probe_html_index_source(
         result["error_kind"] = "missing_homepage_url"
         return result
 
-    # Build request headers
-    headers = {
-        "User-Agent": "AI-Frontier-Radar/0.7 (+https://github.com/yydshly/ai-frontier-radar)"
-    }
-
     # Fetch homepage
     try:
         response = httpx.get(
             source.homepage_url,
             timeout=timeout_seconds,
             follow_redirects=True,
-            headers=headers,
+            headers=DEFAULT_HTML_HEADERS,
         )
         response.raise_for_status()
     except httpx.TimeoutException:
@@ -281,6 +518,7 @@ def probe_html_index_source(
 
     # Find all <a> tags with href
     candidates = []
+    detail_fetch_count = 0
     for a_tag in soup.find_all("a", href=True):
         href = a_tag.get("href", "").strip()
 
@@ -310,31 +548,44 @@ def probe_html_index_source(
             # Log off-topic URLs for debugging (but don't store them)
             continue
 
-        # Get link text
+        result["total_seen"] += 1
+        if len(candidates) >= effective_max_items:
+            continue
+
+        # Get link text from the <a> tag on the list page
         link_text = a_tag.get_text(strip=True)
 
-        # Use URL path as fallback for title
-        parsed_url = urlparse(absolute_url)
-        path_segments = [s for s in parsed_url.path.split("/") if s]
-        if link_text:
-            title = link_text
-        elif path_segments:
-            title = path_segments[-1].replace("-", " ").replace("_", " ").strip()
+        # Only fetch article detail page metadata for the first N candidates
+        # to avoid excessive latency when probing large list pages.
+        if detail_fetch_count < MAX_DETAIL_FETCHES_PER_SOURCE:
+            detail_metadata = fetch_article_metadata(absolute_url, timeout_seconds=5.0)
+            detail_fetch_count += 1
+            detail_fetch_skipped = False
+            detail_fetch_reason = None
         else:
-            title = absolute_url
+            # Over limit: use empty metadata → falls back to URL slug
+            detail_metadata = {}
+            detail_fetch_skipped = True
+            detail_fetch_reason = "max_detail_fetches_reached"
+
+        # Choose the best available title using our priority rules
+        title, title_source = choose_candidate_title(link_text, normalized_url, detail_metadata)
 
         candidates.append({
             "url": normalized_url,
             "title": title,
             "link_text": link_text,
+            "title_source": title_source,
+            "detail_title": detail_metadata.get("title") if detail_metadata else None,
+            "detail_description": detail_metadata.get("description") if detail_metadata else None,
+            "detail_fetch_error": detail_metadata.get("fetch_error") if detail_metadata else None,
+            "detail_fetch_skipped": detail_fetch_skipped,
+            "detail_fetch_reason": detail_fetch_reason,
         })
-
-        # Cap at 50 candidates to avoid noise
-        if len(candidates) >= 50:
-            break
 
     # If no candidates found, return partial failure
     if not candidates:
+        result["truncated"] = result["total_seen"] > effective_max_items
         result["error_message"] = "No candidate article links found"
         result["error_kind"] = "no_candidates"
         return result
@@ -347,6 +598,9 @@ def probe_html_index_source(
             continue
         seen_urls.add(candidate["url"])
         deduped_candidates.append(candidate)
+
+    result["processed_count"] = len(deduped_candidates)
+    result["truncated"] = result["total_seen"] > effective_max_items
 
     # Process each candidate
     for candidate in deduped_candidates:
@@ -361,6 +615,12 @@ def probe_html_index_source(
 
         raw_metadata = {
             "link_text": candidate["link_text"],
+            "title_source": candidate["title_source"],
+            "detail_title": candidate.get("detail_title"),
+            "detail_description": candidate.get("detail_description"),
+            "detail_fetch_error": candidate.get("detail_fetch_error"),
+            "detail_fetch_skipped": candidate.get("detail_fetch_skipped"),
+            "detail_fetch_reason": candidate.get("detail_fetch_reason"),
             "source_homepage_url": source.homepage_url,
             "discovered_by": "html_index",
         }
@@ -382,8 +642,13 @@ def probe_html_index_source(
             db.add(item)
             result["items_new"] += 1
         else:
-            # Update existing item
-            existing.title = candidate["title"]
+            # Title update rules:
+            # - Real article title (from detail metadata) always wins → can overwrite
+            should_update_title = _should_update_title(existing.title, candidate)
+
+            if should_update_title:
+                existing.title = candidate["title"]
+
             existing.raw_metadata_json = json.dumps(raw_metadata, ensure_ascii=False)
             existing.last_seen_at = datetime.utcnow()
             result["items_updated"] += 1

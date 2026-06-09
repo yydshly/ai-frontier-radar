@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Frontier Radar{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="app-shell {% block body_class %}{% endblock %}">
+
+    <!-- ── Left Sidebar ─────────────────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+        <!-- Product identity -->
+        <div class="sidebar-brand">
+            <a href="/" class="brand-link">
+                <span class="brand-emoji">🤖</span>
+                <div class="brand-text">
+                    <span class="brand-name">AI Frontier Radar</span>
+                    <span class="brand-sub">前沿信息工作台</span>
+                </div>
+            </a>
+        </div>
+
+        <!-- ── Main workflow navigation ─────────────────────────── -->
+        <nav class="sidebar-nav" aria-label="主流程导航">
+            <div class="sidebar-section-label">主流程</div>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="/" class="sidebar-item {% if request.url.path == '/' %}active{% endif %}">
+                        <span class="sidebar-icon">🏠</span>
+                        <span class="sidebar-label">首页工作台</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/radar/today" class="sidebar-item {% if request.url.path == '/radar/today' %}active{% endif %}">
+                        <span class="sidebar-icon">📡</span>
+                        <span class="sidebar-label">今日雷达</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/sources" class="sidebar-item {% if request.url.path.startswith('/sources') %}active{% endif %}">
+                        <span class="sidebar-icon">🗺️</span>
+                        <span class="sidebar-label">信息来源</span>
+                    </a>
+                    <span class="sidebar-desc">选择来源，运行探测</span>
+                </li>
+                <li>
+                    <a href="/fetch-runs" class="sidebar-item {% if request.url.path.startswith('/fetch-runs') %}active{% endif %}">
+                        <span class="sidebar-icon">📡</span>
+                        <span class="sidebar-label">运行记录</span>
+                    </a>
+                    <span class="sidebar-desc">查看每次抓取结果</span>
+                </li>
+                <li>
+                    <a href="/candidate-pool" class="sidebar-item {% if request.url.path.startswith('/candidate-pool') %}active{% endif %}">
+                        <span class="sidebar-icon">📥</span>
+                        <span class="sidebar-label">候选池</span>
+                    </a>
+                    <span class="sidebar-desc">浏览发现的内容</span>
+                </li>
+                <li>
+                    <a href="/generation-queue" class="sidebar-item {% if request.url.path.startswith('/generation-queue') %}active{% endif %}">
+                        <span class="sidebar-icon">⚙️</span>
+                        <span class="sidebar-label">生成队列</span>
+                    </a>
+                    <span class="sidebar-desc">查看生成中 / 已完成</span>
+                </li>
+                <li>
+                    <a href="/cards" class="sidebar-item {% if request.url.path == '/cards' %}active{% endif %}">
+                        <span class="sidebar-icon">🗂️</span>
+                        <span class="sidebar-label">InsightCard</span>
+                    </a>
+                    <span class="sidebar-desc">查看中文洞察</span>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- ── Featured sources ────────────────────────────────── -->
+        <div class="sidebar-sources">
+            <div class="sidebar-section-label">精选来源</div>
+            {% set featured_sources = [] %}
+            {% for src in sources_nav %}
+                <a href="/sources#src-{{ src.source_key }}" class="sidebar-source-item" title="{{ src.name }}">
+                    <span class="sidebar-source-name">{{ src.name }}</span>
+                </a>
+            {% endfor %}
+            <a href="/sources" class="sidebar-source-more">全部来源 →</a>
+        </div>
+
+        <!-- ── Technical entries ───────────────────────────────── -->
+        <div class="sidebar-tech">
+            <a href="/source-items" class="sidebar-tech-item {% if request.url.path.startswith('/source-items') %}active{% endif %}">
+                🔧 原始资料
+            </a>
+            <a href="/project-docs" class="sidebar-tech-item {% if request.url.path.startswith('/project-docs') %}active{% endif %}">
+                📚 项目文档
+            </a>
+            <a href="/about" class="sidebar-tech-item {% if request.url.path == '/about' %}active{% endif %}">
+                ℹ️ 关于系统
+            </a>
+        </div>
+    </aside>
+
+    <!-- ── Main area ──────────────────────────────────────────── -->
+    <div class="main-wrapper">
+
+        <!-- ── Top bar: URL input (page-gated) ─────────────────── -->
+        {% if show_url_compile_bar|default(false) %}
+        <header class="topbar">
+            <form method="post" action="/compile" class="topbar-url-form" autocomplete="off">
+                <label for="url-input" class="topbar-url-label">
+                    粘贴英文 AI 文章 / 报告 URL，生成中文 InsightCard
+                </label>
+                <div class="topbar-url-row">
+                    <input
+                        type="url"
+                        id="url-input"
+                        name="url"
+                        class="topbar-url-input"
+                        placeholder="https://..."
+                        required
+                    >
+                    <button type="submit" class="btn-primary topbar-url-btn">生成</button>
+                </div>
+            </form>
+        </header>
+        {% endif %}
+
+        <!-- ── Page content ───────────────────────────────────── -->
+        <main class="main-content {% block main_class %}{% endblock %}">
+            {% block content %}{% endblock %}
+        </main>
+
+    </div>
+
+</body>
+</html>

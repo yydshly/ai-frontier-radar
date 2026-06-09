@@ -175,20 +175,25 @@ def _run_acceptance(args):
         text = response.text
 
         checks_index = [
-            ("推荐主流程", "推荐主流程 section"),
-            ("待编译资料", "待编译资料 link in flow"),
-            ("中文 InsightCard", "中文 InsightCard text in flow"),
-            ("中英双语核心理解", "bilingual report text in flow"),
-            ("转成行动", "转成行动 text in flow"),
-            ("导出完整 Markdown 报告", "export full report text in flow"),
-            ("工作台概览", "工作台概览 section"),
-            ("下一步建议", "下一步建议 section"),
+            ("主流程", "主流程 workflow banner"),
+            ("信息来源", "信息来源 step"),
+            ("运行记录", "运行记录 step"),
+            ("候选池", "候选池 step"),
+            ("生成队列", "生成队列 step"),
+            ("InsightCard", "InsightCard step"),
+            ("从哪里开始", "first usable loop start section"),
+            ("粘贴一个文章 URL", "single URL entry"),
+            ("最近探测", "recent fetch runs section"),
+            ("最近生成", "recent generated cards section"),
         ]
 
         for check_text, description in checks_index:
             assert check_text in text, \
                 f"Missing on index: {description} ('{check_text}')"
             print(f"[OK] Found on index: {description}")
+
+        assert "/candidate-pool" in text, \
+            "Missing /candidate-pool link on index"
 
         # ── 9. GET /source-items ────────────────────────────────
         print("\n--- Step 2: GET /source-items ---")
@@ -198,15 +203,44 @@ def _run_acceptance(args):
         text = response.text
 
         checks_si = [
-            ("主流程第 2 步", "主流程第 2 步 notice"),
-            ("编译为中文 InsightCard", "compile to InsightCard text"),
-            ("编译为 InsightCard", "compile to InsightCard text variant"),
+            ("原始 SourceItem 列表", "raw SourceItem list boundary heading"),
+            ("调试抓取状态", "debug source item state text"),
+            ("候选池", "candidate pool link"),
+            ("生成 InsightCard", "generate InsightCard action text"),
         ]
 
         for check_text, description in checks_si:
             assert check_text in text, \
                 f"Missing on /source-items: {description} ('{check_text}')"
             print(f"[OK] Found on /source-items: {description}")
+
+        assert "/candidate-pool" in text, \
+            "Missing /candidate-pool link on /source-items"
+        assert "编译为 InsightCard" not in text, \
+            "Stale '编译为 InsightCard' should not appear on /source-items"
+        assert text.count("如何使用这个页面？") == 1, \
+            f"'如何使用这个页面？' should appear exactly once, found {text.count('如何使用这个页面？')}"
+
+        # ── 9b. GET /candidate-pool ────────────────────────────
+        print("\n--- Step 2b: GET /candidate-pool ---")
+        response = client.get("/candidate-pool")
+        # candidate-pool redirects to /candidate-pool/; follow it
+        response = client.get("/candidate-pool", follow_redirects=True)
+        assert response.status_code == 200, \
+            f"GET /candidate-pool failed: {response.status_code}"
+        text = response.text
+
+        checks_candidate_pool = [
+            ("候选资料入口", "candidate pool product entry text"),
+            ("处理决策", "candidate pool decision workspace text"),
+            ("生成 InsightCard", "generate InsightCard action text"),
+            ("/source-items", "raw source items link"),
+        ]
+
+        for check_text, description in checks_candidate_pool:
+            assert check_text in text, \
+                f"Missing on /candidate-pool: {description} ('{check_text}')"
+            print(f"[OK] Found on /candidate-pool: {description}")
 
         # ── 10. GET /source-items/{id} ─────────────────────────
         print(f"\n--- Step 3: GET /source-items/{source_item_id} ---")
@@ -335,18 +369,17 @@ def main():
     parser = _build_arg_parser()
     args = parser.parse_args()
 
-    isolated_db_path = None
-    if args.isolated_db:
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        db_name = f"acceptance_v10_{timestamp}.db"
-        isolated_db_path = os.path.join("data", db_name)
-        os.makedirs("data", exist_ok=True)
-        os.environ["DATABASE_URL"] = f"sqlite:///{os.path.abspath(isolated_db_path)}"
-        print(f"[INFO] Using isolated DB: {isolated_db_path}")
+    # Always use isolated DB to avoid colliding with smoke_test's test_smoke.db
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    db_name = f"acceptance_v10_{timestamp}.db"
+    isolated_db_path = os.path.join("data", db_name)
+    os.makedirs("data", exist_ok=True)
+    os.environ["DATABASE_URL"] = f"sqlite:///{os.path.abspath(isolated_db_path)}"
+    print(f"[INFO] Using isolated DB: {isolated_db_path}")
 
     _run_acceptance(args)
 
-    if isolated_db_path and not args.keep_db:
+    if not args.keep_db:
         # Dispose engine to release file locks before deletion
         try:
             from app.db import engine

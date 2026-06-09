@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{{ doc.title }} - 项目文档{% endblock %}
+
+{% block main_class %}doc-reading-page{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>{{ doc.title }}</h1>
+            <p>{{ doc.category }} · <code>{{ doc.path }}</code></p>
+        </div>
+
+        <div class="page-actions">
+            <a href="/project-docs" class="btn-sm">返回项目文档</a>
+            <a href="/about" class="btn-sm">关于系统</a>
+        </div>
+
+        {% if doc.exists %}
+        <article class="doc-content">
+            {{ html_content | safe }}
+        </article>
+        {% else %}
+        <div class="error-banner">
+            <h2>文档未创建 / 待补充</h2>
+            <p>文档《{{ doc.title }}》（<code>{{ doc.path }}</code>）尚未创建或无法读取。</p>
+        </div>
+        {% endif %}
+{% endblock %}

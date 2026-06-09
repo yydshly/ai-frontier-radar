@@ -6,6 +6,18 @@
     padding: 0;
 }
 
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     line-height: 1.6;
@@ -1073,6 +1085,72 @@ footer {
     color: #c0392b;
 }
 
+/* Quality badges in /candidate-pool (V1.0-beta.5) */
+.quality-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.quality-badge.quality-high {
+    background: #e8f5e9;
+    color: #1b5e20;
+}
+.quality-badge.quality-medium {
+    background: #fff8e1;
+    color: #8a6d00;
+}
+.quality-badge.quality-low {
+    background: #fff3e0;
+    color: #bf360c;
+}
+.quality-badge.quality-noise {
+    background: #f5f5f5;
+    color: #757575;
+}
+
+/* Action badges in /candidate-pool (V1.0-beta.5) */
+.action-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+.action-badge.action-compile {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.action-badge.action-review {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+.action-badge.action-ignore {
+    background: #f5f5f5;
+    color: #616161;
+}
+.action-badge.action-manual {
+    background: #fff8e1;
+    color: #f57f17;
+}
+
+/* Interest tags in /candidate-pool (V1.0-beta.5) */
+.interest-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem;
+}
+.interest-tag {
+    display: inline-block;
+    padding: 0.1rem 0.3rem;
+    background: #e8eaf6;
+    color: #283593;
+    border-radius: 6px;
+    font-size: 0.7rem;
+}
+
 /* ============================================================
    V0.4.1 — /cards filter bar inline guide
    ============================================================ */
@@ -1086,6 +1164,299 @@ footer {
     font-size: 0.9rem;
     line-height: 1.6;
     border-radius: 4px;
+}
+
+/* ============================================================
+   V1.0-beta.9 — Workflow Banner
+   ============================================================ */
+
+.workflow-banner {
+    background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.workflow-title {
+    color: #a8d0f5;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.workflow-steps {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.workflow-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    text-decoration: none;
+    color: white;
+    transition: background 0.15s, border-color 0.15s;
+    min-width: 0;
+}
+
+.workflow-step:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(255,255,255,0.3);
+    text-decoration: none;
+}
+
+.workflow-step .step-num {
+    width: 1.5rem;
+    height: 1.5rem;
+    background: #3498db;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.workflow-step .step-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.workflow-step .step-desc {
+    font-size: 0.72rem;
+    color: #a8d0f5;
+    white-space: nowrap;
+}
+
+.workflow-arrow {
+    color: #5a7a9a;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+/* Quick action card with description */
+.quick-action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.6rem 0.4rem;
+    background: #f5f7fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #2c3e50;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.quick-action-card:hover {
+    background: #e8eef5;
+    border-color: #3498db;
+    text-decoration: none;
+}
+
+.quick-action-card .qa-icon {
+    font-size: 1.3rem;
+}
+
+.quick-action-card .qa-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.quick-action-card .qa-desc {
+    font-size: 0.65rem;
+    color: #888;
+    text-align: center;
+}
+
+/* Stat card for compiling */
+.stat-compiling { background: #e3f2fd; border-color: #b3d4fc; }
+.stat-compiling:hover { background: #d8edfc; }
+
+/* ============================================================
+   V1.0-beta.9 — Source Cards
+   ============================================================ */
+
+.sources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.source-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border: 1px solid #e8e8e8;
+}
+
+.source-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.source-card-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.source-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.source-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    line-height: 1.3;
+}
+
+.source-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.category-tag,
+.source-type-tag,
+.strategy-tag {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: #f0f4f8;
+    color: #555;
+}
+
+.strategy-tag {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.source-status .status-badge {
+    font-size: 0.75rem;
+}
+
+.source-card-stats {
+    display: flex;
+    gap: 1rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.source-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    flex: 1;
+}
+
+.stat-val {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.stat-key {
+    font-size: 0.72rem;
+    color: #888;
+}
+
+.source-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.btn-fetch {
+    background: #2c5aa0;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-fetch:hover {
+    background: #1a4080;
+}
+
+.source-tech-details {
+    font-size: 0.78rem;
+    color: #666;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 0.5rem;
+}
+
+.source-tech-details summary {
+    cursor: pointer;
+    color: #888;
+    user-select: none;
+}
+
+.tech-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.tech-label {
+    color: #888;
+    flex-shrink: 0;
+}
+
+.tech-row a {
+    color: #3498db;
+    word-break: break-all;
+}
+
+.sync-stats {
+    background: #e8f4fb;
+    border-left: 3px solid #3498db;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.88rem;
+    color: #2c3e50;
+}
+
+@media (max-width: 600px) {
+    .sources-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* ============================================================
@@ -2128,4 +2499,2208 @@ footer {
 
 .report-note-section .report-section-title {
     color: #e65100;
+}
+
+.digest-url-unsafe {
+    color: #ef5350 !important;
+    font-size: 0.72rem;
+}
+
+
+/* ============================================================
+   V1.0-beta.9 — FetchRun Detail Result Summary
+   ============================================================ */
+
+/* Run summary banner */
+.run-summary-banner {
+    background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.run-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.run-source-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.run-source-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.run-nav-links {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.run-nav-links .btn-link {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.run-nav-links .btn-link:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.run-stats-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.run-stat {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    text-align: center;
+    min-width: 80px;
+}
+
+.run-stat-val {
+    display: block;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.run-stat-key {
+    display: block;
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.run-stat-new { border-color: rgba(46, 125, 50, 0.6); background: rgba(46, 125, 50, 0.2); }
+.run-stat-new .run-stat-val { color: #66bb6a; }
+.run-stat-seen { border-color: rgba(25, 118, 210, 0.6); background: rgba(25, 118, 210, 0.2); }
+.run-stat-seen .run-stat-val { color: #64b5f6; }
+.run-stat-updated { border-color: rgba(245, 124, 0, 0.6); background: rgba(245, 124, 0, 0.2); }
+.run-stat-updated .run-stat-val { color: #ffb74d; }
+.run-stat-failed { border-color: rgba(198, 40, 40, 0.6); background: rgba(198, 40, 40, 0.2); }
+.run-stat-failed .run-stat-val { color: #ef5350; }
+
+.run-time-info {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.6);
+    flex-wrap: wrap;
+}
+
+.run-error-msg {
+    background: rgba(198, 40, 40, 0.3);
+    border: 1px solid rgba(198, 40, 40, 0.5);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    color: #ef9a9a;
+    margin-top: 0.5rem;
+}
+
+.run-error-msg strong {
+    color: #ef5350;
+}
+
+/* Content tabs hint */
+.content-tabs-hint {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0;
+}
+
+/* Digest section title */
+.digest-section-title {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid;
+}
+
+.digest-new { color: #2e7d32; border-color: #4caf50; }
+.digest-seen { color: #1565c0; border-color: #2196f3; }
+.digest-updated { color: #ef6c00; border-color: #ff9800; }
+.digest-failed { color: #c62828; border-color: #f44336; }
+
+/* Digest cards grid */
+.digest-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.digest-card {
+    background: white;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.digest-card-new { border-left: 3px solid #4caf50; }
+.digest-card-seen { border-left: 3px solid #2196f3; }
+.digest-card-updated { border-left: 3px solid #ff9800; }
+.digest-card-failed { border-left: 3px solid #f44336; background: #fef5f5; }
+
+.digest-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.digest-card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1.4;
+}
+
+.digest-card-summary {
+    font-size: 0.82rem;
+    color: #555;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.digest-card-meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+    color: #888;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.digest-source {
+    background: #f0f4f8;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    color: #555;
+}
+
+.digest-url {
+    color: #3498db;
+    word-break: break-all;
+    font-size: 0.78rem;
+}
+
+.digest-card-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 0.25rem;
+}
+
+/* Technical details panel */
+.tech-details-panel {
+    margin-top: 1.5rem;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+}
+
+.tech-details-panel summary {
+    cursor: pointer;
+    color: #666;
+    font-size: 0.88rem;
+    user-select: none;
+}
+
+.tech-details-panel .detail-table {
+    margin-top: 0.75rem;
+}
+
+.digest-section-title {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid;
+}
+
+/* ============================================================
+   V1.0-beta — New Homepage Sections
+   ============================================================ */
+
+/* "从哪里开始" start section */
+.workbench-start-section {
+    margin-bottom: 1.5rem;
+}
+
+.workbench-start-section .section-title {
+    font-size: 1rem;
+    color: #666;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+}
+
+.start-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+}
+
+.start-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 1rem 0.75rem;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #333;
+    text-align: center;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.start-card:hover {
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    border-color: #3498db;
+}
+
+.start-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+.start-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.start-desc {
+    font-size: 0.72rem;
+    color: #888;
+    line-height: 1.4;
+}
+
+.section-heading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.section-heading-row .section-title {
+    margin-bottom: 0;
+}
+
+.recent-run-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+
+.workflow-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    color: #333;
+    text-decoration: none;
+}
+
+.workflow-card:hover {
+    border-color: #3498db;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+
+.workflow-card-title {
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.workflow-card-meta,
+.workflow-card-stats,
+.queue-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    color: #666;
+    font-size: 0.8rem;
+}
+
+.workflow-card-stats strong {
+    color: #2c3e50;
+}
+
+.recent-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.queue-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.queue-card-title {
+    color: #1f4e79;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.queue-card-title:hover {
+    text-decoration: underline;
+}
+
+.status-badge.status-success,
+.status-badge.status-completed {
+    background: #2e7d32;
+    color: #fff;
+}
+
+.status-badge.status-running {
+    background: #1976d2;
+    color: #fff;
+}
+
+.status-badge.status-partial_failed {
+    background: #f57c00;
+    color: #fff;
+}
+
+.status-badge.status-pending {
+    background: #f6c343;
+    color: #4a3a00;
+}
+
+.page-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.page-header h1 {
+    font-size: 1.45rem;
+    line-height: 1.25;
+    color: #1a1a1a;
+    margin: 0 0 0.35rem;
+}
+
+.page-header p {
+    color: #666;
+    font-size: 0.92rem;
+    margin: 0;
+}
+
+.filter-bar,
+.page-actions {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.filter-row,
+.filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 0.75rem;
+}
+
+.filter-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: #4b5563;
+    font-size: 0.86rem;
+}
+
+.filter-form input[type="text"],
+.filter-form select {
+    min-width: 170px;
+    height: 38px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.45rem 0.6rem;
+    background: #fff;
+}
+
+.result-count {
+    color: #555;
+    font-size: 0.9rem;
+    margin: 0 0 0.75rem;
+}
+
+.candidate-list,
+.source-item-list,
+.insight-card-list,
+.doc-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.candidate-card,
+.source-item-card,
+.insight-card-item,
+.doc-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: start;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.candidate-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.candidate-select {
+    padding-top: 0.25rem;
+}
+
+.candidate-main,
+.source-item-main,
+.insight-card-main,
+.doc-card-main {
+    min-width: 0;
+}
+
+.candidate-title-row,
+.source-item-title-row,
+.insight-card-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+}
+
+.candidate-title,
+.source-item-title,
+.insight-card-title,
+.doc-title {
+    color: #1f2937;
+    font-weight: 700;
+    text-decoration: none;
+    line-height: 1.35;
+}
+
+.candidate-title:hover,
+.source-item-title:hover,
+.insight-card-title:hover,
+.doc-title:hover {
+    color: #1f4e79;
+    text-decoration: underline;
+}
+
+.candidate-title-weak {
+    color: #9ca3af;
+    font-weight: 700;
+    font-style: italic;
+    text-decoration: none;
+    cursor: default;
+}
+
+.candidate-weak-title-hint {
+    font-size: 0.8rem;
+    color: #d97706;
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding: 0.2rem 0.6rem;
+    margin-bottom: 0.4rem;
+    border-radius: 3px;
+}
+
+.candidate-summary {
+    font-size: 0.875rem;
+    color: #374151;
+    line-height: 1.5;
+    margin-bottom: 0.4rem;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.candidate-badges,
+.candidate-signals,
+.insight-card-actions,
+.source-item-actions,
+.candidate-actions,
+.page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.candidate-actions,
+.source-item-actions,
+.insight-card-actions {
+    justify-content: flex-end;
+}
+
+.candidate-meta,
+.source-item-meta,
+.insight-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.75rem;
+    color: #6b7280;
+    font-size: 0.82rem;
+    margin-bottom: 0.35rem;
+}
+
+.candidate-url,
+.source-item-url,
+.insight-card-url,
+.doc-path {
+    color: #6b7280;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.candidate-url a,
+.source-item-url a,
+.insight-card-url a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.candidate-url a:hover,
+.source-item-url a:hover,
+.insight-card-url a:hover {
+    text-decoration: underline;
+}
+
+.btn-sm,
+.btn-small {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0.32rem 0.65rem;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    background: #f6f8fa;
+    color: #1f4e79;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.btn-sm:hover,
+.btn-small:hover {
+    background: #eef2f7;
+    text-decoration: none;
+}
+
+.btn-sm.btn-primary,
+.btn-small.btn-primary {
+    background: #1f6feb;
+    border-color: #1f6feb;
+    color: #fff;
+}
+
+.btn-static {
+    background: #e3f2fd;
+    color: #1565c0;
+    cursor: default;
+}
+
+.status-badge.status-ignored {
+    background: #6b7280;
+    color: #fff;
+}
+
+.status-badge.status-failed {
+    background: #d32f2f;
+    color: #fff;
+}
+
+.status-badge.status-manual {
+    background: #7b1fa2;
+    color: #fff;
+}
+
+.insight-card-item.is-blocked {
+    border-left: 4px solid #e67e22;
+}
+
+.insight-card-item.is-failed {
+    border-left: 4px solid #d32f2f;
+}
+
+.doc-card {
+    align-items: center;
+}
+
+.doc-card-pending {
+    background: #fafafa;
+}
+
+.doc-desc {
+    color: #4b5563;
+    font-size: 0.9rem;
+    margin: 0.3rem 0;
+}
+
+.doc-status {
+    white-space: nowrap;
+    border-radius: 999px;
+    padding: 0.18rem 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.doc-available {
+    background: #e8f5e9;
+    color: #1b5e20;
+}
+
+.doc-pending {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.doc-content {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    line-height: 1.75;
+    overflow-wrap: anywhere;
+}
+
+.doc-content h1,
+.doc-content h2,
+.doc-content h3 {
+    color: #1f2937;
+    margin: 1.2rem 0 0.55rem;
+}
+
+.doc-content h1:first-child,
+.doc-content h2:first-child,
+.doc-content h3:first-child {
+    margin-top: 0;
+}
+
+.doc-content p,
+.doc-content ul,
+.doc-content ol,
+.doc-content blockquote,
+.doc-content pre {
+    margin-bottom: 0.9rem;
+}
+
+.doc-content ul,
+.doc-content ol {
+    padding-left: 1.4rem;
+}
+
+.doc-content code,
+.doc-path code {
+    background: #f3f4f6;
+    border-radius: 4px;
+    padding: 0.12rem 0.35rem;
+}
+
+.doc-content pre {
+    background: #f6f8fa;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+}
+
+.doc-content table {
+    width: 100%;
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+}
+
+.doc-content th,
+.doc-content td {
+    border: 1px solid #e5e7eb;
+    padding: 0.55rem 0.65rem;
+}
+
+/* About page lead */
+.page-lead {
+    font-size: 1.05rem;
+    color: #444;
+    margin-bottom: 1.5rem;
+    line-height: 1.7;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-left: 4px solid #2c5aa0;
+    border-radius: 4px;
+}
+
+/* ============================================================
+   V1.0-beta — App Shell Layout
+   ============================================================ */
+
+body.app-shell {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    min-height: 100vh;
+    background: #f5f5f5;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+body.app-shell .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: #1e2a38;
+    color: #e0e6ed;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
+/* Brand */
+.sidebar-brand {
+    padding: 1.25rem 1rem 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.brand-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.brand-emoji {
+    font-size: 1.75rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.brand-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.brand-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.brand-sub {
+    font-size: 0.7rem;
+    color: #8a9bb0;
+    margin-top: 0.1rem;
+}
+
+/* Section label */
+.sidebar-section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #5a6b7d;
+    padding: 1rem 1rem 0.3rem;
+}
+
+/* Navigation menu */
+.sidebar-nav {
+    padding: 0 0 0.5rem;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    color: #a8b9cc;
+    font-size: 0.88rem;
+    border-left: 3px solid transparent;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.sidebar-item:hover {
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+}
+
+.sidebar-item.active {
+    background: rgba(52, 152, 219, 0.18);
+    color: #fff;
+    border-left-color: #3498db;
+}
+
+.sidebar-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+    width: 1.25rem;
+    text-align: center;
+}
+
+.sidebar-label {
+    font-weight: 500;
+}
+
+.sidebar-desc {
+    display: block;
+    font-size: 0.72rem;
+    color: #6a7a8a;
+    padding: 0 1rem 0.3rem 2.75rem;
+    margin-top: -0.2rem;
+}
+
+.sidebar-item.active + .sidebar-desc {
+    color: #5a8ab0;
+}
+
+/* Featured sources in sidebar */
+.sidebar-sources {
+    padding: 0.5rem 0;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    margin-top: auto;
+}
+
+.sidebar-source-item {
+    display: block;
+    padding: 0.3rem 1rem;
+    font-size: 0.8rem;
+    color: #8a9bb0;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.15s;
+}
+
+.sidebar-source-item:hover {
+    color: #a8d0f8;
+    background: rgba(255,255,255,0.04);
+}
+
+.sidebar-source-more {
+    display: block;
+    padding: 0.35rem 1rem 0.3rem;
+    font-size: 0.75rem;
+    color: #5a7a9a;
+    text-decoration: none;
+}
+
+.sidebar-source-more:hover {
+    color: #3498db;
+}
+
+/* Technical entries */
+.sidebar-tech {
+    padding: 0.6rem 0;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.sidebar-tech-item {
+    padding: 0.35rem 1rem;
+    font-size: 0.78rem;
+    color: #6a7a8a;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.sidebar-tech-item:hover,
+.sidebar-tech-item.active {
+    color: #a8b9cc;
+}
+
+/* ── Main wrapper ────────────────────────────────────────────── */
+body.app-shell .main-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+/* ── Top bar ────────────────────────────────────────────────── */
+.topbar {
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 0.75rem 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.topbar-url-form {
+    max-width: 720px;
+}
+
+.topbar-url-label {
+    display: block;
+    font-size: 0.78rem;
+    color: #666;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+}
+
+.topbar-url-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.topbar-url-input {
+    flex: 1;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.9rem;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    transition: border-color 0.15s;
+}
+
+.topbar-url-input:focus {
+    border-color: #3498db;
+    outline: none;
+}
+
+.topbar-url-btn {
+    padding: 0.55rem 1.25rem;
+    font-size: 0.9rem;
+}
+
+/* ── Main content ────────────────────────────────────────────── */
+body.app-shell .main-content {
+    flex: 1;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 1.5rem 2rem;
+}
+
+.main-content.wide-page {
+    max-width: none;
+    margin: 0;
+    padding: 1.5rem 2rem;
+}
+
+.main-content.doc-reading-page {
+    max-width: 1180px;
+    margin: 0 auto;
+}
+
+/* Override body-level styles when using app-shell */
+.app-shell > header,
+.app-shell > footer {
+    display: none;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    body.app-shell {
+        flex-direction: column;
+    }
+
+    body.app-shell .sidebar {
+        width: 100%;
+        height: auto;
+        position: static;
+        flex-direction: row;
+        overflow-x: auto;
+        flex-wrap: wrap;
+    }
+
+    .sidebar-brand {
+        border-bottom: none;
+        border-right: 1px solid rgba(255,255,255,0.08);
+        padding: 0.75rem 1rem;
+    }
+
+    .brand-sub,
+    .sidebar-desc,
+    .sidebar-sources,
+    .sidebar-tech {
+        display: none;
+    }
+
+    .sidebar-nav {
+        display: flex;
+        align-items: center;
+        padding: 0;
+    }
+
+    .sidebar-menu {
+        display: flex;
+        gap: 0;
+    }
+
+    .sidebar-item {
+        padding: 0.75rem 0.85rem;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+        white-space: nowrap;
+    }
+
+    .sidebar-item.active {
+        border-left-color: transparent;
+        border-bottom-color: #3498db;
+    }
+
+    .sidebar-section-label {
+        display: none;
+    }
+
+    .topbar-url-form {
+        max-width: 100%;
+    }
+
+    body.app-shell .main-wrapper,
+    body.app-shell .main-content,
+    body.app-shell .main-content.wide-page {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+    }
+
+    body.app-shell .main-content {
+        padding: 1rem;
+    }
+
+    .topbar-url-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .start-grid,
+    .sources-grid,
+    .digest-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .queue-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .filter-row,
+    .filter-form,
+    .page-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .filter-form label,
+    .filter-form input[type="text"],
+    .filter-form select,
+    .filter-form button,
+    .filter-form a {
+        width: 100%;
+    }
+
+    .candidate-card,
+    .source-item-card,
+    .insight-card-item,
+    .doc-card {
+        grid-template-columns: 1fr;
+    }
+
+    .candidate-card {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .candidate-actions,
+    .source-item-actions,
+    .insight-card-actions {
+        justify-content: flex-start;
+    }
+
+    .candidate-actions {
+        grid-column: 1 / -1;
+    }
+
+    .candidate-title-row,
+    .source-item-title-row,
+    .insight-card-title-row {
+        flex-direction: column;
+    }
+
+    .doc-content {
+        padding: 1rem;
+    }
+}
+
+/* ── Today Radar: catalog + cards + reading panel ───────────────────────── */
+/* ── Compact radar header ───────────────────────────────────────────────── */
+.radar-header {
+    flex: 0 0 auto;
+    margin-bottom: 0.5rem;
+}
+
+.radar-header-top {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.radar-header-title {
+    font-size: 1.25rem;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.radar-header-meta {
+    font-size: 0.85rem;
+    color: #57606a;
+}
+
+.radar-header-meta-warn {
+    color: #9a6700;
+}
+
+.radar-quick-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-left: 0;
+}
+
+.radar-quick-link {
+    padding: 0.2rem 0.7rem;
+    border: 1px solid #d0d7de;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: #24292f;
+    text-decoration: none;
+    background: #f6f8fa;
+}
+
+.radar-quick-link:hover {
+    background: #eaeef2;
+}
+
+.radar-page-size-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: #57606a;
+}
+
+.radar-page-size-form label {
+    white-space: nowrap;
+}
+
+.radar-page-size-form select {
+    min-height: 28px;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    background: #fff;
+    color: #24292f;
+    font-size: 0.8rem;
+}
+
+.radar-section-link.is-active {
+    background: #ddf4ff;
+    color: #0969da;
+    font-weight: 600;
+    border-color: #54aeff;
+}
+
+.radar-active-section-title {
+    margin: 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin-right: auto;
+}
+
+.radar-active-section-title small {
+    color: #57606a;
+    font-weight: 500;
+}
+
+/* Page-size form in toolbar: no auto margin, compact display */
+.radar-main-toolbar .radar-page-size-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    font-size: 0.8rem;
+    color: #57606a;
+}
+
+.radar-main-toolbar .radar-page-size-form label {
+    white-space: nowrap;
+}
+
+.radar-main-toolbar .radar-page-size-form select {
+    min-height: 28px;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    background: #fff;
+    color: #24292f;
+    font-size: 0.8rem;
+}
+
+/* Compact pagination in toolbar */
+.radar-pagination-compact {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    padding: 0;
+    margin: 0;
+}
+
+.radar-pagination-compact .btn-sm {
+    min-height: 28px;
+    padding: 0.22rem 0.55rem;
+    font-size: 0.78rem;
+}
+
+.radar-pagination-compact .radar-page-indicator {
+    white-space: nowrap;
+    font-size: 0.82rem;
+    color: #57606a;
+}
+
+.radar-fallback-note {
+    color: #9a6700;
+    background: #fff8c5;
+    border: 1px solid #eed888;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+/* ── Radar workbench: App Shell control ─────────────────────────────── */
+/* Page-level scroll lock — applies ONLY when body has .radar-workbench-shell.
+   Other pages are unaffected. */
+body.app-shell.radar-workbench-shell {
+    height: 100vh;
+    overflow: hidden;
+}
+
+body.app-shell.radar-workbench-shell .main-wrapper {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+}
+
+body.app-shell .main-content.radar-workbench-page,
+body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 1.25rem;
+}
+
+.radar-page {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.radar-header {
+    flex: 0 0 auto;
+}
+
+.radar-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) 360px;
+    gap: 1.25rem;
+    align-items: stretch;
+}
+
+/* ── Radar pagination ───────────────────────────────────────────────────── */
+.radar-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0 1rem;
+}
+
+.radar-page-indicator {
+    font-size: 0.85rem;
+    color: #57606a;
+}
+
+.radar-page-disabled {
+    opacity: 0.45;
+    cursor: default;
+    pointer-events: none;
+}
+
+.radar-sidebar {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.radar-sidebar-inner {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.radar-main {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.radar-main-toolbar {
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.radar-main-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.35rem;
+}
+
+.radar-sidebar-label,
+.radar-panel-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #57606a;
+    margin-bottom: 0.5rem;
+}
+
+.radar-section-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.radar-section-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #24292f;
+    font-size: 0.9rem;
+}
+
+.radar-section-link:hover {
+    background: #f0f3f6;
+}
+
+.radar-section-count {
+    font-size: 0.75rem;
+    color: #57606a;
+    background: #eaeef2;
+    border-radius: 999px;
+    padding: 0 0.45rem;
+}
+
+.radar-section {
+    margin-bottom: 1.5rem;
+}
+
+.radar-section-title {
+    font-size: 1.05rem;
+    margin: 0 0 0.6rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid #eaeef2;
+}
+
+.radar-section-title small {
+    color: #57606a;
+    font-weight: normal;
+}
+
+.radar-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.radar-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: start;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    background: #fff;
+}
+
+.radar-card-body {
+    min-width: 0;
+}
+
+.radar-selected-card {
+    border-color: #0969da;
+    box-shadow: 0 0 0 1px #0969da33;
+    background: #f6fbff;
+}
+
+.radar-card-summary {
+    font-size: 0.95rem;
+    color: #1f2328;
+    margin-bottom: 0.4rem;
+    line-height: 1.5;
+}
+
+.radar-card-title {
+    font-size: 0.85rem;
+    color: #57606a;
+    margin-bottom: 0.5rem;
+}
+
+.radar-card-title-weak {
+    font-style: italic;
+    color: #9a6700;
+}
+
+.radar-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    color: #57606a;
+    margin-bottom: 0.5rem;
+}
+
+.radar-card-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+    flex-shrink: 0;
+}
+
+.radar-card-actions .btn-sm {
+    min-height: 26px;
+    padding: 0.22rem 0.5rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.radar-card-action-form {
+    margin: 0;
+}
+
+.radar-panel {
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #fafbfc;
+}
+
+.radar-panel-empty,
+.radar-empty {
+    color: #57606a;
+    padding: 1rem 0;
+}
+
+.radar-panel-summary {
+    font-size: 0.98rem;
+    line-height: 1.55;
+    margin-bottom: 0.75rem;
+}
+
+.radar-panel-title {
+    font-size: 0.95rem;
+    color: #57606a;
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+}
+
+.radar-panel-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+}
+
+.radar-panel-meta dt {
+    color: #57606a;
+}
+
+.radar-panel-meta dd {
+    margin: 0;
+}
+
+.radar-panel-url {
+    font-size: 0.8rem;
+    word-break: break-all;
+    margin-bottom: 0.75rem;
+}
+
+.radar-panel-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.radar-panel-actions .btn-sm {
+    min-width: auto;
+    min-height: 28px;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.8rem;
+}
+
+.radar-panel-action-form {
+    margin: 0;
+}
+
+/* ── Smart reading panel state cards ──────────────────────────────────── */
+.radar-panel-state-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.radar-panel-state {
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+    background: #f6f8fa;
+    font-size: 0.85rem;
+}
+
+.radar-panel-state strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #24292f;
+}
+
+.radar-panel-state p {
+    margin: 0;
+    color: #57606a;
+    line-height: 1.45;
+}
+
+.radar-panel-state-zh_summary,
+.radar-panel-state-compiled {
+    background: #eaf4ff;
+    border-color: #b6e3ff;
+}
+
+.radar-panel-state-zh_one_liner,
+.radar-panel-state-discovered {
+    background: #fff8c5;
+    border-color: #eac54f;
+}
+
+.radar-panel-state-metadata_fallback,
+.radar-panel-state-compiled_missing_card {
+    background: #fff1e5;
+    border-color: #ffab70;
+}
+
+.radar-panel-state-failed {
+    background: #ffebe9;
+    border-color: #ff8182;
+}
+
+.radar-panel-state-compiling {
+    background: #f6f8fa;
+    border-color: #d0d7de;
+}
+
+.radar-panel-section {
+    margin-bottom: 0.85rem;
+}
+
+.radar-panel-section h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.9rem;
+    color: #24292f;
+}
+
+.radar-panel-insight-preview {
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 0.65rem;
+    background: #fff;
+}
+
+.radar-panel-score {
+    margin: 0 0 0.4rem;
+    color: #0969da;
+    font-weight: 700;
+}
+
+.radar-panel-insight-summary {
+    margin: 0.35rem 0;
+    line-height: 1.55;
+    color: #24292f;
+}
+
+.radar-panel-muted {
+    color: #57606a;
+    font-size: 0.82rem;
+}
+
+.radar-summary-form {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+}
+
+.radar-summary-result {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #b6e3ff;
+    border-radius: 8px;
+    background: #eaf4ff;
+    color: #24292f;
+    font-size: 0.86rem;
+}
+
+@media (max-width: 1024px) {
+    body.app-shell.radar-workbench-shell {
+        height: auto;
+        overflow: visible;
+    }
+
+    body.app-shell.radar-workbench-shell .main-wrapper {
+        height: auto;
+        overflow: visible;
+    }
+
+    body.app-shell .main-content.radar-workbench-page {
+        height: auto;
+        overflow: visible;
+        padding: 1rem;
+    }
+
+    .radar-page {
+        height: auto;
+        overflow: visible;
+    }
+
+    .radar-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+        flex: none;
+    }
+
+    .radar-main,
+    .radar-sidebar,
+    .radar-panel,
+    .radar-sidebar-inner,
+    .radar-main-scroll {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .radar-card {
+        grid-template-columns: 1fr;
+    }
+
+    .radar-card-actions {
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+    }
+}
+
+/* ============================================================
+   V1-beta — Today Radar Update Action
+   ============================================================ */
+
+.radar-update-form {
+    margin: 0;
+}
+
+.radar-sidebar-actions {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.radar-update-result {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #b6e3ff;
+    border-radius: 8px;
+    background: #eaf4ff;
+    color: #24292f;
+    font-size: 0.86rem;
+}
+
+/* ── Fetch run summary in today radar sidebar ─────────────────────── */
+.radar-fetch-summary {
+    margin-top: 0.9rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.radar-fetch-summary-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #24292f;
+}
+
+.radar-fetch-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: #57606a;
+}
+
+.radar-fetch-summary-grid strong {
+    color: #24292f;
+}
+
+.radar-fetch-summary-meta,
+.radar-fetch-summary-empty {
+    font-size: 0.78rem;
+    color: #57606a;
+    line-height: 1.45;
+}
+
+/* ============================================================
+   V1.0-beta — Summary generation per-item diagnostics
+   ============================================================ */
+
+.radar-summary-detail-list {
+    margin: 0.45rem 0 0;
+    padding-left: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.radar-summary-status {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0.35rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #f6f8fa;
+    color: #57606a;
+}
+
+.radar-summary-status-success {
+    background: #dafbe1;
+    color: #116329;
+}
+
+.radar-summary-status-skipped {
+    background: #fff8c5;
+    color: #7d4e00;
+}
+
+.radar-summary-status-failed {
+    background: #ffebe9;
+    color: #cf222e;
+}
+
+/* ============================================================
+   V1.0-beta — Radar card Chinese one-liner display
+   ============================================================ */
+
+.radar-card-zh-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    background: #dafbe1;
+    color: #116329;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+/* ============================================================
+   V1.0-beta — InsightCard preview: chips and insight blocks
+   ============================================================ */
+
+.radar-panel-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0.35rem 0 0.55rem;
+}
+
+.radar-panel-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    background: #ddf4ff;
+    color: #0969da;
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.radar-panel-insight-block {
+    margin-top: 0.65rem;
+}
+
+.radar-panel-insight-block h4 {
+    margin: 0 0 0.25rem;
+    font-size: 0.84rem;
+    color: #24292f;
+}
+
+.radar-panel-insight-block ul {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+.radar-panel-insight-block li {
+    margin-bottom: 0.25rem;
+    color: #24292f;
+    line-height: 1.45;
+    font-size: 0.84rem;
+}
+
+/* ============================================================
+   V1.0-beta — Complete InsightCard page styles
+   ============================================================ */
+
+/* Hero section */
+.card-hero {
+    background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%);
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1.5rem;
+    color: white;
+}
+
+.card-hero-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #a8d0f5;
+    margin: 0 0 0.5rem;
+}
+
+.card-hero-subtitle {
+    font-size: 1rem;
+    color: #c0d8e8;
+    margin: 0 0 0.75rem;
+    line-height: 1.6;
+}
+
+.card-hero-desc {
+    font-size: 0.9rem;
+    color: #a8b9cc;
+    margin: 0 0 0.35rem;
+}
+
+.card-hero-questions {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.9rem;
+    color: #c0d8e8;
+    line-height: 1.7;
+}
+
+.card-hero-questions li {
+    margin-bottom: 0.2rem;
+}
+
+/* Card status grid */
+.card-status-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e8e8e8;
+}
+
+.card-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.75rem 1.5rem;
+}
+
+.card-status-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.card-status-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.card-status-value {
+    font-size: 0.95rem;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+/* Direction chips */
+.card-direction-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.card-direction-chip {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: #e8f4f8;
+    color: #2980b9;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Section note (explanatory text) */
+.card-section-note {
+    font-size: 0.88rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+    background: #f8f9fa;
+    border-left: 3px solid #ccc;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0 4px 4px 0;
+    line-height: 1.5;
+}
+
+/* ============================================================
+   V1.0-beta — Export preview page styles
+   ============================================================ */
+
+.export-preview-hero {
+    background: linear-gradient(135deg, #f6f8fa 0%, #eaf4ff 100%);
+    border: 1px solid #d0d7de;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.export-preview-hero h1 {
+    margin: 0 0 0.4rem;
+    font-size: 1.35rem;
+    color: #24292f;
+}
+
+.export-preview-hero p {
+    margin: 0;
+    color: #57606a;
+    line-height: 1.55;
+}
+
+.export-preview-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    background: #fff;
+    border: 1px solid #d0d7de;
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.export-preview-label {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #57606a;
+    margin-bottom: 0.2rem;
+}
+
+.export-preview-value {
+    color: #24292f;
+    line-height: 1.45;
+}
+
+.export-preview-meta code {
+    word-break: break-all;
+    white-space: normal;
+}
+
+.export-preview-heading {
+    margin-bottom: 0.6rem;
+}
+
+.export-preview-heading h2 {
+    margin: 0 0 0.25rem;
+}
+
+.export-preview-heading p {
+    margin: 0;
+    color: #57606a;
+    font-size: 0.86rem;
+}
+
+.markdown-body-readable {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+    line-height: 1.55;
+}
+
+/* Empty note */
+.card-empty-note {
+    font-size: 0.88rem;
+    color: #999;
+    font-style: italic;
+}
+
+/* Insight overview section */
+.card-insight-overview {
+    background: white;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    border-left: 4px solid #2196f3;
+}
+
+.card-insight-overview > h2 {
+    color: #1565c0;
+    margin-bottom: 0.5rem;
+}
+
+.card-overview-items {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.card-overview-item h3 {
+    font-size: 0.9rem;
+    color: #555;
+    margin: 0 0 0.4rem;
+    font-weight: 600;
+}
+
+/* Insight section blocks */
+.card-insight-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+.card-insight-section > h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+}
+
+.card-insight-section ul {
+    margin: 0;
 }

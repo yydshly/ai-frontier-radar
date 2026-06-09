@@ -4,23 +4,32 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse
+from fastapi import FastAPI, Request, Form, BackgroundTasks, Query
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.db import get_db, init_db
-from app.models import InsightCard, CardStatus, Source, SourceItem, CardDecision, InsightCardBilingualReport
+from app.models import InsightCard, CardStatus, Source, SourceItem, FetchRun, CardDecision, InsightCardBilingualReport
 from app.schemas import HealthResponse
 from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
 from app.intake import classify_url_by_pattern
+from app.application.source_items.compile_service import SourceItemCompileService
+from app.application.source_items.background_compile import (
+    BackgroundCompileService,
+    run_source_item_compile_in_background,
+)
 from app.card_decisions import ALLOWED_CARD_DECISIONS, is_valid_decision, get_decision_label
 from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
 from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
+from app.routes.project_docs import router as project_docs_router
+from app.routes.candidate_pool import router as candidate_pool_router
+from app.routes.fetch_runs import router as fetch_runs_router, is_test_source_key
+from app.routes.radar import router as radar_router
 
 
 # ── Shared card display helper (V1.0-alpha.8.6) ─────────────────────────────
@@ -83,6 +92,132 @@ def _build_card_display_data(card: InsightCard, decision_row: CardDecision | Non
     }
 
 
+# ── Markdown export filename helpers ─────────────────────────────────────────
+
+import re
+from urllib.parse import quote
+
+
+def _sanitize_filename_part(value: str | None, *, max_len: int = 48) -> str:
+    """Sanitize a string to be safe inside a filename.
+
+    Removes Windows/macOS unsafe characters, collapses whitespace,
+    and truncates to max_len.
+    """
+    if not value:
+        return "untitled"
+
+    text = " ".join(str(value).strip().split())
+    if not text:
+        return "untitled"
+
+    # Remove Windows/macOS unsafe filename characters.
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", text)
+
+    # Replace whitespace with underscore.
+    text = re.sub(r"\s+", "_", text)
+
+    # Avoid too many separators.
+    text = re.sub(r"_+", "_", text).strip("._- ")
+
+    if not text:
+        return "untitled"
+
+    if len(text) > max_len:
+        text = text[:max_len].rstrip("._- ")
+
+    return text or "untitled"
+
+
+def _build_markdown_download_filename(
+    card: InsightCard,
+    *,
+    export_kind: str,
+) -> str:
+    """Build a readable, safe download filename for InsightCard Markdown exports.
+
+    Format: YYYY-MM-DD_AI前沿雷达_{id}_{title}_{suffix}.md
+    """
+    date_part = (
+        card.created_at.strftime("%Y-%m-%d")
+        if card.created_at
+        else datetime.utcnow().strftime("%Y-%m-%d")
+    )
+
+    title_part = _sanitize_filename_part(card.source_title or "untitled", max_len=56)
+
+    suffix_map = {
+        "task": "行动任务",
+        "report": "完整报告",
+    }
+    suffix = suffix_map.get(export_kind, "导出")
+
+    return f"{date_part}_AI前沿雷达_{card.id}_{title_part}_{suffix}.md"
+
+
+def _markdown_download_headers(filename: str) -> dict[str, str]:
+    """Build Content-Disposition headers for Markdown file download.
+
+    Provides UTF-8 filename* encoding with ASCII fallback for browser compatibility.
+    """
+    ascii_fallback = "ai-frontier-radar-export.md"
+    encoded = quote(filename)
+    return {
+        "Content-Disposition": (
+            f'attachment; filename="{ascii_fallback}"; '
+            f"filename*=UTF-8''{encoded}"
+        )
+    }
+
+
+# ── InsightCard display helpers ────────────────────────────────────────────────
+
+def _source_type_label(card: InsightCard) -> str:
+    """Return a human-readable content type label for display purposes."""
+    if not card.source_type:
+        return "未标注"
+
+    value = card.source_type.value if hasattr(card.source_type, "value") else str(card.source_type)
+
+    if value == "html":
+        return "网页正文"
+    if value == "pdf":
+        return "PDF 文本"
+    if value == "unknown":
+        return "未标注"
+
+    return value
+
+
+def _generation_basis_label(card: InsightCard, source_item: SourceItem | None = None) -> str:
+    """Return a human-readable generation basis label for display purposes.
+
+    This is a display-only derived field. It does not persist anything.
+    RSS/metadata snapshot cards are identified by checking the linked SourceItem.
+    """
+    # RSS / metadata snapshot cards: linked SourceItem exists with raw_metadata_json
+    if source_item is not None and source_item.raw_metadata_json:
+        return "基于来源摘要 / RSS metadata"
+
+    # Full-text parsing based on raw_text_path
+    if card.raw_text_path:
+        if card.source_type and card.source_type.value == "pdf":
+            return "基于 PDF 文本解析"
+        if card.source_type and card.source_type.value == "html":
+            return "基于网页正文解析"
+        return "基于全文解析"
+
+    # Fallback: source_type-based label
+    if card.source_type:
+        value = card.source_type.value if hasattr(card.source_type, "value") else str(card.source_type)
+        if value == "pdf":
+            return "基于 PDF 文本解析"
+        if value == "html":
+            return "基于网页正文解析"
+
+    return "生成依据未标注"
+
+
 # Setup
 setup_logging()
 logger = get_logger(__name__)
@@ -97,7 +232,8 @@ app = FastAPI(title="AI Frontier Radar", version=APP_VERSION)
 BASE_DIR = Path(__file__).resolve().parent
 
 # Jinja2 templates
-templates = Jinja2Templates(directory=BASE_DIR / "templates")
+from app.context_processors import inject_sources_nav
+templates = Jinja2Templates(directory=BASE_DIR / "templates", context_processors=[inject_sources_nav])
 
 # Static files - mount before any routes
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -137,6 +273,19 @@ def index(request: Request):
             db.query(SourceItem).filter(SourceItem.status == "discovered").count()
         )
         source_items_failed_count = (
+            db.query(SourceItem).filter(SourceItem.status == "failed").count()
+        )
+
+        # ── Candidate Pool statistics (V1.0-beta.2) ─────────────────────────
+        # Candidate pool uses the same SourceItem model with various statuses
+        candidate_pool_total_count = db.query(SourceItem).count()
+        candidate_pool_discovered_count = (
+            db.query(SourceItem).filter(SourceItem.status == "discovered").count()
+        )
+        candidate_pool_compiling_count = (
+            db.query(SourceItem).filter(SourceItem.status == "compiling").count()
+        )
+        candidate_pool_failed_count = (
             db.query(SourceItem).filter(SourceItem.status == "failed").count()
         )
 
@@ -194,6 +343,26 @@ def index(request: Request):
                 "status": item.status,
                 "insight_card_id": item.insight_card_id,
                 "last_seen_at": item.last_seen_at,
+            })
+
+        recent_fetch_runs = (
+            db.query(FetchRun)
+            .order_by(FetchRun.created_at.desc())
+            .limit(5)
+            .all()
+        )
+        recent_fetch_runs_data = []
+        for run in recent_fetch_runs:
+            recent_fetch_runs_data.append({
+                "id": run.id,
+                "source_key": run.source_key,
+                "status": run.status,
+                "items_new": run.items_new or 0,
+                "items_found": run.items_found or 0,
+                "items_updated": run.items_updated or 0,
+                "items_failed": run.items_failed or 0,
+                "started_at": run.started_at,
+                "created_at": run.created_at,
             })
 
         # ── Recent InsightCards (last 5) ───────────────────────────────────
@@ -263,12 +432,19 @@ def index(request: Request):
             "cards_read_later": cards_read_later_count,
             "cards_ignore": cards_ignore_count,
             "cards_to_action": cards_to_action_count,
+            # V1.0-beta.2: Candidate Pool statistics
+            "candidate_pool_total": candidate_pool_total_count,
+            "candidate_pool_discovered": candidate_pool_discovered_count,
+            "candidate_pool_compiling": candidate_pool_compiling_count,
+            "candidate_pool_failed": candidate_pool_failed_count,
         }
 
         return templates.TemplateResponse("index.html", {
             "request": request,
+            "show_url_compile_bar": True,
             "featured_sources": featured_sources,
             "dashboard_stats": dashboard_stats,
+            "recent_fetch_runs": recent_fetch_runs_data,
             "recent_source_items": recent_source_items_data,
             "recent_cards": recent_cards_data,
             "demo_source_item": {
@@ -413,6 +589,8 @@ def list_cards(request: Request, decision: str | None = None):
         elif filter_decision and is_valid_decision(filter_decision):
             filter_decision_label = get_decision_label(filter_decision)
 
+        from app.routes.fetch_runs import safe_external_url
+
         context = {
             "request": request,
             "cards": cards_data,
@@ -425,6 +603,7 @@ def list_cards(request: Request, decision: str | None = None):
             ],
             "total_cards": len(cards),
             "filtered_cards": len(cards_data),
+            "safe_external_url": safe_external_url,
         }
         return templates.TemplateResponse("cards.html", context)
     finally:
@@ -453,6 +632,13 @@ def card_detail(request: Request, card_id: int):
         bilingual_report = (
             db.query(InsightCardBilingualReport)
             .filter(InsightCardBilingualReport.card_id == card.id)
+            .first()
+        )
+
+        # Load linked SourceItem (for RSS/metadata snapshot cards)
+        source_item = (
+            db.query(SourceItem)
+            .filter(SourceItem.insight_card_id == card.id)
             .first()
         )
 
@@ -491,7 +677,8 @@ def card_detail(request: Request, card_id: int):
             "request": request,
             "card": card,
             "status_value": card.status.value if card.status else "unknown",
-            "source_type_value": card.source_type.value if card.source_type else "unknown",
+            "source_type_value": _source_type_label(card),
+            "generation_basis_label": _generation_basis_label(card, source_item),
             "key_points": parse_json_field(card.key_points_zh),
             "technical_insights": parse_json_field(card.technical_insights_zh),
             "product_opportunities": parse_json_field(card.product_opportunities_zh),
@@ -719,11 +906,14 @@ def card_export_markdown(request: Request, card_id: int):
 
         markdown_text = build_action_markdown(card, decision_row, bilingual_report)
 
+        download_filename = _build_markdown_download_filename(card, export_kind="task")
+
         return templates.TemplateResponse("card_export_markdown.html", {
             "request": request,
             "card": card,
             "decision": decision_row,
             "markdown_text": markdown_text,
+            "download_filename": download_filename,
         })
     finally:
         db.close()
@@ -756,12 +946,10 @@ def card_export_markdown_download(card_id: int):
 
         markdown_text = build_action_markdown(card, decision_row, bilingual_report)
 
-        filename = f"insightcard-{card_id}-task.md"
+        filename = _build_markdown_download_filename(card, export_kind="task")
         return PlainTextResponse(
             content=markdown_text,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-            },
+            headers=_markdown_download_headers(filename),
         )
     finally:
         db.close()
@@ -790,6 +978,13 @@ def card_export_report_preview(request: Request, card_id: int):
         bilingual_report = (
             db.query(InsightCardBilingualReport)
             .filter(InsightCardBilingualReport.card_id == card.id)
+            .first()
+        )
+
+        # Load linked SourceItem (for RSS/metadata snapshot cards)
+        source_item = (
+            db.query(SourceItem)
+            .filter(SourceItem.insight_card_id == card.id)
             .first()
         )
 
@@ -851,7 +1046,8 @@ def card_export_report_preview(request: Request, card_id: int):
         # Source fields
         source_title = card.source_title or "(无标题)"
         source_url = card.source_url or ""
-        source_type = card.source_type.value if card.source_type else "unknown"
+        source_type = _source_type_label(card)
+        generation_basis_label = _generation_basis_label(card, source_item)
         source_author = card.source_author or "-"
         source_published_at = card.source_published_at or "-"
         relevance_score = card.relevance_score
@@ -869,6 +1065,7 @@ def card_export_report_preview(request: Request, card_id: int):
             "source_title": source_title,
             "source_url": source_url,
             "source_type": source_type,
+            "generation_basis_label": generation_basis_label,
             "source_author": source_author,
             "source_published_at": source_published_at,
             "relevance_score": relevance_score,
@@ -893,6 +1090,8 @@ def card_export_report_preview(request: Request, card_id: int):
             "chinese_explanation": bilingual_report.chinese_explanation if bilingual_report else "",
             "fidelity_notes": fidelity_notes,
             "interpretation_boundary": interpretation_boundary,
+            # Download filename
+            "download_filename": _build_markdown_download_filename(card, export_kind="report"),
         })
     finally:
         db.close()
@@ -924,19 +1123,17 @@ def card_export_report_download(card_id: int):
 
         markdown_text = build_full_report_markdown(card, decision_row, bilingual_report)
 
-        filename = f"insightcard-{card_id}-report.md"
+        filename = _build_markdown_download_filename(card, export_kind="report")
         return PlainTextResponse(
             content=markdown_text,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-            },
+            headers=_markdown_download_headers(filename),
         )
     finally:
         db.close()
 
 
 @app.get("/sources", response_class=HTMLResponse)
-def list_sources_page(request: Request):
+def list_sources_page(request: Request, include_test: int = Query(0, ge=0, le=1)):
     """List all configured sources from database."""
     db = next(get_db())
     try:
@@ -949,10 +1146,20 @@ def list_sources_page(request: Request):
             .order_by(Source.category, Source.source_key)
             .all()
         )
+        show_test_sources = bool(include_test)
+        if not show_test_sources:
+            sources_orm = [s for s in sources_orm if not is_test_source_key(s.source_key)]
+
+        # Build FetchRun health map for all source keys
+        source_keys = [s.source_key for s in sources_orm]
+        from app.application.fetch_runs.services import FetchRunService
+        service = FetchRunService(db)
+        health_map = service.get_source_health_map(source_keys)
 
         # Convert to plain dicts for template
         sources_data = []
         for s in sources_orm:
+            health = health_map.get(s.source_key)
             sources_data.append({
                 "source_key": s.source_key,
                 "name": s.name,
@@ -966,14 +1173,49 @@ def list_sources_page(request: Request):
                 "last_checked_at": s.last_checked_at,
                 "last_success_at": s.last_success_at,
                 "last_error_message": s.last_error_message,
+                # V1.0-beta.4: FetchRun health overlay
+                "fetch_run_status": health.latest_status if health else None,
+                "fetch_run_started_at": health.latest_started_at if health else None,
+                "fetch_run_finished_at": health.latest_finished_at if health else None,
+                "fetch_run_items_found": health.latest_items_found if health else 0,
+                "fetch_run_items_new": health.latest_items_new if health else 0,
+                "fetch_run_error_message": health.latest_error_message if health else None,
             })
 
         return templates.TemplateResponse(
             "sources.html",
-            {"request": request, "sources": sources_data, "sync_result": sync_result},
+            {
+                "request": request,
+                "sources": sources_data,
+                "sync_result": sync_result,
+                "include_test": show_test_sources,
+                "include_test_url": "/sources" if show_test_sources else "/sources?include_test=1",
+            },
         )
     finally:
         db.close()
+
+
+@app.post("/sources/{source_key}/fetch")
+def trigger_source_fetch(source_key: str, background_tasks: BackgroundTasks):
+    """Manually trigger a background fetch for the specified source.
+
+    POST only — no GET allowed.
+
+    Creates a FetchRun(status=running) immediately and redirects to its
+    detail page. The actual probe runs in the background.
+    Returns 404 if source_key does not exist.
+    """
+    from app.application.sources.background_fetch import SourceFetchBackgroundService
+
+    service = SourceFetchBackgroundService()
+    result = service.enqueue_source(source_key, background_tasks=background_tasks)
+
+    if result.status == "not_found":
+        return JSONResponse(status_code=404, content={"detail": result.message})
+
+    # Redirect to the FetchRun detail page (either new or already-running)
+    return RedirectResponse(url=f"/fetch-runs/{result.run_id}", status_code=303)
 
 
 @app.get("/source-items", response_class=HTMLResponse)
@@ -1037,6 +1279,8 @@ def list_source_items_page(
             "failed",
         ]
 
+        from app.routes.fetch_runs import safe_external_url
+
         context = {
             "request": request,
             "items": items_data,
@@ -1045,6 +1289,7 @@ def list_source_items_page(
             "filter_source_key": source_key,
             "filter_status": status,
             "filter_q": q,
+            "safe_external_url": safe_external_url,
         }
         return templates.TemplateResponse("source_items.html", context)
     finally:
@@ -1068,11 +1313,21 @@ def source_item_detail(request: Request, item_id: int):
         if item.insight_card_id:
             card = db.query(InsightCard).filter(InsightCard.id == item.insight_card_id).first()
 
+        # V1.0-beta.5: compute candidate quality
+        from app.application.candidate_quality.services import CandidateQualityService
+        quality_service = CandidateQualityService()
+        quality = quality_service.evaluate(item)
+
+        # Import safe_external_url helper
+        from app.routes.fetch_runs import safe_external_url
+
         context = {
             "request": request,
             "item": item,
             "source": source,
             "card": card,
+            "quality": quality,
+            "safe_external_url": safe_external_url,
         }
         return templates.TemplateResponse("source_item_detail.html", context)
     finally:
@@ -1081,67 +1336,126 @@ def source_item_detail(request: Request, item_id: int):
 
 @app.post("/source-items/{item_id}/compile")
 def compile_source_item(item_id: int):
-    """Manually compile a SourceItem into an InsightCard.
+    """Manually compile a SourceItem into an InsightCard (synchronous).
 
     Idempotent: if the item is already compiled with a valid insight_card_id,
     redirects back without re-calling compile_url.
     """
-    from datetime import datetime
-
     db = next(get_db())
     try:
-        item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
-        if not item:
-            return RedirectResponse(url="/source-items", status_code=303)
-
-        # Case A: already compiled — skip re-compilation (idempotent)
-        if item.status == "compiled" and item.insight_card_id is not None:
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        # Case D: empty URL guard
-        if not item.url:
-            item.status = "failed"
-            item.error_message = "SourceItem url is empty"
-            item.updated_at = datetime.utcnow()
-            db.commit()
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        # ── Intake classification gate ──────────────────────────────
-        decision = classify_url_by_pattern(item.url)
-        logger.info(f"SourceItem {item_id} compile: {decision.page_type.value} | "
-                    f"compile={decision.can_compile_directly} | {decision.reason}")
-
-        if not decision.can_compile_directly:
-            item.status = "failed"
-            item.error_message = f"[intake:blocked] {decision.reason}"
-            item.updated_at = datetime.utcnow()
-            db.commit()
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        try:
-            card = compile_url(db, item.url)
-        except Exception as e:
-            item.status = "failed"
-            item.error_message = f"Unexpected compile error: {e}"
-            item.updated_at = datetime.utcnow()
-            db.commit()
-            return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
-
-        # Link card regardless of success/failure
-        item.insight_card_id = card.id
-        item.updated_at = datetime.utcnow()
-
-        if card.status.value == "completed":
-            item.status = "compiled"
-            item.error_message = None  # Clear old error on success
-        else:
-            item.status = "failed"
-            item.error_message = card.error_message or "InsightCard compilation failed"
-
-        db.commit()
+        service = SourceItemCompileService(db)
+        result = service.compile_item(item_id)
         return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
     finally:
         db.close()
+
+
+def _safe_return_to(return_to: str | None) -> str | None:
+    """Return a safe same-site relative redirect target, or None.
+
+    This prevents open redirects while allowing page-local workflow returns
+    such as /radar/today?section=...
+    """
+    if not return_to:
+        return None
+
+    value = return_to.strip()
+    if not value:
+        return None
+
+    # Only allow site-relative paths.
+    if not value.startswith("/"):
+        return None
+
+    # Reject protocol-relative URLs.
+    if value.startswith("//"):
+        return None
+
+    lowered = value.lower()
+
+    # Reject obvious slash/backslash encoded bypasses.
+    if lowered.startswith(("/\\", "/%5c", "/%2f")):
+        return None
+
+    # Reject CRLF injection.
+    if "\r" in value or "\n" in value:
+        return None
+
+    return value
+
+
+@app.post("/source-items/{item_id}/enqueue-compile")
+def enqueue_source_item_compile(
+    item_id: int,
+    background_tasks: BackgroundTasks,
+    return_to: str | None = Form(None),
+):
+    """Enqueue a SourceItem for background InsightCard generation.
+
+    Sets status to 'compiling' immediately, then dispatches a background task
+    that calls SourceItemCompileService. Returns immediately (does not wait).
+
+    Idempotent: compiled/composing items are not re-enqueued.
+    """
+    service = BackgroundCompileService()
+    result = service.enqueue_item(item_id)
+
+    if result.accepted:
+        background_tasks.add_task(run_source_item_compile_in_background, item_id)
+
+    redirect_url = _safe_return_to(return_to) or f"/source-items/{item_id}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@app.get("/generation-queue", response_class=HTMLResponse)
+def generation_queue_page(request: Request):
+    """Display the InsightCard generation queue with items in compiling/compiled/failed states."""
+    db = next(get_db())
+    try:
+        from app.models import SourceItem
+        from sqlalchemy import desc
+        from app.application.candidates.display import build_candidate_display_card
+
+        # Show items with status in compiling/compiled/failed, ordered by updated_at desc
+        items = (
+            db.query(SourceItem)
+            .filter(SourceItem.status.in_(["compiling", "compiled", "failed", "discovered"]))
+            .order_by(desc(SourceItem.updated_at))
+            .limit(50)
+            .all()
+        )
+
+        display_map = {
+            item.id: build_candidate_display_card(item)
+            for item in items
+        }
+
+        from app.routes.fetch_runs import safe_external_url
+
+        return templates.TemplateResponse(
+            "generation_queue.html",
+            {
+                "request": request,
+                "items": items,
+                "display_map": display_map,
+                "safe_external_url": safe_external_url,
+            },
+        )
+    finally:
+        db.close()
+
+
+# ── Mount project docs routes ────────────────────────────────────────────────
+app.include_router(project_docs_router)
+
+# ── Mount candidate pool routes ───────────────────────────────────────────────
+app.include_router(candidate_pool_router)
+
+# ── Mount fetch runs routes ───────────────────────────────────────────────────
+app.include_router(fetch_runs_router)
+
+# ── Mount radar routes ────────────────────────────────────────────────────────
+app.include_router(radar_router)
 
 
 if __name__ == "__main__":
