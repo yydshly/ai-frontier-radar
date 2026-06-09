@@ -7165,6 +7165,297 @@ def test_v10_beta3_does_not_break_existing_routes():
     print("[OK] Boundary cleanup does not break existing routes")
 
 
+# ── V1.0-beta.4: FetchRun Cockpit ────────────────────────────────────────────
+
+def test_v10_beta4_fetch_run_cockpit_imports():
+    """FetchRun repository, service, and page objects import correctly."""
+    from app.infrastructure.repositories.fetch_run_repository import (
+        FetchRunRepository,
+        FetchRunPage,
+    )
+    from app.application.fetch_runs.services import (
+        FetchRunService,
+        SourceHealth,
+        FetchRunDetail,
+    )
+    print("[OK] FetchRunRepository, FetchRunPage, FetchRunService, SourceHealth, FetchRunDetail all import")
+
+
+def test_v10_beta4_fetch_runs_page():
+    """GET /fetch-runs returns 200 with fetch run list."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    from datetime import datetime
+    import uuid
+
+    db = SessionLocal()
+    try:
+        # Create test source and FetchRun
+        test_key = f"test_fetch_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Fetch Source",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=datetime.utcnow(),
+            finished_at=datetime.utcnow(),
+            items_found=5,
+            items_new=3,
+            items_updated=1,
+            items_failed=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        response = client.get("/fetch-runs", follow_redirects=True)
+        assert response.status_code == 200, \
+            f"GET /fetch-runs failed: {response.status_code}"
+        text = response.text
+
+        # Page title
+        assert "来源探测运行" in text or "FetchRun" in text, \
+            "Page should mention '来源探测运行' or 'FetchRun'"
+
+        # Run data appears
+        assert test_key in text, \
+            f"source_key '{test_key}' should appear on page"
+
+        # Links present
+        assert f"/fetch-runs/{run.id}" in text, \
+            f"Detail link /fetch-runs/{run.id} should appear"
+        assert "/candidate-pool" in text, \
+            "/candidate-pool link should appear"
+        assert "/source-items" in text, \
+            "/source-items link should appear"
+
+        print("[OK] GET /fetch-runs returns 200 with run data")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta4_fetch_runs_filter():
+    """GET /fetch-runs supports source_key and status filters."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_filter_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Filter Source",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        success_run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            items_found=5,
+        )
+        failed_run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="failed",
+            items_found=0,
+            error_message="Connection timeout",
+        )
+        db.add_all([success_run, failed_run])
+        db.commit()
+
+        # Filter by source_key
+        response = client.get(f"/fetch-runs?source_key={test_key}", follow_redirects=True)
+        assert response.status_code == 200
+        text = response.text
+        assert test_key in text
+        print(f"[OK] /fetch-runs?source_key={test_key} filter works")
+
+        # Filter by status=failed
+        response = client.get("/fetch-runs?status=failed", follow_redirects=True)
+        assert response.status_code == 200
+        text = response.text
+        assert "Connection timeout" in text or "failed" in text.lower()
+        print("[OK] /fetch-runs?status=failed filter works")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta4_fetch_run_detail_page():
+    """GET /fetch-runs/{id} shows run detail with related SourceItems."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun, SourceItem
+    from datetime import datetime, timedelta
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_detail_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Detail Source",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        started = datetime.utcnow() - timedelta(minutes=5)
+        finished = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=started,
+            finished_at=finished,
+            items_found=2,
+            items_new=2,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        # Create SourceItems within the run's time window
+        item1 = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/item1-{uuid.uuid4().hex[:6]}",
+            title="Test Article 1",
+            status="discovered",
+            first_seen_at=started + timedelta(minutes=1),
+        )
+        item2 = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/item2-{uuid.uuid4().hex[:6]}",
+            title="Test Article 2",
+            status="discovered",
+            first_seen_at=started + timedelta(minutes=2),
+        )
+        db.add_all([item1, item2])
+        db.commit()
+        db.refresh(item1)
+        db.refresh(item2)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200, \
+            f"GET /fetch-runs/{run.id} failed: {response.status_code}"
+        text = response.text
+
+        assert "FetchRun 详情" in text or "详情" in text, \
+            "Page should show 'FetchRun 详情'"
+        assert test_key in text, \
+            "source_key should appear on detail page"
+        assert "本次可能产生的候选项" in text, \
+            "Page should show related items section"
+
+        # Related items should appear
+        assert "Test Article 1" in text or "Test Article 2" in text, \
+            "Related SourceItems should appear"
+
+        # Navigation links
+        assert "/candidate-pool" in text, \
+            "/candidate-pool link should appear"
+        assert f"/source-items/{item1.id}" in text, \
+            f"Link to source item {item1.id} should appear"
+
+        # Warning about estimated association
+        assert "时间窗口估算" in text or "fetch_run_id" in text.lower(), \
+            "Page should mention time-window estimation"
+
+        print(f"[OK] GET /fetch-runs/{run.id} shows detail with related items")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta4_fetch_run_detail_not_found():
+    """GET /fetch-runs/{id} with non-existent id returns 303 redirect."""
+    response = client.get("/fetch-runs/999999999", follow_redirects=False)
+    assert response.status_code in (303, 404), \
+        f"Non-existent run should return 303 or 404, got {response.status_code}"
+    print("[OK] GET /fetch-runs/999999999 returns redirect or 404")
+
+
+def test_v10_beta4_sources_page_shows_fetch_run_health():
+    """GET /sources shows FetchRun health info and links."""
+    response = client.get("/sources")
+    assert response.status_code == 200
+    text = response.text
+
+    # V1.0-beta.4 new columns
+    assert "最近运行状态" in text, \
+        "/sources page should show '最近运行状态' column"
+    assert "/fetch-runs" in text, \
+        "/sources page should link to /fetch-runs"
+    assert "/candidate-pool" in text, \
+        "/sources page should link to candidate pool"
+    assert "/source-items" in text, \
+        "/sources page should link to /source-items"
+
+    print("[OK] /sources shows FetchRun health info and navigation")
+
+
+def test_v10_beta4_home_page_shows_fetch_runs_entry():
+    """Home page includes '来源运行' quick action entry."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+
+    assert "来源运行" in text, \
+        "Home page should have '来源运行' quick action"
+    assert "/fetch-runs" in text, \
+        "Home page should link to /fetch-runs"
+
+    print("[OK] Home page has '来源运行' quick action linking to /fetch-runs")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -7409,6 +7700,15 @@ if __name__ == "__main__":
     test_v10_beta3_nav_labels_unified()
     test_v10_beta3_candidate_pool_row_action_labels()
     test_v10_beta3_does_not_break_existing_routes()
+
+    # V1.0-beta.4 FetchRun Cockpit
+    test_v10_beta4_fetch_run_cockpit_imports()
+    test_v10_beta4_fetch_runs_page()
+    test_v10_beta4_fetch_runs_filter()
+    test_v10_beta4_fetch_run_detail_page()
+    test_v10_beta4_fetch_run_detail_not_found()
+    test_v10_beta4_sources_page_shows_fetch_run_health()
+    test_v10_beta4_home_page_shows_fetch_runs_entry()
 
     print("=" * 50)
     print("Smoke test completed!")

@@ -24,6 +24,7 @@ from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
 from app.routes.project_docs import router as project_docs_router
 from app.routes.candidate_pool import router as candidate_pool_router
+from app.routes.fetch_runs import router as fetch_runs_router
 
 
 # ── Shared card display helper (V1.0-alpha.8.6) ─────────────────────────────
@@ -971,9 +972,16 @@ def list_sources_page(request: Request):
             .all()
         )
 
+        # Build FetchRun health map for all source keys
+        source_keys = [s.source_key for s in sources_orm]
+        from app.application.fetch_runs.services import FetchRunService
+        service = FetchRunService(db)
+        health_map = service.get_source_health_map(source_keys)
+
         # Convert to plain dicts for template
         sources_data = []
         for s in sources_orm:
+            health = health_map.get(s.source_key)
             sources_data.append({
                 "source_key": s.source_key,
                 "name": s.name,
@@ -987,6 +995,13 @@ def list_sources_page(request: Request):
                 "last_checked_at": s.last_checked_at,
                 "last_success_at": s.last_success_at,
                 "last_error_message": s.last_error_message,
+                # V1.0-beta.4: FetchRun health overlay
+                "fetch_run_status": health.latest_status if health else None,
+                "fetch_run_started_at": health.latest_started_at if health else None,
+                "fetch_run_finished_at": health.latest_finished_at if health else None,
+                "fetch_run_items_found": health.latest_items_found if health else 0,
+                "fetch_run_items_new": health.latest_items_new if health else 0,
+                "fetch_run_error_message": health.latest_error_message if health else None,
             })
 
         return templates.TemplateResponse(
@@ -1121,6 +1136,9 @@ app.include_router(project_docs_router)
 
 # ── Mount candidate pool routes ───────────────────────────────────────────────
 app.include_router(candidate_pool_router)
+
+# ── Mount fetch runs routes ───────────────────────────────────────────────────
+app.include_router(fetch_runs_router)
 
 
 if __name__ == "__main__":
