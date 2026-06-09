@@ -8186,6 +8186,78 @@ def test_v10_beta6_delta_failed_item():
         db.close()
 
 
+def test_v10_beta7_fetch_run_delta_failed_item_display_defaults():
+    """Failed items from failed_urls have display_title='抓取失败' and time_label='时间未知'."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    from app.application.fetch_runs.delta import FetchDeltaDigestService
+    import uuid
+    import json
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_failed_display_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Failed Display",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="partial_failed",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=0,
+            items_failed=1,
+            metadata_json=json.dumps({
+                "delta": {
+                    "failed_urls": [
+                        {"url": "https://fail.example.com/page", "error": "Connection timeout"}
+                    ]
+                }
+            }),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        service = FetchDeltaDigestService(db)
+        digest = service.build_for_run(run)
+
+        assert digest.failed_count == 1, f"Expected 1 failed item, got {digest.failed_count}"
+        fi = digest.failed_items[0]
+        assert fi.display_title == "抓取失败", \
+            f"Expected display_title='抓取失败', got {fi.display_title!r}"
+        assert fi.time_label == "时间未知", \
+            f"Expected time_label='时间未知', got {fi.time_label!r}"
+        assert fi.is_title_weak is False, \
+            f"Expected is_title_weak=False, got {fi.is_title_weak}"
+        assert fi.raw_title is None, \
+            f"Expected raw_title=None, got {fi.raw_title!r}"
+        print(f"[OK] Failed item has display_title='抓取失败', time_label='时间未知'")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_v10_beta6_fetch_run_detail_shows_delta_digest():
     """FetchRun detail page shows delta digest sections."""
     from app.db import SessionLocal
@@ -9886,6 +9958,7 @@ if __name__ == "__main__":
     test_v10_beta6_delta_new_item()
     test_v10_beta6_delta_seen_item()
     test_v10_beta6_delta_failed_item()
+    test_v10_beta7_fetch_run_delta_failed_item_display_defaults()
     test_v10_beta6_fetch_run_detail_shows_delta_digest()
     test_v10_beta6_fetch_run_detail_compile_is_post()
     test_v10_beta6_fetch_run_detail_unsafe_url_not_link()

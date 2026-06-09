@@ -245,7 +245,7 @@ class FetchDeltaDigestService:
         # Build failed items from metadata_json
         failed_urls = self._extract_failed_urls(run)
         for failed_url, error in failed_urls:
-            digest.failed_items.append(FetchDeltaItem(
+            delta_item = FetchDeltaItem(
                 item_id=None,
                 title=error or "Failed",
                 url=failed_url,
@@ -255,7 +255,13 @@ class FetchDeltaDigestService:
                 status="failed",
                 insight_card_id=None,
                 delta_type="failed",
-            ))
+                # Failed items always get these display defaults
+                display_title="抓取失败",
+                is_title_weak=False,
+                raw_title=None,
+                time_label="时间未知",
+            )
+            digest.failed_items.append(delta_item)
 
         # Get all source_items for this source_key
         # We need to query more broadly to find seen/updated items

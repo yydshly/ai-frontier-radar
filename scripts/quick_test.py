@@ -549,6 +549,46 @@ def main():
     except Exception as e:
         check("_enrich_display weak title handling", False, str(e))
 
+    # 10b. Failed delta items have display defaults (no SourceItem backing)
+    try:
+        from app.db import SessionLocal
+        from app.application.fetch_runs.delta import FetchDeltaDigestService, FetchDeltaDigest
+        from unittest.mock import MagicMock
+
+        # Mock FetchRun with failed_urls
+        mock_run = MagicMock()
+        mock_run.id = 999
+        mock_run.source_key = "test_source"
+        mock_run.started_at = MagicMock()
+        mock_run.finished_at = MagicMock()
+        mock_run.metadata_json = '{"delta":{"failed_urls":[{"url":"https://fail.example.com","error":"timeout"}]}}'
+
+        # Need real db session because build_for_run also queries SourceItem table
+        db_session = SessionLocal()
+        try:
+            service = FetchDeltaDigestService(db=db_session)
+            digest = service.build_for_run(mock_run)
+
+            check("failed_count is 1 for failed_urls entry",
+                  digest.failed_count == 1,
+                  f"got {digest.failed_count}")
+            check("failed item display_title == '抓取失败'",
+                  digest.failed_items[0].display_title == "抓取失败",
+                  f"got {digest.failed_items[0].display_title!r}")
+            check("failed item time_label == '时间未知'",
+                  digest.failed_items[0].time_label == "时间未知",
+                  f"got {digest.failed_items[0].time_label!r}")
+            check("failed item is_title_weak is False",
+                  digest.failed_items[0].is_title_weak is False,
+                  f"got {digest.failed_items[0].is_title_weak}")
+            check("failed item raw_title is None",
+                  digest.failed_items[0].raw_title is None,
+                  f"got {digest.failed_items[0].raw_title!r}")
+        finally:
+            db_session.close()
+    except Exception as e:
+        check("failed delta item display defaults", False, str(e))
+
     # 10c. fetch_run_detail.html uses candidate-card layout and display fields
     tpl_frd = templates_dir / "fetch_run_detail.html"
     try:
