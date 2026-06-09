@@ -38,6 +38,8 @@ def main() -> int:
     main_py = read("app/main.py")
     background_fetch_py = read("app/application/sources/background_fetch.py")
     card_detail_html = read("app/templates/card_detail.html")
+    card_export_markdown_html = read("app/templates/card_export_markdown.html")
+    card_export_report_html = read("app/templates/card_export_report.html")
 
     print("[1] 今日雷达主链路入口")
     check("今日雷达有更新入口",
@@ -184,6 +186,16 @@ def main() -> int:
         and "内容摘要：这篇资料说了什么" in card_detail_html
         and "洞察判断：为什么值得关注" in card_detail_html,
         "完整 InsightCard 页面应与今日雷达右侧预览使用同一套语义",
+    )
+
+    print("\n[16] Markdown 导出预览页面")
+    check(
+        "导出预览显示可读文件名",
+        "download_filename" in card_export_markdown_html
+        and "download_filename" in card_export_report_html
+        and "Markdown 行动任务草稿" in card_export_markdown_html
+        and "完整 InsightCard Markdown 报告" in card_export_report_html,
+        "导出预览应显示可读文件名和导出用途",
     )
 
     print("\n" + "=" * 60)

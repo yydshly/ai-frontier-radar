@@ -92,6 +92,84 @@ def _build_card_display_data(card: InsightCard, decision_row: CardDecision | Non
     }
 
 
+# ── Markdown export filename helpers ─────────────────────────────────────────
+
+import re
+from urllib.parse import quote
+
+
+def _sanitize_filename_part(value: str | None, *, max_len: int = 48) -> str:
+    """Sanitize a string to be safe inside a filename.
+
+    Removes Windows/macOS unsafe characters, collapses whitespace,
+    and truncates to max_len.
+    """
+    if not value:
+        return "untitled"
+
+    text = " ".join(str(value).strip().split())
+    if not text:
+        return "untitled"
+
+    # Remove Windows/macOS unsafe filename characters.
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", text)
+
+    # Replace whitespace with underscore.
+    text = re.sub(r"\s+", "_", text)
+
+    # Avoid too many separators.
+    text = re.sub(r"_+", "_", text).strip("._- ")
+
+    if not text:
+        return "untitled"
+
+    if len(text) > max_len:
+        text = text[:max_len].rstrip("._- ")
+
+    return text or "untitled"
+
+
+def _build_markdown_download_filename(
+    card: InsightCard,
+    *,
+    export_kind: str,
+) -> str:
+    """Build a readable, safe download filename for InsightCard Markdown exports.
+
+    Format: YYYY-MM-DD_AI前沿雷达_{id}_{title}_{suffix}.md
+    """
+    date_part = (
+        card.created_at.strftime("%Y-%m-%d")
+        if card.created_at
+        else datetime.utcnow().strftime("%Y-%m-%d")
+    )
+
+    title_part = _sanitize_filename_part(card.source_title or "untitled", max_len=56)
+
+    suffix_map = {
+        "task": "行动任务",
+        "report": "完整报告",
+    }
+    suffix = suffix_map.get(export_kind, "导出")
+
+    return f"{date_part}_AI前沿雷达_{card.id}_{title_part}_{suffix}.md"
+
+
+def _markdown_download_headers(filename: str) -> dict[str, str]:
+    """Build Content-Disposition headers for Markdown file download.
+
+    Provides UTF-8 filename* encoding with ASCII fallback for browser compatibility.
+    """
+    ascii_fallback = "ai-frontier-radar-export.md"
+    encoded = quote(filename)
+    return {
+        "Content-Disposition": (
+            f'attachment; filename="{ascii_fallback}"; '
+            f"filename*=UTF-8''{encoded}"
+        )
+    }
+
+
 # Setup
 setup_logging()
 logger = get_logger(__name__)
@@ -772,11 +850,14 @@ def card_export_markdown(request: Request, card_id: int):
 
         markdown_text = build_action_markdown(card, decision_row, bilingual_report)
 
+        download_filename = _build_markdown_download_filename(card, export_kind="task")
+
         return templates.TemplateResponse("card_export_markdown.html", {
             "request": request,
             "card": card,
             "decision": decision_row,
             "markdown_text": markdown_text,
+            "download_filename": download_filename,
         })
     finally:
         db.close()
@@ -809,12 +890,10 @@ def card_export_markdown_download(card_id: int):
 
         markdown_text = build_action_markdown(card, decision_row, bilingual_report)
 
-        filename = f"insightcard-{card_id}-task.md"
+        filename = _build_markdown_download_filename(card, export_kind="task")
         return PlainTextResponse(
             content=markdown_text,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-            },
+            headers=_markdown_download_headers(filename),
         )
     finally:
         db.close()
@@ -946,6 +1025,8 @@ def card_export_report_preview(request: Request, card_id: int):
             "chinese_explanation": bilingual_report.chinese_explanation if bilingual_report else "",
             "fidelity_notes": fidelity_notes,
             "interpretation_boundary": interpretation_boundary,
+            # Download filename
+            "download_filename": _build_markdown_download_filename(card, export_kind="report"),
         })
     finally:
         db.close()
@@ -977,12 +1058,10 @@ def card_export_report_download(card_id: int):
 
         markdown_text = build_full_report_markdown(card, decision_row, bilingual_report)
 
-        filename = f"insightcard-{card_id}-report.md"
+        filename = _build_markdown_download_filename(card, export_kind="report")
         return PlainTextResponse(
             content=markdown_text,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-            },
+            headers=_markdown_download_headers(filename),
         )
     finally:
         db.close()

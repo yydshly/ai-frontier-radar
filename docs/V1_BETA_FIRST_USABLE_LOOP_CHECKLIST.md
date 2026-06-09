@@ -154,3 +154,18 @@ python scripts/check_sources_health.py
 - [ ] 技术洞察、产品机会、风险提醒、行动建议区块清晰
 - [ ] 双语理解在靠后位置，作为补充阅读
 - [ ] 看完后的判断和导出仍可用
+
+## 13. Markdown 导出预览验收
+
+访问 `/cards/{id}/export-markdown`：
+
+- [ ] 页面标题应为"Markdown 行动任务草稿"
+- [ ] 页面应显示即将下载的文件名
+- [ ] Markdown 预览应自动换行，易读
+- [ ] 下载文件名应包含日期、AI前沿雷达、card id、标题和"行动任务"
+
+访问 `/cards/{id}/export-report`：
+
+- [ ] 页面标题应为"完整 InsightCard Markdown 报告"
+- [ ] 页面应显示即将下载的文件名
+- [ ] 下载文件名应包含日期、AI前沿雷达、card id、标题和"完整报告"

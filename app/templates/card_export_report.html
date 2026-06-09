@@ -5,19 +5,39 @@
 {% block main_class %}{% endblock %}
 
 {% block content %}
+        <section class="export-preview-hero">
+            <h1>完整 InsightCard Markdown 报告</h1>
+            <p>用于长期归档、复盘和二次整理，包含内容摘要、洞察判断、技术/产品/风险/行动建议和补充阅读。</p>
+        </section>
+
+        <section class="export-preview-meta">
+            <div>
+                <span class="export-preview-label">来源标题</span>
+                <span class="export-preview-value">{{ source_title }}</span>
+            </div>
+            <div>
+                <span class="export-preview-label">文件名</span>
+                <code>{{ download_filename }}</code>
+            </div>
+            <div>
+                <span class="export-preview-label">导出类型</span>
+                <span class="export-preview-value">完整 Markdown 报告</span>
+            </div>
+        </section>
+
         <div class="report-download-actions">
-            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">📥 下载完整 Markdown 报告</a>
-            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回详情页</a>
+            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">📥 下载：完整 Markdown 报告</a>
+            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回完整 InsightCard</a>
             <a href="/cards" class="btn-secondary">返回列表</a>
         </div>
 
         <p class="report-page-desc">
-            这是根据当前 InsightCard 生成的结构化阅读页。下载按钮会导出原始 Markdown 文件。
+            这是完整 InsightCard 的结构化报告预览。下载后将保存为 Markdown 文件，适合归档、复盘或继续编辑。
         </p>
 
         <!-- ── 报告头部 ─────────────────────────────── -->
         <div class="report-header-card">
-            <h1 class="report-title">AI 前沿资料编译报告</h1>
+            <h1 class="report-title">完整 InsightCard 报告</h1>
             <h2 class="report-source-title">{{ source_title }}</h2>
             <div class="report-meta-grid">
                 <div class="report-meta-item">
@@ -161,8 +181,8 @@
         </div>
 
         <div class="report-download-actions">
-            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">📥 下载完整 Markdown 报告</a>
-            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回详情页</a>
+            <a href="/cards/{{ card.id }}/export-report/download" class="btn-primary">📥 下载：完整 Markdown 报告</a>
+            <a href="/cards/{{ card.id }}" class="btn-secondary">← 返回完整 InsightCard</a>
             <a href="/cards" class="btn-secondary">返回列表</a>
         </div>
 {% endblock %}

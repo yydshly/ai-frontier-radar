@@ -82,6 +82,15 @@
 - 双语理解降级为补充阅读，位于洞察区块之后
 - 底部保留个人判断和导出能力
 
+### 3.6 Markdown 导出预览和文件名
+
+- Markdown 下载文件名格式：`YYYY-MM-DD_AI前沿雷达_{id}_{标题}_{行动任务/完整报告}.md`
+- 文件名包含日期、项目名、card id、来源标题、导出类型，便于长期整理
+- Content-Disposition 支持 UTF-8 filename* 编码，同时提供 ASCII fallback 兼容旧浏览器
+- 任务草稿预览页显示"Markdown 行动任务草稿"定位和即将下载的文件名
+- 完整报告预览页显示"完整 InsightCard Markdown 报告"定位和即将下载的文件名
+- Markdown 预览使用自动换行（white-space: pre-wrap），提升可读性
+
 ## 4. 当前非目标
 
 当前不做：

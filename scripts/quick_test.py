@@ -3033,6 +3033,47 @@ def main():
     except Exception as e:
         check("Complete InsightCard page V1.0-beta checks", False, str(e))
 
+    # ── 21. Markdown export: filenames and preview pages ───────────────────────
+    print("\n[21] Markdown export filenames and preview pages")
+    try:
+        main_py = (Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
+        card_export_markdown_html = (templates_dir / "card_export_markdown.html").read_text(encoding="utf-8")
+        card_export_report_html = (templates_dir / "card_export_report.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("markdown download filename helper exists",
+              "def _build_markdown_download_filename" in main_py
+              and "_sanitize_filename_part" in main_py,
+              "download filenames should be readable and safe")
+
+        check("markdown download supports utf8 content disposition",
+              "filename*=UTF-8''" in main_py
+              and "quote(filename)" in main_py,
+              "download headers should support UTF-8 filenames")
+
+        check("markdown download no longer uses dumb filenames",
+              'insightcard-{card_id}-task.md' not in main_py
+              and 'insightcard-{card_id}-report.md' not in main_py,
+              "download filenames should include date/title/export kind")
+
+        check("export markdown preview shows filename",
+              "download_filename" in card_export_markdown_html
+              and "Markdown 行动任务草稿" in card_export_markdown_html,
+              "task export preview should show readable filename and purpose")
+
+        check("export report preview shows filename",
+              "download_filename" in card_export_report_html
+              and "完整 InsightCard Markdown 报告" in card_export_report_html,
+              "report export preview should show readable filename and purpose")
+
+        check("export preview styles exist",
+              ".export-preview-hero" in style_css
+              and ".export-preview-meta" in style_css
+              and ".markdown-body-readable" in style_css,
+              "export preview pages should have readable formatting styles")
+    except Exception as e:
+        check("Markdown export filenames and preview pages", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
