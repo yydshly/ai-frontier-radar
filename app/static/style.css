@@ -4332,6 +4332,27 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     font-size: 0.86rem;
 }
 
+.radar-update-result-title {
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+
+.radar-update-result-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1rem;
+    line-height: 1.5;
+}
+
+.radar-update-reasons {
+    margin-top: 0.4rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed #b6e3ff;
+    color: #4b5c6b;
+    font-size: 0.82rem;
+    word-break: break-all;
+}
+
 /* ── Fetch run summary in today radar sidebar ─────────────────────── */
 .radar-fetch-summary {
     margin-top: 0.9rem;

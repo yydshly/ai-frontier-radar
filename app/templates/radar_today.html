@@ -185,6 +185,28 @@
                 </nav>
                 </div>{# <!-- /.radar-main-toolbar --> #}
                 {% if update_result %}
+                {% if update_result.plan_source == "due_sources_v1" %}
+                {# ── V1.0-beta.1 due-source plan summary ──────────────────────── #}
+                <div class="radar-update-result">
+                    <div class="radar-update-result-title">本轮更新计划</div>
+                    <div class="radar-update-result-grid">
+                        <span>配置来源：{{ update_result.total }}</span>
+                        <span>到期来源：{{ update_result.due }}</span>
+                        <span>已启动：{{ update_result.started }}</span>
+                        <span>跳过：{{ update_result.skipped }}</span>
+                        <span>运行中：{{ update_result.running }}</span>
+                        <span>不支持：{{ update_result.unsupported }}</span>
+                        <span>缺失：{{ update_result.missing }}</span>
+                        {% if update_result.failed %}
+                        <span>启动失败：{{ update_result.failed }}</span>
+                        {% endif %}
+                    </div>
+                    {% if update_result.reason_summary %}
+                    <div class="radar-update-reasons">跳过原因：{{ update_result.reason_summary }}</div>
+                    {% endif %}
+                </div>
+                {% else %}
+                {# ── Legacy update-result block (kept for backwards compatibility) ── #}
                 <div class="radar-update-result">
                     今日雷达更新已启动：
                     唯一来源 {{ update_result.unique_sources }} 个，
@@ -201,6 +223,7 @@
                     检测到重复来源行 {{ update_result.duplicate_sources }} 条，已按 source_key 去重处理。
                     {% endif %}
                 </div>
+                {% endif %}
                 {% endif %}
                 {% if summary_result %}
                 <div class="radar-summary-result">

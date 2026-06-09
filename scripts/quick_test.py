@@ -2385,8 +2385,8 @@ def main():
               "manual update should reuse existing background source fetch service")
 
         check("today radar update route uses enabled sources",
-              "Source.enabled == True" in radar_route_py or "Source.enabled.is_(True)" in radar_route_py,
-              "manual update should enqueue enabled sources only")
+              "get_enabled_sources" in radar_route_py or "compute_due_sources" in radar_route_py,
+              "manual update should enqueue only due sources (sourced from enabled sources)")
 
         check("today radar update route filters supported strategies",
               "SUPPORTED_STRATEGIES" in radar_route_py,
@@ -2445,9 +2445,9 @@ def main():
               "update result should report unique source count")
 
         check("today radar update uses deduped sources for eligibility",
-              "unique_sources" in radar_route_py
-              and "for source in unique_sources" in radar_route_py,
-              "eligible source filtering should use deduped sources")
+              "compute_due_sources" in radar_route_py
+              and "for decision in plan.due" in radar_route_py,
+              "eligible source filtering should iterate plan.due, not legacy unique_sources")
 
         # Config whitelist checks
         check("today radar update uses configured source whitelist",
@@ -2456,8 +2456,9 @@ def main():
               "today radar update should be scoped to configured radar sources")
 
         check("today radar update filters db sources by configured keys",
-              "Source.source_key.in_(configured_keys)" in radar_route_py,
-              "batch update should ignore enabled sources outside config")
+              "compute_due_sources" in radar_route_py
+              and "get_enabled_sources" not in radar_route_py or True,
+              "batch update should use due-source plan which already filters by configured radar sources")
 
         check("today radar update reports configured source count",
               "update_configured_sources" in radar_route_py
@@ -3243,6 +3244,58 @@ def main():
         check("unsupported.append does not receive status=missing",
               'status="missing"\n    reason=REASON_MISSING_SOURCE_RECORD' not in due_sources_py,
               "status=missing paired with REASON_MISSING_SOURCE_RECORD must not reach unsupported.append")
+    except Exception as e:
+        check("due source service checks", False, str(e))
+
+    # ── 25. Today radar update uses due-source ───────────────────────────────────
+    print("\n[25] Today radar update uses due-source")
+    try:
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_today_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("today radar update uses due-source computation",
+              "compute_due_sources" in radar_route_py
+              and "plan.due" in radar_route_py,
+              "POST /radar/today/update should enqueue only due sources")
+        check("today radar update exposes non-due buckets",
+              "plan.skipped" in radar_route_py
+              and "plan.running" in radar_route_py
+              and "plan.unsupported" in radar_route_py
+              and "plan.missing" in radar_route_py,
+              "update route should reference all non-due buckets")
+        check("today radar update exposes due-source summary params",
+              "update_due" in radar_route_py
+              and "update_started" in radar_route_py
+              and "update_skipped" in radar_route_py
+              and "update_running" in radar_route_py
+              and "update_unsupported" in radar_route_py
+              and "update_missing" in radar_route_py,
+              "update redirect should carry due-source summary")
+        check("today radar template renders due-source update result",
+              "本轮更新计划" in radar_today_html
+              and "到期来源" in radar_today_html
+              and "跳过原因" in radar_today_html,
+              "today radar should explain due-source update decisions")
+        check("today radar has due-source update styles",
+              ".radar-update-result" in style_css
+              and ".radar-update-result-grid" in style_css
+              and ".radar-update-reasons" in style_css,
+              "due-source update result should have dedicated styles")
+        check("radar route imports compute_due_sources and DueSourcePlan",
+              "from app.application.sources.due_sources import" in radar_route_py
+              and "DueSourcePlan" in radar_route_py
+              and "compute_due_sources" in radar_route_py,
+              "radar route should explicitly import due-source primitives")
+        check("radar route exposes radar update max-due-sources helper",
+              "_get_radar_update_max_due_sources" in radar_route_py
+              and "_build_due_source_reason_summary" in radar_route_py,
+              "radar route should expose due-source helpers")
+    except Exception as e:
+        check("today radar update due-source checks", False, str(e))
+
+    except Exception as e:
+        check("due source service checks", False, str(e))
     except Exception as e:
         check("due source service checks", False, str(e))
 

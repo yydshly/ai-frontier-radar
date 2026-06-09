@@ -10,9 +10,15 @@ V1.0-beta.1 的目标是让系统从"手动跑通"升级为"可持续运行"。
 
 V1.0-beta.1 分两个阶段推进：
 
-- **第一阶段（本次）**：只读 due-source 计算服务 `compute_due_sources()`。
-  它判断哪些来源该探测、哪些该跳过、哪些已在运行，但**不触发抓取、不写数据库、不改变今日雷达 update 行为**。
-- **第二阶段**：接入 `/radar/today/update`，让今日雷达真正使用 due-source 结果。
+- **第一阶段 ✅ 已实现**：只读 due-source 计算服务 `compute_due_sources()`。
+  它判断哪些来源该探测、哪些该跳过、哪些已在运行，但**不触发抓取、不写数据库**。
+- **第二阶段 ✅ 已实现**：`/radar/today/update` 接入 due-source 计划。
+  用户点击"更新今日雷达"后，后端先计算 due-source 计划，只 enqueue `plan.due` 中的来源。
+  `skipped` / `running` / `unsupported` / `missing` 来源不会被 enqueue。
+  页面显示本轮更新计划摘要与跳过原因汇总（如 `not_due_yet:8,already_running:2`）。
+
+> `/radar/today/update` 当前仍是手动触发，但已从"全量运行雷达关注源"升级为"运行 due sources"。
+> 这不是定时任务，也不是后台调度器，而是手动触发下的调度策略。
 
 ### 当前不是做
 

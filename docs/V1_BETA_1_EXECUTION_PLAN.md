@@ -60,23 +60,36 @@ class DueSourcePlan:
 
 ---
 
-### Task 2：今日雷达更新入口接入 due-source
+### Task 2：今日雷达更新入口接入 due-source ✅ 已实现
 
 **范围**：
-- 修改 `/radar/today` 的 update 按钮逻辑
-- 先调用 due-source 计算
-- 只 enqueue due sources
-- 页面显示 skipped reason summary
+- 修改 `/radar/today/update` 的 POST 路由
+- 先调用 `compute_due_sources()` 计算计划
+- 只 enqueue `plan.due` 中的来源
+- 页面显示本轮更新计划（due / skipped / running / unsupported / missing）和跳过原因
+
+**实现产物**：
+- `app/routes/radar.py`：
+  - 新增 `_get_radar_update_max_due_sources()` helper（默认 30，env `RADAR_UPDATE_MAX_DUE_SOURCES`）
+  - 新增 `_build_due_source_reason_summary()` helper
+  - 新增 `_parse_int_query()` helper（虽然 GET 路由仍用 FastAPI Query 验证，这里备用）
+  - `update_today_radar()` 重写为基于 due-source 计划
+- `app/templates/radar_today.html`：新增 V1.0-beta.1 本轮更新计划区块
+- `app/static/style.css`：新增 `.radar-update-result-title` / `.radar-update-result-grid` / `.radar-update-reasons`
 
 **不修改**：
 - FetchRun 探测逻辑本身
 - Source 表结构
-- config 来源配置
+- `SourceFetchBackgroundService` 抓取逻辑
+- 自动中文摘要生成流程
 
 **验收**：
-- 未到期来源不会重复探测
-- running 来源不会重复 enqueue
-- 页面显示跳过数量和原因（如"5 个来源未到期"）
+- 未到期来源不会重复 enqueue（reason = `not_due_yet`）
+- running 来源不会重复 enqueue（reason = `already_running`）
+- 不支持策略来源不会 enqueue（reason = `unsupported_strategy`）
+- DB 中无对应 Source 的来源不会 enqueue（reason = `missing_source_record`）
+- 页面显示 due / started / skipped / running / unsupported / missing 数量
+- 页面显示跳过原因汇总（如 `not_due_yet:8,already_running:2`）
 
 ---
 
