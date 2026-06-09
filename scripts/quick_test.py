@@ -743,6 +743,186 @@ def main():
     except Exception as e:
         check("_finish_run_as_failed source=None safety", False, str(e))
 
+    # ── 12. FetchRun display polish: test-source hiding and error display ──
+    print("\n[12] FetchRun display polish")
+
+    # 12a. is_test_source_key helper
+    try:
+        from app.routes.fetch_runs import is_test_source_key
+        check("is_test_source_key('orphan_key') is True",
+              is_test_source_key("orphan_key") is True)
+        check("is_test_source_key('test_sync_enq_xxx') is True",
+              is_test_source_key("test_sync_enq_xxx") is True)
+        check("is_test_source_key('test_abc') is True",
+              is_test_source_key("test_abc") is True)
+        check("is_test_source_key('openai_news') is False",
+              is_test_source_key("openai_news") is False)
+        check("is_test_source_key(None) is False",
+              is_test_source_key(None) is False)
+        check("is_test_source_key('') is False",
+              is_test_source_key("") is False)
+        check("is_test_source_key('arXiv_cs_ai') is False",
+              is_test_source_key("arXiv_cs_ai") is False)
+    except Exception as e:
+        check("is_test_source_key helper", False, str(e))
+
+    # 12b. get_fetch_run_error_display helper — uses a mock-like object
+    try:
+        from app.routes.fetch_runs import get_fetch_run_error_display
+        from dataclasses import dataclass
+
+        @dataclass
+        class MockRun:
+            status: str
+            error_message: str | None
+
+        r1 = MockRun(status="failed", error_message="HTTP 404")
+        check("error_message present → returned as-is",
+              get_fetch_run_error_display(r1) == "HTTP 404")
+
+        r2 = MockRun(status="failed", error_message=None)
+        check("failed + no error_message → fallback msg",
+              "失败原因缺失" in get_fetch_run_error_display(r2))
+
+        r3 = MockRun(status="partial_failed", error_message=None)
+        check("partial_failed + no error_message → partial fallback",
+              "部分失败原因缺失" in get_fetch_run_error_display(r3))
+
+        r4 = MockRun(status="success", error_message=None)
+        check("success + no error_message → '-'",
+              get_fetch_run_error_display(r4) == "-")
+
+        r5 = MockRun(status="running", error_message=None)
+        check("running + no error_message → '-'",
+              get_fetch_run_error_display(r5) == "-")
+    except Exception as e:
+        check("get_fetch_run_error_display helper", False, str(e))
+
+    # 12c. get_fetch_run_error_hint helper
+    try:
+        from app.routes.fetch_runs import get_fetch_run_error_hint
+
+        check("HTTP 404 → URL expired hint",
+              "URL" in get_fetch_run_error_hint("HTTP 404 Not Found") and "失效" in get_fetch_run_error_hint("HTTP 404 Not Found"))
+        check("Timeout → timeout hint",
+              "超时" in get_fetch_run_error_hint("Connection Timeout"))
+        check("No candidate article links found → no articles hint",
+              "文章链接" in get_fetch_run_error_hint("No candidate article links found on page"))
+        check("unsupported fetch_strategy → strategy hint",
+              "抓取策略" in get_fetch_run_error_hint("unsupported fetch_strategy"))
+        check("unknown error → None (no specific hint)",
+              get_fetch_run_error_hint("Some unknown error") is None)
+        check("None input → None",
+              get_fetch_run_error_hint(None) is None)
+    except Exception as e:
+        check("get_fetch_run_error_hint helper", False, str(e))
+
+    # 12d. Repository list_runs excludes test sources by default
+    try:
+        from app.db import SessionLocal
+        from app.models import FetchRun, Source
+        from datetime import datetime
+
+        db_session = SessionLocal()
+        try:
+            # Create a real Source to satisfy source_id NOT NULL constraint
+            import uuid
+            test_real_key = f"test_real_filter_{uuid.uuid4().hex[:8]}"
+            src = Source(
+                source_key=test_real_key,
+                name="Test Real Source",
+                description="Test",
+                source_type="rss",
+                homepage_url="https://example.com/news",
+                feed_url="https://example.com/news/rss",
+                category="test",
+                tags_json="[]",
+                enabled=True,
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+            )
+            db_session.add(src)
+            db_session.commit()
+            db_session.refresh(src)
+
+            # Create test FetchRuns
+            test_run = FetchRun(
+                source_id=src.id,
+                source_key="test_abc123",
+                run_type="manual",
+                status="success",
+                started_at=datetime.utcnow(),
+                finished_at=datetime.utcnow(),
+            )
+            orphan_run = FetchRun(
+                source_id=src.id,
+                source_key="orphan_key",
+                run_type="manual",
+                status="success",
+                started_at=datetime.utcnow(),
+                finished_at=datetime.utcnow(),
+            )
+            real_run = FetchRun(
+                source_id=src.id,
+                source_key=test_real_key,
+                run_type="manual",
+                status="success",
+                started_at=datetime.utcnow(),
+                finished_at=datetime.utcnow(),
+            )
+            db_session.add_all([test_run, orphan_run, real_run])
+            db_session.commit()
+
+            from app.infrastructure.repositories.fetch_run_repository import FetchRunRepository
+            repo = FetchRunRepository(db_session)
+
+            # exclude_test_sources=True (default) → test sources excluded
+            result = repo.list_runs(exclude_test_sources=True)
+            source_keys = {r.source_key for r in result.items}
+            check("exclude_test_sources=True hides test_*",
+                  all(not k.startswith("test_") for k in source_keys),
+                  f"got: {source_keys}")
+            check("exclude_test_sources=True hides orphan_key",
+                  "orphan_key" not in source_keys,
+                  f"got: {source_keys}")
+            # Verify some non-test source keys are present (DB already has real sources)
+            non_test_keys = {k for k in source_keys if k != "orphan_key" and not k.startswith("test_")}
+            check("exclude_test_sources=True keeps non-test sources",
+                  len(non_test_keys) > 0,
+                  f"got: {source_keys}")
+
+            # exclude_test_sources=False → all included
+            result2 = repo.list_runs(exclude_test_sources=False)
+            source_keys2 = {r.source_key for r in result2.items}
+            check("exclude_test_sources=False includes test_*",
+                  any(k.startswith("test_") for k in source_keys2))
+            check("exclude_test_sources=False includes orphan_key",
+                  "orphan_key" in source_keys2)
+        finally:
+            db_session.rollback()
+            db_session.close()
+    except Exception as e:
+        check("Repository exclude_test_sources filtering", False, str(e))
+
+    # 12e. TestClient: /fetch-runs defaults to hiding test records
+    try:
+        resp = client.get("/fetch-runs")
+        check("GET /fetch-runs returns 200", resp.status_code == 200)
+        check("/fetch-runs default hides test records (shows banner)",
+              "已隐藏测试运行记录" in resp.text or "显示测试记录" in resp.text)
+    except Exception as e:
+        check("/fetch-runs default hides test records", False, str(e))
+
+    # 12f. TestClient: /fetch-runs?include_test=1 shows test records
+    try:
+        resp2 = client.get("/fetch-runs?include_test=1")
+        check("GET /fetch-runs?include_test=1 returns 200", resp2.status_code == 200)
+        check("include_test=1 shows test records banner",
+              "包括测试运行记录" in resp2.text or "隐藏测试记录" in resp2.text)
+    except Exception as e:
+        check("/fetch-runs?include_test=1 shows test records", False, str(e))
+
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

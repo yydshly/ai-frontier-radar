@@ -5144,8 +5144,8 @@ def test_v10_alpha43_real_acceptance_doc_exists():
     print("[OK] docs/V1.0_ALPHA_4_3_REAL_BROWSER_AND_CI_ACCEPTANCE.md exists with required content")
 
 
-def test_v10_alpha5_release_docs_exist():
-    """Test that V1.0-alpha.5 release docs exist."""
+def test_v10_beta_release_docs_exist():
+    """Test that V1.0-beta release docs exist."""
     from pathlib import Path
 
     # RELEASE_NOTES.md at root
@@ -5153,7 +5153,7 @@ def test_v10_alpha5_release_docs_exist():
     assert release_notes.exists(), "RELEASE_NOTES.md should exist"
 
     release_notes_text = release_notes.read_text(encoding="utf-8")
-    assert "V1.0-alpha" in release_notes_text, "RELEASE_NOTES.md should mention V1.0-alpha"
+    assert "V1.0" in release_notes_text, "RELEASE_NOTES.md should mention V1.0"
     assert "当前可用能力" in release_notes_text, "RELEASE_NOTES.md should have 当前可用能力 section"
 
     # docs/RELEASE_CHECKLIST.md
@@ -5172,13 +5172,13 @@ def test_v10_alpha5_release_docs_exist():
     assert "Known Limitations" in limitations_text or "限制" in limitations_text, \
         "KNOWN_LIMITATIONS.md should exist"
 
-    # README should have RC section
+    # README should have V1.0-beta section
     readme_path = Path(__file__).parent.parent / "README.md"
     readme_text = readme_path.read_text(encoding="utf-8")
-    assert "V1.0-alpha Release Candidate" in readme_text, \
-        "README.md should have V1.0-alpha Release Candidate section"
+    assert "V1.0-beta" in readme_text, \
+        "README.md should have V1.0-beta section"
 
-    print("[OK] V1.0-alpha.5 release docs exist: RELEASE_NOTES.md, RELEASE_CHECKLIST.md, KNOWN_LIMITATIONS.md, RC section in README")
+    print("[OK] V1.0-beta release docs exist: RELEASE_NOTES.md, RELEASE_CHECKLIST.md, KNOWN_LIMITATIONS.md, V1.0-beta section in README")
 
 
 def test_v10_alpha5_release_candidate_script_exists():
@@ -7222,18 +7222,19 @@ def test_v10_beta4_fetch_runs_page():
         db.commit()
         db.refresh(run)
 
-        response = client.get("/fetch-runs", follow_redirects=True)
+        # Use include_test=1 because test_fetch_* keys are filtered by default
+        response = client.get("/fetch-runs?include_test=1", follow_redirects=True)
         assert response.status_code == 200, \
-            f"GET /fetch-runs failed: {response.status_code}"
+            f"GET /fetch-runs?include_test=1 failed: {response.status_code}"
         text = response.text
 
         # Page title
         assert "来源探测运行" in text or "FetchRun" in text, \
             "Page should mention '来源探测运行' or 'FetchRun'"
 
-        # Run data appears
+        # Run data appears (visible with include_test=1)
         assert test_key in text, \
-            f"source_key '{test_key}' should appear on page"
+            f"source_key '{test_key}' should appear on page with include_test=1"
 
         # Links present
         assert f"/fetch-runs/{run.id}" in text, \
@@ -7294,19 +7295,19 @@ def test_v10_beta4_fetch_runs_filter():
         db.add_all([success_run, failed_run])
         db.commit()
 
-        # Filter by source_key
-        response = client.get(f"/fetch-runs?source_key={test_key}", follow_redirects=True)
+        # Filter by source_key (include_test=1 because test_filter_* keys are filtered by default)
+        response = client.get(f"/fetch-runs?source_key={test_key}&include_test=1", follow_redirects=True)
         assert response.status_code == 200
         text = response.text
         assert test_key in text
-        print(f"[OK] /fetch-runs?source_key={test_key} filter works")
+        print(f"[OK] /fetch-runs?source_key={test_key}&include_test=1 filter works")
 
-        # Filter by status=failed
-        response = client.get("/fetch-runs?status=failed", follow_redirects=True)
+        # Filter by status=failed (include_test=1 to see test source failures)
+        response = client.get("/fetch-runs?status=failed&include_test=1", follow_redirects=True)
         assert response.status_code == 200
         text = response.text
         assert "Connection timeout" in text or "failed" in text.lower()
-        print("[OK] /fetch-runs?status=failed filter works")
+        print("[OK] /fetch-runs?status=failed&include_test=1 filter works")
 
     finally:
         db.rollback()
@@ -10052,8 +10053,8 @@ if __name__ == "__main__":
     # V1.0-alpha.4.3 real browser and CI acceptance
     test_v10_alpha43_real_acceptance_doc_exists()
 
-    # V1.0-alpha.5 release candidate cleanup
-    test_v10_alpha5_release_docs_exist()
+    # V1.0-beta release docs
+    test_v10_beta_release_docs_exist()
     test_v10_alpha5_release_candidate_script_exists()
     test_v10_alpha5_real_acceptance_doc_corrected()
 

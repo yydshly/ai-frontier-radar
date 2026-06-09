@@ -14,6 +14,16 @@
             <p>这里展示每次信息来源探测运行记录，用于查看每次抓取结果、新增内容和失败原因。</p>
         </div>
 
+        {% if show_test_toggle and not include_test %}
+        <div class="usage-guide" style="background: #fff3e0; border-left: 4px solid #e65100; margin-bottom: 1rem;">
+            <p>已隐藏测试运行记录。<a href="{{ include_test_url }}">显示测试记录</a></p>
+        </div>
+        {% elif show_test_toggle and include_test %}
+        <div class="usage-guide" style="background: #f3e5f5; border-left: 4px solid #7b1fa2; margin-bottom: 1rem;">
+            <p>当前显示包括测试运行记录。<a href="{{ include_test_url }}">隐藏测试记录</a></p>
+        </div>
+        {% endif %}
+
         <!-- Filter bar -->
         <div class="filter-bar">
             <form method="get" action="/fetch-runs" class="filter-form">
@@ -90,9 +100,10 @@
                         <td>{{ run.items_updated if run.items_updated is not none else 0 }}</td>
                         <td>{{ run.items_failed if run.items_failed is not none else 0 }}</td>
                         <td class="error-cell">
-                            {% if run.error_message %}
-                            <span class="error-msg" title="{{ run.error_message }}">
-                                {{ run.error_message[:50] }}{% if run.error_message|length > 50 %}...{% endif %}
+                            {% set error_display = get_fetch_run_error_display(run) %}
+                            {% if error_display != '-' %}
+                            <span class="error-msg" title="{{ get_fetch_run_error_hint(run.error_message) or error_display }}">
+                                {{ error_display[:50] }}{% if error_display|length > 50 %}...{% endif %}
                             </span>
                             {% else %}
                             -

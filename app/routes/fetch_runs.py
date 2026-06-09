@@ -39,6 +39,78 @@ def get_status_display(status: str | None) -> str:
     return FETCH_RUN_STATUS_LABELS.get(status, status)
 
 
+# ── Test source identification ─────────────────────────────────────────────────
+
+_TEST_SOURCE_PATTERNS = (
+    "test_sync_enq_",
+    "test_",
+    "orphan_key",
+)
+
+
+def is_test_source_key(source_key: str | None) -> bool:
+    """Return True if source_key is a test/source key that should be hidden by default.
+
+    Rules:
+    - None/empty → False (real source with no key)
+    - "orphan_key" → True
+    - starts with "test_sync_enq_" → True
+    - starts with "test_" → True
+    """
+    if not source_key:
+        return False
+    if source_key == "orphan_key":
+        return True
+    for pattern in _TEST_SOURCE_PATTERNS:
+        if source_key.startswith(pattern):
+            return True
+    return False
+
+
+# ── Error display helpers ──────────────────────────────────────────────────────
+
+def get_fetch_run_error_display(run) -> str:
+    """Return a human-readable error message for a failed FetchRun.
+
+    Rules:
+    - run.error_message has value → return it
+    - run.status == 'failed' and no error_message → fallback message
+    - run.status == 'partial_failed' and no error_message → partial fallback
+    - otherwise → "-"
+    """
+    if run.error_message:
+        return run.error_message
+    if run.status == "failed":
+        return "失败原因缺失，可能是旧版本运行记录；建议重新运行探测。"
+    if run.status == "partial_failed":
+        return "部分失败原因缺失，建议查看详情或重新运行探测。"
+    return "-"
+
+
+def get_fetch_run_error_hint(error_message: str | None) -> str | None:
+    """Return a human-readable hint for a given error message, or None if no specific hint.
+
+    Rules:
+    - contains "HTTP 404" → source URL may be expired
+    - contains "Timeout" → source timed out, retry later
+    - contains "No candidate article links found" → no articles found, may need rule adjustment
+    - contains "unsupported fetch_strategy" → unsupported strategy
+    - otherwise → None (no specific hint)
+    """
+    if not error_message:
+        return None
+    msg = error_message.lower()
+    if "http 404" in msg or "404 not found" in msg:
+        return "来源 URL 可能失效，请检查配置中的 homepage_url/feed_url。"
+    if "timeout" in msg:
+        return "来源响应超时，可稍后重试或增加超时时间。"
+    if "no candidate article links found" in msg:
+        return "页面可访问，但未识别到文章链接，可能需要调整抓取规则。"
+    if "unsupported fetch_strategy" in msg:
+        return "当前来源抓取策略不支持，请改为 rss 或 html_index。"
+    return None
+
+
 def is_safe_external_url(url: str | None) -> bool:
     """Check if a URL is a safe external URL (http/https only, strict allowlist).
 
@@ -132,16 +204,19 @@ def fetch_runs_page(
     status: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    include_test: int = Query(0, ge=0, le=1),
 ):
     """Display FetchRun list with filters and pagination."""
     db = next(get_db())
     try:
+        exclude_test = not bool(include_test)
         service = FetchRunService(db)
         result_page = service.list_runs(
             source_key=source_key,
             status=status,
             page=page,
             page_size=page_size,
+            exclude_test_sources=exclude_test,
         )
 
         # Get all distinct source_keys for the filter dropdown
@@ -152,6 +227,15 @@ def fetch_runs_page(
             .group_by(FetchRun.source_key)
             .order_by(FetchRun.source_key)
             .all()
+        )
+
+        # Build the include_test toggle URL
+        include_test_url = "/fetch-runs?" + "&".join(
+            p for p in [
+                f"include_test={1 - include_test}" if include_test else "include_test=1",
+                f"source_key={_escape(source_key)}" if source_key else None,
+                f"status={_escape(status)}" if status else None,
+            ] if p
         )
 
         return _fetch_runs_templates.TemplateResponse(
@@ -168,7 +252,12 @@ def fetch_runs_page(
                 "source_keys": source_keys,
                 "filter_source_key": source_key,
                 "filter_status": status,
+                "show_test_toggle": True,
+                "include_test": bool(include_test),
+                "include_test_url": include_test_url,
                 "get_status_display": get_status_display,
+                "get_fetch_run_error_display": get_fetch_run_error_display,
+                "get_fetch_run_error_hint": get_fetch_run_error_hint,
                 "build_pagination_url": lambda p, ps: _build_pagination_url(request, p, ps),
             },
         )

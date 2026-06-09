@@ -53,6 +53,7 @@ class FetchRunService:
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        exclude_test_sources: bool = True,
     ) -> FetchRunPage:
         """List fetch runs with filters and pagination.
 
@@ -61,6 +62,7 @@ class FetchRunService:
             status: Filter by run status
             page: Page number (1-indexed)
             page_size: Items per page (max 100)
+            exclude_test_sources: If True, exclude test/orphan source keys (default True)
 
         Returns:
             FetchRunPage with runs and pagination metadata
@@ -70,6 +72,7 @@ class FetchRunService:
             status=status,
             page=page,
             page_size=page_size,
+            exclude_test_sources=exclude_test_sources,
         )
 
     def get_run_detail(self, run_id: int) -> FetchRunDetail | None:

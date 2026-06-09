@@ -46,6 +46,7 @@ class FetchRunRepository:
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        exclude_test_sources: bool = True,
     ) -> FetchRunPage:
         """List FetchRun records with optional filters and pagination.
 
@@ -54,6 +55,7 @@ class FetchRunRepository:
             status: Filter by run status
             page: Page number (1-indexed)
             page_size: Items per page (max 100)
+            exclude_test_sources: If True, exclude test/orphan source keys (default True)
 
         Returns:
             FetchRunPage with items and pagination metadata
@@ -69,6 +71,16 @@ class FetchRunRepository:
 
         if status:
             query = query.filter(FetchRun.status == status)
+
+        if exclude_test_sources:
+            from sqlalchemy import not_, or_
+            # Build exclusion: "orphan_key", "test_*", "test_sync_enq_*"
+            exclusion_conditions = [
+                FetchRun.source_key == "orphan_key",
+                FetchRun.source_key.like("test_sync_enq_%"),
+                FetchRun.source_key.like("test_%"),
+            ]
+            query = query.filter(not_(or_(*exclusion_conditions)))
 
         # Get total count before pagination
         total = query.count()
