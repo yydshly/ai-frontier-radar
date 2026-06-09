@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 
 from app.db import SessionLocal
 from app.models import Source, FetchRun
+from app.application.sources.fetch_service import (
+    get_source_fetch_max_items_per_run,
+    build_source_fetch_limit_metadata,
+)
 
 
 # Time window for duplicate-running protection (10 minutes)
@@ -159,13 +163,14 @@ def run_source_fetch_in_background(run_id: int) -> None:
             return
 
         # Call the appropriate probe
+        max_items = get_source_fetch_max_items_per_run()
         try:
             if strategy == "rss":
                 from app.sources.rss_probe import probe_rss_source
-                probe_result = probe_rss_source(db, source, timeout_seconds=20)
+                probe_result = probe_rss_source(db, source, timeout_seconds=20, max_items=max_items)
             elif strategy == "html_index":
                 from app.sources.html_index_probe import probe_html_index_source
-                probe_result = probe_html_index_source(db, source, timeout_seconds=20)
+                probe_result = probe_html_index_source(db, source, timeout_seconds=20, max_items=max_items)
             else:
                 # Should not reach here due to check above
                 probe_result = {
@@ -249,14 +254,20 @@ def run_source_fetch_in_background(run_id: int) -> None:
             if not fetch_run.error_message:
                 fetch_run.error_message = error_message
 
-        # Write delta to metadata_json
+        # Build source_fetch_limit metadata
+        source_fetch_limit = build_source_fetch_limit_metadata(
+            probe_result, max_items, items_found
+        )
+
+        # Write delta and source_fetch_limit to metadata_json
         fetch_run.metadata_json = _json.dumps({
             "delta": {
                 "new_ids": new_ids,
                 "seen_ids": seen_ids,
                 "updated_ids": updated_ids,
                 "failed_urls": [],
-            }
+            },
+            "source_fetch_limit": source_fetch_limit,
         }, ensure_ascii=False)
 
         db.commit()
@@ -275,23 +286,41 @@ def run_source_fetch_in_background(run_id: int) -> None:
 
 
 def _finish_run_as_failed(
-    db, fetch_run: FetchRun, source: Source | None, error_message: str
+    db,
+    fetch_run: FetchRun,
+    source: Source | None,
+    error_message: str,
+    source_fetch_limit: dict | None = None,
 ) -> None:
     """Mark a FetchRun as failed and update Source timestamps.
 
     Handles source=None gracefully (source may have been deleted between enqueue and now).
+
+    Args:
+        source_fetch_limit: If provided, will be written to metadata_json. If None,
+            a default "not executed" limit will be written.
     """
     import json as _json
     fetch_run.status = "failed"
     fetch_run.error_message = error_message
     fetch_run.finished_at = datetime.utcnow()
+
+    if source_fetch_limit is None:
+        source_fetch_limit = {
+            "max_items_per_run": get_source_fetch_max_items_per_run(),
+            "truncated": False,
+            "total_seen": 0,
+            "processed_count": 0,
+        }
+
     fetch_run.metadata_json = _json.dumps({
         "delta": {
             "new_ids": [],
             "seen_ids": [],
             "updated_ids": [],
             "failed_urls": [],
-        }
+        },
+        "source_fetch_limit": source_fetch_limit,
     }, ensure_ascii=False)
     if source is not None:
         source.last_checked_at = datetime.utcnow()

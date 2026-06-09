@@ -10232,6 +10232,180 @@ def test_v10_beta8_background_fetch_already_running_idempotent():
         db.close()
 
 
+def test_v10_beta8_background_fetch_passes_max_items_and_writes_source_fetch_limit():
+    """Background fetch passes max_items to probes and writes source_fetch_limit to metadata_json."""
+    import uuid
+    import json
+    from unittest.mock import patch
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun, SourceItem
+    from datetime import datetime
+    from app.application.sources.background_fetch import (
+        run_source_fetch_in_background,
+        _finish_run_as_failed,
+    )
+
+    db = SessionLocal()
+    captured = []
+
+    def mock_rss_with_max_items(db, source, timeout_seconds=20, max_items=None):
+        captured.append(("rss", max_items))
+        item = SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:8]}",
+            title="Mock RSS",
+            status="discovered",
+            last_seen_at=datetime.utcnow(),
+            first_seen_at=datetime.utcnow(),
+        )
+        db.add(item)
+        db.commit()
+        return {
+            "items_found": 1,
+            "items_new": 1,
+            "items_updated": 0,
+            "items_failed": 0,
+            "error_message": None,
+            "total_seen": 1,
+            "processed_count": 1,
+            "truncated": False,
+            "max_items_per_run": max_items,
+        }
+
+    def mock_html_with_max_items(db, source, timeout_seconds=20, max_items=None):
+        captured.append(("html", max_items))
+        item = SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:8]}",
+            title="Mock HTML",
+            status="discovered",
+            last_seen_at=datetime.utcnow(),
+            first_seen_at=datetime.utcnow(),
+        )
+        db.add(item)
+        db.commit()
+        return {
+            "items_found": 1,
+            "items_new": 1,
+            "items_updated": 0,
+            "items_failed": 0,
+            "error_message": None,
+            "total_seen": 1,
+            "processed_count": 1,
+            "truncated": False,
+            "max_items_per_run": max_items,
+        }
+
+    try:
+        test_key_rss = f"test_bg_max_rss_{uuid.uuid4().hex[:8]}"
+        test_key_html = f"test_bg_max_html_{uuid.uuid4().hex[:8]}"
+
+        src_rss = Source(
+            source_key=test_key_rss,
+            name="Test BG Max RSS",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src_rss)
+
+        src_html = Source(
+            source_key=test_key_html,
+            name="Test BG Max HTML",
+            description="Test",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/index.html",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src_html)
+        db.commit()
+
+        # Test RSS probe receives max_items
+        captured.clear()
+        with patch("app.sources.rss_probe.probe_rss_source", side_effect=mock_rss_with_max_items):
+            from app.application.sources.background_fetch import SourceFetchBackgroundService
+            svc = SourceFetchBackgroundService()
+            result = svc.enqueue_source(test_key_rss)
+            run_rss = db.query(FetchRun).filter(FetchRun.id == result.run_id).first()
+            assert run_rss is not None
+            assert any(c[0] == "rss" and c[1] == 50 for c in captured), \
+                f"RSS probe should receive max_items=50, got captured={captured}"
+            meta_rss = json.loads(run_rss.metadata_json or "{}")
+            assert "source_fetch_limit" in meta_rss, \
+                f"RSS metadata should have source_fetch_limit, got keys={list(meta_rss.keys())}"
+            assert meta_rss["source_fetch_limit"]["max_items_per_run"] == 50
+            assert "delta" in meta_rss, \
+                f"RSS metadata should have delta, got keys={list(meta_rss.keys())}"
+            print(f"[OK] background RSS probe receives max_items=50, metadata has source_fetch_limit")
+
+        # Test HTML probe receives max_items
+        captured.clear()
+        with patch("app.sources.html_index_probe.probe_html_index_source", side_effect=mock_html_with_max_items):
+            svc2 = SourceFetchBackgroundService()
+            result2 = svc2.enqueue_source(test_key_html)
+            run_html = db.query(FetchRun).filter(FetchRun.id == result2.run_id).first()
+            assert run_html is not None
+            assert any(c[0] == "html" and c[1] == 50 for c in captured), \
+                f"HTML probe should receive max_items=50, got captured={captured}"
+            meta_html = json.loads(run_html.metadata_json or "{}")
+            assert "source_fetch_limit" in meta_html
+            assert meta_html["source_fetch_limit"]["max_items_per_run"] == 50
+            assert "delta" in meta_html
+            print(f"[OK] background HTML probe receives max_items=50, metadata has source_fetch_limit")
+
+        # Test failed path writes source_fetch_limit
+        orphan = FetchRun(
+            source_id=99999,
+            source_key="orphan_maxitems_test",
+            run_type="manual",
+            status="running",
+            started_at=datetime.utcnow(),
+        )
+        db.add(orphan)
+        db.commit()
+        db.refresh(orphan)
+
+        _finish_run_as_failed(
+            db, orphan, source=None,
+            error_message="simulated failure"
+        )
+        db.refresh(orphan)
+        meta_fail = json.loads(orphan.metadata_json or "{}")
+        assert "source_fetch_limit" in meta_fail, \
+            f"Failed metadata should have source_fetch_limit, got keys={list(meta_fail.keys())}"
+        assert meta_fail["source_fetch_limit"]["truncated"] is False
+        assert meta_fail["source_fetch_limit"]["total_seen"] == 0
+        assert meta_fail["source_fetch_limit"]["processed_count"] == 0
+        assert "delta" in meta_fail, \
+            f"Failed metadata should still have delta, got keys={list(meta_fail.keys())}"
+        print(f"[OK] failed path writes source_fetch_limit with defaults, delta preserved")
+
+    finally:
+        db.rollback()
+        for key in [test_key_rss, test_key_html]:
+            db.query(SourceItem).filter(SourceItem.source_key == key).delete(synchronize_session=False)
+        db.query(Source).filter(Source.source_key.in_([test_key_rss, test_key_html])).delete(synchronize_session=False)
+        db.query(FetchRun).filter(FetchRun.source_key.in_([test_key_rss, test_key_html])).delete(synchronize_session=False)
+        db.query(FetchRun).filter(FetchRun.source_key == "orphan_maxitems_test").delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
 def test_v10_beta8_sources_page_contains_run_button():
     """GET /sources page contains '运行探测' button text."""
     response = client.get("/sources")
@@ -10625,6 +10799,7 @@ if __name__ == "__main__":
     test_v10_beta8_fetch_run_detail_shows_running_banner()
     test_v10_beta8_background_fetch_nonexistent_source_returns_404()
     test_v10_beta8_background_fetch_already_running_idempotent()
+    test_v10_beta8_background_fetch_passes_max_items_and_writes_source_fetch_limit()
     test_v10_beta8_sources_page_contains_run_button()
     test_v10_beta8_fetch_run_detail_shows_delta()
 

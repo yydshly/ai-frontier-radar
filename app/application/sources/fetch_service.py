@@ -46,7 +46,7 @@ def get_source_fetch_max_items_per_run() -> int:
     return value
 
 
-def _source_fetch_limit_metadata(probe_result: dict, max_items: int, items_found: int) -> dict:
+def build_source_fetch_limit_metadata(probe_result: dict, max_items: int, items_found: int) -> dict:
     total_seen = probe_result.get("total_seen", items_found)
     processed_count = probe_result.get("processed_count", items_found)
     return {
@@ -197,7 +197,7 @@ class SourceFetchService:
             items_updated = probe_result["items_updated"]
             items_failed = probe_result["items_failed"]
             error_message = probe_result["error_message"]
-            source_fetch_limit = _source_fetch_limit_metadata(probe_result, max_items, items_found)
+            source_fetch_limit = build_source_fetch_limit_metadata(probe_result, max_items, items_found)
 
             # Collect IDs of new/seen/updated items from SourceItems just created/updated
             # The probe already committed items. We re-query to get IDs.
