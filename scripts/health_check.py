@@ -293,7 +293,8 @@ def check_demo_data(result: CheckResult, db_session):
 
 PAGE_CHECKS = [
     ("/", ["AI Frontier Radar", "演示数据入口"]),
-    ("/source-items", ["待编译资料收件箱"]),
+    ("/source-items", ["原始 SourceItem 列表"]),  # V1.0-beta.3: page re-labelled
+    ("/candidate-pool", ["候选资料入口"]),  # V1.0-beta.3: new primary entry
     ("/cards", ["中文洞察卡工作台"]),
 ]
 

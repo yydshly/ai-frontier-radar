@@ -86,23 +86,26 @@
         </section>
         {% endif %}
 
-        <!-- ── V1.0-alpha 推荐主流程 ─────────────────────────── -->
+        <!-- ── V1.0-beta.3 推荐主流程（候选池优先） ────────────── -->
         <section class="next-actions-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50; padding: 0.75rem 1.25rem;">
             <span style="font-size:0.85rem; color:#1f4d2e; font-weight:600;">🚦 推荐主流程：</span>
             <span style="font-size:0.85rem; color:#444;">
-                <a href="/source-items">查看资料</a> →
-                <a href="/source-items">编译</a> →
-                <a href="/cards">中英双语核心理解</a> →
-                <a href="/cards?decision=to_action">转行动</a> →
-                <a href="/cards">导出完整 Markdown 报告</a>
+                <a href="/candidate-pool">候选池筛选</a> →
+                <a href="/candidate-pool">单条编译</a> →
+                <a href="/cards">InsightCard</a> →
+                <a href="/cards?decision=to_action">行动建议</a>
             </span>
+            <br>
+            <small class="muted" style="font-size:0.75rem;">需要排查原始 SourceItem？<a href="/source-items">打开原始资料 / 调试列表</a></small>
         </section>
 
         <!-- ── 下一步建议 ────────────────────────────────────── -->
         <section class="next-actions-section">
             <h2 class="section-title">💡 下一步建议</h2>
             <ul class="next-actions-list">
-                {% if dashboard_stats.source_items_discovered > 0 %}
+                {% if dashboard_stats.candidate_pool_discovered > 0 %}
+                <li>候选池里还有 <strong>{{ dashboard_stats.candidate_pool_discovered }}</strong> 条待生成 InsightCard 的资料，建议先打开 <a href="/candidate-pool?status=discovered">候选池</a> 处理。</li>
+                {% elif dashboard_stats.source_items_discovered > 0 %}
                 <li>你当前有 <strong>{{ dashboard_stats.source_items_discovered }}</strong> 条待编译资料，建议先从收件箱选择一条英文资料编译为中文 InsightCard。</li>
                 {% endif %}
                 {% if dashboard_stats.cards_unhandled > 0 %}
@@ -111,7 +114,7 @@
                 {% if dashboard_stats.cards_to_action > 0 %}
                 <li>你有 <strong>{{ dashboard_stats.cards_to_action }}</strong> 张已标记为"转成行动"的卡片，可以导出 Markdown 任务继续拆解。</li>
                 {% endif %}
-                {% if dashboard_stats.source_items_discovered == 0 and dashboard_stats.cards_unhandled == 0 and dashboard_stats.cards_to_action == 0 %}
+                {% if dashboard_stats.candidate_pool_discovered == 0 and dashboard_stats.cards_unhandled == 0 and dashboard_stats.cards_to_action == 0 and dashboard_stats.source_items_discovered == 0 %}
                 <li>还没有发现资料。可以先运行来源探测脚本，或直接提交一个 URL 编译。</li>
                 {% endif %}
             </ul>
@@ -121,13 +124,13 @@
         <section class="quick-actions-section">
             <h2 class="section-title">⚡ 快捷入口</h2>
             <div class="quick-actions-grid">
-                <a href="/source-items" class="quick-action-card">
-                    <span class="qa-icon">📡</span>
-                    <span class="qa-label">待编译资料收件箱</span>
+                <a href="/candidate-pool" class="quick-action-card">
+                    <span class="qa-icon">📥</span>
+                    <span class="qa-label">候选池</span>
                 </a>
                 <a href="/cards" class="quick-action-card">
                     <span class="qa-icon">📋</span>
-                    <span class="qa-label">中文洞察卡工作台</span>
+                    <span class="qa-label">InsightCard 工作台</span>
                 </a>
                 <a href="/cards?decision=to_action" class="quick-action-card">
                     <span class="qa-icon">🚀</span>
@@ -137,9 +140,9 @@
                     <span class="qa-icon">🗺️</span>
                     <span class="qa-label">信息来源</span>
                 </a>
-                <a href="/candidate-pool" class="quick-action-card">
-                    <span class="qa-icon">📥</span>
-                    <span class="qa-label">候选池</span>
+                <a href="/source-items" class="quick-action-card" title="原始资料 / 调试列表">
+                    <span class="qa-icon">🔧</span>
+                    <span class="qa-label">原始资料</span>
                 </a>
             </div>
         </section>

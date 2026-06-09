@@ -673,6 +673,33 @@ def test_source_items_page():
             "Items with status=discovered should appear"
         print("[OK] /source-items?status=discovered filter works")
 
+        # ── V1.0-beta.3 boundary copy assertions ────────────────────
+        # 1. Only one occurrence of "如何使用这个页面？"
+        count = response.text.count("如何使用这个页面？")
+        assert count == 1, \
+            f"Expected 1 occurrence of '如何使用这个页面？', found {count}"
+        print("[OK] /source-items has exactly one '如何使用这个页面？'")
+
+        # 2. No残留 "编译为 InsightCard"
+        assert "编译为 InsightCard" not in response.text, \
+            "'编译为 InsightCard' should not appear (replaced with '生成 InsightCard')"
+        print("[OK] /source-items no longer contains '编译为 InsightCard'")
+
+        # 3. Still contains "生成 InsightCard"
+        assert "生成 InsightCard" in response.text, \
+            "'生成 InsightCard' should appear on the page"
+        print("[OK] /source-items still contains '生成 InsightCard'")
+
+        # 4. Still contains boundary heading
+        assert "原始 SourceItem 列表" in response.text, \
+            "Boundary heading '原始 SourceItem 列表' should appear"
+        print("[OK] /source-items still contains '原始 SourceItem 列表'")
+
+        # 5. Still contains /candidate-pool link
+        assert "/candidate-pool" in response.text, \
+            "Link to /candidate-pool should appear on the page"
+        print("[OK] /source-items still contains /candidate-pool link")
+
     finally:
         db.rollback()
         db.close()
@@ -2066,8 +2093,8 @@ def test_source_items_v035_usage_guide():
     # Check Chinese usage guide header and key bullet points
     assert "如何使用这个页面" in text, \
         "Page should have '如何使用这个页面' Chinese guide header"
-    assert "编译为 InsightCard" in text, \
-        "Page should mention '编译为 InsightCard' action"
+    assert "生成 InsightCard" in text, \
+        "Page should mention '生成 InsightCard' action"
     assert "当前阶段不自动批量编译" in text, \
         "Page should note '当前阶段不自动批量编译'"
     print("[OK] /source-items has V0.3.5 Chinese usage guide")
@@ -2152,13 +2179,13 @@ def test_source_items_v035_action_column():
         assert "推荐操作" in text, \
             "Page should have '推荐操作' column header"
 
-        # Check all three action labels
-        assert "进入详情并编译" in text, \
-            "Page should show '进入详情并编译' for discovered items"
-        assert "查看中文卡片" in text, \
-            "Page should show '查看中文卡片' for compiled items"
-        assert "查看失败原因" in text, \
-            "Page should show '查看失败原因' for failed items"
+        # Check all three action labels (V1.0-beta.3: product-friendly wording)
+        assert "进入详情 / 生成 InsightCard" in text, \
+            "Page should show '进入详情 / 生成 InsightCard' for discovered items"
+        assert "查看 InsightCard" in text, \
+            "Page should show '查看 InsightCard' for compiled items"
+        assert "查看失败原因 / 重试生成" in text, \
+            "Page should show '查看失败原因 / 重试生成' for failed items"
 
         # Check that action links point to the right places
         assert f"/source-items/{discovered_item.id}" in text, \
@@ -4601,12 +4628,16 @@ def test_v10_alpha_demo_flow_guidance():
         "index.html should contain '推荐主流程'"
     print("[OK] index.html has 推荐主流程 section")
 
-    # 2. Source items page has 主流程第 2 步
+    # 2. Source items page has V1.0-beta.3 boundary cleanup guidance
+    # (V1.0-alpha's "主流程第 2 步" notice was intentionally replaced in beta.3
+    # because /source-items is no longer the main user-facing flow.)
     si_path = Path(__file__).parent.parent / "app" / "templates" / "source_items.html"
     si_text = si_path.read_text(encoding="utf-8")
-    assert "主流程第 2 步" in si_text, \
-        "source_items.html should contain '主流程第 2 步'"
-    print("[OK] source_items.html has 主流程第 2 步 notice")
+    assert "原始 SourceItem 列表" in si_text, \
+        "source_items.html should contain '原始 SourceItem 列表' (V1.0-beta.3)"
+    assert "/candidate-pool" in si_text, \
+        "source_items.html should link to candidate pool (V1.0-beta.3)"
+    print("[OK] source_items.html has V1.0-beta.3 boundary cleanup guidance")
 
     # 3. Card detail page has 中英双语核心理解 and 导出完整 Markdown 报告
     card_path = Path(__file__).parent.parent / "app" / "templates" / "card_detail.html"
@@ -6919,6 +6950,221 @@ def test_source_item_compile_service_direct_calls():
         db.close()
 
 
+# ── V1.0-beta.3 SourceItem / Candidate Pool Boundary Cleanup ────────────────
+
+def test_v10_beta3_index_main_flow_points_to_candidate_pool():
+    """Home page main flow should point to candidate-pool, not /source-items."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    # New main flow labels
+    assert "候选池筛选" in text, "Missing '候选池筛选' in main flow"
+    assert "单条编译" in text, "Missing '单条编译' in main flow"
+    assert "InsightCard" in text, "Missing 'InsightCard' label in main flow"
+    # Old confusing flow should NOT appear in main flow anymore
+    # (it may still appear in recent sections, so we only check the main flow strip)
+    # Find the 推荐主流程 section and check it doesn't link to /source-items as the primary entry
+    import re
+    main_flow_match = re.search(r"推荐主流程.{0,2000}?</section>", text, re.DOTALL)
+    assert main_flow_match, "Could not find '推荐主流程' section"
+    main_flow = main_flow_match.group(0)
+    # Main flow should link to candidate-pool
+    assert 'href="/candidate-pool"' in main_flow, \
+        "Main flow should link to /candidate-pool"
+    # Main flow should NOT use '查看资料' as primary entry
+    assert "查看资料 →" not in main_flow, \
+        "Old '查看资料 → 编译' main flow should be removed"
+    print("[OK] Home main flow points to candidate-pool with new labels")
+
+
+def test_v10_beta3_candidate_pool_describes_product_entry():
+    """Candidate pool page describes itself as the product entry for candidate processing."""
+    response = client.get("/candidate-pool")
+    assert response.status_code == 200
+    text = response.text
+    assert "候选资料入口" in text, "Missing '候选资料入口' label on candidate pool"
+    assert "处理决策" in text, "Missing '处理决策' label on candidate pool"
+    assert "生成 InsightCard" in text, "Missing '生成 InsightCard' label on candidate pool"
+    # Should mention /source-items as a fallback for raw data
+    assert "/source-items" in text, "Missing /source-items link from candidate pool"
+    print("[OK] /candidate-pool page describes itself as product entry")
+
+
+def test_v10_beta3_source_items_describes_raw_debug_list():
+    """Source items page describes itself as raw/debug list and links to candidate-pool."""
+    response = client.get("/source-items")
+    assert response.status_code == 200
+    text = response.text
+    assert "原始 SourceItem 列表" in text, \
+        "Missing '原始 SourceItem 列表' label on source items"
+    assert "调试抓取状态" in text, \
+        "Missing '调试抓取状态' label on source items"
+    assert "候选池" in text, "Missing '候选池' link from source items"
+    # Direct link to candidate pool
+    assert 'href="/candidate-pool"' in text, \
+        "Missing /candidate-pool link from source items"
+    print("[OK] /source-items page describes itself as raw/debug list")
+
+
+def test_v10_beta3_nav_labels_unified():
+    """Both pages use unified nav labels: 候选池 for candidate-pool, 原始资料 for source-items."""
+    cp_response = client.get("/candidate-pool")
+    si_response = client.get("/source-items")
+    assert cp_response.status_code == 200
+    assert si_response.status_code == 200
+
+    cp_text = cp_response.text
+    si_text = si_response.text
+
+    # candidate-pool page should have nav link labeled 候选池 (or itself)
+    assert "候选池" in cp_text
+    # source-items page should have nav link labeled 原始资料 (or itself)
+    assert "原始资料" in si_text
+    # Both pages should cross-link
+    assert 'href="/candidate-pool"' in si_text, \
+        "Source items page should link to candidate pool"
+    assert 'href="/source-items"' in cp_text, \
+        "Candidate pool page should link to source items"
+
+    # Index page should not prominently use '待编译资料' or 'SourceItem' as primary entry
+    idx_response = client.get("/")
+    assert idx_response.status_code == 200
+    idx_text = idx_response.text
+    assert "候选池" in idx_text, "Index should mention 候选池"
+
+    print("[OK] Nav labels unified: 候选池 / 原始资料 across pages")
+
+
+def test_v10_beta3_candidate_pool_row_action_labels():
+    """Candidate pool row action labels use product-friendly text."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, InsightCard, CardStatus, SourceType
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_beta3_btn_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Beta3 Button",
+            description="Test source",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # 1. discovered → "生成 InsightCard"
+        discovered_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/disc-{uuid.uuid4().hex[:6]}",
+            title="Discovered",
+            status="discovered",
+        )
+        # 2. failed → "重试生成"
+        failed_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/fail-{uuid.uuid4().hex[:6]}",
+            title="Failed",
+            status="failed",
+        )
+        # 3. compiled with card → "查看 InsightCard"
+        card = InsightCard(
+            source_url="https://example.com/compiled",
+            source_type=SourceType.HTML,
+            source_title="Compiled",
+            content_hash="beta3-hash",
+            status=CardStatus.COMPLETED,
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+        compiled_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="https://example.com/compiled",
+            title="Compiled",
+            status="compiled",
+            insight_card_id=card.id,
+        )
+        db.add_all([discovered_item, failed_item, compiled_item])
+        db.commit()
+        db.refresh(discovered_item)
+        db.refresh(failed_item)
+        db.refresh(compiled_item)
+
+        response = client.get(f"/candidate-pool?source_key={test_key}")
+        assert response.status_code == 200
+        text = response.text
+
+        # discovered item row → "生成 InsightCard"
+        assert f'/candidate-pool/{discovered_item.id}/compile' in text, \
+            "Discovered item should have compile form"
+        # The button label should mention "生成 InsightCard" near the discovered item
+        # Use a slice around the discovered item id to check label
+        disc_idx = text.find(f'value="{discovered_item.id}"')
+        assert disc_idx != -1, "Discovered item checkbox not found"
+        disc_slice = text[disc_idx:disc_idx + 2000]
+        assert "生成 InsightCard" in disc_slice, \
+            "Discovered item should show '生成 InsightCard' button"
+
+        # failed item row → "重试生成"
+        fail_idx = text.find(f'value="{failed_item.id}"')
+        assert fail_idx != -1, "Failed item checkbox not found"
+        fail_slice = text[fail_idx:fail_idx + 2000]
+        assert "重试生成" in fail_slice, \
+            "Failed item should show '重试生成' button"
+
+        # compiled item row → "查看 InsightCard" (with card_id)
+        comp_idx = text.find(f'value="{compiled_item.id}"')
+        assert comp_idx != -1, "Compiled item checkbox not found"
+        comp_slice = text[comp_idx:comp_idx + 2000]
+        assert "查看 InsightCard" in comp_slice, \
+            "Compiled item should show '查看 InsightCard' link"
+        assert f'href="/cards/{card.id}"' in comp_slice, \
+            "Compiled item should link to its InsightCard"
+
+        print(f"[OK] Candidate pool row actions: 生成 InsightCard / 重试生成 / 查看 InsightCard")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta3_does_not_break_existing_routes():
+    """Boundary cleanup should not break any existing route."""
+    # Health
+    r = client.get("/health")
+    assert r.status_code == 200
+
+    # Index
+    r = client.get("/")
+    assert r.status_code == 200
+
+    # All main pages
+    for path in ["/", "/candidate-pool", "/source-items", "/sources", "/cards", "/about", "/project-docs"]:
+        r = client.get(path)
+        assert r.status_code in (200, 303), \
+            f"Route {path} broken: status {r.status_code}"
+
+    # Candidate pool POST routes still work (no selection, returns 303)
+    r = client.post("/candidate-pool/batch-ignore", data={}, follow_redirects=False)
+    assert r.status_code == 303, f"batch-ignore broken: {r.status_code}"
+    r = client.post("/candidate-pool/batch-compile", data={}, follow_redirects=False)
+    assert r.status_code == 303, f"batch-compile broken: {r.status_code}"
+
+    print("[OK] Boundary cleanup does not break existing routes")
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -7155,6 +7401,14 @@ if __name__ == "__main__":
     test_candidate_pool_compile_route_empty_url()
     test_index_page_candidate_pool_stats()
     test_source_item_compile_service_direct_calls()
+
+    # V1.0-beta.3 source/candidate boundary cleanup
+    test_v10_beta3_index_main_flow_points_to_candidate_pool()
+    test_v10_beta3_candidate_pool_describes_product_entry()
+    test_v10_beta3_source_items_describes_raw_debug_list()
+    test_v10_beta3_nav_labels_unified()
+    test_v10_beta3_candidate_pool_row_action_labels()
+    test_v10_beta3_does_not_break_existing_routes()
 
     print("=" * 50)
     print("Smoke test completed!")
