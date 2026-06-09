@@ -8411,6 +8411,157 @@ def test_v10_beta6_fetch_run_detail_unsafe_url_not_link():
         db.close()
 
 
+def test_v10_beta6_delta_digest_safe_url_rendered():
+    """Safe URLs in new/seen/updated sections are rendered as href."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_url_safe_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta Safe URL",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+            items_new=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/article-{uuid.uuid4().hex[:6]}",
+            title="Safe URL Article",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+            last_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Safe URL should be rendered as href
+        safe_url = f"https://example.com/article-"
+        assert safe_url in text, f"Safe URL should appear in page, got: {text[:500]}"
+        # Should have an href attribute with the URL
+        assert 'href="https://example.com/article-' in text, "Safe URL should be rendered as href"
+        # Generate InsightCard should still be POST form
+        assert 'method="post"' in text.lower() or "method='post'" in text.lower(), \
+            "Generate InsightCard should be POST form"
+
+        print(f"[OK] Safe URL rendered as href in delta digest for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_delta_digest_new_section_url_unsafe():
+    """Unsafe URLs in new items section are not rendered as links."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_new_unsafe_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta New Unsafe",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+            items_new=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="javascript:alert(1)",
+            title="Unsafe URL Article",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+            last_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # javascript: should appear in page (the content is shown)
+        assert "javascript:alert(1)" in text, "Unsafe URL content should still be shown"
+        # But should NOT be rendered as href
+        assert 'href="javascript:' not in text.lower(), "javascript: URL should not be rendered as href"
+        # Generate InsightCard should still be POST form
+        assert 'method="post"' in text.lower() or "method='post'" in text.lower(), \
+            "Generate InsightCard should be POST form"
+
+        print(f"[OK] Unsafe URL in new section not rendered as href for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -8691,6 +8842,8 @@ if __name__ == "__main__":
     test_v10_beta6_fetch_run_detail_shows_delta_digest()
     test_v10_beta6_fetch_run_detail_compile_is_post()
     test_v10_beta6_fetch_run_detail_unsafe_url_not_link()
+    test_v10_beta6_delta_digest_safe_url_rendered()
+    test_v10_beta6_delta_digest_new_section_url_unsafe()
 
     print("=" * 50)
     print("Smoke test completed!")

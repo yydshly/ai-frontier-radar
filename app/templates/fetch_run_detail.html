@@ -204,6 +204,7 @@
                     <thead>
                         <tr>
                             <th>标题</th>
+                            <th>URL</th>
                             <th>来源</th>
                             <th>发布时间</th>
                             <th>摘要</th>
@@ -214,6 +215,18 @@
                         {% for item in digest.new_items %}
                         <tr>
                             <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
                             <td><code>{{ item.source_key }}</code></td>
                             <td>{{ item.published_at or '-' }}</td>
                             <td class="summary-cell">{{ item.summary }}</td>
@@ -247,6 +260,7 @@
                     <thead>
                         <tr>
                             <th>标题</th>
+                            <th>URL</th>
                             <th>来源</th>
                             <th>发布时间</th>
                             <th>摘要</th>
@@ -257,6 +271,18 @@
                         {% for item in digest.seen_items %}
                         <tr>
                             <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
                             <td><code>{{ item.source_key }}</code></td>
                             <td>{{ item.published_at or '-' }}</td>
                             <td class="summary-cell">{{ item.summary }}</td>
@@ -290,6 +316,7 @@
                     <thead>
                         <tr>
                             <th>标题</th>
+                            <th>URL</th>
                             <th>来源</th>
                             <th>发布时间</th>
                             <th>摘要</th>
@@ -300,6 +327,18 @@
                         {% for item in digest.updated_items %}
                         <tr>
                             <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
                             <td><code>{{ item.source_key }}</code></td>
                             <td>{{ item.published_at or '-' }}</td>
                             <td class="summary-cell">{{ item.summary }}</td>
