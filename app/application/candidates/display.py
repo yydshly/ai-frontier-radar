@@ -82,18 +82,49 @@ def build_candidate_display_card(item: SourceItem) -> "CandidateDisplayCard":
     if is_title_weak and title and title in summary:
         summary = "暂无摘要。请重新探测该来源或运行标题修复脚本。"
 
+    # ── Detail summary (for reading panel): zh_summary > zh_one_liner > fallback chain ──
+    raw_meta: dict[str, Any] = {}
+    if item.raw_metadata_json:
+        try:
+            import json as _json
+            raw_meta = _json.loads(item.raw_metadata_json)
+        except Exception:
+            pass
+
+    detail_summary: str | None = raw_meta.get("zh_summary")
+    if not detail_summary:
+        # Fallback: zh_one_liner (for items generated before zh_summary existed)
+        detail_summary = raw_meta.get("zh_one_liner")
+    if not detail_summary:
+        # Final fallback: the existing summary chain
+        detail_summary = raw_meta.get(
+            "detail_description"
+        ) or raw_meta.get("summary") or raw_meta.get("description") or raw_meta.get(
+            "excerpt"
+        ) or raw_meta.get(
+            "content_snippet"
+        ) or raw_meta.get(
+            "og_description"
+        ) or raw_meta.get(
+            "meta_description"
+        ) or raw_meta.get(
+            "rss_summary"
+        ) or raw_meta.get("rss_description")
+
+    # Strip HTML and normalize whitespace for detail_summary
+    if detail_summary:
+        import re as _re
+        detail_summary = _re.sub(r"<[^>]+>", "", detail_summary)
+        detail_summary = " ".join(detail_summary.strip().split())
+        if len(detail_summary) > 260:
+            detail_summary = detail_summary[:257] + "..."
+    else:
+        detail_summary = None
+
     # ── Time label: item.published_at > metadata > first_seen_at ─────────────
     time_label: str
     pub_date = _format_date(item.published_at)
     if not pub_date:
-        # Try raw_metadata_json for publication date
-        raw_meta: dict[str, Any] = {}
-        if item.raw_metadata_json:
-            try:
-                import json as _json
-                raw_meta = _json.loads(item.raw_metadata_json)
-            except Exception:
-                pass
         for meta_key in ("published_at", "article_published_time", "date", "pub_date"):
             pub_date = _format_date(raw_meta.get(meta_key))
             if pub_date:
@@ -114,6 +145,7 @@ def build_candidate_display_card(item: SourceItem) -> "CandidateDisplayCard":
         raw_title=raw_title,
         url=url,
         summary=summary,
+        detail_summary=detail_summary,
         time_label=time_label,
         source_key=item.source_key,
         status=item.status,
@@ -132,7 +164,8 @@ class CandidateDisplayCard:
     title: str                    # Display title (weak → "标题待修复")
     raw_title: str | None        # Original weak title if title is weak, else None
     url: str | None
-    summary: str                  # Lightweight summary from metadata
+    summary: str                  # Lightweight summary from metadata (zh_one_liner for list view)
+    detail_summary: str | None   # Longer summary for reading panel (zh_summary or fallback)
     time_label: str               # "发布于 YYYY-MM-DD" or "发现于 YYYY-MM-DD"
     source_key: str
     status: str

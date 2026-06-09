@@ -139,8 +139,8 @@
                 {% else %}
                 <div class="radar-panel-label">阅读面板</div>
 
-                {% if sel_card and sel_card.summary %}
-                <div class="radar-panel-summary">{{ sel_card.summary }}</div>
+                {% if sel_card and sel_card.detail_summary %}
+                <div class="radar-panel-summary">{{ sel_card.detail_summary }}</div>
                 {% endif %}
 
                 <h2 class="radar-panel-title">
@@ -191,7 +191,6 @@
 
         </div>
 
-        <p class="page-note">V1.0-beta：今日雷达展示最近 {{ view.hours }} 小时（最多 {{ view.limit }} 条）的 AI 前沿内容。</p>
         </div>{# <!-- .radar-page --> #}
 
         {# Keep the selected card visible inside the middle column without
