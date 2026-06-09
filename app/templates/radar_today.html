@@ -239,16 +239,19 @@
                         {% set is_selected = sel and item.id == sel.id %}
                         <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
                             <div class="radar-card-body">
-                                {# Summary first — prefer zh_one_liner via display.summary #}
-                                {% if display and display.summary %}
-                                <div class="radar-card-summary">{{ display.summary }}</div>
+                                {# Primary text: zh_one_liner when available, else title #}
+                                {% if display %}
+                                <div class="radar-card-title">
+                                    {{ display.primary_text }}
+                                    {% if display.uses_zh_one_liner %}
+                                    <span class="radar-card-zh-badge">中文概述</span>
+                                    {% endif %}
+                                </div>
+                                {% if display.secondary_text %}
+                                <div class="radar-card-summary">{{ display.secondary_text }}</div>
                                 {% endif %}
-
-                                {# English / original title #}
-                                {% if display and display.is_title_weak %}
-                                <div class="radar-card-title radar-card-title-weak" title="原始标题：{{ item.title | escape }}">标题待修复</div>
                                 {% else %}
-                                <div class="radar-card-title">{{ (display.title if display else item.title) or '无标题' }}</div>
+                                <div class="radar-card-title">{{ item.title or '无标题' }}</div>
                                 {% endif %}
 
                                 <div class="radar-card-meta">

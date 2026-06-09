@@ -475,6 +475,43 @@ def main():
         check("candidate_pool.html de-emphasises #ID (small muted)",
               "candidate-id" in content2 or "#{{ item.id }}" in content2)
 
+    # ── 8b. Candidate display card: Chinese one-liner as primary card text ───────
+    print("\n[8b] Candidate display card Chinese one-liner primary display")
+    try:
+        display_py = (Path(__file__).resolve().parents[1] / "app" / "application" / "candidates" / "display.py").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("CandidateDisplayCard has primary_text field",
+              "primary_text:" in display_py and "primary_text: str" in display_py,
+              "display card should have primary_text field")
+        check("CandidateDisplayCard has secondary_text field",
+              "secondary_text:" in display_py and "secondary_text: str | None" in display_py,
+              "display card should have secondary_text field")
+        check("CandidateDisplayCard has uses_zh_one_liner field",
+              "uses_zh_one_liner:" in display_py,
+              "display card should have uses_zh_one_liner bool field")
+        check("build_candidate_display_card computes primary_text from zh_one_liner",
+              "primary_text = zh_one_liner" in display_py or "primary_text = zh_one_liner[:180]" in display_py,
+              "primary_text should use zh_one_liner when available")
+        check("build_candidate_display_card uses uses_zh_one_liner flag",
+              "uses_zh_one_liner = bool(zh_one_liner)" in display_py,
+              "uses_zh_one_liner should be True when zh_one_liner is present")
+        check("radar_today.html renders display.primary_text",
+              "display.primary_text" in radar_html,
+              "radar cards should render primary_text as main title")
+        check("radar_today.html renders display.secondary_text",
+              "display.secondary_text" in radar_html,
+              "radar cards should render secondary_text as subtitle")
+        check("radar_today.html shows 中文概述 badge",
+              "radar-card-zh-badge" in radar_html and "中文概述" in radar_html,
+              "cards using zh_one_liner should show badge")
+        check("style.css has .radar-card-zh-badge style",
+              ".radar-card-zh-badge" in style_css,
+              "Chinese summary badge should have CSS")
+    except Exception as e:
+        check("Candidate display card Chinese one-liner primary display", False, str(e))
+
     # ── 9. generation_queue display improvements ────────────────────────────
     print("\n[9] generation_queue display improvements")
     tpl_gq = templates_dir / "generation_queue.html"

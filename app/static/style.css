@@ -4406,3 +4406,19 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     background: #ffebe9;
     color: #cf222e;
 }
+
+/* ============================================================
+   V1.0-beta — Radar card Chinese one-liner display
+   ============================================================ */
+
+.radar-card-zh-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    background: #dafbe1;
+    color: #116329;
+    font-size: 0.72rem;
+    font-weight: 700;
+}

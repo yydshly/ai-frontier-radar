@@ -143,6 +143,18 @@ def main() -> int:
           "成功" in radar_html and "失败" in radar_html,
           "应显示成功/失败数量")
 
+    print("\n[13] 中文概述优先展示")
+    display_py = read("app/application/candidates/display.py")
+    check("CandidateDisplayCard 有 primary_text 字段",
+          "primary_text: str" in display_py,
+          "应有 primary_text 字段")
+    check("CandidateDisplayCard 有 uses_zh_one_liner 字段",
+          "uses_zh_one_liner" in display_py,
+          "应有 uses_zh_one_liner 字段")
+    check("今日雷达卡片优先显示中文概述",
+          "display.primary_text" in radar_html and "uses_zh_one_liner" in radar_html,
+          "中间卡片应优先显示中文一句话概述")
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

@@ -91,6 +91,31 @@ def build_candidate_display_card(item: SourceItem) -> "CandidateDisplayCard":
         except Exception:
             pass
 
+    # ── Primary/secondary text for radar card list ─────────────────────────────
+    # Extract zh_one_liner early so we can use it as primary card text.
+    raw_zh_one_liner = raw_meta.get("zh_one_liner") if isinstance(raw_meta, dict) else None
+    if isinstance(raw_zh_one_liner, str):
+        zh_one_liner = " ".join(raw_zh_one_liner.strip().split())
+    else:
+        zh_one_liner = ""
+    uses_zh_one_liner = bool(zh_one_liner)
+
+    if uses_zh_one_liner:
+        # Primary: Chinese one-liner; Secondary: original title (if different)
+        primary_text = zh_one_liner[:180] if len(zh_one_liner) > 180 else zh_one_liner
+        # Show original title as secondary only if it's meaningfully different from zh_one_liner
+        if display_title and display_title != zh_one_liner:
+            secondary_text = display_title
+        else:
+            secondary_text = None
+    else:
+        # Primary: display title; Secondary: lightweight summary (if different)
+        primary_text = display_title
+        if summary and summary != display_title:
+            secondary_text = summary
+        else:
+            secondary_text = None
+
     detail_summary: str | None = raw_meta.get("zh_summary")
     if not detail_summary:
         # Fallback: zh_one_liner (for items generated before zh_summary existed)
@@ -151,6 +176,9 @@ def build_candidate_display_card(item: SourceItem) -> "CandidateDisplayCard":
         status=item.status,
         insight_card_id=item.insight_card_id,
         is_title_weak=is_title_weak,
+        primary_text=primary_text,
+        secondary_text=secondary_text,
+        uses_zh_one_liner=uses_zh_one_liner,
     )
 
 
@@ -171,3 +199,7 @@ class CandidateDisplayCard:
     status: str
     insight_card_id: int | None
     is_title_weak: bool          # True if original title was a weak CTA string
+    # ── Primary/secondary text for radar card list ──────────────────────────
+    primary_text: str             # Main display text for radar card (zh_one_liner or title)
+    secondary_text: str | None   # Supplementary text (title when using zh_one_liner, else summary)
+    uses_zh_one_liner: bool     # True when primary_text comes from zh_one_liner
