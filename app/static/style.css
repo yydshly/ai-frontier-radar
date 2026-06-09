@@ -3503,15 +3503,20 @@ body.app-shell .main-wrapper {
 body.app-shell .main-content {
     flex: 1;
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 1.5rem;
+    max-width: none;
+    margin: 0;
+    padding: 1.5rem 2rem;
 }
 
 .main-content.wide-page {
-    max-width: min(1480px, calc(100vw - 240px - 48px));
+    max-width: none;
+    margin: 0;
+    padding: 1.5rem 2rem;
+}
+
+.main-content.doc-reading-page {
+    max-width: 1180px;
     margin: 0 auto;
-    padding: 1.5rem;
 }
 
 /* Override body-level styles when using app-shell */
