@@ -972,8 +972,85 @@ def main():
               val_live.published_coverage(items) == 0.5)
         check("title_coverage empty = 0",
               val_live.title_coverage([]) == 0.0)
+        check("extract_validation_summary prefers zh_one_liner",
+              val_live.extract_validation_summary({
+                  "summary": "Fallback summary",
+                  "zh_one_liner": "  中文一句话  ",
+              }) == "中文一句话")
+        check("extract_validation_summary reads detail_description",
+              val_live.extract_validation_summary({
+                  "detail_description": "  Detail   description\ntext  ",
+              }) == "Detail description text")
+        check("extract_validation_summary reads rss_summary",
+              val_live.extract_validation_summary({
+                  "rss_summary": "RSS summary",
+              }) == "RSS summary")
+        expanded_items = [
+            {"summary": val_live.extract_validation_summary({"detail_description": "Detail text"})},
+            {"summary": val_live.extract_validation_summary({"rss_summary": "RSS text"})},
+            {"summary": val_live.extract_validation_summary({"zh_one_liner": "One liner"})},
+            {"summary": val_live.extract_validation_summary({"summary": ""})},
+        ]
+        check("summary_coverage uses expanded summary field",
+              val_live.summary_coverage(expanded_items) == 0.75)
     except Exception as e:
         check("coverage helpers", False, str(e))
+
+    # 13c-2. _items_for_source metadata extraction
+    try:
+        import json
+        import uuid
+        from datetime import datetime
+        from app.db import SessionLocal as _SL
+        from app.models import Source, SourceItem
+
+        db_session = _SL()
+        test_key = f"test_live_validation_{uuid.uuid4().hex[:8]}"
+        try:
+            source = Source(
+                source_key=test_key,
+                name="Test Live Validation Metadata",
+                description="Test",
+                source_type="rss",
+                category="test",
+                tags_json="[]",
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+                homepage_url="https://example.com",
+                feed_url="https://example.com/feed.xml",
+                enabled=True,
+            )
+            db_session.add(source)
+            db_session.commit()
+            db_session.refresh(source)
+            item = SourceItem(
+                source_id=source.id,
+                source_key=test_key,
+                url="https://example.com/article",
+                title="Article",
+                status="discovered",
+                raw_metadata_json=json.dumps({
+                    "rss_summary": "RSS summary body",
+                    "article_published_time": "2026-06-09T00:00:00Z",
+                }),
+                last_seen_at=datetime.utcnow(),
+            )
+            db_session.add(item)
+            db_session.commit()
+
+            extracted = val_live._items_for_source(db_session, test_key)
+            check("_items_for_source reads rss_summary",
+                  extracted[0]["summary"] == "RSS summary body")
+            check("_items_for_source reads raw article_published_time",
+                  extracted[0]["published_at"] == "2026-06-09T00:00:00Z")
+        finally:
+            db_session.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
+            db_session.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
+            db_session.commit()
+            db_session.close()
+    except Exception as e:
+        check("_items_for_source metadata extraction", False, str(e))
 
     # 13d. Verdict logic — PASS / WARN / FAIL
     try:
@@ -1039,6 +1116,10 @@ def main():
         check("Markdown report contains verdict", "WARN" in md)
         check("Markdown report contains items_found", "10" in md)
         check("Markdown report contains suggestion", "weak title" in md)
+        check("Markdown report contains summary coverage criteria",
+              "summary coverage fields" in md and "zh_one_liner" in md and "rss_summary" in md)
+        check("Markdown report contains published coverage criteria",
+              "published coverage fields" in md and "metadata.article_published_time" in md)
     except Exception as e:
         check("markdown report generation", False, str(e))
 

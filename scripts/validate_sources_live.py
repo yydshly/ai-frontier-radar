@@ -26,6 +26,26 @@ WEAK_TITLE_PATTERNS = frozenset({
     "details",
 })
 
+SUMMARY_KEYS = (
+    "zh_one_liner",
+    "detail_description",
+    "summary",
+    "description",
+    "excerpt",
+    "content_snippet",
+    "og_description",
+    "meta_description",
+    "rss_summary",
+    "rss_description",
+)
+
+PUBLISHED_KEYS = (
+    "published_at",
+    "article_published_time",
+    "date",
+    "pub_date",
+)
+
 
 def is_weak_title(title: str | None) -> bool:
     """Return whether a title is empty or a weak CTA-like label."""
@@ -33,6 +53,32 @@ def is_weak_title(title: str | None) -> bool:
         return True
     normalized = " ".join(title.strip().split()).lower()
     return not normalized or normalized in WEAK_TITLE_PATTERNS
+
+
+def extract_validation_summary(raw: dict[str, Any]) -> str | None:
+    """Extract the first non-empty metadata summary used by validation reports."""
+    if not isinstance(raw, dict):
+        return None
+    for key in SUMMARY_KEYS:
+        value = raw.get(key)
+        if isinstance(value, str):
+            normalized = " ".join(value.strip().split())
+            if normalized:
+                return normalized
+    return None
+
+
+def extract_validation_published_at(raw: dict[str, Any]) -> str | None:
+    """Extract the first non-empty metadata publication date used by validation."""
+    if not isinstance(raw, dict):
+        return None
+    for key in PUBLISHED_KEYS:
+        value = raw.get(key)
+        if isinstance(value, str):
+            normalized = " ".join(value.strip().split())
+            if normalized:
+                return normalized
+    return None
 
 
 def title_coverage(items: list[dict[str, Any]]) -> float:
@@ -195,8 +241,8 @@ def _items_for_source(db, source_key: str) -> list[dict[str, Any]]:
         items.append({
             "title": item.title,
             "url": item.url,
-            "published_at": item.published_at,
-            "summary": raw.get("summary") or raw.get("description"),
+            "published_at": item.published_at or extract_validation_published_at(raw),
+            "summary": extract_validation_summary(raw),
         })
     return items
 
@@ -266,6 +312,15 @@ def build_markdown(results: list[dict[str, Any]], total: int, passed: int, warne
         f"- PASS: {passed}",
         f"- WARN: {warned}",
         f"- FAIL: {failed}",
+        "",
+        "## Coverage Criteria",
+        "",
+        "summary coverage fields: "
+        + " / ".join(SUMMARY_KEYS),
+        "",
+        "published coverage fields: "
+        + "SourceItem.published_at / "
+        + " / ".join(f"metadata.{key}" for key in PUBLISHED_KEYS),
         "",
     ]
 

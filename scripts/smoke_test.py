@@ -9506,6 +9506,87 @@ def test_v10_beta8_source_fetch_service_writes_probe_error_message():
         db.close()
 
 
+def test_live_source_validation_coverage_helpers():
+    """Live source validation coverage uses display-aligned metadata fields."""
+    import json
+    import uuid
+    from datetime import datetime
+
+    import scripts.validate_sources_live as val_live
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    assert val_live.extract_validation_summary({
+        "summary": "Fallback",
+        "zh_one_liner": "  One   liner  ",
+    }) == "One liner"
+    assert val_live.extract_validation_summary({
+        "detail_description": "Detail description",
+    }) == "Detail description"
+    assert val_live.extract_validation_summary({
+        "rss_summary": "RSS summary",
+    }) == "RSS summary"
+
+    expanded_items = [
+        {"summary": val_live.extract_validation_summary({"detail_description": "Detail"})},
+        {"summary": val_live.extract_validation_summary({"rss_summary": "RSS"})},
+        {"summary": val_live.extract_validation_summary({"zh_one_liner": "One"})},
+        {"summary": val_live.extract_validation_summary({"summary": ""})},
+    ]
+    assert val_live.summary_coverage(expanded_items) == 0.75
+
+    db = SessionLocal()
+    test_key = f"test_live_validation_{uuid.uuid4().hex[:8]}"
+    try:
+        source = Source(
+            source_key=test_key,
+            name="Test Live Validation Metadata",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+        db.add(SourceItem(
+            source_id=source.id,
+            source_key=test_key,
+            url="https://example.com/article",
+            title="Article",
+            status="discovered",
+            raw_metadata_json=json.dumps({
+                "rss_summary": "RSS summary body",
+                "article_published_time": "2026-06-09T00:00:00Z",
+            }),
+            last_seen_at=datetime.utcnow(),
+        ))
+        db.commit()
+
+        items = val_live._items_for_source(db, test_key)
+        assert items[0]["summary"] == "RSS summary body"
+        assert items[0]["published_at"] == "2026-06-09T00:00:00Z"
+    finally:
+        db.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
+        db.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+    md = val_live.build_markdown([], total=0, passed=0, warned=0, failed=0)
+    assert "summary coverage fields" in md
+    assert "zh_one_liner" in md
+    assert "rss_summary" in md
+    assert "published coverage fields" in md
+    assert "metadata.article_published_time" in md
+    print("[OK] Live source validation coverage helpers align with metadata fields")
+
+
 def test_v10_beta8_rss_probe_creates_two_source_items():
     """Mock RSS probe returns 2 entries, creates 2 new SourceItems."""
     import uuid
@@ -10281,6 +10362,7 @@ if __name__ == "__main__":
     test_v10_beta8_nonexistent_source_returns_not_found()
     test_v10_beta8_unsupported_strategy_creates_failed_run()
     test_v10_beta8_source_fetch_service_writes_probe_error_message()
+    test_live_source_validation_coverage_helpers()
     test_v10_beta8_rss_probe_creates_two_source_items()
     test_v10_beta8_re_run_same_url_no_duplicate_seen()
     test_v10_beta8_post_source_fetch_returns_303()
