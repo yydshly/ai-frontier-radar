@@ -461,6 +461,8 @@ def list_cards(request: Request, decision: str | None = None):
         elif filter_decision and is_valid_decision(filter_decision):
             filter_decision_label = get_decision_label(filter_decision)
 
+        from app.routes.fetch_runs import safe_external_url
+
         context = {
             "request": request,
             "cards": cards_data,
@@ -473,6 +475,7 @@ def list_cards(request: Request, decision: str | None = None):
             ],
             "total_cards": len(cards),
             "filtered_cards": len(cards_data),
+            "safe_external_url": safe_external_url,
         }
         return templates.TemplateResponse("cards.html", context)
     finally:
@@ -1124,6 +1127,8 @@ def list_source_items_page(
             "failed",
         ]
 
+        from app.routes.fetch_runs import safe_external_url
+
         context = {
             "request": request,
             "items": items_data,
@@ -1132,6 +1137,7 @@ def list_source_items_page(
             "filter_source_key": source_key,
             "filter_status": status,
             "filter_q": q,
+            "safe_external_url": safe_external_url,
         }
         return templates.TemplateResponse("source_items.html", context)
     finally:

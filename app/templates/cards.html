@@ -41,49 +41,40 @@
 
         {% if cards %}
 
-        <div class="table-scroll">
-            <table class="cards-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>标题</th>
-                        <th>URL</th>
-                        <th>状态</th>
-                        <th>处理状态</th>
-                        <th>相关性</th>
-                        <th>创建时间</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for card in cards %}
-                    <tr class="{% if card.is_intake_blocked %}row-blocked{% elif card.is_failed %}row-failed{% endif %}">
-                        <td>{{ card.id }}</td>
-                        <td class="title-cell">{{ card.source_title }}</td>
-                        <td class="url-cell">
-                            <a href="{{ card.source_url }}" target="_blank" rel="noopener">
-                                {{ card.source_url[:50] }}{% if card.source_url|length > 50 %}...{% endif %}
-                            </a>
-                        </td>
-                        <td>
-                            <span class="status status-{{ card.status_value }}">{{ card.status }}</span>
-                        </td>
-                        <td>
-                            <span class="decision-badge decision-{{ card.decision_value or 'none' }}">{{ card.decision_label }}</span>
-                        </td>
-                        <td>{{ card.relevance_score }}</td>
-                        <td>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</td>
-                        <td>
-                            <a href="/cards/{{ card.id }}" class="btn-detail">查看详情</a>
-                            <a href="/cards/{{ card.id }}/export-report" class="btn-secondary">完整报告</a>
-                            {% if card.decision_value == 'to_action' %}
-                            <a href="/cards/{{ card.id }}/export-markdown" class="btn-export">导出任务</a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="insight-card-list">
+            {% for card in cards %}
+            <article class="insight-card-item {% if card.is_intake_blocked %}is-blocked{% elif card.is_failed %}is-failed{% endif %}">
+                <div class="insight-card-main">
+                    <div class="insight-card-title-row">
+                        <a href="/cards/{{ card.id }}" class="insight-card-title">{{ card.source_title }}</a>
+                        <span class="decision-badge decision-{{ card.decision_value or 'none' }}">{{ card.decision_label }}</span>
+                    </div>
+                    <div class="insight-card-meta">
+                        <span>#{{ card.id }}</span>
+                        <span class="status status-{{ card.status_value }}">{{ card.status }}</span>
+                        <span>相关性 {{ card.relevance_score }}</span>
+                        <span>{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</span>
+                    </div>
+                    <div class="insight-card-url">
+                        {% set safe_url = safe_external_url(card.source_url) %}
+                        {% if safe_url %}
+                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ card.source_url | escape }}">
+                            {{ card.source_url[:96] }}{% if card.source_url|length > 96 %}...{% endif %}
+                        </a>
+                        {% else %}
+                        <span title="{{ card.source_url | escape }}">{{ card.source_url[:96] }}{% if card.source_url|length > 96 %}...{% endif %}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="insight-card-actions">
+                    <a href="/cards/{{ card.id }}" class="btn-sm btn-primary">查看详情</a>
+                    <a href="/cards/{{ card.id }}/export-report" class="btn-sm">完整报告</a>
+                    {% if card.decision_value == 'to_action' %}
+                    <a href="/cards/{{ card.id }}/export-markdown" class="btn-sm">导出任务</a>
+                    {% endif %}
+                </div>
+            </article>
+            {% endfor %}
         </div>
         {% elif filter_decision %}
         <p class="empty-state">当前筛选条件下没有 InsightCard。</p>

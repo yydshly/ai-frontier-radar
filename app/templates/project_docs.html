@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}项目文档 - AI Frontier Radar{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>项目文档</h1>
+            <p>查看项目定位、架构设计、运行验收和 Beta 规划等资料。</p>
+        </div>
+
+        <div class="doc-hub">
+            {% for category, entries in categories.items() %}
+            <section class="doc-category">
+                <div class="section-heading-row">
+                    <h2 class="section-title">{{ category }}</h2>
+                </div>
+                <div class="doc-card-list">
+                    {% for entry in entries %}
+                    {% set status = doc_status.get(entry.key, False) %}
+                    <article class="doc-card {% if not status %}doc-card-pending{% endif %}">
+                        <div class="doc-card-main">
+                            <a href="/project-docs/{{ entry.key }}" class="doc-title">{{ entry.title }}</a>
+                            <p class="doc-desc">{{ entry.description }}</p>
+                            <p class="doc-path"><code>{{ entry.path }}</code></p>
+                        </div>
+                        <span class="doc-status {% if status %}doc-available{% else %}doc-pending{% endif %}">
+                            {{ '可用' if status else '待补充' }}
+                        </span>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+        </div>
+{% endblock %}

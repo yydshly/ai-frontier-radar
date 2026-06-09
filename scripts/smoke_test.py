@@ -1967,20 +1967,21 @@ def test_html_index_run_records_partial_failed_when_no_candidates():
         db.close()
 
 
-def test_source_items_page_wide_layout_and_scroll():
-    """Test that /source-items page has V0.3.4 wide layout and scrollable table."""
+def test_source_items_page_card_layout():
+    """Test that /source-items page uses the App Shell card list layout."""
     response = client.get("/source-items")
     assert response.status_code == 200, \
         f"Expected status 200, got {response.status_code}"
     text = response.text
-    # Check for new V0.3.4 classes
-    assert "table-scroll" in text, \
-        "Page should contain 'table-scroll' container for horizontal scroll"
-    assert "source-items-table" in text, \
-        "Page should use 'source-items-table' class"
+    assert "source-item-list" in text, \
+        "Page should contain 'source-item-list' container"
+    assert "source-item-card" in text, \
+        "Page should render source items as cards"
+    assert "table-scroll" not in text, \
+        "Source items page should not require a horizontal table scroll"
     assert "wide-page" in text, \
         "Page should use 'wide-page' class for wider layout"
-    print("[OK] /source-items has V0.3.4 wide layout + scrollable table")
+    print("[OK] /source-items uses App Shell card list layout")
 
 
 def test_source_items_page_v033_notice():
@@ -1995,17 +1996,19 @@ def test_source_items_page_v033_notice():
     print("[OK] /source-items shows V0.3.3 historical URL notice")
 
 
-def test_source_items_template_no_url_truncation():
-    """Test that source_items.html no longer truncates URLs to 80 chars."""
+def test_source_items_template_uses_safe_url_card_link():
+    """Test that source_items.html uses safe URL rendering inside card links."""
     from pathlib import Path
     template_path = Path(__file__).parent.parent / "app" / "templates" / "source_items.html"
     assert template_path.exists(), "source_items.html template not found"
     template_text = template_path.read_text(encoding="utf-8")
     assert "item.url[:80]" not in template_text, \
         "source_items.html still contains 'item.url[:80]' truncation"
-    assert "title=\"{{ item.url }}\"" in template_text, \
-        "source_items.html should have title attribute on URL link"
-    print("[OK] source_items.html removed URL truncation and added title attr")
+    assert "safe_external_url(item.url)" in template_text, \
+        "source_items.html should use safe_external_url for external links"
+    assert "source-item-url" in template_text, \
+        "source_items.html should render URL in the card URL area"
+    print("[OK] source_items.html uses safe URL rendering in card layout")
 
 
 def test_check_listing_script_exists():
@@ -2183,17 +2186,16 @@ def test_source_items_v035_action_column():
         assert response.status_code == 200
         text = response.text
 
-        # Check action column header
-        assert "推荐操作" in text, \
-            "Page should have '推荐操作' column header"
+        assert "source-item-actions" in text, \
+            "Page should render the card action area"
 
         # Check all three action labels (V1.0-beta.3: product-friendly wording)
-        assert "进入详情 / 生成 InsightCard" in text, \
-            "Page should show '进入详情 / 生成 InsightCard' for discovered items"
+        assert "详情 / 生成" in text, \
+            "Page should show '详情 / 生成' for discovered items"
         assert "查看 InsightCard" in text, \
             "Page should show '查看 InsightCard' for compiled items"
-        assert "查看失败原因 / 重试生成" in text, \
-            "Page should show '查看失败原因 / 重试生成' for failed items"
+        assert "失败原因 / 重试" in text, \
+            "Page should show '失败原因 / 重试' for failed items"
 
         # Check that action links point to the right places
         assert f"/source-items/{discovered_item.id}" in text, \
@@ -2202,7 +2204,7 @@ def test_source_items_v035_action_column():
             f"Compiled action should link to /cards/{card.id}"
         assert f"/source-items/{failed_item.id}" in text, \
             f"Failed action should link to /source-items/{failed_item.id}"
-        print(f"[OK] /source-items has V0.3.5 recommended action column with all 3 states")
+        print(f"[OK] /source-items has card actions for all 3 states")
     finally:
         db.rollback()
         db.close()
@@ -2309,44 +2311,40 @@ def test_v035_readme_section():
     print("[OK] README contains V0.3.5 section")
 
 
-def test_source_items_inbox_refined_status_cell():
-    """Test refined status cell shows Chinese-first copy with technical value as small text."""
+def test_source_items_inbox_refined_status_badges():
+    """Test source item cards show Chinese-first status badges."""
     response = client.get("/source-items")
     assert response.status_code == 200
     text = response.text
-    # New status copy should be present in the template
-    assert "可生成中文 InsightCard" in text, \
-        "Status cell should show '可生成中文 InsightCard' for discovered"
-    assert "已生成中文卡片" in text, \
-        "Status cell should show '已生成中文卡片' for compiled"
-    assert "可查看原因后重试" in text, \
-        "Status cell should show '可查看原因后重试' for failed"
-    print("[OK] /source-items has refined Chinese-first status cell copy")
+    assert "source-item-title-row" in text, \
+        "Source item cards should include title/status rows"
+    assert "待编译" in text, \
+        "Source item cards should show '待编译' for discovered"
+    assert "已编译" in text, \
+        "Source item cards should show '已编译' for compiled"
+    assert "失败" in text, \
+        "Source item cards should show '失败' for failed"
+    print("[OK] /source-items has Chinese-first status badges")
 
 
-def test_source_items_inbox_action_column_position():
-    """Test that '推荐操作' column appears right after '状态' column."""
+def test_source_items_inbox_action_area_position():
+    """Test that card actions are rendered after the source item body."""
     from pathlib import Path
     template_path = (
         Path(__file__).parent.parent / "app" / "templates" / "source_items.html"
     )
     text = template_path.read_text(encoding="utf-8")
 
-    # Find header positions
-    pos_status = text.find("<th>状态</th>")
-    pos_action = text.find("<th>推荐操作</th>")
+    pos_body = text.find("source-item-main")
+    pos_action = text.find("source-item-actions")
 
-    assert pos_status != -1, "Should have <th>状态</th> header"
-    assert pos_action != -1, "Should have <th>推荐操作</th> header"
-    assert pos_action > pos_status, \
-        "推荐操作 column should come AFTER 状态 column"
-    # Action column should appear before the time-related columns
-    pos_published = text.find("<th>发布时间</th>")
-    assert pos_action < pos_published, \
-        "推荐操作 column should come BEFORE 发布时间 column (no horizontal scroll needed)"
-
-    delta = pos_action - pos_status
-    print(f"[OK] '推荐操作' column positioned right after '状态' (delta={delta} chars)")
+    assert pos_body != -1, "Should have source-item-main card body"
+    assert pos_action != -1, "Should have source-item-actions card action area"
+    assert pos_action > pos_body, \
+        "Action area should come after the source item body"
+    assert "table-scroll" not in text, \
+        "Source item action layout should not depend on a wide table"
+    print("[OK] source item actions are positioned in the card action area")
 
 
 def test_source_items_inbox_action_column_compiled_without_card():
@@ -5871,8 +5869,8 @@ def test_project_docs_hub_index():
     assert response.status_code == 200, \
         f"Expected 200 for /project-docs, got {response.status_code}"
     text = response.text
-    assert "项目资料中心" in text, \
-        "Project docs hub index should contain '项目资料中心'"
+    assert "项目文档" in text, \
+        "Project docs hub index should contain '项目文档'"
     assert "README.md" in text, \
         "Project docs hub should list README.md"
     print("[OK] GET /project-docs returns 200 with docs hub content")
@@ -7791,13 +7789,10 @@ def test_v10_beta5_candidate_pool_page_shows_quality():
         assert response.status_code == 200
         text = response.text
 
-        # Quality columns
-        assert "质量" in text, \
-            "Candidate pool should show '质量' column"
-        assert "建议" in text, \
-            "Candidate pool should show '建议' column"
-        assert "匹配方向" in text, \
-            "Candidate pool should show '匹配方向' column"
+        assert "candidate-signals" in text, \
+            "Candidate pool should show quality signals inside candidate cards"
+        assert "candidate-badges" in text, \
+            "Candidate pool should show status and quality badges"
 
         # Quality badge (high/medium/low/noise)
         assert any(level in text for level in ["高", "中", "低", "噪音"]), \
@@ -9402,16 +9397,16 @@ if __name__ == "__main__":
     test_html_index_run_records_partial_failed_when_no_candidates()
     test_html_index_filters_huggingface_listing_pages()
     test_html_index_filters_generic_listing_pages()
-    test_source_items_page_wide_layout_and_scroll()
+    test_source_items_page_card_layout()
     test_source_items_page_v033_notice()
-    test_source_items_template_no_url_truncation()
+    test_source_items_template_uses_safe_url_card_link()
     test_check_listing_script_exists()
     test_check_listing_script_imports()
     test_source_items_url_no_truncation_in_page()
     test_source_items_v035_usage_guide()
     test_source_items_v035_action_column()
-    test_source_items_inbox_refined_status_cell()
-    test_source_items_inbox_action_column_position()
+    test_source_items_inbox_refined_status_badges()
+    test_source_items_inbox_action_area_position()
     test_source_items_inbox_action_column_compiled_without_card()
     test_source_item_detail_v035_chinese_explanation()
     test_v035_manual_acceptance_doc_exists()
