@@ -13,13 +13,17 @@ from app.application.source_items.background_compile import (
     run_source_item_compile_in_background,
 )
 from app.models import Source
+from app.context_processors import inject_sources_nav
 
 router = APIRouter(prefix="/candidate-pool", tags=["candidate-pool"])
 
 # Create templates instance for this module (avoids circular import with main.py)
 from pathlib import Path
 from fastapi.templating import Jinja2Templates
-_candidate_pool_templates = Jinja2Templates(directory=Path(__file__).resolve().parent.parent / "templates")
+_candidate_pool_templates = Jinja2Templates(
+    directory=Path(__file__).resolve().parent.parent / "templates",
+    context_processors=[inject_sources_nav],
+)
 
 
 # Status options for the filter dropdown

@@ -1,25 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>本次探测结果 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>📡 本次探测结果</h1>
-        <nav>
-            <a href="/">← 返回首页</a>
-            <a href="/sources">信息来源</a>
-            <a href="/fetch-runs">运行记录</a>
-            <a href="/candidate-pool">候选池</a>
-            <a href="/generation-queue">生成队列</a>
-            <a href="/cards">InsightCard</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main class="wide-page">
+{% block title %}本次探测结果 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
         <!-- Run summary banner -->
         <div class="run-summary-banner">
             <div class="run-summary-header">
@@ -315,10 +300,4 @@
         <p class="page-note">
             <a href="/fetch-runs">← 返回运行记录列表</a>
         </p>
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

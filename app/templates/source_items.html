@@ -1,22 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>原始资料 / 调试列表 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>🔧 原始资料 / 调试列表</h1>
-        <nav>
-            <a href="/">← 返回首页</a>
-            <a href="/candidate-pool">候选池</a>
-            <a href="/sources">信息来源</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main class="wide-page source-items-page">
+{% block title %}原始资料 / 调试列表 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page source-items-page{% endblock %}
+
+{% block content %}
         <!-- ── V1.0-beta.3 边界说明：原始资料 vs 候选池 ────────────── -->
         <div class="usage-guide" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800;">
             <h3>🔧 这是原始 SourceItem 列表</h3>
@@ -169,10 +157,4 @@
         {% endif %}
 
         <p class="page-note">V1.0-beta.3：本页面定位为「原始资料 / 调试列表」，日常处理请优先使用 <a href="/candidate-pool">候选池</a>。</p>
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar 原始资料 / 调试列表</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

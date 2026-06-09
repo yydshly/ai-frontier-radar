@@ -1,25 +1,15 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InsightCard 中文洞察卡工作台 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>🗂️ 中文洞察卡工作台</h1>
-        <nav>
-            <a href="/">← 返回首页</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main>
+{% block title %}InsightCard 中文洞察卡工作台 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}{% endblock %}
+
+{% block content %}
         <div class="filter-bar">
             <!-- ── V1.0-alpha 主流程第 3 步说明 ─────────────── -->
             <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3; margin-bottom: 12px;">
                 <h3>🚦 中文洞察卡工作台</h3>
-                <p>这里是中文洞察卡工作台。你可以按处理状态筛选卡片，也可以进入详情生成双语报告、做判断或导出完整报告。</p>
+                <p>这里是中文洞察卡工作台。你可以按处理状态筛选卡片，也可以进入详情生成双语报告，做判断或导出完整报告。</p>
             </div>
             <p class="usage-guide-inline">
                 处理状态来自你看完卡片后的判断，而不是模型自动判断。
@@ -95,10 +85,4 @@
         {% else %}
         <p class="empty-state">还没有 InsightCard。请先从<a href="/source-items">待编译资料收件箱</a>选择一条 SourceItem 编译，或从<a href="/">首页手动提交 URL</a>。</p>
         {% endif %}
-    </main>
-
-    <footer>
-        <p>V0.4.1 中文洞察卡工作台：按处理状态回看卡片</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

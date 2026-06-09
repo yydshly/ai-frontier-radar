@@ -9,13 +9,17 @@ from app.application.source_items.background_compile import (
     BackgroundCompileService,
     run_source_item_compile_in_background,
 )
+from app.context_processors import inject_sources_nav
 
 router = APIRouter(prefix="/fetch-runs", tags=["fetch-runs"])
 
 # Create templates instance for this module (avoids circular import with main.py)
 from pathlib import Path
 from fastapi.templating import Jinja2Templates
-_fetch_runs_templates = Jinja2Templates(directory=Path(__file__).resolve().parent.parent / "templates")
+_fetch_runs_templates = Jinja2Templates(
+    directory=Path(__file__).resolve().parent.parent / "templates",
+    context_processors=[inject_sources_nav],
+)
 
 
 # Status display labels

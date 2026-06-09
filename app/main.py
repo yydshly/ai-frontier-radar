@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.db import get_db, init_db
-from app.models import InsightCard, CardStatus, Source, SourceItem, CardDecision, InsightCardBilingualReport
+from app.models import InsightCard, CardStatus, Source, SourceItem, FetchRun, CardDecision, InsightCardBilingualReport
 from app.schemas import HealthResponse
 from app.sources import sync_sources_config_to_db, get_featured_sources
 from app.services.insight_compiler import compile_url
@@ -105,7 +105,8 @@ app = FastAPI(title="AI Frontier Radar", version=APP_VERSION)
 BASE_DIR = Path(__file__).resolve().parent
 
 # Jinja2 templates
-templates = Jinja2Templates(directory=BASE_DIR / "templates")
+from app.context_processors import inject_sources_nav
+templates = Jinja2Templates(directory=BASE_DIR / "templates", context_processors=[inject_sources_nav])
 
 # Static files - mount before any routes
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -217,6 +218,26 @@ def index(request: Request):
                 "last_seen_at": item.last_seen_at,
             })
 
+        recent_fetch_runs = (
+            db.query(FetchRun)
+            .order_by(FetchRun.created_at.desc())
+            .limit(5)
+            .all()
+        )
+        recent_fetch_runs_data = []
+        for run in recent_fetch_runs:
+            recent_fetch_runs_data.append({
+                "id": run.id,
+                "source_key": run.source_key,
+                "status": run.status,
+                "items_new": run.items_new or 0,
+                "items_found": run.items_found or 0,
+                "items_updated": run.items_updated or 0,
+                "items_failed": run.items_failed or 0,
+                "started_at": run.started_at,
+                "created_at": run.created_at,
+            })
+
         # ── Recent InsightCards (last 5) ───────────────────────────────────
         recent_cards = (
             db.query(InsightCard)
@@ -295,6 +316,7 @@ def index(request: Request):
             "request": request,
             "featured_sources": featured_sources,
             "dashboard_stats": dashboard_stats,
+            "recent_fetch_runs": recent_fetch_runs_data,
             "recent_source_items": recent_source_items_data,
             "recent_cards": recent_cards_data,
             "demo_source_item": {

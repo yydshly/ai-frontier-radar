@@ -181,8 +181,10 @@ def _run_acceptance(args):
             ("候选池", "候选池 step"),
             ("生成队列", "生成队列 step"),
             ("InsightCard", "InsightCard step"),
-            ("工作台概览", "工作台概览 section"),
-            ("下一步建议", "下一步建议 section"),
+            ("从哪里开始", "first usable loop start section"),
+            ("粘贴一个文章 URL", "single URL entry"),
+            ("最近探测", "recent fetch runs section"),
+            ("最近生成", "recent generated cards section"),
         ]
 
         for check_text, description in checks_index:

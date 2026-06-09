@@ -1,25 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>信息来源 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>🗺️ 信息来源</h1>
-        <nav>
-            <a href="/">← 返回首页</a>
-            <a href="/fetch-runs">运行记录</a>
-            <a href="/candidate-pool">候选池</a>
-            <a href="/generation-queue">生成队列</a>
-            <a href="/cards">InsightCard</a>
-            <a href="/source-items">原始资料</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main class="wide-page">
+{% block title %}信息来源 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
         <!-- Sync stats banner -->
         {% if sync_result %}
         <div class="sync-stats">
@@ -47,7 +32,7 @@
         <!-- Source cards grid -->
         <div class="sources-grid">
             {% for s in sources %}
-            <div class="source-card">
+            <div class="source-card" id="src-{{ s.source_key }}">
                 <!-- Card header -->
                 <div class="source-card-header">
                     <div class="source-card-title">
@@ -143,10 +128,4 @@
         {% endif %}
 
         <p class="page-note">信息来源配置由 config/sources.yaml 管理，修改后刷新页面同步。</p>
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

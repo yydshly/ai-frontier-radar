@@ -1,23 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>发现条目详情 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>🔍 发现条目详情</h1>
-        <nav>
-            <a href="/">← 返回首页</a>
-            <a href="/candidate-pool">候选池</a>
-            <a href="/source-items">原始资料</a>
-            <a href="/sources">信息来源</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main>
+{% block title %}发现条目详情 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
         <!-- ── V1.0-beta.3 边界说明 ────────────────── -->
         <div class="usage-guide" style="background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%); border-left: 4px solid #ff9800;">
             <h3>🔧 这是原始 SourceItem 详情</h3>
@@ -286,7 +273,7 @@
             {% elif item.status == 'compiled' %}
             <p class="status-hint status-hint-success">✅ 已编译，可查看关联 InsightCard。</p>
             <p class="status-helper">
-                卡片会包含中文摘要、关键事实、技术洞察、产品机会、风险、行动建议和相关性评分。
+                卡片会包含中文摘要、关键事实、技术洞察，产品机会、风险、行动建议和相关性评分。
             </p>
             <p class="status-note"><a href="/cards/{{ item.insight_card_id }}" class="btn-secondary">🌐 查看 InsightCard</a></p>
             {% endif %}
@@ -303,10 +290,4 @@
         </script>
 
         <p class="page-note">V1.0-beta.3：本页面定位为「原始资料 / 调试列表」。日常处理请使用 <a href="/candidate-pool">候选池</a>。</p>
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar 原始资料 / 调试列表</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

@@ -1,23 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>生成队列 - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <header>
-        <h1>⚙️ 生成队列</h1>
-        <nav>
-            <a href="/">← 返回首页</a>
-            <a href="/candidate-pool">候选池</a>
-            <a href="/fetch-runs">来源运行</a>
-            <a href="/source-items">原始资料</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main class="wide-page">
+{% block title %}生成队列 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
         <div class="usage-guide" style="background: linear-gradient(135deg, #e8f5e9 0%, #e3f2fd 100%); border-left: 4px solid #2e7d32;">
             <p><strong>这里查看加入生成后的状态：</strong>生成中 / 已完成 / 失败 / 未处理。点击"查看 InsightCard"跳转到详情页。</p>
             <p style="margin-top:8px;">
@@ -197,10 +184,4 @@
         {% endif %}
 
         <p class="page-note">V1.0-beta.7：生成队列展示正在生成和已完成的 InsightCard 候选资料。</p>
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar 生成队列</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

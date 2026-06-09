@@ -1,23 +1,11 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>候选池 Candidate Pool - AI Frontier Radar</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <!-- candidate-pool-template -->
-</head>
-<body>
-    <header>
-        <h1>📥 候选池 Candidate Pool</h1>
-        <nav>
-            <a href="/">← 返回首页</a>
-            <a href="/source-items">原始资料</a>
-            <a href="/sources">信息来源</a>
-        </nav>
-    </header>
+{% extends "base.html" %}
 
-    <main class="wide-page">
+{% block title %}候选池 Candidate Pool - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <span class="sr-only">candidate-pool-template</span>
         <div class="usage-guide" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border-left: 4px solid #4caf50;">
             <h3>💡 什么是候选池？</h3>
             <p>候选池是从已配置 AI 信息源中探测到的<strong>候选资料入口</strong>。这里不是原始抓取日志，而是面向<strong>处理决策</strong>的工作台：</p>
@@ -219,10 +207,4 @@
             {% endif %}
         </div>
         {% endif %}
-    </main>
-
-    <footer>
-        <p>AI Frontier Radar 候选池</p>
-    </footer>
-</body>
-</html>
+{% endblock %}
