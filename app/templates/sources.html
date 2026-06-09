@@ -96,6 +96,9 @@
                     <td>{{ s.fetch_run_items_found if s.fetch_run_items_found is not none else '-' }}</td>
                     <td>{{ s.fetch_run_items_new if s.fetch_run_items_new is not none else '-' }}</td>
                     <td class="action-cell">
+                        <form method="POST" action="/sources/{{ s.source_key }}/fetch" style="display:inline;">
+                            <button type="submit" class="btn-link">运行探测</button>
+                        </form>
                         <a href="/fetch-runs?source_key={{ s.source_key }}" class="btn-link">运行记录</a>
                         <a href="/candidate-pool?source_key={{ s.source_key }}" class="btn-link">候选池</a>
                         <a href="/source-items?source_key={{ s.source_key }}" class="btn-link">原始资料</a>
