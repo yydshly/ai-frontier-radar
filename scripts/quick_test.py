@@ -2174,9 +2174,12 @@ def main():
         check("radar workbench page controls main-content height",
               ".main-content.radar-workbench-page" in style_css and "overflow: hidden" in style_css,
               "radar workbench should control App Shell scroll model")
-        check("radar panel actions are vertical",
-              ".radar-panel-actions" in style_css and "flex-direction: column" in style_css,
-              "right reading panel actions should be stacked vertically")
+        check("radar panel actions are horizontal",
+              ".radar-panel-actions" in style_css and "flex-direction: row" in style_css,
+              "right reading panel actions should be compact horizontal controls")
+        check("radar panel actions can wrap",
+              ".radar-panel-actions" in style_css and "flex-wrap: wrap" in style_css,
+              "reading panel actions should wrap on narrow widths")
 
         # ── Sidebar categories: source-code checks on today.py ──────────────
         radar_py_path = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py")
@@ -2278,8 +2281,6 @@ def main():
             radar_card_block = style_css[brace_start+1:brace_end]
         check("style.css .radar-card uses grid-template-columns",
               "grid-template-columns" in radar_card_block)
-        check("style.css .radar-card has auto column for actions",
-              "auto" in radar_card_block)
 
         radar_card_actions_start = style_css.find(".radar-card-actions {")
         radar_card_actions_block = ""
@@ -2289,8 +2290,10 @@ def main():
             radar_card_actions_block = style_css[brace_start+1:brace_end]
         check("style.css .radar-card-actions is right-aligned",
               "flex-end" in radar_card_actions_block or "end" in radar_card_actions_block)
-        check("style.css .radar-card-actions uses column direction",
-              "column" in radar_card_actions_block)
+        check("style.css .radar-card-actions uses row direction",
+              "row" in radar_card_actions_block)
+        check("style.css .radar-card-actions can wrap",
+              "wrap" in radar_card_actions_block)
 
         resp = client.get("/radar/today")
         check("GET /radar/today returns 200", resp.status_code == 200)

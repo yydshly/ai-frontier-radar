@@ -176,7 +176,7 @@
                             <div class="radar-card-actions">
                                 <a href="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}" class="btn-sm btn-primary">查看</a>
                                 {% if item.status == 'discovered' %}
-                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
                                     <button type="submit" class="btn-sm">加入生成</button>
                                 </form>
                                 {% elif item.insight_card_id %}
