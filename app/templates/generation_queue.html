@@ -150,8 +150,10 @@
 
         <!-- Discovered (not yet processed) -->
         {% if discovered_items %}
+        {% set displayed_discovered = discovered_items[:20] %}
         <div class="detail-section">
-            <h2 style="color: #7b1fa2;">🆕 未处理 ({{ discovered_items|length }})</h2>
+            <h2 style="color: #7b1fa2;">🆕 可加入生成的候选项 ({{ discovered_items|length }})</h2>
+            <p style="color:#555;font-size:0.9em;margin-top:4px;">更多候选请前往 <a href="/candidate-pool">候选池</a></p>
             <div class="table-scroll">
                 <table class="source-items-table">
                     <thead>
@@ -164,7 +166,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in discovered_items %}
+                        {% for item in displayed_discovered %}
                         <tr>
                             <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
                             <td class="title-cell">{{ item.title or '无标题' }}</td>

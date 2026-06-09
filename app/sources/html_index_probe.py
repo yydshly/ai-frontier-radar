@@ -49,8 +49,52 @@ LISTING_QUERY_PARAMS = {
     "q", "author", "topic",
 }
 
+# Weak/CTA titles that should NOT be used directly as SourceItem.title.
+# When a link text matches this set, we fall back to the URL slug.
+WEAK_TITLES = {
+    "FEATURED",
+    "Learn More",
+    "Read More",
+    "More",
+    "View",
+    "Explore",
+    "See More",
+    "Continue Reading",
+    "Details",
+}
+
 # Regex for 4-digit year in path
 YEAR_PATTERN = re.compile(r"/\d{4}/|" r"-\d{4}/|" r"/\d{4}$")
+
+
+def _is_weak_title(title: str) -> bool:
+    """Return True if title is a weak/CTA string that should not be used directly.
+
+    An empty or whitespace-only string is also considered weak.
+    """
+    if not title or not title.strip():
+        return True
+    return title.strip() in WEAK_TITLES
+
+
+def _make_url_slug_fallback(url: str) -> str:
+    """Extract a human-readable fallback title from a URL's last path segment.
+
+    Args:
+        url: Absolute URL to extract slug from.
+
+    Returns:
+        Cleaned title derived from the URL's last path segment,
+        or empty string if no usable segment exists.
+    """
+    parsed = urlparse(url)
+    path_segments = [s for s in parsed.path.split("/") if s]
+    if path_segments:
+        slug = path_segments[-1]
+        # Common URL slug separators → spaces
+        slug = slug.replace("-", " ").replace("_", " ").strip()
+        return slug
+    return ""
 
 
 def _normalize_candidate_url(url: str) -> str:
@@ -313,20 +357,26 @@ def probe_html_index_source(
         # Get link text
         link_text = a_tag.get_text(strip=True)
 
-        # Use URL path as fallback for title
-        parsed_url = urlparse(absolute_url)
-        path_segments = [s for s in parsed_url.path.split("/") if s]
-        if link_text:
-            title = link_text
-        elif path_segments:
-            title = path_segments[-1].replace("-", " ").replace("_", " ").strip()
+        # Determine title and title_source:
+        # - Weak link_text → use URL slug fallback
+        # - Good link_text → use link_text directly
+        url_slug = _make_url_slug_fallback(absolute_url)
+        if _is_weak_title(link_text):
+            if url_slug:
+                title = url_slug
+                title_source = "url_slug"
+            else:
+                title = absolute_url
+                title_source = "url"
         else:
-            title = absolute_url
+            title = link_text
+            title_source = "link_text"
 
         candidates.append({
             "url": normalized_url,
             "title": title,
             "link_text": link_text,
+            "title_source": title_source,
         })
 
         # Cap at 50 candidates to avoid noise
@@ -361,6 +411,7 @@ def probe_html_index_source(
 
         raw_metadata = {
             "link_text": candidate["link_text"],
+            "title_source": candidate["title_source"],
             "source_homepage_url": source.homepage_url,
             "discovered_by": "html_index",
         }
@@ -382,8 +433,17 @@ def probe_html_index_source(
             db.add(item)
             result["items_new"] += 1
         else:
-            # Update existing item
-            existing.title = candidate["title"]
+            # Update existing item — protect existing good titles from being
+            # overwritten by newly discovered weak titles.
+            should_update_title = True
+            if existing.title and not _is_weak_title(existing.title):
+                # Existing has a good title; keep it unless new title is also good
+                if _is_weak_title(candidate["title"]):
+                    should_update_title = False
+
+            if should_update_title:
+                existing.title = candidate["title"]
+
             existing.raw_metadata_json = json.dumps(raw_metadata, ensure_ascii=False)
             existing.last_seen_at = datetime.utcnow()
             result["items_updated"] += 1

@@ -128,6 +128,48 @@ def main():
                     pass
         check(f"Template keyword '{keyword}' found", found, f"checked: {expected_files}")
 
+    # ── 6. Weak title handling ─────────────────────────────────────────────
+    print("\n[6] Weak title detection in html_index_probe")
+    try:
+        from app.sources.html_index_probe import _is_weak_title, _make_url_slug_fallback
+    except Exception as e:
+        check("html_index_probe imports for weak title helpers", False, str(e))
+    else:
+        check("'Learn More' is detected as weak title",
+              _is_weak_title("Learn More") is True)
+        check("'FEATURED' is detected as weak title",
+              _is_weak_title("FEATURED") is True)
+        check("'Read More' is detected as weak title",
+              _is_weak_title("Read More") is True)
+        check("'Meta AI MTIA Chip Announcement' is NOT weak",
+              _is_weak_title("Meta AI MTIA Chip Announcement") is False)
+        slug = _make_url_slug_fallback(
+            "https://ai.meta.com/blog/meta-mtia-scale-ai-chips-for-billions/"
+        )
+        check("URL slug fallback extracts 'meta mtia scale ai chips for billions'",
+              slug == "meta mtia scale ai chips for billions", f"got: {repr(slug)}")
+        check("Empty string is detected as weak",
+              _is_weak_title("") is True)
+        check("Whitespace-only string is detected as weak",
+              _is_weak_title("   ") is True)
+
+    # ── 7. generation_queue.html section-header renaming ───────────────────
+    print("\n[7] generation_queue.html section renaming")
+    tpl_path = templates_dir / "generation_queue.html"
+    try:
+        content = tpl_path.read_text(encoding="utf-8")
+    except Exception as e:
+        check("generation_queue.html is readable", False, str(e))
+    else:
+        check("'可加入生成的候选项' is in generation_queue.html",
+              "可加入生成的候选项" in content)
+        check("'更多候选请前往' note is in generation_queue.html",
+              "更多候选请前往" in content)
+        check("'discovered_items[:20]' slice limit is in generation_queue.html",
+              "discovered_items[:20]" in content)
+        check("'未处理' is NOT used as section header (renamed)",
+              "🆕 未处理 (" not in content)
+
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
