@@ -5,6 +5,11 @@
 {% block main_class %}wide-page{% endblock %}
 
 {% block content %}
+        <div class="page-header">
+            <h1>信息来源</h1>
+            <p>选择来源并运行探测，查看每次抓取后的新增、已存在和失败结果。</p>
+        </div>
+
         <!-- Sync stats banner -->
         {% if sync_result %}
         <div class="sync-stats">

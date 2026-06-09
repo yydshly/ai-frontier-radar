@@ -11,12 +11,14 @@ def inject_sources_nav(request: Request):
     """
     try:
         sources = get_featured_sources()
-        # Lightweight: only name and source_key for the sidebar
+        # Lightweight: only display name and source_key for the sidebar.
         sources_nav = [
-            {"source_key": s.source_key, "name": s.name}
+            {
+                "source_key": s.get("source_key", ""),
+                "name": s.get("display_name") or s.get("name") or s.get("source_key", ""),
+            }
             for s in sources
-        ]
+        ][:10]
     except Exception:
         sources_nav = []
     return {"sources_nav": sources_nav}
-
