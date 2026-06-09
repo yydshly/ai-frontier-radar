@@ -3687,3 +3687,221 @@ body.app-shell .main-content {
         padding: 1rem;
     }
 }
+
+/* ── Today Radar: catalog + cards + reading panel ───────────────────────── */
+.radar-quick-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.radar-quick-link {
+    padding: 0.35rem 0.85rem;
+    border: 1px solid #d0d7de;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: #24292f;
+    text-decoration: none;
+    background: #f6f8fa;
+}
+
+.radar-quick-link:hover {
+    background: #eaeef2;
+}
+
+.radar-fallback-note {
+    color: #9a6700;
+    background: #fff8c5;
+    border: 1px solid #eed888;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.radar-layout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr) 320px;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.radar-sidebar {
+    position: sticky;
+    top: 1rem;
+}
+
+.radar-sidebar-label,
+.radar-panel-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #57606a;
+    margin-bottom: 0.5rem;
+}
+
+.radar-section-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.radar-section-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #24292f;
+    font-size: 0.9rem;
+}
+
+.radar-section-link:hover {
+    background: #f0f3f6;
+}
+
+.radar-section-count {
+    font-size: 0.75rem;
+    color: #57606a;
+    background: #eaeef2;
+    border-radius: 999px;
+    padding: 0 0.45rem;
+}
+
+.radar-section {
+    margin-bottom: 1.5rem;
+}
+
+.radar-section-title {
+    font-size: 1.05rem;
+    margin: 0 0 0.6rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid #eaeef2;
+}
+
+.radar-section-title small {
+    color: #57606a;
+    font-weight: normal;
+}
+
+.radar-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.radar-card {
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    background: #fff;
+}
+
+.radar-selected-card {
+    border-color: #0969da;
+    box-shadow: 0 0 0 1px #0969da33;
+    background: #f6fbff;
+}
+
+.radar-card-summary {
+    font-size: 0.95rem;
+    color: #1f2328;
+    margin-bottom: 0.4rem;
+    line-height: 1.5;
+}
+
+.radar-card-title {
+    font-size: 0.85rem;
+    color: #57606a;
+    margin-bottom: 0.5rem;
+}
+
+.radar-card-title-weak {
+    font-style: italic;
+    color: #9a6700;
+}
+
+.radar-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    color: #57606a;
+    margin-bottom: 0.5rem;
+}
+
+.radar-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.radar-panel {
+    position: sticky;
+    top: 1rem;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #fafbfc;
+}
+
+.radar-panel-empty,
+.radar-empty {
+    color: #57606a;
+    padding: 1rem 0;
+}
+
+.radar-panel-summary {
+    font-size: 0.98rem;
+    line-height: 1.55;
+    margin-bottom: 0.75rem;
+}
+
+.radar-panel-title {
+    font-size: 0.95rem;
+    color: #57606a;
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+}
+
+.radar-panel-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+}
+
+.radar-panel-meta dt {
+    color: #57606a;
+}
+
+.radar-panel-meta dd {
+    margin: 0;
+}
+
+.radar-panel-url {
+    font-size: 0.8rem;
+    word-break: break-all;
+    margin-bottom: 0.75rem;
+}
+
+.radar-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+@media (max-width: 1024px) {
+    .radar-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .radar-sidebar,
+    .radar-panel {
+        position: static;
+    }
+}

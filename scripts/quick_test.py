@@ -1679,6 +1679,141 @@ def main():
     except Exception as e:
         check("LLM profile one-liner quick checks", False, str(e))
 
+    # ── 16. Today Radar: catalog + cards + reading panel ───────────────────
+    print("\n[16] Today Radar (catalog + cards + reading panel)")
+    try:
+        import json
+        import uuid
+        from datetime import datetime, timedelta
+
+        from app.application.radar.today import RadarTodayService, TODAY_FOCUS_KEY
+        from app.application.candidates.display import (
+            CandidateDisplayCard,
+            build_candidate_display_card,
+        )
+        from app.db import SessionLocal as _SL
+        from app.models import Source, SourceItem
+
+        check("RadarTodayService is importable", RadarTodayService is not None)
+
+        # base.html must expose the "今日雷达" nav entry.
+        base_html = (templates_dir / "base.html").read_text(encoding="utf-8")
+        check("base.html contains '今日雷达'", "今日雷达" in base_html)
+
+        # radar_today.html must contain the page heading + POST enqueue + safe URL.
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        check("radar_today.html contains '今日 AI 前沿雷达'", "今日 AI 前沿雷达" in radar_html)
+        check("radar_today.html enqueue uses method=\"post\"",
+              'method="post"' in radar_html and "enqueue-compile" in radar_html)
+        check("radar_today.html uses safe_external_url", "safe_external_url" in radar_html)
+        check("radar_today.html has fallback (no-recent-content) note",
+              "暂无新内容" in radar_html and "fallback_used" in radar_html)
+        check("radar_today.html has missing-item panel message",
+              "内容不存在或已被清理" in radar_html)
+        check("radar_today.html renders left catalog + reading panel",
+              "radar-sidebar" in radar_html and "radar-panel" in radar_html and "radar-card" in radar_html)
+
+        # GET endpoint returns 200.
+        resp = client.get("/radar/today")
+        check("GET /radar/today returns 200", resp.status_code == 200, f"status={resp.status_code}")
+        check("/radar/today page contains '今日 AI 前沿雷达'", "今日 AI 前沿雷达" in resp.text)
+
+        db_session = _SL()
+        test_key = f"test_radar_{uuid.uuid4().hex[:8]}"
+        try:
+            src = Source(
+                source_key=test_key,
+                name="Test Radar Source",
+                description="Test",
+                source_type="rss",
+                homepage_url="https://example.com",
+                feed_url="https://example.com/feed.xml",
+                category="test",
+                tags_json="[]",
+                enabled=True,
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+            )
+            db_session.add(src)
+            db_session.commit()
+            db_session.refresh(src)
+
+            now = datetime.utcnow()
+            recent = SourceItem(
+                source_id=src.id,
+                source_key=test_key,
+                url="https://example.com/recent",
+                title="OpenAI Codex coding agent",
+                status="discovered",
+                # Far-future published_at guarantees this row sorts to the top of
+                # the coalesce(published_at, last_seen, first_seen) ordering, so it
+                # stays inside the top-`limit` window regardless of other dev data.
+                published_at="2099-12-31T00:00:00",
+                raw_metadata_json=json.dumps({"zh_one_liner": "雷达测试中文一句话摘要"}),
+                first_seen_at=now,
+                last_seen_at=now,
+            )
+            db_session.add(recent)
+            db_session.commit()
+            db_session.refresh(recent)
+
+            service = RadarTodayService(db_session)
+
+            # 24h-window view builds without crash and respects the limit.
+            view = service.build_today_view(hours=24, limit=50)
+            check("24h radar view builds without crash", view.total_items >= 0)
+            check("display_map size equals window item count (no full load)",
+                  len(view.display_map) == view.total_items)
+
+            # Deterministic grouping logic (independent of dev-data volume):
+            # build sections directly from a controlled single-item list.
+            display_map = {recent.id: build_candidate_display_card(recent)}
+            sections = service._build_sections([recent], display_map)
+            grouped_ids = {i.id for sec in sections for i in sec.items}
+            check("recent item appears in built radar sections", recent.id in grouped_ids)
+
+            # zh_one_liner is preferred as the card summary.
+            card = display_map[recent.id]
+            check("radar prefers zh_one_liner in display.summary",
+                  isinstance(card, CandidateDisplayCard) and card.summary == "雷达测试中文一句话摘要",
+                  getattr(card, "summary", None))
+
+            # today_focus section is populated from newest items.
+            focus = next((s for s in sections if s.key == TODAY_FOCUS_KEY), None)
+            check("today_focus section contains the recent item",
+                  focus is not None and recent.id in {i.id for i in focus.items})
+
+            # "Codex coding" item is classified into ai_coding.
+            ai_coding = next((s for s in sections if s.key == "ai_coding"), None)
+            check("coding item classified into ai_coding section",
+                  ai_coding is not None and recent.id in {i.id for i in ai_coding.items})
+
+            # item_id query selects the reading panel item.
+            view_sel = service.build_today_view(selected_item_id=recent.id, hours=24, limit=50)
+            check("item_id selects reading-panel item",
+                  view_sel.selected_item is not None and view_sel.selected_item.id == recent.id)
+
+            # Non-existent item_id → selected_missing, no crash.
+            view_missing = service.build_today_view(selected_item_id=999999999, hours=24, limit=50)
+            check("non-existent item_id sets selected_missing without crash",
+                  view_missing.selected_item is None and view_missing.selected_missing is True)
+
+            # Fallback invariant: whenever fallback_used is True, content must
+            # still be returned (the page never falls back to an empty list when
+            # any SourceItem exists). Tight 1-hour window may or may not trigger
+            # fallback depending on dev data, but the invariant must always hold.
+            view_fb = RadarTodayService(db_session).build_today_view(hours=1, limit=50)
+            check("fallback never yields empty content when items exist",
+                  (not view_fb.fallback_used) or (view_fb.total_items > 0))
+        finally:
+            db_session.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
+            db_session.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
+            db_session.commit()
+            db_session.close()
+    except Exception as e:
+        check("Today Radar MVP", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

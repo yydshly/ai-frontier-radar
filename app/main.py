@@ -29,6 +29,7 @@ from app.version import APP_VERSION
 from app.routes.project_docs import router as project_docs_router
 from app.routes.candidate_pool import router as candidate_pool_router
 from app.routes.fetch_runs import router as fetch_runs_router, is_test_source_key
+from app.routes.radar import router as radar_router
 
 
 # ── Shared card display helper (V1.0-alpha.8.6) ─────────────────────────────
@@ -1224,53 +1225,6 @@ def enqueue_source_item_compile(item_id: int, background_tasks: BackgroundTasks)
         return RedirectResponse(url=f"/source-items/{item_id}", status_code=303)
 
 
-@app.get("/radar/today", response_class=HTMLResponse)
-def radar_today_page(request: Request):
-    """Display today's AI frontier radar — recent candidate SourceItems.
-
-    V1.0-beta.8: reads the 50 most recent SourceItems, ordered by
-    first_seen_at / last_seen_at / published_at descending.
-    Reuses build_candidate_display_card() for display data.
-    """
-    db = next(get_db())
-    try:
-        from sqlalchemy import desc, func
-        from app.application.candidates.display import build_candidate_display_card
-
-        # Query 50 most recent SourceItems
-        items = (
-            db.query(SourceItem)
-            .order_by(
-                desc(func.coalesce(
-                    SourceItem.published_at,
-                    SourceItem.last_seen_at,
-                    SourceItem.first_seen_at,
-                ))
-            )
-            .limit(50)
-            .all()
-        )
-
-        display_map = {
-            item.id: build_candidate_display_card(item)
-            for item in items
-        }
-
-        from app.routes.fetch_runs import safe_external_url
-
-        return templates.TemplateResponse(
-            "radar_today.html",
-            {
-                "request": request,
-                "items": items,
-                "display_map": display_map,
-                "safe_external_url": safe_external_url,
-            },
-        )
-    finally:
-        db.close()
-
-
 @app.get("/generation-queue", response_class=HTMLResponse)
 def generation_queue_page(request: Request):
     """Display the InsightCard generation queue with items in compiling/compiled/failed states."""
@@ -1317,6 +1271,9 @@ app.include_router(candidate_pool_router)
 
 # ── Mount fetch runs routes ───────────────────────────────────────────────────
 app.include_router(fetch_runs_router)
+
+# ── Mount radar routes ────────────────────────────────────────────────────────
+app.include_router(radar_router)
 
 
 if __name__ == "__main__":

@@ -4,98 +4,166 @@
 
 {% block main_class %}wide-page{% endblock %}
 
+{% set sel = view.selected_item %}
+{% set sel_card = display_map.get(sel.id) if sel else None %}
+
 {% block content %}
         <div class="page-header">
             <h1>今日 AI 前沿雷达</h1>
-            <p>最近发现的候选内容</p>
+            {% if view.fallback_used %}
+            <p class="radar-fallback-note">最近 {{ view.hours }} 小时暂无新内容，以下为最近发现内容（{{ view.total_items }} 条）。</p>
+            {% else %}
+            <p>最近 {{ view.hours }} 小时发现 {{ view.total_items }} 条内容</p>
+            {% endif %}
         </div>
 
-        {% if items %}
-        <p class="result-count">共 {{ items|length }} 条（最近发现）</p>
+        {# ── Quick entries ─────────────────────────────────────────────── #}
+        <div class="radar-quick-links">
+            <a href="/sources" class="radar-quick-link">信息来源</a>
+            <a href="/candidate-pool" class="radar-quick-link">候选池</a>
+            <a href="/generation-queue" class="radar-quick-link">生成队列</a>
+            <a href="/cards" class="radar-quick-link">InsightCard</a>
+        </div>
 
-        <div class="candidate-list">
-            {% for item in items %}
-            {% set display = display_map.get(item.id) %}
-            <article class="candidate-card">
-                <div class="candidate-main">
-                    {# ── Title row ─────────────────────────────────────── #}
-                    <div class="candidate-title-row">
-                        {% if display and display.is_title_weak %}
-                            <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
-                                标题待修复
-                            </span>
-                        {% else %}
-                            <a href="/source-items/{{ item.id }}" class="candidate-title">
-                                {{ (display.title if display else item.title) or '无标题' }}
-                            </a>
-                        {% endif %}
-                        <div class="candidate-badges">
-                            {% if item.status == 'discovered' %}
-                                <span class="status-badge status-pending">待处理</span>
-                            {% elif item.status == 'compiling' %}
-                                <span class="status-badge status-running">生成中</span>
-                            {% elif item.status == 'compiled' %}
-                                <span class="status-badge status-completed">已完成</span>
-                            {% elif item.status == 'failed' %}
-                                <span class="status-badge status-failed">失败</span>
-                            {% else %}
-                                <span class="status-badge">{{ item.status }}</span>
-                            {% endif %}
-                        </div>
-                    </div>
+        <div class="radar-layout">
 
-                    {# ── Weak title hint ─────────────────────────────────── #}
-                    {% if display and display.is_title_weak %}
-                    <div class="candidate-weak-title-hint">
-                        原始标题：{{ item.title | escape }}
-                    </div>
-                    {% endif %}
-
-                    {# ── Summary ─────────────────────────────────────── #}
-                    {% if display and display.summary %}
-                    <div class="candidate-summary">{{ display.summary }}</div>
-                    {% endif %}
-
-                    {# ── URL ─────────────────────────────────────────── #}
-                    <div class="candidate-url">
-                        {% set safe_url = safe_external_url(display.url if display else item.url) %}
-                        {% if safe_url %}
-                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ (display.url if display else item.url) | escape }}">
-                            {{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}
+            {# ── Left: catalog ─────────────────────────────────────────── #}
+            <nav class="radar-sidebar" aria-label="目录分类">
+                <div class="radar-sidebar-label">目录</div>
+                <ul class="radar-section-links">
+                    {% for section in view.sections %}
+                    {% if section.items %}
+                    <li>
+                        <a href="#section-{{ section.key }}" class="radar-section-link">
+                            <span>{{ section.title }}</span>
+                            <span class="radar-section-count">{{ section.items|length }}</span>
                         </a>
-                        {% else %}
-                        <span title="{{ (display.url if display else item.url) | escape }}">{{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}</span>
-                        {% endif %}
-                    </div>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                </ul>
+            </nav>
 
-                    {# ── Source + time label ─────────────────────────── #}
-                    <div class="candidate-meta">
-                        <code>{{ item.source_key }}</code>
-                        {% if display %}
-                            <span>{{ display.time_label }}</span>
-                        {% else %}
-                            <span>首次发现 {{ item.first_seen_at.strftime('%m-%d %H:%M') if item.first_seen_at else '-' }}</span>
-                        {% endif %}
-                        <small class="muted">#{{ item.id }}</small>
+            {# ── Middle: candidate cards ───────────────────────────────── #}
+            <div class="radar-main">
+                {% if view.total_items == 0 %}
+                <p class="radar-empty">暂无候选内容。</p>
+                {% else %}
+                {% for section in view.sections %}
+                {% if section.items %}
+                <section class="radar-section" id="section-{{ section.key }}">
+                    <h2 class="radar-section-title">{{ section.title }} <small>{{ section.items|length }}</small></h2>
+                    <div class="radar-card-list">
+                        {% for item in section.items %}
+                        {% set display = display_map.get(item.id) %}
+                        {% set is_selected = sel and item.id == sel.id %}
+                        <article class="radar-card {% if is_selected %}radar-selected-card{% endif %}">
+                            {# Summary first — prefer zh_one_liner via display.summary #}
+                            {% if display and display.summary %}
+                            <div class="radar-card-summary">{{ display.summary }}</div>
+                            {% endif %}
+
+                            {# English / original title #}
+                            {% if display and display.is_title_weak %}
+                            <div class="radar-card-title radar-card-title-weak" title="原始标题：{{ item.title | escape }}">标题待修复</div>
+                            {% else %}
+                            <div class="radar-card-title">{{ (display.title if display else item.title) or '无标题' }}</div>
+                            {% endif %}
+
+                            <div class="radar-card-meta">
+                                <code>{{ item.source_key }}</code>
+                                <span>{{ display.time_label if display else '时间未知' }}</span>
+                                {% if item.status == 'discovered' %}
+                                    <span class="status-badge status-pending">待处理</span>
+                                {% elif item.status == 'compiling' %}
+                                    <span class="status-badge status-running">生成中</span>
+                                {% elif item.status == 'compiled' %}
+                                    <span class="status-badge status-completed">已完成</span>
+                                {% elif item.status == 'failed' %}
+                                    <span class="status-badge status-failed">失败</span>
+                                {% else %}
+                                    <span class="status-badge">{{ item.status }}</span>
+                                {% endif %}
+                                <small class="muted">#{{ item.id }}</small>
+                            </div>
+
+                            <div class="radar-card-actions">
+                                <a href="/radar/today?item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}#radar-panel" class="btn-sm btn-primary">查看</a>
+                                {% if item.status == 'discovered' %}
+                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm">加入生成</button>
+                                </form>
+                                {% elif item.insight_card_id %}
+                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% endif %}
+                                {% set card_url = safe_external_url(display.url if display else item.url) %}
+                                {% if card_url %}
+                                <a href="{{ card_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
+                                {% endif %}
+                            </div>
+                        </article>
+                        {% endfor %}
                     </div>
+                </section>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+            </div>
+
+            {# ── Right: reading panel ──────────────────────────────────── #}
+            <aside class="radar-panel" id="radar-panel" aria-label="阅读面板">
+                {% if view.selected_missing %}
+                <div class="radar-panel-empty">内容不存在或已被清理。</div>
+                {% elif not sel %}
+                <div class="radar-panel-empty">暂无可阅读的内容。</div>
+                {% else %}
+                <div class="radar-panel-label">阅读面板</div>
+
+                {% if sel_card and sel_card.summary %}
+                <div class="radar-panel-summary">{{ sel_card.summary }}</div>
+                {% endif %}
+
+                <h2 class="radar-panel-title">
+                    {% if sel_card and sel_card.is_title_weak %}
+                        <span title="原始标题：{{ sel.title | escape }}">标题待修复</span>
+                    {% else %}
+                        {{ (sel_card.title if sel_card else sel.title) or '无标题' }}
+                    {% endif %}
+                </h2>
+
+                <dl class="radar-panel-meta">
+                    <dt>来源</dt><dd><code>{{ sel.source_key }}</code></dd>
+                    <dt>时间</dt><dd>{{ sel_card.time_label if sel_card else '时间未知' }}</dd>
+                    <dt>状态</dt><dd>{{ sel.status }}</dd>
+                    <dt>编号</dt><dd>#{{ sel.id }}</dd>
+                </dl>
+
+                {% set panel_url = safe_external_url(sel_card.url if sel_card else sel.url) %}
+                {% if panel_url %}
+                <div class="radar-panel-url">
+                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" title="{{ (sel_card.url if sel_card else sel.url) | escape }}">
+                        {{ (sel_card.url if sel_card else sel.url) | truncate(96, true, '...') }}
+                    </a>
                 </div>
-                <div class="candidate-actions">
-                    {% if item.status == 'discovered' %}
-                    <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                {% endif %}
+
+                <div class="radar-panel-actions">
+                    {% if panel_url %}
+                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm btn-primary">打开原文</a>
+                    {% endif %}
+                    {% if sel.status == 'discovered' %}
+                    <form method="post" action="/source-items/{{ sel.id }}/enqueue-compile" style="display:inline;">
                         <button type="submit" class="btn-sm btn-primary">加入生成</button>
                     </form>
-                    {% elif item.insight_card_id %}
-                    <a href="/cards/{{ item.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
+                    {% elif sel.insight_card_id %}
+                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
                     {% endif %}
-                    <a href="/source-items/{{ item.id }}" class="btn-sm">详情</a>
+                    <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
                 </div>
-            </article>
-            {% endfor %}
+                {% endif %}
+            </aside>
+
         </div>
 
-        {% else %}
-        <p class="empty-state">暂无候选内容。</p>
-        {% endif %}
-
-        <p class="page-note">V1.0-beta.8：每日雷达展示最近发现的候选内容。</p>
+        <p class="page-note">V1.0-beta：今日雷达展示最近 {{ view.hours }} 小时（最多 {{ view.limit }} 条）的 AI 前沿内容。</p>
 {% endblock %}
