@@ -60,33 +60,35 @@
                         {% set display = display_map.get(item.id) %}
                         {% set is_selected = sel and item.id == sel.id %}
                         <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
-                            {# Summary first — prefer zh_one_liner via display.summary #}
-                            {% if display and display.summary %}
-                            <div class="radar-card-summary">{{ display.summary }}</div>
-                            {% endif %}
-
-                            {# English / original title #}
-                            {% if display and display.is_title_weak %}
-                            <div class="radar-card-title radar-card-title-weak" title="原始标题：{{ item.title | escape }}">标题待修复</div>
-                            {% else %}
-                            <div class="radar-card-title">{{ (display.title if display else item.title) or '无标题' }}</div>
-                            {% endif %}
-
-                            <div class="radar-card-meta">
-                                <code>{{ item.source_key }}</code>
-                                <span>{{ display.time_label if display else '时间未知' }}</span>
-                                {% if item.status == 'discovered' %}
-                                    <span class="status-badge status-pending">待生成洞察</span>
-                                {% elif item.status == 'compiling' %}
-                                    <span class="status-badge status-running">生成中</span>
-                                {% elif item.status == 'compiled' %}
-                                    <span class="status-badge status-completed">已完成</span>
-                                {% elif item.status == 'failed' %}
-                                    <span class="status-badge status-failed">失败</span>
-                                {% else %}
-                                    <span class="status-badge">{{ item.status }}</span>
+                            <div class="radar-card-body">
+                                {# Summary first — prefer zh_one_liner via display.summary #}
+                                {% if display and display.summary %}
+                                <div class="radar-card-summary">{{ display.summary }}</div>
                                 {% endif %}
-                                <small class="muted">#{{ item.id }}</small>
+
+                                {# English / original title #}
+                                {% if display and display.is_title_weak %}
+                                <div class="radar-card-title radar-card-title-weak" title="原始标题：{{ item.title | escape }}">标题待修复</div>
+                                {% else %}
+                                <div class="radar-card-title">{{ (display.title if display else item.title) or '无标题' }}</div>
+                                {% endif %}
+
+                                <div class="radar-card-meta">
+                                    <code>{{ item.source_key }}</code>
+                                    <span>{{ display.time_label if display else '时间未知' }}</span>
+                                    {% if item.status == 'discovered' %}
+                                        <span class="status-badge status-pending">待生成洞察</span>
+                                    {% elif item.status == 'compiling' %}
+                                        <span class="status-badge status-running">生成中</span>
+                                    {% elif item.status == 'compiled' %}
+                                        <span class="status-badge status-completed">已完成</span>
+                                    {% elif item.status == 'failed' %}
+                                        <span class="status-badge status-failed">失败</span>
+                                    {% else %}
+                                        <span class="status-badge">{{ item.status }}</span>
+                                    {% endif %}
+                                    <small class="muted">#{{ item.id }}</small>
+                                </div>
                             </div>
 
                             <div class="radar-card-actions">

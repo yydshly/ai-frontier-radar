@@ -2078,8 +2078,70 @@ def main():
     except Exception as e:
         check("Today Radar reading experience", False, str(e))
 
-    # ── 18. SourceItem compile: RSS / metadata snapshot first ───────────────
-    print("\n[18] SourceItem compile (RSS / metadata snapshot first)")
+    # ── 18. Today Radar layout: flex page, compact card buttons ───────────────
+    print("\n[18] Today Radar layout (flex page, compact card buttons)")
+    try:
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("radar_today.html contains radar-card-body", "radar-card-body" in radar_html)
+        check("radar_today.html contains radar-card-actions", "radar-card-actions" in radar_html)
+
+        radar_page_start = style_css.find(".radar-page {")
+        radar_page_block = ""
+        if radar_page_start >= 0:
+            brace_start = style_css.find("{", radar_page_start)
+            brace_end = style_css.find("}", brace_start)
+            radar_page_block = style_css[brace_start+1:brace_end]
+        check("style.css .radar-page uses flex layout",
+              "display: flex" in radar_page_block or "display:flex" in radar_page_block)
+
+        radar_layout_start = style_css.find(".radar-layout {")
+        radar_layout_block = ""
+        if radar_layout_start >= 0:
+            brace_start = style_css.find("{", radar_layout_start)
+            brace_end = style_css.find("}", brace_start)
+            radar_layout_block = style_css[brace_start+1:brace_end]
+        check("style.css .radar-layout uses flex to fill height",
+              "flex: 1" in radar_layout_block or "flex:1" in radar_layout_block)
+        check("style.css .radar-layout does not use min-height: 520px",
+              "520px" not in radar_layout_block)
+        check("style.css .radar-layout has overflow: hidden",
+              "overflow: hidden" in radar_layout_block)
+
+        radar_card_start = style_css.find(".radar-card {")
+        radar_card_block = ""
+        if radar_card_start >= 0:
+            brace_start = style_css.find("{", radar_card_start)
+            brace_end = style_css.find("}", brace_start)
+            radar_card_block = style_css[brace_start+1:brace_end]
+        check("style.css .radar-card uses grid-template-columns",
+              "grid-template-columns" in radar_card_block)
+        check("style.css .radar-card has auto column for actions",
+              "auto" in radar_card_block)
+
+        radar_card_actions_start = style_css.find(".radar-card-actions {")
+        radar_card_actions_block = ""
+        if radar_card_actions_start >= 0:
+            brace_start = style_css.find("{", radar_card_actions_start)
+            brace_end = style_css.find("}", brace_start)
+            radar_card_actions_block = style_css[brace_start+1:brace_end]
+        check("style.css .radar-card-actions is right-aligned",
+              "flex-end" in radar_card_actions_block or "end" in radar_card_actions_block)
+        check("style.css .radar-card-actions uses column direction",
+              "column" in radar_card_actions_block)
+
+        resp = client.get("/radar/today")
+        check("GET /radar/today returns 200", resp.status_code == 200)
+        check("radar_today.html has 加入生成 POST form",
+              'method="post"' in radar_html and "enqueue-compile" in radar_html)
+        check("radar_today.html uses safe_external_url for 打开原文",
+              "safe_external_url" in radar_html)
+    except Exception as e:
+        check("Today Radar layout tests", False, str(e))
+
+    # ── 19. SourceItem compile: RSS / metadata snapshot first ───────────────
+    print("\n[19] SourceItem compile (RSS / metadata snapshot first)")
     try:
         import json
         import uuid
