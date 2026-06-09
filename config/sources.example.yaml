@@ -6,13 +6,13 @@ sources:
   openai_news:
     name: "OpenAI News"
     description: "OpenAI 官方产品、模型和研究公告"
-    type: "html_index"
+    type: "rss"
     homepage_url: "https://openai.com/news/"
-    feed_url: null
+    feed_url: "https://openai.com/news/rss.xml"
     category: "company"
     tags: ["OpenAI", "frontier-models", "product", "agent"]
     enabled: true
-    fetch_strategy: "html_index"
+    fetch_strategy: "rss"
     relevance_hint: "重点关注 OpenAI 模型能力、产品发布、Agent、开发者工具。"
     fetch_interval_hours: 24
 
@@ -111,7 +111,7 @@ sources:
     name: "MIT News AI"
     description: "MIT 新闻 AI 板块，覆盖 AI 研究进展"
     type: "html_index"
-    homepage_url: "https://news.mit.edu/topic/artificial-intelligence-0807"
+    homepage_url: "https://news.mit.edu/topic/artificial-intelligence2"
     feed_url: null
     category: "research"
     tags: ["MIT", "research", "AI", "robotics", "policy"]
