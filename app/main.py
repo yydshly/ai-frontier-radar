@@ -170,6 +170,54 @@ def _markdown_download_headers(filename: str) -> dict[str, str]:
     }
 
 
+# ── InsightCard display helpers ────────────────────────────────────────────────
+
+def _source_type_label(card: InsightCard) -> str:
+    """Return a human-readable content type label for display purposes."""
+    if not card.source_type:
+        return "未标注"
+
+    value = card.source_type.value if hasattr(card.source_type, "value") else str(card.source_type)
+
+    if value == "html":
+        return "网页正文"
+    if value == "pdf":
+        return "PDF 文本"
+    if value == "unknown":
+        return "未标注"
+
+    return value
+
+
+def _generation_basis_label(card: InsightCard, source_item: SourceItem | None = None) -> str:
+    """Return a human-readable generation basis label for display purposes.
+
+    This is a display-only derived field. It does not persist anything.
+    RSS/metadata snapshot cards are identified by checking the linked SourceItem.
+    """
+    # RSS / metadata snapshot cards: linked SourceItem exists with raw_metadata_json
+    if source_item is not None and source_item.raw_metadata_json:
+        return "基于来源摘要 / RSS metadata"
+
+    # Full-text parsing based on raw_text_path
+    if card.raw_text_path:
+        if card.source_type and card.source_type.value == "pdf":
+            return "基于 PDF 文本解析"
+        if card.source_type and card.source_type.value == "html":
+            return "基于网页正文解析"
+        return "基于全文解析"
+
+    # Fallback: source_type-based label
+    if card.source_type:
+        value = card.source_type.value if hasattr(card.source_type, "value") else str(card.source_type)
+        if value == "pdf":
+            return "基于 PDF 文本解析"
+        if value == "html":
+            return "基于网页正文解析"
+
+    return "生成依据未标注"
+
+
 # Setup
 setup_logging()
 logger = get_logger(__name__)
@@ -587,6 +635,13 @@ def card_detail(request: Request, card_id: int):
             .first()
         )
 
+        # Load linked SourceItem (for RSS/metadata snapshot cards)
+        source_item = (
+            db.query(SourceItem)
+            .filter(SourceItem.insight_card_id == card.id)
+            .first()
+        )
+
         # Parse JSON fields for template
         def parse_json_field(value):
             if not value:
@@ -622,7 +677,8 @@ def card_detail(request: Request, card_id: int):
             "request": request,
             "card": card,
             "status_value": card.status.value if card.status else "unknown",
-            "source_type_value": card.source_type.value if card.source_type else "unknown",
+            "source_type_value": _source_type_label(card),
+            "generation_basis_label": _generation_basis_label(card, source_item),
             "key_points": parse_json_field(card.key_points_zh),
             "technical_insights": parse_json_field(card.technical_insights_zh),
             "product_opportunities": parse_json_field(card.product_opportunities_zh),
@@ -925,6 +981,13 @@ def card_export_report_preview(request: Request, card_id: int):
             .first()
         )
 
+        # Load linked SourceItem (for RSS/metadata snapshot cards)
+        source_item = (
+            db.query(SourceItem)
+            .filter(SourceItem.insight_card_id == card.id)
+            .first()
+        )
+
         markdown_text = build_full_report_markdown(card, decision_row, bilingual_report)
 
         # ── Build structured view data for HTML preview ───────────────────────
@@ -983,7 +1046,8 @@ def card_export_report_preview(request: Request, card_id: int):
         # Source fields
         source_title = card.source_title or "(无标题)"
         source_url = card.source_url or ""
-        source_type = card.source_type.value if card.source_type else "unknown"
+        source_type = _source_type_label(card)
+        generation_basis_label = _generation_basis_label(card, source_item)
         source_author = card.source_author or "-"
         source_published_at = card.source_published_at or "-"
         relevance_score = card.relevance_score
@@ -1001,6 +1065,7 @@ def card_export_report_preview(request: Request, card_id: int):
             "source_title": source_title,
             "source_url": source_url,
             "source_type": source_type,
+            "generation_basis_label": generation_basis_label,
             "source_author": source_author,
             "source_published_at": source_published_at,
             "relevance_score": relevance_score,

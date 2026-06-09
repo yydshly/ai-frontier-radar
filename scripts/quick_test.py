@@ -3074,6 +3074,45 @@ def main():
     except Exception as e:
         check("Markdown export filenames and preview pages", False, str(e))
 
+    # ── 22. InsightCard generation basis display ──────────────────────────────────
+    print("\n[22] InsightCard generation basis display")
+    try:
+        main_py = (Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
+        card_detail_html = (templates_dir / "card_detail.html").read_text(encoding="utf-8")
+        card_export_report_html = (templates_dir / "card_export_report.html").read_text(encoding="utf-8")
+
+        check("card detail has generation basis helper",
+              "def _generation_basis_label" in main_py
+              and "基于来源摘要 / RSS metadata" in main_py,
+              "card detail should derive readable generation basis instead of showing unknown")
+
+        check("card detail has source type display helper",
+              "def _source_type_label" in main_py
+              and "未标注" in main_py,
+              "card source type should be localized for display")
+
+        check("card detail loads source item for generation basis",
+              "SourceItem" in main_py
+              and "insight_card_id == card.id" in main_py,
+              "card detail should use linked SourceItem to identify RSS metadata cards")
+
+        check("card detail template uses generation_basis_label",
+              "generation_basis_label" in card_detail_html
+              and "{{ source_type_value }}" in card_detail_html,
+              "card detail should separate generation basis from content type")
+
+        check("card detail should not show raw unknown as generation basis",
+              "生成依据</span>" in card_detail_html
+              and "{{ generation_basis_label }}" in card_detail_html,
+              "generation basis should use human-readable label")
+
+        check("export report uses generation_basis_label",
+              "generation_basis_label" in card_export_report_html
+              and "{{ generation_basis_label }}" in card_export_report_html,
+              "export report should also use readable generation basis")
+    except Exception as e:
+        check("InsightCard generation basis display checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

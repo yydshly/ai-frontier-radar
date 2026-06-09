@@ -154,6 +154,8 @@ python scripts/check_sources_health.py
 - [ ] 技术洞察、产品机会、风险提醒、行动建议区块清晰
 - [ ] 双语理解在靠后位置，作为补充阅读
 - [ ] 看完后的判断和导出仍可用
+- [ ] 生成依据显示"基于来源摘要 / RSS metadata"（RSS/metadata 卡片）而非 unknown
+- [ ] 原文信息"类型"不再显示 raw unknown，而是"未标注"或内容类型
 
 ## 13. Markdown 导出预览验收
 

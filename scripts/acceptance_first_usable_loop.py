@@ -198,6 +198,15 @@ def main() -> int:
         "导出预览应显示可读文件名和导出用途",
     )
 
+    print("\n[17] InsightCard 生成依据可读展示")
+    check(
+        "完整卡片显示可读生成依据",
+        "generation_basis_label" in card_detail_html
+        and "_generation_basis_label" in main_py
+        and "基于来源摘要 / RSS metadata" in main_py,
+        "完整 InsightCard 页面不应把 source_type=unknown 直接展示为生成依据",
+    )
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")
