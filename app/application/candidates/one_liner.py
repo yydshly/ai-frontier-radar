@@ -239,18 +239,22 @@ class CandidateOneLinerService:
         self.settings = settings or get_one_liner_settings()
         self.provider = provider if provider is not None else self._build_provider()
 
-    def should_generate(self, item: SourceItem) -> bool:
+    def should_generate(self, item: SourceItem, *, fill_missing_summary: bool = False) -> bool:
         raw = _parse_metadata(item.raw_metadata_json)
-        if raw.get("zh_one_liner"):
+        has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
+        has_summary = bool(str(raw.get("zh_summary") or "").strip())
+
+        if has_one_liner and (has_summary or not fill_missing_summary):
             return False
+
         if item.status not in ELIGIBLE_STATUSES:
             return False
         if not item.url:
             return False
         return True
 
-    def generate_for_item(self, item: SourceItem) -> OneLinerResult:
-        if not self.should_generate(item):
+    def generate_for_item(self, item: SourceItem, *, fill_missing_summary: bool = False) -> OneLinerResult:
+        if not self.should_generate(item, fill_missing_summary=fill_missing_summary):
             return OneLinerResult(
                 success=False,
                 text=None,
@@ -282,7 +286,13 @@ class CandidateOneLinerService:
         except Exception as exc:
             return self._write_result(item, "failed", None, str(exc))
 
-    def generate_for_items(self, items: list[SourceItem], limit: int | None = None) -> list[OneLinerResult]:
+    def generate_for_items(
+        self,
+        items: list[SourceItem],
+        limit: int | None = None,
+        *,
+        fill_missing_summary: bool = False,
+    ) -> list[OneLinerResult]:
         effective_limit = limit if limit is not None else self.settings.max_per_run
         effective_limit = min(effective_limit, self.settings.max_per_run, self.settings.max_per_day)
         results: list[OneLinerResult] = []
@@ -290,9 +300,9 @@ class CandidateOneLinerService:
         for item in items:
             if processed >= effective_limit:
                 break
-            if not self.should_generate(item):
+            if not self.should_generate(item, fill_missing_summary=fill_missing_summary):
                 continue
-            results.append(self.generate_for_item(item))
+            results.append(self.generate_for_item(item, fill_missing_summary=fill_missing_summary))
             processed += 1
         return results
 

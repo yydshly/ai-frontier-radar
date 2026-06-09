@@ -4239,6 +4239,22 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     font-size: 0.82rem;
 }
 
+.radar-summary-form {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+}
+
+.radar-summary-result {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #b6e3ff;
+    border-radius: 8px;
+    background: #eaf4ff;
+    color: #24292f;
+    font-size: 0.86rem;
+}
+
 @media (max-width: 1024px) {
     body.app-shell.radar-workbench-shell {
         height: auto;

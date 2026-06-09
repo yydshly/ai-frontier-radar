@@ -102,6 +102,17 @@
                     <small>{{ view.total_items }}</small>
                 </h2>
 
+                <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form">
+                    <input type="hidden" name="section" value="{{ view.active_section }}">
+                    <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                    <input type="hidden" name="hours" value="{{ view.hours }}">
+                    <input type="hidden" name="limit" value="{{ view.limit }}">
+                    <input type="hidden" name="page" value="{{ view.page }}">
+                    <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                    <input type="hidden" name="summary_limit" value="5">
+                    <button type="submit" class="btn-sm">补齐当前页中文摘要</button>
+                </form>
+
                 <form method="get" action="/radar/today" class="radar-page-size-form">
                     <input type="hidden" name="section" value="{{ view.active_section }}">
                     <input type="hidden" name="hours" value="{{ view.hours }}">
@@ -132,6 +143,14 @@
                     {% endif %}
                 </nav>
                 </div>{# <!-- /.radar-main-toolbar --> #}
+                {% if summary_result %}
+                <div class="radar-summary-result">
+                    中文摘要处理完成：
+                    成功 {{ summary_result.success or 0 }}，
+                    跳过 {{ summary_result.skipped or 0 }}，
+                    失败 {{ summary_result.failed or 0 }}。
+                </div>
+                {% endif %}
                 <div class="radar-main-scroll">
                 {% for section in view.sections %}
                 {% if section.items and (view.active_section == 'all' or view.active_section == section.key) %}

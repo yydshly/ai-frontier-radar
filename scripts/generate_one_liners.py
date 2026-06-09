@@ -21,7 +21,7 @@ from app.models import SourceItem  # noqa: E402
 SCRIPT_ELIGIBLE_STATUSES = ("discovered", "failed", "manual_required")
 
 
-def select_items(db, source_key: str | None, limit: int) -> list[SourceItem]:
+def select_items(db, source_key: str | None, limit: int, *, fill_missing_summary: bool = False) -> list[SourceItem]:
     query = (
         db.query(SourceItem)
         .filter(SourceItem.status.in_(SCRIPT_ELIGIBLE_STATUSES))
@@ -33,7 +33,10 @@ def select_items(db, source_key: str | None, limit: int) -> list[SourceItem]:
     selected: list[SourceItem] = []
     for item in query.limit(limit * 3).all():
         raw = item.raw_metadata_json or ""
-        if '"zh_one_liner"' in raw:
+        has_one_liner = '"zh_one_liner"' in raw
+        has_summary = '"zh_summary"' in raw
+
+        if has_one_liner and (has_summary or not fill_missing_summary):
             continue
         selected.append(item)
         if len(selected) >= limit:
@@ -46,14 +49,15 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--source-key", default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--fill-missing-summary", action="store_true")
     args = parser.parse_args()
 
     limit = max(1, args.limit)
     settings = get_one_liner_settings()
     db = SessionLocal()
     try:
-        items = select_items(db, args.source_key, limit)
-        print(f"selected={len(items)} limit={limit} dry_run={args.dry_run}")
+        items = select_items(db, args.source_key, limit, fill_missing_summary=args.fill_missing_summary)
+        print(f"selected={len(items)} limit={limit} dry_run={args.dry_run} fill_missing_summary={args.fill_missing_summary}")
         print(f"enabled={settings.enabled} provider={settings.provider}")
 
         if args.dry_run:
@@ -70,7 +74,11 @@ def main() -> int:
             return 0
 
         service = CandidateOneLinerService(db, settings=settings)
-        results = service.generate_for_items(items, limit=limit)
+        results = service.generate_for_items(
+            items,
+            limit=limit,
+            fill_missing_summary=args.fill_missing_summary,
+        )
         success = sum(1 for r in results if r.status == "success")
         skipped = sum(1 for r in results if r.status == "skipped")
         failed = sum(1 for r in results if r.status == "failed")

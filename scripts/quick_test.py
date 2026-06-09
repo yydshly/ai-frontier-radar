@@ -2597,6 +2597,56 @@ def main():
     except Exception as e:
         check("Today Radar panel state checks", False, str(e))
 
+    # ── 21. Today Radar: generate Chinese summaries for current page ─────────────
+    print("\n[21] Today Radar generate Chinese summaries")
+    try:
+        one_liner_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "candidates" / "one_liner.py").read_text(encoding="utf-8")
+        generate_one_liners_py = (Path(__file__).resolve().parent.parent / "scripts" / "generate_one_liners.py").read_text(encoding="utf-8")
+        radar_route_py = (Path(__file__).resolve().parent.parent / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("one-liner service supports fill_missing_summary",
+              "fill_missing_summary" in one_liner_py
+              and "has_summary" in one_liner_py,
+              "one-liner service should support filling zh_summary for old data")
+
+        check("generate_one_liners supports fill-missing-summary flag",
+              "--fill-missing-summary" in generate_one_liners_py,
+              "script should support zh_summary repair mode")
+
+        check("today radar has generate summaries route",
+              '@router.post("/today/generate-summaries")' in radar_route_py,
+              "today radar should expose a POST action for current-page Chinese summaries")
+
+        check("today radar summary route uses CandidateOneLinerService",
+              "CandidateOneLinerService" in radar_route_py
+              and "generate_for_items" in radar_route_py,
+              "summary route should reuse existing one-liner service")
+
+        check("today radar summary route caps current page generation",
+              "summary_limit" in radar_route_py
+              and "min(summary_limit, 5)" in radar_route_py,
+              "summary generation should be capped to avoid long requests")
+
+        check("today radar toolbar has summary generation form",
+              'action="/radar/today/generate-summaries"' in radar_html
+              and "补齐当前页中文摘要" in radar_html,
+              "toolbar should expose current-page Chinese summary generation")
+
+        check("today radar summary form preserves context",
+              'name="section" value="{{ view.active_section }}"' in radar_html
+              and 'name="page" value="{{ view.page }}"' in radar_html
+              and 'name="per_page" value="{{ view.per_page }}"' in radar_html,
+              "summary form should preserve radar context")
+
+        check("today radar shows summary generation result",
+              "summary_result" in radar_html
+              and "中文摘要处理完成" in radar_html,
+              "today radar should show summary generation results after redirect")
+    except Exception as e:
+        check("Today Radar generate summaries checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
