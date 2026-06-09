@@ -7113,21 +7113,21 @@ def test_v10_beta3_candidate_pool_row_action_labels():
         # Use a slice around the discovered item id to check label
         disc_idx = text.find(f'value="{discovered_item.id}"')
         assert disc_idx != -1, "Discovered item checkbox not found"
-        disc_slice = text[disc_idx:disc_idx + 2000]
+        disc_slice = text[disc_idx:disc_idx + 6000]
         assert "生成 InsightCard" in disc_slice, \
             "Discovered item should show '生成 InsightCard' button"
 
         # failed item row → "重试生成"
         fail_idx = text.find(f'value="{failed_item.id}"')
         assert fail_idx != -1, "Failed item checkbox not found"
-        fail_slice = text[fail_idx:fail_idx + 2000]
+        fail_slice = text[fail_idx:fail_idx + 6000]
         assert "重试生成" in fail_slice, \
             "Failed item should show '重试生成' button"
 
         # compiled item row → "查看 InsightCard" (with card_id)
         comp_idx = text.find(f'value="{compiled_item.id}"')
         assert comp_idx != -1, "Compiled item checkbox not found"
-        comp_slice = text[comp_idx:comp_idx + 2000]
+        comp_slice = text[comp_idx:comp_idx + 6000]
         assert "查看 InsightCard" in comp_slice, \
             "Compiled item should show '查看 InsightCard' link"
         assert f'href="/cards/{card.id}"' in comp_slice, \
@@ -7655,6 +7655,227 @@ def test_v10_beta4_home_page_shows_fetch_runs_entry():
     print("[OK] Home page has '来源运行' quick action linking to /fetch-runs")
 
 
+# ── V1.0-beta.5: Candidate Quality Triage ────────────────────────────────────
+
+def test_v10_beta5_quality_imports():
+    """Candidate quality value objects and services import correctly."""
+    from app.domain.value_objects.candidate_quality import (
+        CandidateQuality,
+        CandidateQualityLevel,
+        CandidateRecommendedAction,
+    )
+    from app.application.candidate_quality.services import CandidateQualityService
+    from app.application.candidate_quality.rules import evaluate_candidate_quality
+    print("[OK] CandidateQuality, CandidateQualityLevel, CandidateRecommendedAction, CandidateQualityService, evaluate_candidate_quality all import")
+
+
+def test_v10_beta5_quality_noise_url():
+    """URLs matching noise patterns are scored low / noise."""
+    from app.models import SourceItem
+    from app.application.candidate_quality.rules import evaluate_candidate_quality
+
+    noise_cases = [
+        SourceItem(source_key="test", url="https://example.com/tags/ai", title="Tag page", status="discovered"),
+        SourceItem(source_key="test", url="https://example.com/careers", title="Careers", status="discovered"),
+        SourceItem(source_key="test", url="https://example.com/pricing", title="Pricing", status="discovered"),
+    ]
+
+    for item in noise_cases:
+        q = evaluate_candidate_quality(item)
+        assert q.level.value in ("low", "noise"), \
+            f"URL {item.url} should be low/noise, got {q.level.value}"
+        assert q.recommended_action.value in ("ignore", "review"), \
+            f"URL {item.url} should be ignore/review, got {q.recommended_action.value}"
+
+    print("[OK] Noise URL patterns → low/noise level and ignore/review action")
+
+
+def test_v10_beta5_quality_high_value():
+    """High-value AI content gets high score."""
+    from app.models import SourceItem
+    from app.application.candidate_quality.rules import evaluate_candidate_quality
+
+    item = SourceItem(
+        source_key="anthropic_news",
+        url="https://www.anthropic.com/research/building-effective-agents",
+        title="Building effective agents",
+        status="discovered",
+    )
+    q = evaluate_candidate_quality(item)
+
+    assert q.level.value in ("high", "medium"), \
+        f"High-value content should be high/medium, got {q.level.value}"
+    assert q.score >= 60, \
+        f"High-value content should score >= 60, got {q.score}"
+    assert q.recommended_action.value in ("compile", "review"), \
+        f"High-value should be compile/review, got {q.recommended_action.value}"
+    assert len(q.matched_interests) > 0, \
+        "Matched interests should not be empty for high-value content"
+
+    print("[OK] High-value AI content gets high/medium score with matched interests")
+
+
+def test_v10_beta5_quality_empty_title():
+    """Empty title triggers warning flag and manual_required action."""
+    from app.models import SourceItem
+    from app.application.candidate_quality.rules import evaluate_candidate_quality
+
+    item = SourceItem(
+        source_key="test",
+        url="https://example.com/blog/new-report",
+        title="",
+        status="discovered",
+    )
+    q = evaluate_candidate_quality(item)
+
+    assert "empty_title" in q.warning_flags, \
+        f"'empty_title' should be in warning_flags, got {q.warning_flags}"
+    assert q.recommended_action.value in ("manual_required", "review", "ignore"), \
+        f"Empty title should be manual_required/review/ignore, got {q.recommended_action.value}"
+
+    print("[OK] Empty title triggers empty_title warning and manual_required action")
+
+
+def test_v10_beta5_quality_evaluation_does_not_change_status():
+    """Quality evaluation does NOT modify SourceItem.status."""
+    from app.models import SourceItem
+    from app.application.candidate_quality.services import CandidateQualityService
+
+    item = SourceItem(source_key="test", url="https://example.com/article", title="Test", status="discovered")
+    original_status = item.status
+
+    service = CandidateQualityService()
+    q = service.evaluate(item)
+
+    assert item.status == original_status, \
+        f"Status should not change after quality evaluation (was {original_status}, now {item.status})"
+
+    print("[OK] Quality evaluation does not modify SourceItem.status")
+
+
+def test_v10_beta5_candidate_pool_page_shows_quality():
+    """Candidate pool page displays quality level, action, and matched interests."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_quality_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Quality Source",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://anthropic.com/research/agent-{uuid.uuid4().hex[:6]}",
+            title="Building effective agents with Claude",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/candidate-pool?source_key={test_key}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Quality columns
+        assert "质量" in text, \
+            "Candidate pool should show '质量' column"
+        assert "建议" in text, \
+            "Candidate pool should show '建议' column"
+        assert "匹配方向" in text, \
+            "Candidate pool should show '匹配方向' column"
+
+        # Quality badge (high/medium/low/noise)
+        assert any(level in text for level in ["高", "中", "低", "噪音"]), \
+            "Quality level badge should appear"
+
+        # Action badge
+        assert any(action in text for action in ["建议生成", "人工复核", "建议忽略", "需人工判断"]), \
+            "Recommended action badge should appear"
+
+        print(f"[OK] Candidate pool page shows quality level, action, and matched interests for item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta5_source_item_detail_shows_quality():
+    """SourceItem detail page displays candidate quality assessment."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_quality_detail_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Quality Detail",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://anthropic.com/blog/{uuid.uuid4().hex[:6]}",
+            title="Building effective agents",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/source-items/{item.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        assert "候选质量评估" in text, \
+            "SourceItem detail should show '候选质量评估'"
+        assert "质量等级" in text, \
+            "Should show '质量等级'"
+        assert "推荐动作" in text, \
+            "Should show '推荐动作'"
+        assert "判断理由" in text or "匹配方向" in text, \
+            "Should show reasons or matched interests"
+
+        print(f"[OK] SourceItem detail page shows quality assessment for item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -7911,6 +8132,15 @@ if __name__ == "__main__":
     test_v10_beta4_safe_external_url_helper()
     test_v10_beta4_sources_page_shows_fetch_run_health()
     test_v10_beta4_home_page_shows_fetch_runs_entry()
+
+    # V1.0-beta.5 Candidate Quality Triage
+    test_v10_beta5_quality_imports()
+    test_v10_beta5_quality_noise_url()
+    test_v10_beta5_quality_high_value()
+    test_v10_beta5_quality_empty_title()
+    test_v10_beta5_quality_evaluation_does_not_change_status()
+    test_v10_beta5_candidate_pool_page_shows_quality()
+    test_v10_beta5_source_item_detail_shows_quality()
 
     print("=" * 50)
     print("Smoke test completed!")

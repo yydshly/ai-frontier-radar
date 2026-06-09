@@ -1,4 +1,5 @@
 """Candidate Pool routes - browsing, filtering, and batch operations for candidate items."""
+from app.application.candidate_quality.services import CandidateQualityService
 from typing import Annotated
 from fastapi import APIRouter, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -146,11 +147,16 @@ def candidate_pool_page(
         if flash_message:
             flash_message = unquote(flash_message)
 
+        # Compute quality for each item (V1.0-beta.5)
+        quality_service = CandidateQualityService()
+        quality_map = quality_service.evaluate_many(result_page.items)
+
         return _candidate_pool_templates.TemplateResponse(
             "candidate_pool.html",
             {
                 "request": request,
                 "items": result_page.items,
+                "quality_map": quality_map,
                 "total": result_page.total,
                 "page": result_page.page,
                 "page_size": result_page.page_size,
