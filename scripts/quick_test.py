@@ -2152,6 +2152,31 @@ def main():
     except Exception as e:
         check("Today Radar fetch run summary checks", False, str(e))
 
+    # ── 16e. V1.0-beta First Usable Loop 文档与验收脚本 ─────────────────────
+    print("\n[16e] V1.0-beta First Usable Loop 文档与验收脚本")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("V1 beta status doc exists",
+              (project_root / "docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md").exists(),
+              "V1 beta status document should exist")
+        check("V1 beta checklist doc exists",
+              (project_root / "docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md").exists(),
+              "V1 beta checklist document should exist")
+        check("first usable loop acceptance script exists",
+              (project_root / "scripts/acceptance_first_usable_loop.py").exists(),
+              "first usable loop acceptance script should exist")
+        check("README links V1 beta docs",
+              "V1_BETA_FIRST_USABLE_LOOP_STATUS.md" in readme_md
+              and "V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md" in readme_md,
+              "README should link V1 beta status and checklist docs")
+        check("README links acceptance_first_usable_loop.py",
+              "acceptance_first_usable_loop.py" in readme_md,
+              "README should reference acceptance_first_usable_loop.py")
+    except Exception as e:
+        check("V1 beta docs and scripts checks", False, str(e))
+
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
     try:

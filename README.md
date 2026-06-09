@@ -184,26 +184,25 @@ V1.0-alpha.4.3 增加真实浏览器与 GitHub Actions 验收记录，详见 [do
 
 ## V1.0-beta First Usable Loop
 
-V1.0-beta 为**第一可用闭环版本**，打通「信息来源 → 探测 → 候选池 → 加入生成 → 生成队列 → InsightCard」完整链路。
+V1.0-beta 为**第一可用闭环版本**，打通「雷达关注源 → 探测 → 今日雷达 → 中文摘要 → InsightCard」完整链路。
 
-验收文档：
-- [docs/FIRST_USABLE_LOOP_CHECK.md](docs/FIRST_USABLE_LOOP_CHECK.md) — 闭环验收步骤与预期说明
-- [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) — 已知限制详细说明
-- [docs/NEXT_EXECUTION_PLAN.md](docs/NEXT_EXECUTION_PLAN.md) — 下一阶段 P0/P1/P2 优先级规划
+阶段状态见：
+- [docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md](docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md) — 阶段定位、已完成能力、已知限制
+- [docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md](docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md) — 人工验收清单
 
-**验收命令：**
+轻量验收：
+
+```bash
+python scripts/acceptance_first_usable_loop.py
+```
+
+完整验收：
+
 ```bash
 python -m compileall app scripts
 python scripts/quick_test.py
+python scripts/check_sources_health.py
 ```
-
-### 下一阶段方向
-
-| 优先级 | 方向 |
-|--------|------|
-| P0 | 真实来源全量验证、中文一句话摘要、每日雷达 MVP |
-| P1 | 单来源工作台、新增来源入口、分页与数据治理 |
-| P2 | delta 精准化、repair 标题产品化、语音播报 |
 
 ## 项目理解与维护文档
 
