@@ -28,10 +28,16 @@ _WEAK_TITLES = frozenset(
 
 
 def _is_weak_title(title: str | None) -> bool:
-    """Return True if title is a weak/CTA string (case-insensitive)."""
+    """Return True if title is a weak/CTA string (case-insensitive, whitespace-normalized).
+
+    Normalizes internal whitespace (tabs, newlines, multiple spaces) before
+    comparison so "Learn\\nMore", "LEARN   MORE", etc. are detected.
+    """
     if not title or not title.strip():
         return True
-    return title.strip().lower() in _WEAK_TITLES
+    # Collapse all runs of whitespace to a single space
+    normalized = " ".join(title.strip().split())
+    return normalized.lower() in _WEAK_TITLES
 
 
 def _format_date(value: Any) -> str | None:
@@ -71,10 +77,27 @@ def build_candidate_display_card(item: SourceItem) -> "CandidateDisplayCard":
 
     # ── Summary ───────────────────────────────────────────────────────────
     summary = extract_lightweight_summary(item)
+    # If title is weak and the summary contains it, the fallback fired.
+    # Replace with a neutral message so weak CTA text never surfaces in summary.
+    if is_title_weak and title and title in summary:
+        summary = "暂无摘要。请重新探测该来源或运行标题修复脚本。"
 
-    # ── Time label: published_at takes priority over first_seen_at ────────
+    # ── Time label: item.published_at > metadata > first_seen_at ─────────────
     time_label: str
     pub_date = _format_date(item.published_at)
+    if not pub_date:
+        # Try raw_metadata_json for publication date
+        raw_meta: dict[str, Any] = {}
+        if item.raw_metadata_json:
+            try:
+                import json as _json
+                raw_meta = _json.loads(item.raw_metadata_json)
+            except Exception:
+                pass
+        for meta_key in ("published_at", "article_published_time", "date", "pub_date"):
+            pub_date = _format_date(raw_meta.get(meta_key))
+            if pub_date:
+                break
     if pub_date:
         time_label = f"发布于 {pub_date}"
     elif item.first_seen_at:

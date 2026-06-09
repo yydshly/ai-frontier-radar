@@ -362,8 +362,89 @@ def main():
               _is_weak_title("featured") is True)
         check("'Real Article Title' is NOT weak",
               _is_weak_title("Real Article Title") is False)
+        # Whitespace normalization: tabs, newlines, multiple spaces collapsed
+        check("'LEARN   MORE' (multi-space) is weak",
+              _is_weak_title("LEARN   MORE") is True)
+        check("'Learn\\nMore' (newline) is weak",
+              _is_weak_title("Learn\nMore") is True)
+        check("' FEATURED ' (surrounding spaces) is weak",
+              _is_weak_title(" FEATURED ") is True)
 
-    # 8c. candidate_pool.html contains new display elements
+    # 8c. Weak title summary fallback protection
+    try:
+        from app.application.candidates.display import build_candidate_display_card
+    except Exception as e:
+        check("build_candidate_display_card is importable", False, str(e))
+    else:
+        # Mock SourceItem with weak title but NO detail_description → fallback fires
+        mock_item2 = MagicMock(spec=SourceItem)
+        mock_item2.id = 999
+        mock_item2.title = "Learn More"
+        mock_item2.raw_metadata_json = "{}"
+        mock_item2.source_key = "meta_ai_blog"
+        mock_item2.status = "discovered"
+        mock_item2.insight_card_id = None
+        mock_item2.published_at = None
+        mock_item2.first_seen_at = datetime(2026, 6, 1, 12, 0, 0)
+        mock_item2.canonical_url = None
+        mock_item2.url = "https://ai.meta.com/blog/tribe-v2/"
+        card = build_candidate_display_card(mock_item2)
+        check("weak title + no summary → display.summary does not expose weak title",
+              "Learn More" not in card.summary and "标题待修复" not in card.summary,
+              f"got: {card.summary!r}")
+        check("weak title shows display.title as '标题待修复'",
+              card.title == "标题待修复")
+
+        # Mock SourceItem with metadata published_at → time_label shows 发布于
+        mock_item3 = MagicMock(spec=SourceItem)
+        mock_item3.id = 1000
+        mock_item3.title = "Real Article Title"
+        mock_item3.raw_metadata_json = '{"published_at": "2026-06-01T10:00:00"}'
+        mock_item3.source_key = "meta_ai_blog"
+        mock_item3.status = "discovered"
+        mock_item3.insight_card_id = None
+        mock_item3.published_at = None          # DB field empty
+        mock_item3.first_seen_at = datetime(2026, 6, 1, 12, 0, 0)
+        mock_item3.canonical_url = None
+        mock_item3.url = "https://ai.meta.com/blog/xyz/"
+        card3 = build_candidate_display_card(mock_item3)
+        check("raw_metadata_json.published_at → 发布于",
+              card3.time_label == "发布于 2026-06-01",
+              f"got: {card3.time_label!r}")
+
+        # Mock SourceItem with article_published_time → also 发布于
+        mock_item4 = MagicMock(spec=SourceItem)
+        mock_item4.id = 1001
+        mock_item4.title = "Another Article"
+        mock_item4.raw_metadata_json = '{"article_published_time": "2026-05-20T08:30:00"}'
+        mock_item4.source_key = "meta_ai_blog"
+        mock_item4.status = "discovered"
+        mock_item4.insight_card_id = None
+        mock_item4.published_at = None
+        mock_item4.first_seen_at = datetime(2026, 6, 1, 12, 0, 0)
+        mock_item4.canonical_url = None
+        mock_item4.url = "https://ai.meta.com/blog/abc/"
+        card4 = build_candidate_display_card(mock_item4)
+        check("raw_metadata_json.article_published_time → 发布于",
+              card4.time_label == "发布于 2026-05-20",
+              f"got: {card4.time_label!r}")
+
+        # Mock SourceItem with NO published_at anywhere → shows 发现于
+        mock_item5 = MagicMock(spec=SourceItem)
+        mock_item5.id = 1002
+        mock_item5.title = "Yet Another"
+        mock_item5.raw_metadata_json = "{}"
+        mock_item5.source_key = "meta_ai_blog"
+        mock_item5.status = "discovered"
+        mock_item5.insight_card_id = None
+        mock_item5.published_at = None
+        mock_item5.first_seen_at = datetime(2026, 6, 9, 8, 0, 0)
+        mock_item5.canonical_url = None
+        mock_item5.url = "https://ai.meta.com/blog/123/"
+        card5 = build_candidate_display_card(mock_item5)
+        check("no pub date anywhere → shows 发现于",
+              card5.time_label == "发现于 2026-06-09",
+              f"got: {card5.time_label!r}")
     tpl_path2 = templates_dir / "candidate_pool.html"
     try:
         content2 = tpl_path2.read_text(encoding="utf-8")
