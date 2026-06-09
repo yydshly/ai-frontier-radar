@@ -44,32 +44,68 @@
         {% if compiling_items %}
         <div class="detail-section">
             <h2 style="color: #1976d2;">⚙️ 生成中 ({{ compiling_items|length }})</h2>
-            <div class="table-scroll">
-                <table class="source-items-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>标题</th>
-                            <th>来源</th>
-                            <th>加入生成时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in compiling_items %}
-                        <tr>
-                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
-                            <td class="title-cell">{{ item.title or '无标题' }}</td>
-                            <td><code>{{ item.source_key }}</code></td>
-                            <td>{{ item.updated_at.strftime('%Y-%m-%d %H:%M:%S') if item.updated_at else '-' }}</td>
-                            <td>
-                                <a href="/source-items/{{ item.id }}" class="btn-sm">详情</a>
-                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="candidate-list">
+                {% for item in compiling_items %}
+                {% set display = display_map.get(item.id) %}
+                <article class="candidate-card">
+                    <div class="candidate-main">
+                        {# ── Title row ─────────────────────────────────────── #}
+                        <div class="candidate-title-row">
+                            {% if display and display.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.id }}" class="candidate-title">
+                                    {{ (display.title if display else item.title) or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                <span class="status-badge status-running">生成中</span>
+                            </div>
+                        </div>
+
+                        {# ── Weak title hint ─────────────────────────────────── #}
+                        {% if display and display.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                        </div>
+                        {% endif %}
+
+                        {# ── Summary ─────────────────────────────────────── #}
+                        {% if display and display.summary %}
+                        <div class="candidate-summary">{{ display.summary }}</div>
+                        {% endif %}
+
+                        {# ── URL ─────────────────────────────────────────── #}
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(display.url if display else item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ (display.url if display else item.url) | escape }}">
+                                {{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ (display.url if display else item.url) | escape }}">{{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        {# ── Source + time label ─────────────────────────── #}
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            {% if display %}
+                                <span>{{ display.time_label }}</span>
+                            {% else %}
+                                <span>更新时间 {{ item.updated_at.strftime('%m-%d %H:%M') if item.updated_at else '-' }}</span>
+                            {% endif %}
+                            <small class="muted">#{{ item.id }}</small>
+                        </div>
+                    </div>
+                    <div class="candidate-actions">
+                        <a href="/source-items/{{ item.id }}" class="btn-sm">详情</a>
+                        <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                    </div>
+                </article>
+                {% endfor %}
             </div>
         </div>
         {% endif %}
@@ -78,34 +114,70 @@
         {% if compiled_items %}
         <div class="detail-section">
             <h2 style="color: #2e7d32;">✅ 已完成 ({{ compiled_items|length }})</h2>
-            <div class="table-scroll">
-                <table class="source-items-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>标题</th>
-                            <th>来源</th>
-                            <th>生成完成时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in compiled_items %}
-                        <tr>
-                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
-                            <td class="title-cell">{{ item.title or '无标题' }}</td>
-                            <td><code>{{ item.source_key }}</code></td>
-                            <td>{{ item.updated_at.strftime('%Y-%m-%d %H:%M:%S') if item.updated_at else '-' }}</td>
-                            <td>
-                                {% if item.insight_card_id %}
-                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
-                                {% endif %}
-                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="candidate-list">
+                {% for item in compiled_items %}
+                {% set display = display_map.get(item.id) %}
+                <article class="candidate-card">
+                    <div class="candidate-main">
+                        {# ── Title row ─────────────────────────────────────── #}
+                        <div class="candidate-title-row">
+                            {% if display and display.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.id }}" class="candidate-title">
+                                    {{ (display.title if display else item.title) or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                <span class="status-badge status-completed">已完成</span>
+                            </div>
+                        </div>
+
+                        {# ── Weak title hint ─────────────────────────────────── #}
+                        {% if display and display.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                        </div>
+                        {% endif %}
+
+                        {# ── Summary ─────────────────────────────────────── #}
+                        {% if display and display.summary %}
+                        <div class="candidate-summary">{{ display.summary }}</div>
+                        {% endif %}
+
+                        {# ── URL ─────────────────────────────────────────── #}
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(display.url if display else item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ (display.url if display else item.url) | escape }}">
+                                {{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ (display.url if display else item.url) | escape }}">{{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        {# ── Source + time label ─────────────────────────── #}
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            {% if display %}
+                                <span>{{ display.time_label }}</span>
+                            {% else %}
+                                <span>更新时间 {{ item.updated_at.strftime('%m-%d %H:%M') if item.updated_at else '-' }}</span>
+                            {% endif %}
+                            <small class="muted">#{{ item.id }}</small>
+                        </div>
+                    </div>
+                    <div class="candidate-actions">
+                        {% if item.insight_card_id %}
+                        <a href="/cards/{{ item.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
+                        {% endif %}
+                        <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                    </div>
+                </article>
+                {% endfor %}
             </div>
         </div>
         {% endif %}
@@ -114,36 +186,80 @@
         {% if failed_items %}
         <div class="detail-section">
             <h2 style="color: #c62828;">❌ 失败 ({{ failed_items|length }})</h2>
-            <div class="table-scroll">
-                <table class="source-items-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>标题</th>
-                            <th>来源</th>
-                            <th>失败时间</th>
-                            <th>错误摘要</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in failed_items %}
-                        <tr>
-                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
-                            <td class="title-cell">{{ item.title or '无标题' }}</td>
-                            <td><code>{{ item.source_key }}</code></td>
-                            <td>{{ item.updated_at.strftime('%Y-%m-%d %H:%M:%S') if item.updated_at else '-' }}</td>
-                            <td class="summary-cell">{{ item.error_message or '-' }}</td>
-                            <td>
-                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
-                                    <button type="submit" class="btn-sm">重试生成</button>
-                                </form>
-                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="candidate-list">
+                {% for item in failed_items %}
+                {% set display = display_map.get(item.id) %}
+                <article class="candidate-card">
+                    <div class="candidate-main">
+                        {# ── Title row ─────────────────────────────────────── #}
+                        <div class="candidate-title-row">
+                            {% if display and display.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.id }}" class="candidate-title">
+                                    {{ (display.title if display else item.title) or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                <span class="status-badge status-failed">失败</span>
+                                {% if item.error_message %}
+                                <span class="status-badge" style="background:#ffebee;color:#c62828;" title="{{ item.error_message | escape }}">错误</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {# ── Weak title hint ─────────────────────────────────── #}
+                        {% if display and display.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                        </div>
+                        {% endif %}
+
+                        {# ── Summary ─────────────────────────────────────── #}
+                        {% if display and display.summary %}
+                        <div class="candidate-summary">{{ display.summary }}</div>
+                        {% endif %}
+
+                        {# ── URL ─────────────────────────────────────────── #}
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(display.url if display else item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ (display.url if display else item.url) | escape }}">
+                                {{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ (display.url if display else item.url) | escape }}">{{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        {# ── Source + time label ─────────────────────────── #}
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            {% if display %}
+                                <span>{{ display.time_label }}</span>
+                            {% else %}
+                                <span>更新时间 {{ item.updated_at.strftime('%m-%d %H:%M') if item.updated_at else '-' }}</span>
+                            {% endif %}
+                            <small class="muted">#{{ item.id }}</small>
+                        </div>
+
+                        {# ── Error message ────────────────────────────────── #}
+                        {% if item.error_message %}
+                        <div class="candidate-summary" style="color:#c62828;font-size:0.85em;">
+                            错误：{{ item.error_message | truncate(200, true, '...') }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="candidate-actions">
+                        <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                            <button type="submit" class="btn-sm btn-primary">重试生成</button>
+                        </form>
+                        <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                    </div>
+                </article>
+                {% endfor %}
             </div>
         </div>
         {% endif %}
@@ -154,34 +270,70 @@
         <div class="detail-section">
             <h2 style="color: #7b1fa2;">🆕 可加入生成的候选项 ({{ discovered_items|length }})</h2>
             <p style="color:#555;font-size:0.9em;margin-top:4px;">更多候选请前往 <a href="/candidate-pool">候选池</a></p>
-            <div class="table-scroll">
-                <table class="source-items-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>标题</th>
-                            <th>来源</th>
-                            <th>发现时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in displayed_discovered %}
-                        <tr>
-                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
-                            <td class="title-cell">{{ item.title or '无标题' }}</td>
-                            <td><code>{{ item.source_key }}</code></td>
-                            <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M:%S') if item.first_seen_at else '-' }}</td>
-                            <td>
-                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
-                                    <button type="submit" class="btn-sm btn-primary">加入生成</button>
-                                </form>
-                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="candidate-list">
+                {% for item in displayed_discovered %}
+                {% set display = display_map.get(item.id) %}
+                <article class="candidate-card">
+                    <div class="candidate-main">
+                        {# ── Title row ─────────────────────────────────────── #}
+                        <div class="candidate-title-row">
+                            {% if display and display.is_title_weak %}
+                                <span class="candidate-title candidate-title-weak" title="原始标题：{{ item.title | escape }}">
+                                    标题待修复
+                                </span>
+                            {% else %}
+                                <a href="/source-items/{{ item.id }}" class="candidate-title">
+                                    {{ (display.title if display else item.title) or '无标题' }}
+                                </a>
+                            {% endif %}
+                            <div class="candidate-badges">
+                                <span class="status-badge status-pending">待处理</span>
+                            </div>
+                        </div>
+
+                        {# ── Weak title hint ─────────────────────────────────── #}
+                        {% if display and display.is_title_weak %}
+                        <div class="candidate-weak-title-hint">
+                            原始标题：{{ item.title | escape }}
+                        </div>
+                        {% endif %}
+
+                        {# ── Summary ─────────────────────────────────────── #}
+                        {% if display and display.summary %}
+                        <div class="candidate-summary">{{ display.summary }}</div>
+                        {% endif %}
+
+                        {# ── URL ─────────────────────────────────────────── #}
+                        <div class="candidate-url">
+                            {% set safe_url = safe_external_url(display.url if display else item.url) %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ (display.url if display else item.url) | escape }}">
+                                {{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}
+                            </a>
+                            {% else %}
+                            <span title="{{ (display.url if display else item.url) | escape }}">{{ (display.url if display else item.url) | truncate(96, true, '...') if (display.url if display else item.url) else '-' }}</span>
+                            {% endif %}
+                        </div>
+
+                        {# ── Source + time label ─────────────────────────── #}
+                        <div class="candidate-meta">
+                            <code>{{ item.source_key }}</code>
+                            {% if display %}
+                                <span>{{ display.time_label }}</span>
+                            {% else %}
+                                <span>首次发现 {{ item.first_seen_at.strftime('%m-%d %H:%M') if item.first_seen_at else '-' }}</span>
+                            {% endif %}
+                            <small class="muted">#{{ item.id }}</small>
+                        </div>
+                    </div>
+                    <div class="candidate-actions">
+                        <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                            <button type="submit" class="btn-sm btn-primary">加入生成</button>
+                        </form>
+                        <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                    </div>
+                </article>
+                {% endfor %}
             </div>
         </div>
         {% endif %}

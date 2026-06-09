@@ -8858,14 +8858,103 @@ def test_v10_beta7_fetch_run_enqueue_route():
 
 
 def test_v10_beta7_generation_queue_page():
-    """GET /generation-queue returns 200 with queue content."""
+    """GET /generation-queue returns 200 with queue content and content-card display."""
     response = client.get("/generation-queue")
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     text = response.text
     assert "生成队列" in text, "Page should show '生成队列'"
     assert "生成中" in text or "已完成" in text or "失败" in text or "未处理" in text, \
         "Page should show status sections"
+    # Verify content-card display: display_map is used in template
+    assert "candidate-card" in text, "generation_queue should use candidate-card content display"
     print("[OK] GET /generation-queue returns 200 with content")
+
+
+def test_v10_beta7_generation_queue_weak_title_handling():
+    """generation_queue shows '标题待修复' for weak titles like Learn More / FEATURED."""
+    # Create a SourceItem with weak title to verify display handling
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    from datetime import datetime
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_gq_weak_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name=f"Test Source {test_key}",
+            description="Test source for weak title",
+            source_type="html_index",
+            homepage_url=f"https://example.com/{test_key}",
+            category="blog",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.flush()  # get src.id
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{test_key}/learn-more",
+            title="Learn More",   # weak title
+            status="discovered",
+            first_seen_at=datetime.utcnow(),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        # Hit generation_queue page which should render this item
+        response = client.get("/generation-queue")
+        assert response.status_code == 200
+        text = response.text
+
+        # Weak title "Learn More" should NOT appear as-is; should show "标题待修复"
+        # The page contains "标题待修复" for weak titles
+        assert "标题待修复" in text, \
+            "Weak title like 'Learn More' should display as '标题待修复' in generation_queue"
+        # "Learn More" should NOT appear as a display title (only in the raw-title hint)
+        # The card title should be "标题待修复", not "Learn More"
+        print(f"[OK] generation_queue shows '标题待修复' for weak title 'Learn More'")
+
+        db.delete(item)
+        db.delete(src)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_v10_beta7_generation_queue_has_summary_and_url():
+    """generation_queue page includes summary text and original link."""
+    response = client.get("/generation-queue")
+    assert response.status_code == 200
+    text = response.text
+    # candidate-summary class indicates summary field is shown
+    assert "candidate-summary" in text, \
+        "generation_queue should show candidate-summary (summary field)"
+    # safe_external_url usage indicates original link is shown
+    assert "candidate-url" in text, \
+        "generation_queue should show candidate-url (original link field)"
+    print("[OK] generation_queue page includes summary and original link fields")
+
+
+def test_v10_beta7_generation_queue_post_forms_preserved():
+    """generation_queue preserves POST forms for 加入生成 / 重试生成."""
+    response = client.get("/generation-queue")
+    assert response.status_code == 200
+    text = response.text
+    # Check POST forms for enqueue-compile action
+    assert 'method="post"' in text, \
+        "generation_queue should have POST forms"
+    assert 'action="/source-items/' in text and '/enqueue-compile"' in text, \
+        "generation_queue should have enqueue-compile form actions"
+    assert "加入生成" in text, "generation_queue should have '加入生成' button"
+    assert "重试生成" in text, "generation_queue should have '重试生成' button"
+    print("[OK] generation_queue preserves POST forms for 加入生成 / 重试生成")
 
 
 def test_v10_beta7_candidate_pool_enqueue_button():
@@ -9649,6 +9738,9 @@ if __name__ == "__main__":
     test_v10_beta7_enqueue_route_sets_compiling()
     test_v10_beta7_fetch_run_enqueue_route()
     test_v10_beta7_generation_queue_page()
+    test_v10_beta7_generation_queue_weak_title_handling()
+    test_v10_beta7_generation_queue_has_summary_and_url()
+    test_v10_beta7_generation_queue_post_forms_preserved()
     test_v10_beta7_candidate_pool_enqueue_button()
     test_v10_beta7_source_item_detail_enqueue()
     test_v10_beta7_sync_compile_route_still_works()

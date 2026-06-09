@@ -1225,6 +1225,7 @@ def generation_queue_page(request: Request):
     try:
         from app.models import SourceItem
         from sqlalchemy import desc
+        from app.application.candidates.display import build_candidate_display_card
 
         # Show items with status in compiling/compiled/failed, ordered by updated_at desc
         items = (
@@ -1235,11 +1236,20 @@ def generation_queue_page(request: Request):
             .all()
         )
 
+        display_map = {
+            item.id: build_candidate_display_card(item)
+            for item in items
+        }
+
+        from app.routes.fetch_runs import safe_external_url
+
         return templates.TemplateResponse(
             "generation_queue.html",
             {
                 "request": request,
                 "items": items,
+                "display_map": display_map,
+                "safe_external_url": safe_external_url,
             },
         )
     finally:

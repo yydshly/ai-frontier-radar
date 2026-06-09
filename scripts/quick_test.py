@@ -464,6 +464,35 @@ def main():
         check("candidate_pool.html de-emphasises #ID (small muted)",
               "candidate-id" in content2 or "#{{ item.id }}" in content2)
 
+    # ── 9. generation_queue display improvements ────────────────────────────
+    print("\n[9] generation_queue display improvements")
+    tpl_gq = templates_dir / "generation_queue.html"
+    try:
+        content_gq = tpl_gq.read_text(encoding="utf-8")
+    except Exception as e:
+        check("generation_queue.html is readable", False, str(e))
+    else:
+        check("generation_queue.html uses display_map for card display",
+              "{% set display = display_map.get(item.id) %}" in content_gq)
+        check("generation_queue.html shows '标题待修复' for weak titles",
+              "标题待修复" in content_gq)
+        check("generation_queue.html shows candidate-summary div (summary field)",
+              "candidate-summary" in content_gq)
+        check("generation_queue.html shows safe_external_url (原文链接)",
+              "safe_external_url" in content_gq)
+        check("generation_queue.html shows display.time_label (time field)",
+              "display.time_label" in content_gq)
+        check("generation_queue.html has 加入生成 POST form in discovered section",
+              'method="post" action="/source-items/{{ item.id }}/enqueue-compile"' in content_gq)
+        check("generation_queue.html has 重试生成 POST form in failed section",
+              "重试生成" in content_gq and 'method="post"' in content_gq)
+        check("generation_queue.html preserves section headers (compiling/compiled/failed/discovered)",
+              "生成中" in content_gq and "已完成" in content_gq and "失败" in content_gq and "可加入生成的候选项" in content_gq)
+        check("generation_queue.html uses candidate-card class",
+              "candidate-card" in content_gq)
+        check("generation_queue.html has weak title hint for discovered items",
+              "原始标题：" in content_gq)
+
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
