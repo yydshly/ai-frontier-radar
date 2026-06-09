@@ -154,7 +154,7 @@ def fetch_article_metadata(url: str, timeout_seconds: float = 5.0) -> dict:
         result["fetch_error"] = f"parse failed: {exc}"
         return result
 
-    # ── Title extraction ───────────────────────────────────────────────
+    # ── Title extraction — sequential fallback, each only runs if no title yet ──
     # 1. og:title
     og_title_tag = soup.find("meta", property="og:title")
     if og_title_tag and og_title_tag.get("content", "").strip():
@@ -162,21 +162,21 @@ def fetch_article_metadata(url: str, timeout_seconds: float = 5.0) -> dict:
         result["title_source"] = "detail_og_title"
 
     # 2. twitter:title (only if no og:title found)
-    elif not result["title"]:
+    if not result["title"]:
         twitter_title_tag = soup.find("meta", attrs={"name": "twitter:title"})
         if twitter_title_tag and twitter_title_tag.get("content", "").strip():
             result["title"] = twitter_title_tag["content"].strip()
             result["title_source"] = "detail_twitter_title"
 
     # 3. <title> (only if no og:title or twitter:title found)
-    elif not result["title"]:
+    if not result["title"]:
         title_tag = soup.find("title")
         if title_tag and title_tag.get_text(strip=True):
             result["title"] = title_tag.get_text(strip=True)
             result["title_source"] = "detail_title"
 
     # 4. <h1> (only if no previous title found)
-    elif not result["title"]:
+    if not result["title"]:
         h1_tag = soup.find("h1")
         if h1_tag and h1_tag.get_text(strip=True):
             result["title"] = h1_tag.get_text(strip=True)

@@ -238,29 +238,75 @@ def main():
         check("url_slug allowed when existing is None",
               _should_update_title(None, c_good_existing) is True)
 
-        # ── fetch_article_metadata: title does not block description extraction
+        # ── fetch_article_metadata: title fallback chain + description ─────────
         from unittest.mock import patch, MagicMock
         from app.sources.html_index_probe import fetch_article_metadata
+
+        # 1. og:title takes highest priority
         mock_response = MagicMock()
         mock_response.text = """<!DOCTYPE html>
 <html>
 <head>
-<meta property="og:title" content="Segment Anything 3">
-<meta property="og:description" content="A new model for segmenting anything.">
-<meta name="twitter:title" content="SAM3">
+<meta property="og:title" content="OG Title Here">
+<meta property="og:description" content="OG description.">
+<meta name="twitter:title" content="Twitter Title Here">
 </head>
-<body><h1>Hello</h1></body>
+<body><title>HTML Title</title><h1>H1 Title</h1></body>
 </html>"""
         mock_response.raise_for_status = MagicMock()
         with patch("httpx.get", return_value=mock_response):
             meta = fetch_article_metadata("https://example.com/article")
-        check("fetch_article_metadata extracts og:title",
-              meta["title"] == "Segment Anything 3")
-        check("fetch_article_metadata extracts description alongside title",
-              meta["description"] == "A new model for segmenting anything.",
+        check("og:title used when present",
+              meta["title"] == "OG Title Here" and meta["title_source"] == "detail_og_title")
+        check("description extracted even when og:title present",
+              meta["description"] == "OG description.",
               f"got: {meta.get('description')!r}")
-        check("title_source is detail_og_title",
-              meta["title_source"] == "detail_og_title")
+
+        # 2. twitter:title fallback when og:title absent
+        mock_response2 = MagicMock()
+        mock_response2.text = """<!DOCTYPE html>
+<html>
+<head>
+<meta name="twitter:title" content="Twitter Fallback Title">
+<meta property="og:description" content="OG Desc.">
+</head>
+<body><title>HTML Title</title><h1>H1 Title</h1></body>
+</html>"""
+        mock_response2.raise_for_status = MagicMock()
+        with patch("httpx.get", return_value=mock_response2):
+            meta2 = fetch_article_metadata("https://example.com/article2")
+        check("twitter:title used when og:title absent",
+              meta2["title"] == "Twitter Fallback Title" and meta2["title_source"] == "detail_twitter_title")
+
+        # 3. <title> fallback when og:title and twitter:title absent
+        mock_response3 = MagicMock()
+        mock_response3.text = """<!DOCTYPE html>
+<html>
+<head>
+<meta property="og:description" content="OG Desc.">
+</head>
+<body><title>HTML Title Fallback</title><h1>H1 Title</h1></body>
+</html>"""
+        mock_response3.raise_for_status = MagicMock()
+        with patch("httpx.get", return_value=mock_response3):
+            meta3 = fetch_article_metadata("https://example.com/article3")
+        check("<title> used when og:title and twitter:title absent",
+              meta3["title"] == "HTML Title Fallback" and meta3["title_source"] == "detail_title")
+
+        # 4. <h1> fallback when og:title, twitter:title, <title> all absent
+        mock_response4 = MagicMock()
+        mock_response4.text = """<!DOCTYPE html>
+<html>
+<head>
+<meta property="og:description" content="OG Desc.">
+</head>
+<body><h1>H1 Fallback Title</h1></body>
+</html>"""
+        mock_response4.raise_for_status = MagicMock()
+        with patch("httpx.get", return_value=mock_response4):
+            meta4 = fetch_article_metadata("https://example.com/article4")
+        check("<h1> used when og:title, twitter:title, <title> all absent",
+              meta4["title"] == "H1 Fallback Title" and meta4["title_source"] == "detail_h1")
 
     # ── 7. generation_queue.html section-header renaming ───────────────────
     print("\n[7] generation_queue.html section renaming")
