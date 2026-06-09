@@ -9038,6 +9038,333 @@ def test_v10_beta7_generation_queue_in_index():
     print("[OK] Index shows '生成队列' quick action")
 
 
+# ─── V1.0-beta.8 Manual Source Fetch Loop ─────────────────────────────────────
+
+def test_v10_beta8_source_fetch_service_import():
+    """SourceFetchService imports correctly."""
+    from app.application.sources.fetch_service import SourceFetchService, SourceFetchResult, SUPPORTED_STRATEGIES
+    assert SourceFetchService is not None
+    assert SourceFetchResult is not None
+    assert "rss" in SUPPORTED_STRATEGIES
+    assert "html_index" in SUPPORTED_STRATEGIES
+    print("[OK] SourceFetchService, SourceFetchResult, SUPPORTED_STRATEGIES all import")
+
+
+def test_v10_beta8_nonexistent_source_returns_not_found():
+    """POST /sources/{nonexistent_key}/fetch returns 404."""
+    response = client.post("/sources/nonexistent_key_xyz/fetch", follow_redirects=False)
+    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+    print("[OK] POST /sources/nonexistent_key_xyz/fetch returns 404")
+
+
+def test_v10_beta8_unsupported_strategy_creates_failed_run():
+    """Unsupported fetch_strategy creates a failed FetchRun with error message."""
+    import uuid
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_unsupported_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Unsupported",
+            description="Test",
+            source_type="manual_pdf",
+            homepage_url="https://example.com",
+            feed_url=None,
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="manual",  # Not supported
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        from app.application.sources.fetch_service import SourceFetchService
+        service = SourceFetchService(db)
+        result = service.run_source(test_key)
+
+        assert result is not None, "Service should return a result"
+        assert result.fetch_run.status == "failed", f"Expected failed, got {result.fetch_run.status}"
+        assert "unsupported fetch_strategy" in result.fetch_run.error_message
+        assert result.fetch_strategy == "manual"
+        print(f"[OK] Unsupported strategy creates failed FetchRun: {result.fetch_run.error_message}")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta8_rss_probe_creates_two_source_items():
+    """Mock RSS probe returns 2 entries, creates 2 new SourceItems."""
+    import uuid
+    import feedparser
+    from unittest.mock import patch
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun, SourceItem
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_rss_fetch_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test RSS Fetch",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Mock httpx and feedparser
+        mock_entries = [
+            {"link": "https://example.com/article1", "title": "Article 1", "author": "Author 1",
+             "published": "2024-01-01", "summary": "Summary 1"},
+            {"link": "https://example.com/article2", "title": "Article 2", "author": "Author 2",
+             "published": "2024-01-02", "summary": "Summary 2"},
+        ]
+
+        class MockResponse:
+            status_code = 200
+            text = "<xml>mock</xml>"
+            def raise_for_status(self): pass
+
+        class MockFeed:
+            bozo = False
+            entries = [type("Entry", (), e) for e in mock_entries]
+
+        with patch("httpx.get", return_value=MockResponse()):
+            with patch("feedparser.parse", return_value=MockFeed()):
+                from app.application.sources.fetch_service import SourceFetchService
+                service = SourceFetchService(db)
+                result = service.run_source(test_key)
+
+        assert result is not None
+        assert result.fetch_run.status == "success", f"Expected success, got {result.fetch_run.status}"
+        assert result.items_found == 2, f"Expected 2 items_found, got {result.items_found}"
+        assert result.items_new == 2, f"Expected 2 items_new, got {result.items_new}"
+
+        # Verify SourceItems exist in DB
+        items = db.query(SourceItem).filter(SourceItem.source_key == test_key).all()
+        assert len(items) == 2, f"Expected 2 SourceItems, got {len(items)}"
+        print(f"[OK] RSS probe created 2 SourceItems, FetchRun status=success")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta8_re_run_same_url_no_duplicate_seen():
+    """Re-running same URL marks items as seen (no duplicate), not new."""
+    import uuid
+    from unittest.mock import patch
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_dedup_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Dedup",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Pre-create an existing SourceItem
+        existing = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="https://example.com/article1",
+            canonical_url="https://example.com/article1",
+            title="Existing Article",
+            author="Author 1",
+            published_at="2024-01-01",
+            raw_metadata_json="{}",
+            status="discovered",
+        )
+        db.add(existing)
+        db.commit()
+
+        mock_entries = [
+            {"link": "https://example.com/article1", "title": "Existing Article Updated",
+             "author": "Author 1", "published": "2024-01-01", "summary": "Summary 1"},
+            {"link": "https://example.com/article2", "title": "New Article 2",
+             "author": "Author 2", "published": "2024-01-02", "summary": "Summary 2"},
+        ]
+
+        class MockResponse:
+            status_code = 200
+            text = "<xml>mock</xml>"
+            def raise_for_status(self): pass
+
+        class MockFeed:
+            bozo = False
+            entries = [type("Entry", (), e) for e in mock_entries]
+
+        with patch("httpx.get", return_value=MockResponse()):
+            with patch("feedparser.parse", return_value=MockFeed()):
+                from app.application.sources.fetch_service import SourceFetchService
+                service = SourceFetchService(db)
+                result = service.run_source(test_key)
+
+        assert result is not None
+        assert result.fetch_run.status == "success"
+        assert result.items_found == 2, f"Expected 2 items_found, got {result.items_found}"
+        assert result.items_new == 1, f"Expected 1 new (article2), got {result.items_new}"
+        assert result.items_updated == 1, f"Expected 1 updated (article1), got {result.items_updated}"
+
+        # Verify no duplicate — only 2 items total
+        items = db.query(SourceItem).filter(SourceItem.source_key == test_key).all()
+        assert len(items) == 2, f"Expected 2 total SourceItems (no dup), got {len(items)}"
+        print(f"[OK] Re-run same URL: 1 new, 1 updated, 0 duplicates, FetchRun status=success")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta8_post_source_fetch_returns_303():
+    """POST /sources/{key}/fetch returns 303 redirect to /fetch-runs/{id}."""
+    import uuid
+    from unittest.mock import patch
+    from app.db import SessionLocal
+    from app.models import Source
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_redirect_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Redirect",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Use mock to avoid real network call
+        with patch("httpx.get") as mock_get:
+            mock_response = type("MockResponse", (), {"status_code": 200, "text": "<xml/>", "raise_for_status": lambda self: None})()
+            mock_get.return_value = mock_response
+            with patch("feedparser.parse") as mock_parse:
+                mock_feed = type("MockFeed", (), {"bozo": False, "entries": []})()
+                mock_parse.return_value = mock_feed
+                response = client.post(f"/sources/{test_key}/fetch", follow_redirects=False)
+
+        assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+        location = response.headers.get("location", "")
+        assert "/fetch-runs/" in location, f"Expected redirect to /fetch-runs/, got {location}"
+        print(f"[OK] POST /sources/{test_key}/fetch returns 303 → {location}")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta8_sources_page_contains_run_button():
+    """GET /sources page contains '运行探测' button text."""
+    response = client.get("/sources")
+    assert response.status_code == 200
+    text = response.text
+    assert "运行探测" in text, "sources page should contain '运行探测' button"
+    print("[OK] /sources page contains '运行探测' button")
+
+
+def test_v10_beta8_fetch_run_detail_shows_delta():
+    """FetchRun detail page shows delta digest from metadata_json."""
+    import uuid
+    import json
+    from datetime import datetime
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        # Create a FetchRun with delta metadata
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=datetime.utcnow(),
+            finished_at=datetime.utcnow(),
+            items_found=2,
+            items_new=1,
+            items_updated=1,
+            items_failed=0,
+            metadata_json=json.dumps({
+                "delta": {
+                    "new_ids": [101],
+                    "seen_ids": [102],
+                    "updated_ids": [103],
+                    "failed_urls": [],
+                }
+            }),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+        # The delta section should be visible (exact text depends on template)
+        assert "delta" in text.lower() or "新增" in text or "new_ids" in text or "101" in text, \
+            "FetchRun detail should show delta information"
+        print(f"[OK] FetchRun detail page shows delta digest")
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -9333,6 +9660,16 @@ if __name__ == "__main__":
     test_v10_beta7_source_item_detail_enqueue()
     test_v10_beta7_sync_compile_route_still_works()
     test_v10_beta7_generation_queue_in_index()
+
+    # V1.0-beta.8 Manual Source Fetch Loop
+    test_v10_beta8_source_fetch_service_import()
+    test_v10_beta8_nonexistent_source_returns_not_found()
+    test_v10_beta8_unsupported_strategy_creates_failed_run()
+    test_v10_beta8_rss_probe_creates_two_source_items()
+    test_v10_beta8_re_run_same_url_no_duplicate_seen()
+    test_v10_beta8_post_source_fetch_returns_303()
+    test_v10_beta8_sources_page_contains_run_button()
+    test_v10_beta8_fetch_run_detail_shows_delta()
 
     print("=" * 50)
     print("Smoke test completed!")

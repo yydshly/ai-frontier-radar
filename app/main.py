@@ -1016,6 +1016,31 @@ def list_sources_page(request: Request):
         db.close()
 
 
+@app.post("/sources/{source_key}/fetch")
+def trigger_source_fetch(source_key: str):
+    """Manually trigger a fetch for the specified source.
+
+    POST only — no GET allowed.
+
+    Creates a FetchRun and redirects to its detail page.
+    Returns 404 if source_key does not exist.
+    """
+    db = next(get_db())
+    try:
+        from app.application.sources.fetch_service import SourceFetchService
+        service = SourceFetchService(db)
+        result = service.run_source(source_key)
+
+        if result is None:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=404, content={"detail": f"Source '{source_key}' not found"})
+
+        # Redirect to the FetchRun detail page
+        return RedirectResponse(url=f"/fetch-runs/{result.fetch_run.id}", status_code=303)
+    finally:
+        db.close()
+
+
 @app.get("/source-items", response_class=HTMLResponse)
 def list_source_items_page(
     request: Request,
