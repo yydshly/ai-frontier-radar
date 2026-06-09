@@ -1,9 +1,6 @@
 """Fetch Run routes - observability cockpit for source fetch executions."""
-from typing import Annotated
-
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.application.fetch_runs.services import FetchRunService
@@ -31,6 +28,68 @@ def get_status_display(status: str | None) -> str:
     if status is None:
         return "-"
     return FETCH_RUN_STATUS_LABELS.get(status, status)
+
+
+def is_safe_external_url(url: str | None) -> bool:
+    """Check if a URL is a safe external URL (http/https only, strict allowlist).
+
+    Uses urllib.parse.urlsplit for proper URL parsing and strict scheme allowlist.
+
+    Allows:
+    - http://example.com
+    - https://example.com
+
+    Rejects:
+    - javascript:, data:, vbscript:, file:, blob:, about:, mailto:, tel:, urn:
+    - Scheme-relative URLs (//evil.com)
+    - Empty or None URLs
+    - URLs with ASCII control characters
+    - Any non-http/https scheme
+    """
+    from urllib.parse import urlsplit
+
+    if not url:
+        return False
+
+    # Check for ASCII control characters (0x00–0x1F and 0x7F DEL) on the
+    # ORIGINAL input. We do this BEFORE .strip() because Python's default
+    # str.strip() removes 0x1F (Unicode whitespace) which would otherwise
+    # let attackers bypass the control-char check by suffixing their payload
+    # with 0x1F. No exceptions: tab, newline, carriage return are also rejected.
+    for c in url:
+        if ord(c) < 32 or ord(c) == 127:
+            return False
+
+    # Now strip only ASCII space (0x20); tab/newline/CR were already rejected.
+    url = url.strip(" ")
+
+    # Empty after strip
+    if not url:
+        return False
+
+    # Parse URL using urlsplit
+    try:
+        parsed = urlsplit(url)
+    except Exception:
+        return False
+
+    # Strict scheme allowlist: only http and https
+    scheme = parsed.scheme.lower()
+    if scheme not in ('http', 'https'):
+        return False
+
+    # Reject empty netloc (e.g., "http:" or "http:///path")
+    if not parsed.netloc:
+        return False
+
+    return True
+
+
+def safe_external_url(url: str | None) -> str | None:
+    """Return the URL if safe, otherwise None."""
+    if is_safe_external_url(url):
+        return url
+    return None
 
 
 def _escape(s: str | None) -> str:
@@ -127,6 +186,7 @@ def fetch_run_detail_page(request: Request, run_id: int):
                 "source": detail.source,
                 "related_items": detail.related_items,
                 "get_status_display": get_status_display,
+                "safe_external_url": safe_external_url,
             },
         )
     finally:

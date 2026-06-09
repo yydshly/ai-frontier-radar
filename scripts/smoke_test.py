@@ -7423,6 +7423,205 @@ def test_v10_beta4_fetch_run_detail_not_found():
     print("[OK] GET /fetch-runs/999999999 returns redirect or 404")
 
 
+def test_v10_beta4_fetch_run_detail_compile_is_post():
+    """FetchRun detail compile action must use POST form, not GET link."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun, SourceItem
+    from datetime import datetime
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_post_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Post Compile",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        started = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=started,
+            finished_at=started,
+            items_found=1,
+            items_new=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        # Uncompiled SourceItem in the time window
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/post-test-{uuid.uuid4().hex[:6]}",
+            title="Post Compile Test",
+            status="discovered",
+            first_seen_at=started,
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Must have POST form
+        assert f'<form method="post" action="/source-items/{item.id}/compile"' in text, \
+            f"Compile action must be POST form for item {item.id}"
+        # Must NOT have GET link
+        assert f'href="/source-items/{item.id}/compile"' not in text, \
+            f"Compile action must NOT be GET link for item {item.id}"
+
+        print(f"[OK] FetchRun detail compile for item {item.id} uses POST form")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta4_fetch_run_detail_unsafe_url_not_link():
+    """Unsafe URLs in FetchRun detail are not rendered as href links."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun, SourceItem
+    from datetime import datetime
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_unsafe_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Unsafe URL",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        started = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=started,
+            finished_at=started,
+            items_found=2,
+            items_new=2,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        # Unsafe URL item
+        unsafe_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="javascript:alert(1)",
+            title="Unsafe URL Item",
+            status="discovered",
+            first_seen_at=started,
+        )
+        # Safe URL item
+        safe_item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="https://example.com/safe",
+            title="Safe URL Item",
+            status="discovered",
+            first_seen_at=started,
+        )
+        db.add_all([unsafe_item, safe_item])
+        db.commit()
+        db.refresh(unsafe_item)
+        db.refresh(safe_item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Unsafe URL text must appear (as span, not a link)
+        assert "javascript:alert(1)" in text, \
+            "Unsafe URL text should appear on page"
+        # Unsafe URL must NOT be rendered as href
+        assert 'href="javascript:alert(1)"' not in text, \
+            "Unsafe URL must NOT be rendered as href"
+        # Safe URL must appear as href
+        assert 'href="https://example.com/safe"' in text, \
+            "Safe URL should be rendered as href"
+
+        print("[OK] Unsafe URL not rendered as href; safe URL rendered correctly")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta4_safe_external_url_helper():
+    """is_safe_external_url enforces strict http/https allowlist."""
+    from app.routes.fetch_runs import is_safe_external_url
+
+    # Valid cases
+    assert is_safe_external_url("http://example.com"), "http should be allowed"
+    assert is_safe_external_url("https://example.com"), "https should be allowed"
+    assert is_safe_external_url("https://example.com/path?q=1"), "https with path should be allowed"
+    assert is_safe_external_url("https://user:pass@example.com"), "https with auth should be allowed"
+
+    # Invalid schemes
+    assert not is_safe_external_url("javascript:alert(1)"), "javascript: rejected"
+    assert not is_safe_external_url("data:text/html"), "data: rejected"
+    assert not is_safe_external_url("file:///etc/passwd"), "file: rejected"
+    assert not is_safe_external_url("//evil.com"), "scheme-relative rejected"
+    assert not is_safe_external_url("mailto:test@example.com"), "mailto rejected"
+    assert not is_safe_external_url("tel:123"), "tel rejected"
+    assert not is_safe_external_url("urn:test"), "urn rejected"
+
+    # Control characters (including tab, newline, carriage return)
+    assert not is_safe_external_url("https://example.com/a\tb"), "tab character rejected"
+    assert not is_safe_external_url("https://example.com/a\nb"), "newline rejected"
+    assert not is_safe_external_url("https://example.com/a\rb"), "CR rejected"
+    assert not is_safe_external_url("https://example.com/\x1f"), "US-FS rejected"
+    assert not is_safe_external_url("https://example.com/\x7f"), "DEL rejected"
+
+    # None and empty
+    assert not is_safe_external_url(None), "None rejected"
+    assert not is_safe_external_url(""), "empty string rejected"
+    assert not is_safe_external_url("   "), "whitespace-only rejected"
+
+    # Empty netloc
+    assert not is_safe_external_url("http:"), "http: with empty netloc rejected"
+    assert not is_safe_external_url("https:///path"), "https:///path rejected"
+
+    print("[OK] is_safe_external_url helper passes all checks")
+
+
 def test_v10_beta4_sources_page_shows_fetch_run_health():
     """GET /sources shows FetchRun health info and links."""
     response = client.get("/sources")
@@ -7707,6 +7906,9 @@ if __name__ == "__main__":
     test_v10_beta4_fetch_runs_filter()
     test_v10_beta4_fetch_run_detail_page()
     test_v10_beta4_fetch_run_detail_not_found()
+    test_v10_beta4_fetch_run_detail_compile_is_post()
+    test_v10_beta4_fetch_run_detail_unsafe_url_not_link()
+    test_v10_beta4_safe_external_url_helper()
     test_v10_beta4_sources_page_shows_fetch_run_health()
     test_v10_beta4_home_page_shows_fetch_runs_entry()
 
