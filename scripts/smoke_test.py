@@ -598,6 +598,65 @@ def test_sources_page():
     print("[OK] GET /sources returns 200 with source data")
 
 
+def test_sources_page_hides_test_sources():
+    """Test that /sources hides test source keys unless include_test=1."""
+    import uuid
+
+    from app.db import SessionLocal
+    from app.models import Source
+
+    db = SessionLocal()
+    test_key = f"test_sync_enq_sources_{uuid.uuid4().hex[:8]}"
+    orphan_key = "orphan_key"
+    try:
+        db.query(Source).filter(Source.source_key.in_([test_key, orphan_key])).delete(synchronize_session=False)
+        db.add(Source(
+            source_key=test_key,
+            name="Test Sync Source",
+            description="Test source hidden by default",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="test",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        ))
+        db.add(Source(
+            source_key=orphan_key,
+            name="Orphan Source",
+            description="Orphan source hidden by default",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/feed.xml",
+            category="test",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        ))
+        db.commit()
+
+        response = client.get("/sources")
+        assert response.status_code == 200
+        assert test_key not in response.text, "test_sync_enq source should be hidden by default"
+        assert orphan_key not in response.text, "orphan_key should be hidden by default"
+        assert "include_test=1" in response.text, "sources page should expose include_test toggle"
+
+        response_with_test = client.get("/sources?include_test=1")
+        assert response_with_test.status_code == 200
+        assert test_key in response_with_test.text, "include_test=1 should show test_sync_enq source"
+        assert orphan_key in response_with_test.text, "include_test=1 should show orphan_key"
+        print("[OK] /sources hides test sources by default and include_test=1 shows them")
+    finally:
+        db.query(Source).filter(Source.source_key.in_([test_key, orphan_key])).delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
 def test_source_items_page():
     """Test that /source-items page loads and displays source items."""
     from app.db import SessionLocal
@@ -1650,6 +1709,61 @@ def test_html_index_probe_duplicate_href():
 
     finally:
         httpx.get = original_get
+        db.rollback()
+        db.close()
+
+
+def test_html_index_probe_uses_default_headers():
+    """HTML index homepage and detail requests use browser-compatible headers."""
+    import uuid
+    from unittest.mock import MagicMock, patch
+
+    from app.db import SessionLocal
+    from app.models import Source
+    from app.sources.html_index_probe import (
+        DEFAULT_HTML_HEADERS,
+        fetch_article_metadata,
+        probe_html_index_source,
+    )
+
+    assert DEFAULT_HTML_HEADERS.get("User-Agent")
+    assert DEFAULT_HTML_HEADERS.get("Accept")
+    assert DEFAULT_HTML_HEADERS.get("Accept-Language")
+
+    detail_response = MagicMock()
+    detail_response.text = "<html><head><title>Detail</title></head><body></body></html>"
+    detail_response.raise_for_status = MagicMock()
+    with patch("httpx.get", return_value=detail_response) as mock_get:
+        fetch_article_metadata("https://example.com/blog/detail")
+    assert mock_get.call_args.kwargs.get("headers") == DEFAULT_HTML_HEADERS
+
+    homepage_response = MagicMock()
+    homepage_response.text = "<html><body><a href='/blog/item'>Item</a></body></html>"
+    homepage_response.raise_for_status = MagicMock()
+    db = SessionLocal()
+    try:
+        source = Source(
+            source_key=f"test_html_headers_{uuid.uuid4().hex[:8]}",
+            name="Test HTML Headers",
+            description="Test",
+            source_type="html_index",
+            homepage_url="https://example.com",
+            category="research",
+            tags_json="[]",
+            enabled=True,
+            fetch_strategy="html_index",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
+
+        with patch("httpx.get", return_value=homepage_response) as mock_probe_get:
+            probe_html_index_source(db, source)
+        assert mock_probe_get.call_args_list[0].kwargs.get("headers") == DEFAULT_HTML_HEADERS
+        print("[OK] HTML index probe uses DEFAULT_HTML_HEADERS for homepage/detail requests")
+    finally:
         db.rollback()
         db.close()
 
@@ -7626,9 +7740,9 @@ def test_v10_beta4_sources_page_shows_fetch_run_health():
         "/sources page should link to candidate pool"
     assert "/source-items" in text, \
         "/sources page should link to /source-items"
-    # Status badge classes should appear
-    assert "status-badge" in text, \
-        "/sources page should show status badges"
+    # Status area should appear even when sources have not run yet.
+    assert "source-status" in text, \
+        "/sources page should show source status area"
     # Run detection button
     assert "运行探测" in text, \
         "/sources page should have '运行探测' button"
@@ -10363,6 +10477,8 @@ if __name__ == "__main__":
     test_v10_beta8_unsupported_strategy_creates_failed_run()
     test_v10_beta8_source_fetch_service_writes_probe_error_message()
     test_live_source_validation_coverage_helpers()
+    test_sources_page_hides_test_sources()
+    test_html_index_probe_uses_default_headers()
     test_v10_beta8_rss_probe_creates_two_source_items()
     test_v10_beta8_re_run_same_url_no_duplicate_seen()
     test_v10_beta8_post_source_fetch_returns_303()

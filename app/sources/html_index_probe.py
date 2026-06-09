@@ -73,6 +73,16 @@ YEAR_PATTERN = re.compile(r"/\d{4}/|" r"-\d{4}/|" r"/\d{4}$")
 # Beyond this limit candidates use URL slug fallback without fetching the article.
 MAX_DETAIL_FETCHES_PER_SOURCE = 15
 
+DEFAULT_HTML_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8",
+}
+
 
 def _is_weak_title(title: str) -> bool:
     """Return True if title is a weak/CTA string (case-insensitive).
@@ -137,12 +147,13 @@ def fetch_article_metadata(url: str, timeout_seconds: float = 5.0) -> dict:
         "fetch_error": None,
     }
 
-    headers = {
-        "User-Agent": "AI-Frontier-Radar/0.7 (+https://github.com/yydshly/ai-frontier-radar)"
-    }
-
     try:
-        response = httpx.get(url, timeout=timeout_seconds, follow_redirects=True, headers=headers)
+        response = httpx.get(
+            url,
+            timeout=timeout_seconds,
+            follow_redirects=True,
+            headers=DEFAULT_HTML_HEADERS,
+        )
         response.raise_for_status()
     except Exception as exc:
         result["fetch_error"] = str(exc)
@@ -467,18 +478,13 @@ def probe_html_index_source(
         result["error_kind"] = "missing_homepage_url"
         return result
 
-    # Build request headers
-    headers = {
-        "User-Agent": "AI-Frontier-Radar/0.7 (+https://github.com/yydshly/ai-frontier-radar)"
-    }
-
     # Fetch homepage
     try:
         response = httpx.get(
             source.homepage_url,
             timeout=timeout_seconds,
             follow_redirects=True,
-            headers=headers,
+            headers=DEFAULT_HTML_HEADERS,
         )
         response.raise_for_status()
     except httpx.TimeoutException:

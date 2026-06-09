@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Form, BackgroundTasks
+from fastapi import FastAPI, Request, Form, BackgroundTasks, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -28,7 +28,7 @@ from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
 from app.routes.project_docs import router as project_docs_router
 from app.routes.candidate_pool import router as candidate_pool_router
-from app.routes.fetch_runs import router as fetch_runs_router
+from app.routes.fetch_runs import router as fetch_runs_router, is_test_source_key
 
 
 # ── Shared card display helper (V1.0-alpha.8.6) ─────────────────────────────
@@ -987,7 +987,7 @@ def card_export_report_download(card_id: int):
 
 
 @app.get("/sources", response_class=HTMLResponse)
-def list_sources_page(request: Request):
+def list_sources_page(request: Request, include_test: int = Query(0, ge=0, le=1)):
     """List all configured sources from database."""
     db = next(get_db())
     try:
@@ -1000,6 +1000,9 @@ def list_sources_page(request: Request):
             .order_by(Source.category, Source.source_key)
             .all()
         )
+        show_test_sources = bool(include_test)
+        if not show_test_sources:
+            sources_orm = [s for s in sources_orm if not is_test_source_key(s.source_key)]
 
         # Build FetchRun health map for all source keys
         source_keys = [s.source_key for s in sources_orm]
@@ -1035,7 +1038,13 @@ def list_sources_page(request: Request):
 
         return templates.TemplateResponse(
             "sources.html",
-            {"request": request, "sources": sources_data, "sync_result": sync_result},
+            {
+                "request": request,
+                "sources": sources_data,
+                "sync_result": sync_result,
+                "include_test": show_test_sources,
+                "include_test_url": "/sources" if show_test_sources else "/sources?include_test=1",
+            },
         )
     finally:
         db.close()

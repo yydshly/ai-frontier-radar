@@ -133,7 +133,7 @@ def main():
     try:
         from app.sources.html_index_probe import (
             _is_weak_title, _make_url_slug_fallback, choose_candidate_title,
-            _should_update_title, MAX_DETAIL_FETCHES_PER_SOURCE,
+            _should_update_title, MAX_DETAIL_FETCHES_PER_SOURCE, DEFAULT_HTML_HEADERS,
         )
     except Exception as e:
         check("html_index_probe imports for weak title helpers", False, str(e))
@@ -208,6 +208,14 @@ def main():
         # ── MAX_DETAIL_FETCHES_PER_SOURCE constant ─────────────────────────
         check("MAX_DETAIL_FETCHES_PER_SOURCE is 15",
               MAX_DETAIL_FETCHES_PER_SOURCE == 15)
+        check("DEFAULT_HTML_HEADERS exists",
+              isinstance(DEFAULT_HTML_HEADERS, dict))
+        check("DEFAULT_HTML_HEADERS contains User-Agent",
+              bool(DEFAULT_HTML_HEADERS.get("User-Agent")))
+        check("DEFAULT_HTML_HEADERS contains Accept",
+              bool(DEFAULT_HTML_HEADERS.get("Accept")))
+        check("DEFAULT_HTML_HEADERS contains Accept-Language",
+              bool(DEFAULT_HTML_HEADERS.get("Accept-Language")))
 
         # ── _should_update_title existing-item title protection ─────────────
         # a) url_slug must NOT overwrite a good existing title
@@ -254,13 +262,15 @@ def main():
 <body><title>HTML Title</title><h1>H1 Title</h1></body>
 </html>"""
         mock_response.raise_for_status = MagicMock()
-        with patch("httpx.get", return_value=mock_response):
+        with patch("httpx.get", return_value=mock_response) as mock_get:
             meta = fetch_article_metadata("https://example.com/article")
         check("og:title used when present",
               meta["title"] == "OG Title Here" and meta["title_source"] == "detail_og_title")
         check("description extracted even when og:title present",
               meta["description"] == "OG description.",
               f"got: {meta.get('description')!r}")
+        check("fetch_article_metadata uses DEFAULT_HTML_HEADERS",
+              mock_get.call_args.kwargs.get("headers") == DEFAULT_HTML_HEADERS)
 
         # 2. twitter:title fallback when og:title absent
         mock_response2 = MagicMock()
@@ -924,6 +934,67 @@ def main():
         check("/fetch-runs?include_test=1 shows test records", False, str(e))
 
     # ── 13. validate_sources_live.py — unit-testable helpers ──────────────
+    # 12g. TestClient: /sources hides test sources by default
+    try:
+        import uuid
+        from app.db import SessionLocal as _SL
+        from app.models import Source
+
+        db_session = _SL()
+        test_key = f"test_sync_enq_quick_{uuid.uuid4().hex[:8]}"
+        orphan_key = "orphan_key"
+        try:
+            db_session.query(Source).filter(Source.source_key.in_([test_key, orphan_key])).delete(synchronize_session=False)
+            db_session.add(Source(
+                source_key=test_key,
+                name="Test Sync Quick Source",
+                description="Test source hidden by default",
+                source_type="rss",
+                category="test",
+                tags_json="[]",
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+                homepage_url="https://example.com",
+                feed_url="https://example.com/feed.xml",
+                enabled=True,
+            ))
+            db_session.add(Source(
+                source_key=orphan_key,
+                name="Orphan Test Source",
+                description="Orphan source hidden by default",
+                source_type="rss",
+                category="test",
+                tags_json="[]",
+                fetch_strategy="rss",
+                relevance_hint="",
+                fetch_interval_hours=24,
+                homepage_url="https://example.com",
+                feed_url="https://example.com/feed.xml",
+                enabled=True,
+            ))
+            db_session.commit()
+
+            sources_default = client.get("/sources")
+            check("/sources default hides test_sync_enq source",
+                  test_key not in sources_default.text)
+            check("/sources default hides orphan_key",
+                  orphan_key not in sources_default.text)
+            check("/sources default exposes include_test toggle",
+                  "include_test=1" in sources_default.text)
+
+            sources_with_test = client.get("/sources?include_test=1")
+            check("/sources?include_test=1 shows test_sync_enq source",
+                  test_key in sources_with_test.text)
+            check("/sources?include_test=1 shows orphan_key",
+                  orphan_key in sources_with_test.text)
+        finally:
+            db_session.query(Source).filter(Source.source_key.in_([test_key, orphan_key])).delete(synchronize_session=False)
+            db_session.commit()
+            db_session.close()
+    except Exception as e:
+        check("/sources test source filtering", False, str(e))
+
     print("\n[13] validate_sources_live helpers")
 
     # 13a. Script is importable

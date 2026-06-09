@@ -21,6 +21,14 @@
         </div>
         {% endif %}
 
+        <div class="test-source-toggle">
+            {% if include_test %}
+            当前显示测试来源。<a href="{{ include_test_url }}">隐藏测试来源</a>
+            {% else %}
+            已隐藏测试来源。<a href="{{ include_test_url }}">显示测试来源</a>
+            {% endif %}
+        </div>
+
         <!-- Usage guide -->
         <div class="usage-guide">
             <h3>使用流程</h3>
