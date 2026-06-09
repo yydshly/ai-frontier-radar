@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>来源探测运行 FetchRun - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>📡 来源探测运行 FetchRun</h1>
+        <nav>
+            <a href="/">← 返回首页</a>
+            <a href="/candidate-pool">候选池</a>
+            <a href="/source-items">原始资料</a>
+            <a href="/sources">信息来源</a>
+        </nav>
+    </header>
+
+    <main class="wide-page">
+        <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); border-left: 4px solid #7b1fa2;">
+            <p>这里展示每次信息来源探测运行记录，用于排查来源是否正常、发现了多少候选资料、失败原因是什么。</p>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="filter-bar">
+            <form method="get" action="/fetch-runs" class="filter-form">
+                <div class="filter-row">
+                    <label>
+                        来源：
+                        <select name="source_key">
+                            <option value="">全部</option>
+                            {% for sk, count in source_keys %}
+                            <option value="{{ sk }}" {% if filter_source_key == sk %}selected{% endif %}>
+                                {{ sk }} ({{ count }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label>
+                        状态：
+                        <select name="status">
+                            <option value="">全部</option>
+                            <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>等待中</option>
+                            <option value="running" {% if filter_status == 'running' %}selected{% endif %}>运行中</option>
+                            <option value="success" {% if filter_status == 'success' %}selected{% endif %}>成功</option>
+                            <option value="partial_failed" {% if filter_status == 'partial_failed' %}selected{% endif %}>部分失败</option>
+                            <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>失败</option>
+                        </select>
+                    </label>
+
+                    <button type="submit" class="btn-primary">查询</button>
+                    <a href="/fetch-runs" class="btn-secondary">清空筛选</a>
+                </div>
+            </form>
+        </div>
+
+        {% if runs %}
+        <p class="result-count">共找到 {{ total }} 条记录{% if filter_source_key or filter_status %}（已筛选）{% endif %}</p>
+
+        <div class="table-scroll">
+            <table class="source-items-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>来源</th>
+                        <th>类型</th>
+                        <th>状态</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>发现</th>
+                        <th>新增</th>
+                        <th>更新</th>
+                        <th>失败</th>
+                        <th>错误</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in runs %}
+                    <tr>
+                        <td><a href="/fetch-runs/{{ run.id }}">#{{ run.id }}</a></td>
+                        <td><code>{{ run.source_key }}</code></td>
+                        <td>{{ run.run_type }}</td>
+                        <td>
+                            {% if run.status == 'pending' %}<span class="status-badge status-discovered">等待中</span>
+                            {% elif run.status == 'running' %}<span class="status-badge" style="background:#1976d2; color:white;">运行中</span>
+                            {% elif run.status == 'success' %}<span class="status-badge status-compiled">成功</span>
+                            {% elif run.status == 'partial_failed' %}<span class="status-badge" style="background:#f57c00; color:white;">部分失败</span>
+                            {% elif run.status == 'failed' %}<span class="status-badge status-failed">失败</span>
+                            {% else %}{{ run.status }}{% endif %}
+                        </td>
+                        <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else '-' }}</td>
+                        <td>{{ run.finished_at.strftime('%Y-%m-%d %H:%M') if run.finished_at else '-' }}</td>
+                        <td>{{ run.items_found if run.items_found is not none else 0 }}</td>
+                        <td>{{ run.items_new if run.items_new is not none else 0 }}</td>
+                        <td>{{ run.items_updated if run.items_updated is not none else 0 }}</td>
+                        <td>{{ run.items_failed if run.items_failed is not none else 0 }}</td>
+                        <td class="error-cell">
+                            {% if run.error_message %}
+                            <span class="error-msg" title="{{ run.error_message }}">
+                                {{ run.error_message[:50] }}{% if run.error_message|length > 50 %}...{% endif %}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="action-cell">
+                            <a href="/fetch-runs/{{ run.id }}" class="btn-sm">详情</a>
+                            <a href="/candidate-pool?source_key={{ run.source_key }}" class="btn-sm">候选池</a>
+                            <a href="/source-items?source_key={{ run.source_key }}" class="btn-sm">原始资料</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            {% if has_prev %}
+            <a href="{{ build_pagination_url(page - 1, page_size) }}" class="btn-secondary">上一页</a>
+            {% else %}
+            <span class="btn-secondary disabled">上一页</span>
+            {% endif %}
+            <span class="page-info">第 {{ page }} / {{ total_pages }} 页，共 {{ total }} 条</span>
+            {% if has_next %}
+            <a href="{{ build_pagination_url(page + 1, page_size) }}" class="btn-secondary">下一页</a>
+            {% else %}
+            <span class="btn-secondary disabled">下一页</span>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="empty-state">暂无探测运行记录。</p>
+        {% endif %}
+
+        <p class="page-note">V1.0-beta.4：运行记录由探测脚本在执行后写入数据库，展示每次来源抓取的结果概览。</p>
+    </main>
+
+    <footer>
+        <p>AI Frontier Radar 来源探测运行</p>
+    </footer>
+</body>
+</html>
