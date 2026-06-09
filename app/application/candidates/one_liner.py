@@ -56,8 +56,8 @@ class OneLinerResult:
 
 @dataclass
 class OneLinerSettings:
-    enabled: bool = False
-    provider: str = "mock"
+    enabled: bool = True
+    provider: str = "llm_profile"
     max_per_run: int = 10
     max_per_day: int = 50
     max_input_chars: int = 1200
@@ -97,8 +97,8 @@ ONE_LINER_SYSTEM_PROMPT = """\
 
 def get_one_liner_settings() -> OneLinerSettings:
     return OneLinerSettings(
-        enabled=_env_bool("ONE_LINER_ENABLED", False),
-        provider=os.getenv("ONE_LINER_PROVIDER", "mock").strip() or "mock",
+        enabled=_env_bool("ONE_LINER_ENABLED", True),
+        provider=os.getenv("ONE_LINER_PROVIDER", "llm_profile").strip() or "llm_profile",
         max_per_run=_env_int("ONE_LINER_MAX_PER_RUN", 10, 1, 100),
         max_per_day=_env_int("ONE_LINER_MAX_PER_DAY", 50, 1, 1000),
         max_input_chars=_env_int("ONE_LINER_MAX_INPUT_CHARS", 1200, 100, 8000),

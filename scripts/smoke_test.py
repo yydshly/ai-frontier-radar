@@ -10049,6 +10049,7 @@ def test_candidate_one_liner_llm_profile_provider():
             text=True,
             capture_output=True,
             check=False,
+            env={**os.environ, "ONE_LINER_ENABLED": "false"},
         )
         assert proc.returncode == 0, proc.stderr
         assert "ONE_LINER_ENABLED=false" in proc.stdout

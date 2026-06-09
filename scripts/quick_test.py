@@ -1677,6 +1677,50 @@ def main():
               "ONE_LINER_BASE_URL" not in one_liner_source
               and "ONE_LINER_API_KEY" not in one_liner_source
               and "ONE_LINER_MODEL" not in one_liner_source)
+
+        # One-liner settings defaults (enabled=True, provider=llm_profile).
+        from app.application.candidates.one_liner import get_one_liner_settings
+        # Read .env.example to verify documented defaults.
+        env_example = (project_root / ".env.example").read_text(encoding="utf-8")
+        check(".env.example contains ONE_LINER_ENABLED=true",
+              "ONE_LINER_ENABLED=true" in env_example)
+        check(".env.example does not contain ONE_LINER_API_KEY",
+              "ONE_LINER_API_KEY" not in env_example)
+        check(".env.example does not contain ONE_LINER_BASE_URL",
+              "ONE_LINER_BASE_URL" not in env_example)
+        check(".env.example does not contain ONE_LINER_MODEL",
+              "ONE_LINER_MODEL" not in env_example)
+
+        # Temporarily override env to test overrideability.
+        old_enabled = os.environ.pop("ONE_LINER_ENABLED", None)
+        old_provider = os.environ.pop("ONE_LINER_PROVIDER", None)
+        try:
+            defaults = get_one_liner_settings()
+            check("get_one_liner_settings default enabled=True",
+                  defaults.enabled is True)
+            check("get_one_liner_settings default provider=llm_profile",
+                  defaults.provider == "llm_profile")
+
+            os.environ["ONE_LINER_ENABLED"] = "false"
+            disabled = get_one_liner_settings()
+            check("ONE_LINER_ENABLED=false disables one-liner",
+                  disabled.enabled is False)
+
+            os.environ["ONE_LINER_PROVIDER"] = "mock"
+            os.environ["ONE_LINER_ENABLED"] = "true"
+            mock_settings = get_one_liner_settings()
+            check("ONE_LINER_PROVIDER=mock can still be used",
+                  mock_settings.provider == "mock")
+        finally:
+            if old_enabled is not None:
+                os.environ["ONE_LINER_ENABLED"] = old_enabled
+            elif "ONE_LINER_ENABLED" in os.environ:
+                del os.environ["ONE_LINER_ENABLED"]
+            if old_provider is not None:
+                os.environ["ONE_LINER_PROVIDER"] = old_provider
+            elif "ONE_LINER_PROVIDER" in os.environ:
+                del os.environ["ONE_LINER_PROVIDER"]
+
     except Exception as e:
         check("LLM profile one-liner quick checks", False, str(e))
 
