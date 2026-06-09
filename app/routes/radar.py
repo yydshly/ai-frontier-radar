@@ -8,7 +8,7 @@ items visible on the current page.
 """
 from pathlib import Path
 
-from fastapi import APIRouter, Form, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -28,7 +28,9 @@ from app.application.radar.today import (
     MAX_PER_PAGE,
     ALL_KEY,
 )
-from app.models import SourceItem
+from app.application.sources.background_fetch import SourceFetchBackgroundService
+from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
+from app.models import SourceItem, Source
 from app.routes.fetch_runs import safe_external_url
 
 router = APIRouter(prefix="/radar", tags=["radar"])
@@ -51,6 +53,11 @@ def radar_today_page(
     summary_success: int | None = Query(None, ge=0),
     summary_skipped: int | None = Query(None, ge=0),
     summary_failed: int | None = Query(None, ge=0),
+    update_started: int | None = Query(None, ge=0),
+    update_running: int | None = Query(None, ge=0),
+    update_unsupported: int | None = Query(None, ge=0),
+    update_failed: int | None = Query(None, ge=0),
+    update_truncated: int | None = Query(None, ge=0),
 ):
     """Render today's AI frontier radar reading view."""
     db = next(get_db())
@@ -77,6 +84,22 @@ def radar_today_page(
                 "failed": summary_failed,
             }
 
+        update_result = None
+        if any(v is not None for v in [
+            update_started,
+            update_running,
+            update_unsupported,
+            update_failed,
+            update_truncated,
+        ]):
+            update_result = {
+                "started": update_started or 0,
+                "running": update_running or 0,
+                "unsupported": update_unsupported or 0,
+                "failed": update_failed or 0,
+                "truncated": update_truncated or 0,
+            }
+
         return _radar_templates.TemplateResponse(
             "radar_today.html",
             {
@@ -85,6 +108,7 @@ def radar_today_page(
                 "display_map": view.display_map,
                 "safe_external_url": safe_external_url,
                 "summary_result": summary_result,
+                "update_result": update_result,
             },
         )
     finally:
@@ -158,3 +182,101 @@ def generate_today_summaries(
         return RedirectResponse(url=redirect_url, status_code=303)
     finally:
         db.close()
+
+
+@router.post("/today/update")
+def update_today_radar(
+    background_tasks: BackgroundTasks,
+    section: str = Form(ALL_KEY),
+    item_id: int | None = Form(None),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Batch-enqueue enabled sources for background fetching.
+
+    Returns to /radar/today with update result stats.
+    """
+    # Query enabled sources
+    db = next(get_db())
+    try:
+        sources = (
+            db.query(Source)
+            .filter(Source.enabled == True)  # noqa: E712
+            .order_by(Source.source_key.asc())
+            .all()
+        )
+    finally:
+        db.close()
+
+    # Separate eligible (supported) vs unsupported sources
+    eligible_sources = []
+    unsupported = []
+    for source in sources:
+        if source.fetch_strategy in SUPPORTED_STRATEGIES:
+            eligible_sources.append(source)
+        else:
+            unsupported.append(source)
+
+    # Limit batch size
+    max_sources = 30
+    truncated_count = max(0, len(eligible_sources) - max_sources)
+    eligible_sources = eligible_sources[:max_sources]
+
+    # Enqueue each eligible source
+    fetch_service = SourceFetchBackgroundService()
+    started = 0
+    already_running = 0
+    not_found = 0
+    failed = 0
+
+    for source in eligible_sources:
+        try:
+            result = fetch_service.enqueue_source(
+                source.source_key,
+                background_tasks=background_tasks,
+            )
+        except Exception:
+            failed += 1
+            continue
+
+        if result.status == "running" and result.accepted:
+            started += 1
+        elif result.status == "already_running":
+            already_running += 1
+        elif result.status == "not_found":
+            not_found += 1
+        else:
+            failed += 1
+
+    # Build safe section via RadarTodayService
+    db = next(get_db())
+    try:
+        view = RadarTodayService(db).build_today_view(
+            selected_item_id=item_id,
+            hours=hours,
+            limit=limit,
+            page=page,
+            per_page=per_page,
+            section=section,
+        )
+        safe_section = view.active_section
+    finally:
+        db.close()
+
+    # Redirect back to /radar/today with result stats
+    redirect_url = (
+        f"/radar/today?section={safe_section}"
+        f"&hours={hours}&limit={limit}&page={page}&per_page={per_page}"
+    )
+    if item_id is not None:
+        redirect_url += f"&item_id={item_id}"
+    redirect_url += (
+        f"&update_started={started}"
+        f"&update_running={already_running}"
+        f"&update_unsupported={len(unsupported)}"
+        f"&update_failed={failed}"
+        f"&update_truncated={truncated_count}"
+    )
+    return RedirectResponse(url=redirect_url, status_code=303)

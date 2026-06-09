@@ -2172,6 +2172,61 @@ def main():
     except Exception as e:
         check("Today Radar reading experience", False, str(e))
 
+    # ── XX. Today Radar: manual batch update route ───────────────────────────
+    print("\n[XX] Today Radar manual update route")
+    try:
+        radar_route_py = (
+            (Path(__file__).resolve().parents[1] / "app" / "routes" / "radar.py")
+            .read_text(encoding="utf-8")
+        )
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("today radar has update route",
+              '@router.post("/today/update")' in radar_route_py,
+              "today radar should expose a POST action for manual update")
+
+        check("today radar update route uses source fetch background service",
+              "SourceFetchBackgroundService" in radar_route_py
+              and "enqueue_source" in radar_route_py,
+              "manual update should reuse existing background source fetch service")
+
+        check("today radar update route uses enabled sources",
+              "Source.enabled == True" in radar_route_py or "Source.enabled.is_(True)" in radar_route_py,
+              "manual update should enqueue enabled sources only")
+
+        check("today radar update route filters supported strategies",
+              "SUPPORTED_STRATEGIES" in radar_route_py,
+              "manual update should skip unsupported fetch strategies")
+
+        check("today radar update route preserves context",
+              "update_started" in radar_route_py
+              and "section={safe_section}" in radar_route_py
+              and "per_page={per_page}" in radar_route_py,
+              "manual update redirect should preserve radar context")
+
+        check("today radar template has update form",
+              'action="/radar/today/update"' in radar_html
+              and "更新今日雷达" in radar_html,
+              "left control area should expose manual radar update")
+
+        check("today radar update form preserves context",
+              'name="section" value="{{ view.active_section }}"' in radar_html
+              and 'name="page" value="{{ view.page }}"' in radar_html
+              and 'name="per_page" value="{{ view.per_page }}"' in radar_html,
+              "update form should preserve current radar context")
+
+        check("today radar shows update result",
+              "update_result" in radar_html
+              and "今日雷达更新已启动" in radar_html,
+              "today radar should show update enqueue result")
+
+        check("style.css defines radar-update-result styles",
+              "radar-update-result" in style_css,
+              "update result banner should be styled")
+    except Exception as e:
+        check("Today Radar manual update route", False, str(e))
+
     # ── 18. Today Radar layout: flex page, compact card buttons ───────────────
     print("\n[18] Today Radar layout (flex page, compact card buttons)")
     try:

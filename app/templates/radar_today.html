@@ -71,6 +71,18 @@
                         </li>
                         {% endif %}
                     </ul>
+
+                    <div class="radar-sidebar-actions">
+                        <form method="post" action="/radar/today/update" class="radar-update-form">
+                            <input type="hidden" name="section" value="{{ view.active_section }}">
+                            <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                            <input type="hidden" name="hours" value="{{ view.hours }}">
+                            <input type="hidden" name="limit" value="{{ view.limit }}">
+                            <input type="hidden" name="page" value="{{ view.page }}">
+                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                            <button type="submit" class="btn-sm btn-primary">更新今日雷达</button>
+                        </form>
+                    </div>
                 </div>
             </nav>
 
@@ -143,6 +155,16 @@
                     {% endif %}
                 </nav>
                 </div>{# <!-- /.radar-main-toolbar --> #}
+                {% if update_result %}
+                <div class="radar-update-result">
+                    今日雷达更新已启动：
+                    启动 {{ update_result.started }} 个来源，
+                    已在运行 {{ update_result.running }} 个，
+                    不支持 {{ update_result.unsupported }} 个，
+                    失败 {{ update_result.failed }} 个{% if update_result.truncated %}，
+                    因数量限制暂缓 {{ update_result.truncated }} 个{% endif %}。
+                </div>
+                {% endif %}
                 {% if summary_result %}
                 <div class="radar-summary-result">
                     中文摘要处理完成：

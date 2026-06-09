@@ -4304,3 +4304,30 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
         justify-content: flex-start;
     }
 }
+
+/* ============================================================
+   V1-beta — Today Radar Update Action
+   ============================================================ */
+
+.radar-update-form {
+    margin: 0;
+}
+
+.radar-sidebar-actions {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.radar-update-result {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #b6e3ff;
+    border-radius: 8px;
+    background: #eaf4ff;
+    color: #24292f;
+    font-size: 0.86rem;
+}
