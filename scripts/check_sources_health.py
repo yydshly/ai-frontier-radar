@@ -69,7 +69,7 @@ def main():
         else:
             print("Source table is healthy — no duplicate source_key rows found.")
 
-        # Config vs DB comparison
+        # Config vs DB comparison — "configured" here means "configured as radar sources"
         configured = list_sources()
         configured_all_keys = {s.source_key for s in configured}
         configured_enabled_keys = {s.source_key for s in configured if s.enabled}
@@ -79,7 +79,7 @@ def main():
         configured_missing_in_db = configured_enabled_keys - db_enabled_keys
 
         print()
-        print("Config vs DB comparison:")
+        print("Configured radar sources vs DB comparison:")
         print(f"configured_sources: {len(configured_all_keys)}")
         print(f"configured_enabled_sources: {len(configured_enabled_keys)}")
         print(f"db_enabled_unique_sources: {len(db_enabled_keys)}")
@@ -88,13 +88,13 @@ def main():
 
         if enabled_not_in_config:
             print()
-            print("Enabled sources not in config:")
+            print("Enabled sources not in configured radar sources:")
             for key in sorted(enabled_not_in_config)[:20]:
                 print(f"  - {key}")
 
         if configured_missing_in_db:
             print()
-            print("Configured sources missing in DB:")
+            print("Configured radar sources missing in DB:")
             for key in sorted(configured_missing_in_db)[:20]:
                 print(f"  - {key}")
     finally:

@@ -2264,7 +2264,7 @@ def main():
         check("today radar update uses configured source whitelist",
               "list_sources" in radar_route_py
               and "configured_keys" in radar_route_py,
-              "today radar update should be scoped to configured curated sources")
+              "today radar update should be scoped to configured radar sources")
 
         check("today radar update filters db sources by configured keys",
               "Source.source_key.in_(configured_keys)" in radar_route_py,
@@ -2284,7 +2284,13 @@ def main():
               "list_sources" in check_sources_health_py
               and "enabled_not_in_config" in check_sources_health_py
               and "configured_missing_in_db" in check_sources_health_py,
-              "source health check should compare DB with configured curated sources")
+              "source health check should compare DB with configured radar sources")
+
+        check("today radar update uses radar source wording",
+              "雷达关注源" in radar_html
+              and "配置精选来源" not in radar_html
+              and "精选来源" not in radar_html,
+              "today radar should describe configured update scope as radar sources")
     except Exception as e:
         check("Today Radar manual update route", False, str(e))
 
