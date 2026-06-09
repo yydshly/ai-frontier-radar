@@ -61,6 +61,7 @@
 - 轻量摘要优先读取 detail_description
 - FetchRun 完成后对本轮 new / updated SourceItem 自动生成中文摘要（最多 AUTO_SUMMARY_MAX_PER_FETCH_RUN=5 条，超出可继续用"补齐当前页中文摘要"处理）
 - 自动摘要是 best-effort，不影响 FetchRun 抓取状态
+- **中间卡片中文概述优先**（zh_one_liner 作为 primary_text 显示）
 
 ### 3.4 InsightCard
 
@@ -77,6 +78,7 @@
 - 页面顶部显示"完整 InsightCard"定位，说明本页面回答的四个核心问题
 - 状态总览区展示相关性分数、匹配方向、生成依据、当前判断、创建时间
 - 内容摘要明确回答"这篇资料说了什么"，与洞察判断分离
+- **生成依据 unknown 已修复**：RSS/metadata 卡片显示"基于来源摘要 / RSS metadata"，HTML 显示"基于网页正文解析"，PDF 显示"基于 PDF 文本解析"
 - 洞察判断总览区展示相关性分数、匹配方向和判断理由
 - 结构化洞察区块：关键事实、技术洞察、产品机会、风险提醒、行动建议
 - 双语理解降级为补充阅读，位于洞察区块之后
@@ -120,19 +122,14 @@
 
 ## 6. 下一阶段建议
 
-### P0.5（体验优化）
-
-- 状态文案统一
-- 选中卡片滚动逻辑适配 `.radar-main-scroll`
-- 今日雷达结果提示文案继续压缩
+V1.0-beta First Usable Loop checkpoint 已成立。推荐下一阶段 V1.0-beta.1 优先级：
 
 ### P1（核心闭环增强）
 
 - due-source 调度（定时探测雷达关注源）
-- 探测完成后自动补中文摘要
 - 单来源工作台 `/sources/{source_key}`
 - 来源池 / 雷达关注源概念分离
-- 更新批次 batch_id（追踪一批探测）
+- 摘要队列 / 后台补齐
 
 ### P2（长期能力）
 

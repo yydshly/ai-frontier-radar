@@ -171,3 +171,9 @@ python scripts/check_sources_health.py
 - [ ] 页面标题应为"完整 InsightCard Markdown 报告"
 - [ ] 页面应显示即将下载的文件名
 - [ ] 下载文件名应包含日期、AI前沿雷达、card id、标题和"完整报告"
+
+## 14. Checkpoint 确认
+
+参考 docs/V1_BETA_MANUAL_ACCEPTANCE_RECORD.md 进行完整人工验收。
+
+全部验收通过后，可视为 **V1.0-beta First Usable Loop checkpoint** 成立。

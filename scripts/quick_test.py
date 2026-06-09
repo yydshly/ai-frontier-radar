@@ -3113,6 +3113,43 @@ def main():
     except Exception as e:
         check("InsightCard generation basis display checks", False, str(e))
 
+    # ── 23. V1 beta checkpoint docs ─────────────────────────────────────────────
+    print("\n[23] V1 beta checkpoint documentation")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        checkpoint_md = (project_root / "docs" / "V1_BETA_CHECKPOINT.md").read_text(encoding="utf-8")
+        manual_acceptance_md = (project_root / "docs" / "V1_BETA_MANUAL_ACCEPTANCE_RECORD.md").read_text(encoding="utf-8")
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("V1 beta checkpoint doc exists",
+              (project_root / "docs" / "V1_BETA_CHECKPOINT.md").exists(),
+              "V1 beta checkpoint document should exist")
+
+        check("V1 beta manual acceptance record exists",
+              (project_root / "docs" / "V1_BETA_MANUAL_ACCEPTANCE_RECORD.md").exists(),
+              "manual acceptance record template should exist")
+
+        check("README links V1 beta checkpoint docs",
+              "V1_BETA_CHECKPOINT.md" in readme_md
+              and "V1_BETA_MANUAL_ACCEPTANCE_RECORD.md" in readme_md,
+              "README should link checkpoint docs")
+
+        check("checkpoint doc captures complete loop",
+              "雷达关注源" in checkpoint_md
+              and "自动中文摘要" in checkpoint_md
+              and "完整 InsightCard" in checkpoint_md
+              and "Markdown 导出" in checkpoint_md,
+              "checkpoint doc should describe the complete first usable loop")
+
+        check("manual acceptance record covers key modules",
+              "今日雷达验收" in manual_acceptance_md
+              and "中文摘要验收" in manual_acceptance_md
+              and "InsightCard 生成验收" in manual_acceptance_md
+              and "Markdown 导出验收" in manual_acceptance_md,
+              "manual acceptance record should cover the main loop modules")
+    except Exception as e:
+        check("V1 beta checkpoint documentation checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

@@ -196,6 +196,25 @@ V1.0-beta 为**第一可用闭环版本**，打通「雷达关注源 → 探测 
 python scripts/acceptance_first_usable_loop.py
 ```
 
+### V1.0-beta Checkpoint
+
+当前 First Usable Loop checkpoint 文档：
+
+- [docs/V1_BETA_CHECKPOINT.md](docs/V1_BETA_CHECKPOINT.md) — 阶段稳定点确认、推荐下一阶段
+- [docs/V1_BETA_MANUAL_ACCEPTANCE_RECORD.md](docs/V1_BETA_MANUAL_ACCEPTANCE_RECORD.md) — 人工验收记录模板
+
+核心链路：
+
+```
+雷达关注源
+  → 更新今日雷达
+  → 自动中文摘要
+  → 今日雷达中文目录
+  → InsightCard 洞察预览
+  → 完整 InsightCard
+  → Markdown 导出
+```
+
 完整验收：
 
 ```bash
