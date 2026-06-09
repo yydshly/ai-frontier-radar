@@ -1770,11 +1770,13 @@ def main():
         # style.css must have overflow-y: auto for .radar-main and .radar-panel,
         # and overflow: hidden for .radar-layout.
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
-        # Extract .radar-main rule
-        radar_main_start = style_css.find(".radar-main")
+        # Extract .radar-main rule — use " .radar-main {" to avoid .radar-main-toolbar
+        radar_main_pos = style_css.find(" .radar-main {")
+        if radar_main_pos < 0:
+            radar_main_pos = style_css.find("\n.radar-main {")
         radar_main_block = ""
-        if radar_main_start >= 0:
-            brace_start = style_css.find("{", radar_main_start)
+        if radar_main_pos >= 0:
+            brace_start = style_css.find("{", radar_main_pos)
             brace_end = style_css.find("}", brace_start)
             radar_main_block = style_css[brace_start+1:brace_end]
         check("style.css .radar-main is flex column (header + scroll split)",
@@ -1783,7 +1785,7 @@ def main():
               and "overflow: hidden" in radar_main_block)
 
         # Extract .radar-panel rule
-        radar_panel_start = style_css.find(".radar-panel {", radar_main_start) if radar_main_start >= 0 else style_css.find(".radar-panel")
+        radar_panel_start = style_css.find(".radar-panel {", radar_main_pos) if radar_main_pos >= 0 else style_css.find(".radar-panel")
         radar_panel_block = ""
         if radar_panel_start >= 0:
             brace_start = style_css.find("{", radar_panel_start)
@@ -2000,6 +2002,50 @@ def main():
             db_session.close()
     except Exception as e:
         check("Today Radar MVP", False, str(e))
+
+    # ── 16b. Today Radar: pagination + per_page in toolbar ────────────────────
+    print("\n[16b] Today Radar pagination in toolbar")
+    try:
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("today radar toolbar contains page size form",
+              "radar-main-toolbar" in radar_html
+              and "radar-page-size-form" in radar_html,
+              "page size control should live in main toolbar")
+
+        check("today radar toolbar contains compact pagination",
+              "radar-pagination-compact" in radar_html,
+              "pagination should live in main toolbar as compact pagination")
+
+        check("today radar removes bottom pagination from scroll area",
+              "radar-main-scroll" in radar_html
+              and 'class="radar-pagination"' not in radar_html,
+              "bottom pagination should be removed from scroll area")
+
+        check("today radar has only one compact pagination",
+              radar_html.count("radar-pagination-compact") == 1,
+              "today radar should render one compact pagination control")
+
+        check("today radar pagination preserves active section",
+              "~ view.active_section ~" in radar_html,
+              "pagination base_q should use Jinja2 concatenation for active_section")
+
+        check("today radar per_page form preserves active section",
+              'name="section" value="{{ view.active_section }}"' in radar_html,
+              "per_page form should preserve active section")
+
+        check("today radar main toolbar styled as fixed controls",
+              ".radar-main-toolbar" in style_css
+              and "position: sticky" in style_css
+              and "flex-wrap: wrap" in style_css,
+              "main toolbar should keep controls visible above scroll area")
+
+        check("today radar header has no duplicate per_page form",
+              radar_html.count('id="radar-per-page"') == 1,
+              "only one per_page select should exist in the page")
+    except Exception as e:
+        check("Today Radar pagination in toolbar checks", False, str(e))
 
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
