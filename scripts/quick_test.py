@@ -651,6 +651,98 @@ def main():
     except Exception as e:
         check("enqueue_source not-found handling", False, str(e))
 
+    # enqueue_source with background_tasks=None runs synchronously (no permanent running)
+    try:
+        from app.db import SessionLocal
+        from app.models import Source, FetchRun
+        import uuid
+        from app.application.sources.background_fetch import SourceFetchBackgroundService
+
+        db_session = SessionLocal()
+        test_key = f"test_sync_enq_{uuid.uuid4().hex[:8]}"
+        try:
+            src = Source(
+                source_key=test_key, name="Test Sync", description="Test",
+                source_type="rss", homepage_url="https://example.com",
+                feed_url="https://example.com/rss.xml", category="research",
+                tags_json='[]', enabled=True, fetch_strategy="rss",
+                relevance_hint="", fetch_interval_hours=24,
+            )
+            db_session.add(src)
+            db_session.commit()
+
+            svc = SourceFetchBackgroundService()
+            # No background_tasks → runs synchronously
+            result = svc.enqueue_source(test_key)
+
+            # FetchRun should NOT stay in running state after synchronous call
+            run = db_session.query(FetchRun).filter(FetchRun.id == result.run_id).first()
+            check("enqueue_source (sync) does not leave FetchRun in 'running'",
+                  run.status != "running",
+                  f"got status={run.status!r}")
+            check("enqueue_source (sync) FetchRun has final status",
+                  run.status in ("success", "failed"),
+                  f"got status={run.status!r}")
+        finally:
+            db_session.rollback()
+            db_session.close()
+    except Exception as e:
+        check("enqueue_source synchronous fallback", False, str(e))
+
+    # run_source_fetch_in_background does not re-raise
+    try:
+        from app.application.sources.background_fetch import run_source_fetch_in_background
+        # Calling with a non-existent ID should not raise
+        try:
+            run_source_fetch_in_background(999999999)
+            check("run_source_fetch_in_background with bad ID does not raise", True)
+        except Exception as e:
+            check("run_source_fetch_in_background with bad ID does not raise", False, str(e))
+    except Exception as e:
+        check("run_source_fetch_in_background non-raising", False, str(e))
+
+    # _finish_run_as_failed handles source=None gracefully
+    try:
+        from app.application.sources.background_fetch import _finish_run_as_failed
+        from app.models import FetchRun
+        from app.db import SessionLocal
+        from datetime import datetime
+        import json
+
+        db_session = SessionLocal()
+        try:
+            # Create a FetchRun with no associated Source
+            orphaned = FetchRun(
+                source_id=99999,  # non-existent source
+                source_key="orphan_key",
+                run_type="manual",
+                status="running",
+                started_at=datetime.utcnow(),
+            )
+            db_session.add(orphaned)
+            db_session.commit()
+            db_session.refresh(orphaned)
+
+            # Should not raise even though source=None
+            try:
+                _finish_run_as_failed(
+                    db_session, orphaned, source=None,
+                    error_message="test error"
+                )
+                check("_finish_run_as_failed with source=None does not raise", True)
+            except Exception as inner_e:
+                check("_finish_run_as_failed with source=None does not raise", False, str(inner_e))
+
+            db_session.refresh(orphaned)
+            check("_finish_run_as_failed with source=None sets status=failed",
+                  orphaned.status == "failed",
+                  f"got status={orphaned.status!r}")
+        finally:
+            db_session.rollback()
+            db_session.close()
+    except Exception as e:
+        check("_finish_run_as_failed source=None safety", False, str(e))
+
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

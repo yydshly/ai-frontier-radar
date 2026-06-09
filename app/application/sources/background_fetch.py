@@ -41,13 +41,13 @@ class SourceFetchBackgroundService:
     ) -> SourceFetchEnqueueResult:
         """Enqueue a source for background fetching.
 
-        Creates a FetchRun(status=running) immediately, then dispatches a
-        background task that performs the actual probe. Returns immediately.
+        Creates a FetchRun(status=running) immediately, then either dispatches a
+        background task (if background_tasks provided) or runs synchronously.
 
         Args:
             source_key: The source key to fetch.
             background_tasks: Optional BackgroundTasks instance from FastAPI.
-                              If not provided, the fetch runs synchronously.
+                             If None, runs synchronously (suitable for scripts/tests).
 
         Returns:
             SourceFetchEnqueueResult describing what happened.
@@ -97,12 +97,15 @@ class SourceFetchBackgroundService:
             db.commit()
             db.refresh(fetch_run)
 
-            # Enqueue background task (if BackgroundTasks provided)
             if background_tasks is not None:
+                # Async background execution via FastAPI BackgroundTasks
                 background_tasks.add_task(
                     run_source_fetch_in_background,
                     fetch_run.id,
                 )
+            else:
+                # Synchronous execution when no BackgroundTasks available (scripts/tests)
+                run_source_fetch_in_background(fetch_run.id)
 
             return SourceFetchEnqueueResult(
                 accepted=True,
@@ -123,11 +126,15 @@ def run_source_fetch_in_background(run_id: int) -> None:
     and updates Source timestamps.
 
     This function is designed to be called by FastAPI BackgroundTasks.
+    It never re-raises exceptions — all errors are captured and written to the DB.
 
     Args:
         run_id: The FetchRun ID to execute.
     """
     db = SessionLocal()
+    # Initialise so exception handler can safely reference them
+    fetch_run = None
+    source = None
     try:
         # Load FetchRun and Source
         fetch_run = db.query(FetchRun).filter(FetchRun.id == run_id).first()
@@ -137,10 +144,7 @@ def run_source_fetch_in_background(run_id: int) -> None:
         source = db.query(Source).filter(Source.id == fetch_run.source_id).first()
         if not source:
             # Source was deleted between enqueue and now — mark run failed
-            fetch_run.status = "failed"
-            fetch_run.error_message = f"Source(id={fetch_run.source_id}) not found at execution time"
-            fetch_run.finished_at = datetime.utcnow()
-            db.commit()
+            _finish_run_as_failed(db, fetch_run, source=None, error_message=f"Source(id={fetch_run.source_id}) not found at execution time")
             return
 
         strategy = source.fetch_strategy
@@ -184,8 +188,6 @@ def run_source_fetch_in_background(run_id: int) -> None:
 
         # Collect new/seen/updated item IDs from SourceItems in the run time window
         from app.models import SourceItem
-        from sqlalchemy import and_
-
         window_start = fetch_run.started_at
         window_end = datetime.utcnow()
 
@@ -260,29 +262,29 @@ def run_source_fetch_in_background(run_id: int) -> None:
         db.commit()
 
     except Exception as e:
+        # All exceptions are captured — never re-raise from a background task
         try:
-            if fetch_run:
-                _finish_run_as_failed(
-                    db, fetch_run, source,
-                    error_message=str(e),
-                )
+            _finish_run_as_failed(
+                db, fetch_run, source,
+                error_message=str(e),
+            )
         except Exception:
             db.rollback()
-        raise
     finally:
         db.close()
 
 
 def _finish_run_as_failed(
-    db, fetch_run: FetchRun, source: Source, error_message: str
+    db, fetch_run: FetchRun, source: Source | None, error_message: str
 ) -> None:
-    """Mark a FetchRun as failed and update Source timestamps."""
+    """Mark a FetchRun as failed and update Source timestamps.
+
+    Handles source=None gracefully (source may have been deleted between enqueue and now).
+    """
     import json as _json
     fetch_run.status = "failed"
     fetch_run.error_message = error_message
     fetch_run.finished_at = datetime.utcnow()
-    source.last_checked_at = datetime.utcnow()
-    source.last_error_message = error_message
     fetch_run.metadata_json = _json.dumps({
         "delta": {
             "new_ids": [],
@@ -291,4 +293,7 @@ def _finish_run_as_failed(
             "failed_urls": [],
         }
     }, ensure_ascii=False)
+    if source is not None:
+        source.last_checked_at = datetime.utcnow()
+        source.last_error_message = error_message
     db.commit()
