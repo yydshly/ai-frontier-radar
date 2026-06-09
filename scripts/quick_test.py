@@ -133,6 +133,7 @@ def main():
     try:
         from app.sources.html_index_probe import (
             _is_weak_title, _make_url_slug_fallback, choose_candidate_title,
+            _should_update_title, MAX_DETAIL_FETCHES_PER_SOURCE,
         )
     except Exception as e:
         check("html_index_probe imports for weak title helpers", False, str(e))
@@ -203,6 +204,63 @@ def main():
         check("good link_text used over weak detail_h1 title",
               title5 == "Meta AI Tribe V2 Paper" and src5 == "link_text",
               f"got: {title5!r}, {src5}")
+
+        # ── MAX_DETAIL_FETCHES_PER_SOURCE constant ─────────────────────────
+        check("MAX_DETAIL_FETCHES_PER_SOURCE is 15",
+              MAX_DETAIL_FETCHES_PER_SOURCE == 15)
+
+        # ── _should_update_title existing-item title protection ─────────────
+        # a) url_slug must NOT overwrite a good existing title
+        c_good_existing = {"title": "Real Article Title", "title_source": "url_slug"}
+        check("url_slug does NOT overwrite good existing title",
+              _should_update_title("Real Article Title", c_good_existing) is False,
+              f"got: {_should_update_title('Real Article Title', c_good_existing)}")
+
+        # b) url_slug CAN fix a weak existing title
+        check("url_slug CAN overwrite weak existing title",
+              _should_update_title("Learn More", c_good_existing) is True)
+
+        # c) detail title always overwrites (even good existing)
+        c_detail = {"title": "Segment Anything 3", "title_source": "detail_og_title"}
+        check("detail title overwrites good existing title",
+              _should_update_title("Real Article Title", c_detail) is True)
+        check("detail title overwrites weak existing title",
+              _should_update_title("FEATURED", c_detail) is True)
+
+        # d) good link_text can fix weak existing
+        c_linktext = {"title": "Meta AI MTIA", "title_source": "link_text"}
+        check("good link_text overwrites weak existing",
+              _should_update_title("Learn More", c_linktext) is True)
+        check("good link_text keeps good existing (no update)",
+              _should_update_title("Real Article Title", c_linktext) is False)
+
+        # e) url_slug with no existing title (None/empty) → allowed
+        check("url_slug allowed when existing is None",
+              _should_update_title(None, c_good_existing) is True)
+
+        # ── fetch_article_metadata: title does not block description extraction
+        from unittest.mock import patch, MagicMock
+        from app.sources.html_index_probe import fetch_article_metadata
+        mock_response = MagicMock()
+        mock_response.text = """<!DOCTYPE html>
+<html>
+<head>
+<meta property="og:title" content="Segment Anything 3">
+<meta property="og:description" content="A new model for segmenting anything.">
+<meta name="twitter:title" content="SAM3">
+</head>
+<body><h1>Hello</h1></body>
+</html>"""
+        mock_response.raise_for_status = MagicMock()
+        with patch("httpx.get", return_value=mock_response):
+            meta = fetch_article_metadata("https://example.com/article")
+        check("fetch_article_metadata extracts og:title",
+              meta["title"] == "Segment Anything 3")
+        check("fetch_article_metadata extracts description alongside title",
+              meta["description"] == "A new model for segmenting anything.",
+              f"got: {meta.get('description')!r}")
+        check("title_source is detail_og_title",
+              meta["title_source"] == "detail_og_title")
 
     # ── 7. generation_queue.html section-header renaming ───────────────────
     print("\n[7] generation_queue.html section renaming")

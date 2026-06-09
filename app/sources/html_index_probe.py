@@ -69,6 +69,10 @@ WEAK_TITLES = frozenset(
 # Regex for 4-digit year in path
 YEAR_PATTERN = re.compile(r"/\d{4}/|" r"-\d{4}/|" r"/\d{4}$")
 
+# Maximum number of candidates per source that trigger a detail-page fetch.
+# Beyond this limit candidates use URL slug fallback without fetching the article.
+MAX_DETAIL_FETCHES_PER_SOURCE = 15
+
 
 def _is_weak_title(title: str) -> bool:
     """Return True if title is a weak/CTA string (case-insensitive).
@@ -156,31 +160,30 @@ def fetch_article_metadata(url: str, timeout_seconds: float = 5.0) -> dict:
     if og_title_tag and og_title_tag.get("content", "").strip():
         result["title"] = og_title_tag["content"].strip()
         result["title_source"] = "detail_og_title"
-        return result
 
-    # 2. twitter:title
-    twitter_title_tag = soup.find("meta", attrs={"name": "twitter:title"})
-    if twitter_title_tag and twitter_title_tag.get("content", "").strip():
-        result["title"] = twitter_title_tag["content"].strip()
-        result["title_source"] = "detail_twitter_title"
-        return result
+    # 2. twitter:title (only if no og:title found)
+    elif not result["title"]:
+        twitter_title_tag = soup.find("meta", attrs={"name": "twitter:title"})
+        if twitter_title_tag and twitter_title_tag.get("content", "").strip():
+            result["title"] = twitter_title_tag["content"].strip()
+            result["title_source"] = "detail_twitter_title"
 
-    # 3. <title>
-    title_tag = soup.find("title")
-    if title_tag and title_tag.get_text(strip=True):
-        result["title"] = title_tag.get_text(strip=True)
-        result["title_source"] = "detail_title"
-        return result
+    # 3. <title> (only if no og:title or twitter:title found)
+    elif not result["title"]:
+        title_tag = soup.find("title")
+        if title_tag and title_tag.get_text(strip=True):
+            result["title"] = title_tag.get_text(strip=True)
+            result["title_source"] = "detail_title"
 
-    # 4. <h1>
-    h1_tag = soup.find("h1")
-    if h1_tag and h1_tag.get_text(strip=True):
-        result["title"] = h1_tag.get_text(strip=True)
-        result["title_source"] = "detail_h1"
-        return result
+    # 4. <h1> (only if no previous title found)
+    elif not result["title"]:
+        h1_tag = soup.find("h1")
+        if h1_tag and h1_tag.get_text(strip=True):
+            result["title"] = h1_tag.get_text(strip=True)
+            result["title_source"] = "detail_h1"
 
     # ── Description extraction (always attempt, independent of title) ──
-    for meta_tag, key in [
+    for meta_tag, _key in [
         (soup.find("meta", property="og:description"), "og_description"),
         (soup.find("meta", attrs={"name": "twitter:description"}), "twitter_description"),
         (soup.find("meta", attrs={"name": "description"}), "description"),
@@ -292,6 +295,45 @@ def _has_pagination_or_listing_query(url: str) -> bool:
         if param.lower() in LISTING_QUERY_PARAMS:
             return True
 
+    return False
+
+
+def _should_update_title(existing_title: str | None, candidate: dict) -> bool:
+    """Determine whether an existing SourceItem.title should be overwritten.
+
+    Priority: detail title > good link_text > url_slug fallback
+
+    Rules:
+      - detail title (non-weak): always wins, overwrites anything
+      - url_slug fallback: only overwrites weak existing titles
+      - good link_text: overwrites weak existing titles only
+
+    Args:
+        existing_title: The current SourceItem.title (may be None/empty).
+        candidate: A candidate dict from the probe loop; must contain
+            title, title_source.
+
+    Returns:
+        True if the existing title should be replaced with candidate.title.
+    """
+    existing_is_weak = _is_weak_title(existing_title) if existing_title else True
+    new_title = candidate.get("title", "")
+    new_is_from_detail = candidate.get("title_source", "") in (
+        "detail_og_title", "detail_twitter_title", "detail_title", "detail_h1"
+    )
+    new_is_weak = _is_weak_title(new_title)
+    new_is_url_slug = candidate.get("title_source", "") == "url_slug"
+
+    if new_is_from_detail and not new_is_weak:
+        # Real article title from detail page → always update
+        return True
+    if new_is_url_slug:
+        # url_slug fallback: only allowed to fix weak existing titles
+        return existing_is_weak
+    if not new_is_weak:
+        # Good new title (link_text): only overwrites weak existing
+        return existing_is_weak
+    # new is weak (shouldn't normally reach here) → keep existing
     return False
 
 
@@ -462,6 +504,7 @@ def probe_html_index_source(
 
     # Find all <a> tags with href
     candidates = []
+    detail_fetch_count = 0
     for a_tag in soup.find_all("a", href=True):
         href = a_tag.get("href", "").strip()
 
@@ -494,10 +537,18 @@ def probe_html_index_source(
         # Get link text from the <a> tag on the list page
         link_text = a_tag.get_text(strip=True)
 
-        # Fetch article detail page metadata (og:title, twitter:title, <title>, h1)
-        # This is the key step that gives us the real article title instead of
-        # the CTA text ("Learn More", "FEATURED") from the list page.
-        detail_metadata = fetch_article_metadata(absolute_url, timeout_seconds=5.0)
+        # Only fetch article detail page metadata for the first N candidates
+        # to avoid excessive latency when probing large list pages.
+        if detail_fetch_count < MAX_DETAIL_FETCHES_PER_SOURCE:
+            detail_metadata = fetch_article_metadata(absolute_url, timeout_seconds=5.0)
+            detail_fetch_count += 1
+            detail_fetch_skipped = False
+            detail_fetch_reason = None
+        else:
+            # Over limit: use empty metadata → falls back to URL slug
+            detail_metadata = {}
+            detail_fetch_skipped = True
+            detail_fetch_reason = "max_detail_fetches_reached"
 
         # Choose the best available title using our priority rules
         title, title_source = choose_candidate_title(link_text, normalized_url, detail_metadata)
@@ -507,9 +558,11 @@ def probe_html_index_source(
             "title": title,
             "link_text": link_text,
             "title_source": title_source,
-            "detail_title": detail_metadata.get("title"),
-            "detail_description": detail_metadata.get("description"),
-            "detail_fetch_error": detail_metadata.get("fetch_error"),
+            "detail_title": detail_metadata.get("title") if detail_metadata else None,
+            "detail_description": detail_metadata.get("description") if detail_metadata else None,
+            "detail_fetch_error": detail_metadata.get("fetch_error") if detail_metadata else None,
+            "detail_fetch_skipped": detail_fetch_skipped,
+            "detail_fetch_reason": detail_fetch_reason,
         })
 
         # Cap at 50 candidates to avoid noise
@@ -548,6 +601,8 @@ def probe_html_index_source(
             "detail_title": candidate.get("detail_title"),
             "detail_description": candidate.get("detail_description"),
             "detail_fetch_error": candidate.get("detail_fetch_error"),
+            "detail_fetch_skipped": candidate.get("detail_fetch_skipped"),
+            "detail_fetch_reason": candidate.get("detail_fetch_reason"),
             "source_homepage_url": source.homepage_url,
             "discovered_by": "html_index",
         }
@@ -571,25 +626,7 @@ def probe_html_index_source(
         else:
             # Title update rules:
             # - Real article title (from detail metadata) always wins → can overwrite
-            # - URL slug fallback only overwrites weak existing titles
-            # - link_text (if good) can overwrite weak existing titles
-            existing_is_weak = _is_weak_title(existing.title) if existing.title else True
-            new_is_from_detail = candidate["title_source"] in (
-                "detail_og_title", "detail_twitter_title", "detail_title", "detail_h1"
-            )
-            new_is_weak = _is_weak_title(candidate["title"])
-
-            should_update_title = False
-            if new_is_from_detail and not new_is_weak:
-                # Real article title from detail page → always update
-                should_update_title = True
-            elif existing_is_weak:
-                # Existing title is weak (Learn More / FEATURED / etc.) → allow update
-                should_update_title = True
-            elif not new_is_weak:
-                # Existing is good, new title is also good (link_text) → allow update
-                should_update_title = True
-            # else: existing good, new is weak slug fallback → don't update
+            should_update_title = _should_update_title(existing.title, candidate)
 
             if should_update_title:
                 existing.title = candidate["title"]
