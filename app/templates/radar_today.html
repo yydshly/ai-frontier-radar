@@ -204,10 +204,28 @@
                 {% endif %}
                 {% if summary_result %}
                 <div class="radar-summary-result">
-                    中文摘要处理完成：
-                    成功 {{ summary_result.success or 0 }}，
-                    跳过 {{ summary_result.skipped or 0 }}，
-                    失败 {{ summary_result.failed or 0 }}。
+                    <div>
+                        中文摘要处理完成：
+                        成功 {{ summary_result.success or 0 }}，
+                        跳过 {{ summary_result.skipped or 0 }}，
+                        失败 {{ summary_result.failed or 0 }}。
+                    </div>
+
+                    {% if summary_result.details %}
+                    <ul class="radar-summary-detail-list">
+                        {% for detail in summary_result.details %}
+                        <li>
+                            <strong>#{{ detail.item_id }}</strong>
+                            <span class="radar-summary-status radar-summary-status-{{ detail.status }}">
+                                {{ detail.status }}
+                            </span>
+                            {% if detail.message %}
+                            <span>{{ detail.message }}</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
                 </div>
                 {% endif %}
                 <div class="radar-main-scroll">

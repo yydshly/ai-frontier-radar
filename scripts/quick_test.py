@@ -2177,6 +2177,37 @@ def main():
     except Exception as e:
         check("V1 beta docs and scripts checks", False, str(e))
 
+    # ── 16f. Today Radar: summary generation per-item diagnostics ───────────────
+    print("\n[16f] Today Radar summary generation diagnostics")
+    try:
+        radar_py = (Path(__file__).resolve().parents[1] / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        radar_service_py = (Path(__file__).resolve().parents[1] / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
+
+        check("today radar summary redirect carries summary_details",
+              "summary_details" in radar_py
+              and "urlencode" in radar_py,
+              "summary generation should return per-item diagnostic details")
+        check("today radar parses summary_details safely",
+              "def _parse_summary_details" in radar_py
+              and 'split(";")' in radar_py,
+              "summary details should be parsed safely for display")
+        check("today radar renders summary detail list",
+              "radar-summary-detail-list" in radar_html
+              and "summary_result.details" in radar_html,
+              "summary generation result should show per-item details")
+        check("today radar summary detail styles exist",
+              ".radar-summary-detail-list" in style_css
+              and ".radar-summary-status-success" in style_css
+              and ".radar-summary-status-failed" in style_css,
+              "summary detail status styles should exist")
+        check("today radar missing summary note points to details",
+              "查看处理明细" in radar_service_py,
+              "missing summary note should tell user where to diagnose failures")
+    except Exception as e:
+        check("Today Radar summary diagnostics checks", False, str(e))
+
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
     try:

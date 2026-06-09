@@ -4366,3 +4366,43 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     color: #57606a;
     line-height: 1.45;
 }
+
+/* ============================================================
+   V1.0-beta — Summary generation per-item diagnostics
+   ============================================================ */
+
+.radar-summary-detail-list {
+    margin: 0.45rem 0 0;
+    padding-left: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.radar-summary-status {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0.35rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #f6f8fa;
+    color: #57606a;
+}
+
+.radar-summary-status-success {
+    background: #dafbe1;
+    color: #116329;
+}
+
+.radar-summary-status-skipped {
+    background: #fff8c5;
+    color: #7d4e00;
+}
+
+.radar-summary-status-failed {
+    background: #ffebe9;
+    color: #cf222e;
+}

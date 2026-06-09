@@ -7,6 +7,7 @@ POST /radar/today/generate-summaries triggers one-liner generation for
 items visible on the current page.
 """
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -61,6 +62,24 @@ def _dedupe_sources_by_key(sources: list[Source]) -> tuple[list[Source], int]:
 
 router = APIRouter(prefix="/radar", tags=["radar"])
 
+
+def _parse_summary_details(raw: str | None) -> list[dict[str, str]]:
+    """Parse summary_details from redirect URL into a list of detail dicts."""
+    if not raw:
+        return []
+    details = []
+    for part in raw.split(";")[:5]:
+        pieces = part.split(":", 2)
+        if len(pieces) != 3:
+            continue
+        item_id, status, message = pieces
+        details.append({
+            "item_id": item_id,
+            "status": status,
+            "message": message,
+        })
+    return details
+
 _radar_templates = Jinja2Templates(
     directory=Path(__file__).resolve().parent.parent / "templates",
     context_processors=[inject_sources_nav],
@@ -79,6 +98,7 @@ def radar_today_page(
     summary_success: int | None = Query(None, ge=0),
     summary_skipped: int | None = Query(None, ge=0),
     summary_failed: int | None = Query(None, ge=0),
+    summary_details: str | None = Query(None),
     update_started: int | None = Query(None, ge=0),
     update_running: int | None = Query(None, ge=0),
     update_unsupported: int | None = Query(None, ge=0),
@@ -113,9 +133,10 @@ def radar_today_page(
             or summary_failed is not None
         ):
             summary_result = {
-                "success": summary_success,
-                "skipped": summary_skipped,
-                "failed": summary_failed,
+                "success": summary_success or 0,
+                "skipped": summary_skipped or 0,
+                "failed": summary_failed or 0,
+                "details": _parse_summary_details(summary_details),
             }
 
         update_result = None
@@ -209,18 +230,36 @@ def generate_today_summaries(
         skipped = sum(1 for r in results if r.status == "skipped")
         failed = sum(1 for r in results if r.status == "failed")
 
+        # Build per-item detail string (max 5 items, message truncated to avoid long URLs)
+        detail_parts = []
+        for result in results[:5]:
+            item_id = getattr(result, "item_id", None) or ""
+            status = getattr(result, "status", "")
+            message = getattr(result, "error", "") or ""
+            # Sanitize: remove chars that could break URL parsing
+            safe_message = message.replace("|", " ").replace(";", " ").replace("\n", " ").strip()
+            if len(safe_message) > 80:
+                safe_message = safe_message[:77] + "..."
+            detail_parts.append(f"{item_id}:{status}:{safe_message}")
+
+        summary_details = ";".join(detail_parts)
+
         safe_section = view.active_section
-        redirect_url = (
-            f"/radar/today?section={safe_section}"
-            f"&hours={hours}&limit={limit}&page={page}&per_page={per_page}"
-        )
+        params = {
+            "section": safe_section,
+            "hours": hours,
+            "limit": limit,
+            "page": page,
+            "per_page": per_page,
+            "summary_success": success,
+            "summary_skipped": skipped,
+            "summary_failed": failed,
+        }
         if item_id is not None:
-            redirect_url += f"&item_id={item_id}"
-        redirect_url += (
-            f"&summary_success={success}"
-            f"&summary_skipped={skipped}"
-            f"&summary_failed={failed}"
-        )
+            params["item_id"] = item_id
+        if summary_details:
+            params["summary_details"] = summary_details
+        redirect_url = "/radar/today?" + urlencode(params)
         return RedirectResponse(url=redirect_url, status_code=303)
     finally:
         db.close()

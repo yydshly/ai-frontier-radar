@@ -375,7 +375,7 @@ def _build_panel_state(
     else:
         summary_state = "metadata_fallback"
         summary_label = "中文摘要未生成"
-        summary_note = "当前显示来源 metadata / RSS 摘要，信息可能不完整。"
+        summary_note = "当前显示来源 metadata / RSS 摘要，信息可能不完整。可点击「补齐当前页中文摘要」生成中文摘要；如果仍未生成，请查看处理明细。"
 
     selected_insight_card: InsightCard | None = None
 
