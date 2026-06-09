@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models import SourceItem
-from app.services.insight_compiler import compile_url
+from app.services.insight_compiler import compile_url, compile_source_item_snapshot
 from app.intake import classify_url_by_pattern
 
 
@@ -106,9 +106,9 @@ class SourceItemCompileService:
                 message=f"[intake:blocked] {decision.reason}",
             )
 
-        # ── Call compile_url ─────────────────────────────────────────
+        # ── Compile: RSS / metadata snapshot first, URL fetch as fallback ──
         try:
-            card = compile_url(self.db, item.url)
+            card = compile_source_item_snapshot(self.db, item)
         except Exception as e:
             item.status = "failed"
             item.error_message = f"Unexpected compile error: {e}"

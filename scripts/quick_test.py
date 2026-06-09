@@ -2078,6 +2078,213 @@ def main():
     except Exception as e:
         check("Today Radar reading experience", False, str(e))
 
+    # ── 18. SourceItem compile: RSS / metadata snapshot first ───────────────
+    print("\n[18] SourceItem compile (RSS / metadata snapshot first)")
+    try:
+        import json
+        import uuid
+        from datetime import datetime
+
+        import app.services.insight_compiler as ic
+        import app.application.source_items.compile_service as csvc
+        from app.services.insight_compiler import (
+            build_source_item_snapshot_text,
+            snapshot_is_sufficient,
+            compile_source_item_snapshot,
+            compile_text_snapshot,
+            SNAPSHOT_MIN_CHARS,
+        )
+        from app.prompts.insight_card import build_insight_user_prompt
+        from app.application.source_items.compile_service import SourceItemCompileService
+        from app.db import SessionLocal as _SL
+        from app.models import Source, SourceItem, InsightCard, CardStatus, SourceType
+
+        # 1. Importable.
+        check("build_source_item_snapshot_text is importable",
+              callable(build_source_item_snapshot_text))
+
+        # Fake LLM client — never hits the network.
+        class _FakeLLM:
+            def generate_json(self, system_prompt, user_prompt):
+                _FakeLLM.last_user_prompt = user_prompt
+                return {
+                    "source_title": "Fake Title",
+                    "summary_zh": "这是测试摘要。",
+                    "key_points_zh": ["要点1", "要点2"],
+                    "technical_insights_zh": [],
+                    "product_opportunities_zh": [],
+                    "risks_zh": [],
+                    "relevance_score": 60,
+                    "relevance_reasons_zh": [],
+                    "related_user_directions": [],
+                    "action_items_zh": ["打开原文核验"],
+                    "model_name": "fake-model",
+                }
+
+        long_summary = "这是一段足够长的中文摘要，用于确保 snapshot 内容达到充足阈值。" * 4
+
+        # 2. snapshot_text contains rss_summary / zh_one_liner / zh_summary.
+        item_meta = SourceItem(
+            id=900001, source_id=1, source_key="openai_news",
+            url="https://openai.com/blog/example",
+            title="OpenAI Releases Something",
+            status="discovered",
+            published_at="2026-06-01T00:00:00",
+            raw_metadata_json=json.dumps({
+                "zh_one_liner": "一句话中文摘要标记ABC",
+                "zh_summary": "中文长摘要标记DEF " + long_summary,
+                "rss_summary": "RSS summary marker GHI",
+                "tags": ["llm", "coding"],
+                "category": "model",
+            }),
+        )
+        snap = build_source_item_snapshot_text(item_meta)
+        check("snapshot_text includes zh_one_liner / zh_summary / rss_summary",
+              "一句话中文摘要标记ABC" in snap and "中文长摘要标记DEF" in snap and "RSS summary marker GHI" in snap)
+        check("snapshot_text labels basis as RSS / metadata",
+              "RSS / SourceItem metadata" in snap)
+        check("snapshot_text respects max length", len(snap) <= 8000)
+
+        # 3. Bad raw_metadata_json does not crash.
+        item_bad = SourceItem(
+            id=900002, source_id=1, source_key="x", url="https://e.com/bad",
+            title="Bad JSON Item", status="discovered",
+            raw_metadata_json="{not valid json,,,",
+        )
+        try:
+            snap_bad = build_source_item_snapshot_text(item_bad)
+            check("bad raw_metadata_json does not crash snapshot builder", isinstance(snap_bad, str))
+        except Exception as e:
+            check("bad raw_metadata_json does not crash snapshot builder", False, str(e))
+
+        # 8. Prompt distinguishes snapshot basis.
+        sp = build_insight_user_prompt("content", ["dir"], 1000, source_basis="source_snapshot")
+        check("snapshot prompt says not full text / based on RSS-metadata / no full-read claim",
+              "不是全文" in sp and ("RSS" in sp or "metadata" in sp) and "不要声称已经阅读原文全文" in sp)
+
+        # 9. Manual compile_url path keeps full_text basis (no snapshot notice).
+        ic_src = (Path(__file__).resolve().parents[1] / "app" / "services" / "insight_compiler.py").read_text(encoding="utf-8")
+        # compile_url must NOT pass source_basis="source_snapshot"; snapshot fn must.
+        check("compile_url does not use source_snapshot basis",
+              'source_basis="source_snapshot"' not in ic_src.split("def compile_text_snapshot")[0])
+        check("compile_text_snapshot passes generation_basis to prompt",
+              "source_basis=generation_basis" in ic_src)
+
+        # ── DB-backed behavior tests ──────────────────────────────────────
+        db_session = _SL()
+        test_key = f"test_snapshot_{uuid.uuid4().hex[:8]}"
+        orig_create = ic.create_llm_client
+        orig_compile_url = ic.compile_url
+        try:
+            src = Source(
+                source_key=test_key, name="Snapshot Source", description="t",
+                source_type="rss", homepage_url="https://openai.com",
+                feed_url="https://openai.com/rss.xml", category="research",
+                tags_json="[]", enabled=True, fetch_strategy="rss",
+                relevance_hint="", fetch_interval_hours=24,
+            )
+            db_session.add(src)
+            db_session.commit()
+            db_session.refresh(src)
+
+            # Rich item (sufficient snapshot) simulating an OpenAI RSS item.
+            rich = SourceItem(
+                source_id=src.id, source_key=test_key,
+                url="https://openai.com/blog/forbidden-403",
+                title="OpenAI Frontier Update", status="discovered",
+                published_at="2026-06-01T00:00:00",
+                raw_metadata_json=json.dumps({
+                    "zh_one_liner": "OpenAI 发布新进展。",
+                    "zh_summary": long_summary,
+                    "rss_summary": "OpenAI publishes a frontier update.",
+                }),
+            )
+            # Thin item (only title+url) → insufficient snapshot.
+            thin = SourceItem(
+                source_id=src.id, source_key=test_key,
+                url="https://openai.com/blog/thin",
+                title="Thin", status="discovered",
+            )
+            db_session.add_all([rich, thin])
+            db_session.commit()
+            db_session.refresh(rich)
+            db_session.refresh(thin)
+
+            check("rich item snapshot is sufficient", snapshot_is_sufficient(rich) is True)
+            check("thin item snapshot is insufficient", snapshot_is_sufficient(thin) is False)
+
+            # 4 & 5 & 7: sufficient snapshot compiles WITHOUT calling compile_url,
+            # even though the URL would 403 (compile_url raises if called).
+            def _boom_compile_url(db, url):
+                raise AssertionError("compile_url should NOT be called for sufficient snapshot")
+            ic.create_llm_client = lambda: _FakeLLM()
+            ic.compile_url = _boom_compile_url
+
+            svc = SourceItemCompileService(db_session)
+            res_rich = svc.compile_item(rich.id)
+            db_session.expire_all()
+            rich2 = db_session.query(SourceItem).filter(SourceItem.id == rich.id).first()
+            card_rich = None
+            if rich2.insight_card_id:
+                from app.models import InsightCard
+                card_rich = db_session.query(InsightCard).filter(InsightCard.id == rich2.insight_card_id).first()
+            check("sufficient snapshot compiles to completed without compile_url",
+                  res_rich.ok and rich2.status == "compiled" and card_rich is not None
+                  and card_rich.status == CardStatus.COMPLETED)
+            # 11: card clearly marks RSS / metadata basis (not full text).
+            check("snapshot card marks basis (not full text)",
+                  card_rich is not None
+                  and "metadata" in (card_rich.summary_zh or "")
+                  and "全文未抓取" in (card_rich.risks_zh or ""))
+
+            # 6: insufficient snapshot falls back to compile_url.
+            fallback_called = {"n": 0}
+            def _fake_fallback(db, url):
+                fallback_called["n"] += 1
+                c = InsightCard(
+                    source_url=url, source_type=SourceType.HTML,
+                    content_hash="fb-hash-" + uuid.uuid4().hex[:6],
+                    status=CardStatus.COMPLETED, summary_zh="fallback", relevance_score=10,
+                )
+                db.add(c); db.commit(); db.refresh(c)
+                return c
+            ic.compile_url = _fake_fallback
+            res_thin = svc.compile_item(thin.id)
+            check("insufficient snapshot falls back to compile_url",
+                  fallback_called["n"] == 1 and res_thin.ok)
+
+            # 10: an old FAILED item with rich metadata, retried, goes snapshot-first.
+            failed_item = SourceItem(
+                source_id=src.id, source_key=test_key,
+                url="https://openai.com/blog/old-403",
+                title="Old 403 Failure", status="failed",
+                error_message="URL fetch failed: 403 Forbidden",
+                raw_metadata_json=json.dumps({"zh_summary": long_summary}),
+            )
+            db_session.add(failed_item)
+            db_session.commit()
+            db_session.refresh(failed_item)
+            ic.compile_url = _boom_compile_url  # must not be used on retry
+            res_retry = svc.compile_item(failed_item.id)
+            db_session.expire_all()
+            retried = db_session.query(SourceItem).filter(SourceItem.id == failed_item.id).first()
+            check("failed 403 item retried compiles via snapshot (no URL fetch)",
+                  res_retry.ok and retried.status == "compiled" and retried.error_message is None)
+        finally:
+            ic.create_llm_client = orig_create
+            ic.compile_url = orig_compile_url
+            from app.models import InsightCard
+            ids = [i.insight_card_id for i in db_session.query(SourceItem).filter(SourceItem.source_key == test_key).all() if i.insight_card_id]
+            db_session.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
+            if ids:
+                db_session.query(InsightCard).filter(InsightCard.id.in_(ids)).delete(synchronize_session=False)
+            db_session.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
+            db_session.commit()
+            db_session.close()
+    except Exception as e:
+        import traceback
+        check("SourceItem compile snapshot MVP", False, traceback.format_exc())
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

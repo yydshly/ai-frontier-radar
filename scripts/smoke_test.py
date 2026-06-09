@@ -876,14 +876,13 @@ def test_source_item_compile_route_with_mock_compile_url():
         db.refresh(item)
         item_id = item.id
 
-        # Mock compile_url in BOTH the main module and the service module
-        # to avoid the network call (service has its own bound reference)
-        original_compile_url_main = main_module.compile_url
-        original_compile_url_svc = service_module.compile_url
+        # Mock compile_source_item_snapshot in the service module (the new
+        # snapshot-first entry point) to avoid any network call.
+        original_snapshot_svc = service_module.compile_source_item_snapshot
 
-        def fake_compile_url(db, url):
+        def fake_compile(db, item):
             card = InsightCard(
-                source_url=url,
+                source_url=item.url,
                 source_type=SourceType.HTML,
                 source_title="Mock Compiled Card",
                 content_hash="mock-hash-123",
@@ -896,8 +895,7 @@ def test_source_item_compile_route_with_mock_compile_url():
             db.refresh(card)
             return card
 
-        main_module.compile_url = fake_compile_url
-        service_module.compile_url = fake_compile_url
+        service_module.compile_source_item_snapshot = fake_compile
         try:
             # Call compile route
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
@@ -918,8 +916,7 @@ def test_source_item_compile_route_with_mock_compile_url():
             print(f"[OK] SourceItem updated: status=compiled, insight_card_id={refreshed_item.insight_card_id}")
 
         finally:
-            main_module.compile_url = original_compile_url_main
-            service_module.compile_url = original_compile_url_svc
+            service_module.compile_source_item_snapshot = original_snapshot_svc
 
     finally:
         db.rollback()
@@ -967,13 +964,12 @@ def test_source_item_compile_route_with_failed_card():
         db.refresh(item)
         item_id = item.id
 
-        # Mock compile_url to return a failed card (patch both modules)
-        original_compile_url_main = main_module.compile_url
-        original_compile_url_svc = service_module.compile_url
+        # Mock the snapshot-first entry point to return a failed card.
+        original_snapshot_svc = service_module.compile_source_item_snapshot
 
-        def fake_compile_url_failed(db, url):
+        def fake_compile_failed(db, item):
             card = InsightCard(
-                source_url=url,
+                source_url=item.url,
                 source_type=SourceType.HTML,
                 source_title="Failed Card",
                 content_hash="mock-hash-fail",
@@ -985,8 +981,7 @@ def test_source_item_compile_route_with_failed_card():
             db.refresh(card)
             return card
 
-        main_module.compile_url = fake_compile_url_failed
-        service_module.compile_url = fake_compile_url_failed
+        service_module.compile_source_item_snapshot = fake_compile_failed
         try:
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
             assert response.status_code in (302, 303), \
@@ -1005,8 +1000,7 @@ def test_source_item_compile_route_with_failed_card():
             print(f"[OK] SourceItem updated: status=failed, error_message set")
 
         finally:
-            main_module.compile_url = original_compile_url_main
-            service_module.compile_url = original_compile_url_svc
+            service_module.compile_source_item_snapshot = original_snapshot_svc
 
     finally:
         db.rollback()
@@ -1070,25 +1064,23 @@ def test_source_item_compile_already_compiled_is_idempotent():
         item_id = item.id
         original_card_id = card.id
 
-        # Mock compile_url to fail if called (patch both modules)
+        # Mock the snapshot compile entry point to fail if called.
         call_count = [0]
-        original_main = main_module.compile_url
-        original_svc = service_module.compile_url
+        original_snapshot_svc = service_module.compile_source_item_snapshot
 
-        def counting_mock(db_session, url):
+        def counting_mock(db_session, item):
             call_count[0] += 1
-            return original_main(db_session, url)
+            raise AssertionError("compile entry point should not be called for already-compiled item")
 
-        main_module.compile_url = counting_mock
-        service_module.compile_url = counting_mock
+        service_module.compile_source_item_snapshot = counting_mock
         try:
-            # POST should redirect without calling compile_url
+            # POST should redirect without calling the compile entry point
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
             assert response.status_code == 303, f"Expected 303, got {response.status_code}"
 
-            # compile_url should NOT have been called
+            # compile entry point should NOT have been called
             assert call_count[0] == 0, \
-                f"compile_url was called {call_count[0]} times (should be 0 for already-compiled)"
+                f"compile entry point was called {call_count[0]} times (should be 0 for already-compiled)"
 
             # Item state should be unchanged
             db.expire_all()
@@ -1099,8 +1091,7 @@ def test_source_item_compile_already_compiled_is_idempotent():
                 f"insight_card_id changed from {original_card_id} to {refreshed.insight_card_id}"
             print(f"[OK] Already-compiled item: no re-compile, status unchanged")
         finally:
-            main_module.compile_url = original_main
-            service_module.compile_url = original_svc
+            service_module.compile_source_item_snapshot = original_snapshot_svc
 
     finally:
         db.rollback()
@@ -1148,12 +1139,11 @@ def test_source_item_compile_failed_retry_succeeds():
         db.refresh(item)
         item_id = item.id
 
-        original_main = main_module.compile_url
-        original_svc = service_module.compile_url
+        original_snapshot_svc = service_module.compile_source_item_snapshot
 
-        def fake_success(db_session, url):
+        def fake_success(db_session, item):
             card = InsightCard(
-                source_url=url,
+                source_url=item.url,
                 source_type=SourceType.HTML,
                 source_title="Retry Success Card",
                 content_hash="retry-hash",
@@ -1166,8 +1156,7 @@ def test_source_item_compile_failed_retry_succeeds():
             db_session.refresh(card)
             return card
 
-        main_module.compile_url = fake_success
-        service_module.compile_url = fake_success
+        service_module.compile_source_item_snapshot = fake_success
         try:
             response = client.post(f"/source-items/{item_id}/compile", follow_redirects=False)
             assert response.status_code == 303, f"Expected 303, got {response.status_code}"
@@ -1182,8 +1171,7 @@ def test_source_item_compile_failed_retry_succeeds():
                 f"error_message should be cleared after retry, got: {refreshed.error_message}"
             print(f"[OK] Failed item retried: status=compiled, error cleared")
         finally:
-            main_module.compile_url = original_main
-            service_module.compile_url = original_svc
+            service_module.compile_source_item_snapshot = original_snapshot_svc
 
     finally:
         db.rollback()
@@ -6882,13 +6870,12 @@ def test_candidate_pool_compile_route_with_mock():
         db.refresh(item)
         item_id = item.id
 
-        # Mock compile_url to return a successful card (patch both modules)
-        original_main = main_module.compile_url
-        original_svc = service_module.compile_url
+        # Mock the snapshot-first entry point to return a successful card.
+        original_snapshot_svc = service_module.compile_source_item_snapshot
 
-        def fake_compile_url(db_session, url):
+        def fake_compile_snapshot(db_session, item):
             card = InsightCard(
-                source_url=url,
+                source_url=item.url,
                 source_type=SourceType.HTML,
                 source_title="Mock Candidate Compile",
                 content_hash="candidate-mock-hash",
@@ -6901,8 +6888,7 @@ def test_candidate_pool_compile_route_with_mock():
             db_session.refresh(card)
             return card
 
-        main_module.compile_url = fake_compile_url
-        service_module.compile_url = fake_compile_url
+        service_module.compile_source_item_snapshot = fake_compile_snapshot
         try:
             response = client.post(
                 f"/candidate-pool/{item_id}/compile", follow_redirects=False
@@ -6926,8 +6912,7 @@ def test_candidate_pool_compile_route_with_mock():
             print(f"[OK] SourceItem updated via shared service: status=compiled, "
                   f"insight_card_id={refreshed.insight_card_id}")
         finally:
-            main_module.compile_url = original_main
-            service_module.compile_url = original_svc
+            service_module.compile_source_item_snapshot = original_snapshot_svc
 
     finally:
         db.rollback()
