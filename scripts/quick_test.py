@@ -1784,10 +1784,11 @@ def main():
             check("today_focus section contains the recent item",
                   focus is not None and recent.id in {i.id for i in focus.items})
 
-            # "Codex coding" item is classified into ai_coding.
+            # With deduplication: today_focus items (items 0-4) do NOT appear in
+            # normal category sections — they are exclusive to today_focus.
             ai_coding = next((s for s in sections if s.key == "ai_coding"), None)
-            check("coding item classified into ai_coding section",
-                  ai_coding is not None and recent.id in {i.id for i in ai_coding.items})
+            check("today_focus item excluded from normal category sections",
+                  ai_coding is not None and recent.id not in {i.id for i in ai_coding.items})
 
             # item_id query selects the reading panel item.
             view_sel = service.build_today_view(selected_item_id=recent.id, hours=24, limit=50)

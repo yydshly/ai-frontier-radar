@@ -7,12 +7,15 @@ Read-only view layer:
   weak-title logic.
 - Groups items into a fixed catalog of sections using rule-based
   keyword matching ONLY. Does NOT call any LLM.
+- Sorts items using _radar_sort_key to handle mixed datetime formats
+  (ISO, RFC822, datetime objects) correctly.
 
 Does NOT modify database state. Does NOT trigger fetching or compilation.
 """
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 from sqlalchemy import desc, func, or_
@@ -119,6 +122,48 @@ def _clamp(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
 
 
+def _radar_sort_key(item: SourceItem) -> datetime:
+    """Return a datetime used for display-layer sorting of a SourceItem.
+
+    Priority:
+    1. published_at — parsed if it is a datetime object, an ISO string,
+       or an RFC822 string (e.g. "Wed, 27 May 2026 10:00:00 GMT").
+    2. last_seen_at — used as-is.
+    3. first_seen_at — used as-is.
+    4. datetime.min — used when nothing is available.
+
+    Never raises. Bad strings fall through to datetime.min.
+    """
+    # 1. published_at
+    pub = item.published_at
+    if pub is not None:
+        if isinstance(pub, datetime):
+            return pub
+        if isinstance(pub, str) and pub.strip():
+            try:
+                # RFC822 / asctime format (email standard)
+                return parsedate_to_datetime(pub)
+            except (ValueError, TypeError):
+                pass
+            try:
+                # ISO 8601 format
+                return datetime.fromisoformat(pub.strip())
+            except (ValueError, TypeError):
+                pass
+        # Unusable (empty string, etc.) → fall through
+
+    # 2. last_seen_at
+    if item.last_seen_at is not None:
+        return item.last_seen_at
+
+    # 3. first_seen_at
+    if item.first_seen_at is not None:
+        return item.first_seen_at
+
+    # 4. Nothing usable
+    return datetime.min
+
+
 def _classify_blob(item: SourceItem, card: CandidateDisplayCard) -> str:
     """Build a lowercase text blob used for keyword classification.
 
@@ -206,6 +251,9 @@ class RadarTodayService:
                 .all()
             )
 
+        # ── Re-sort by display-layer datetime (handles mixed ISO/RFC822) ──
+        items = sorted(items, key=_radar_sort_key, reverse=True)
+
         # ── Display cards — only for the current `limit` items ────────────
         display_map: dict[int, CandidateDisplayCard] = {
             item.id: build_candidate_display_card(item) for item in items
@@ -239,11 +287,12 @@ class RadarTodayService:
         buckets: dict[str, list] = {key: [] for key, _ in SECTION_ORDER}
 
         # today_focus: the newest TODAY_FOCUS_SIZE items (items already sorted).
+        today_focus_ids = {item.id for item in items[:TODAY_FOCUS_SIZE]}
         for item in items[:TODAY_FOCUS_SIZE]:
             buckets[TODAY_FOCUS_KEY].append(item)
 
-        # Normal categories: first matching category only.
-        for item in items:
+        # Normal categories: exclude today_focus items, first matching category only.
+        for item in items[TODAY_FOCUS_SIZE:]:
             card = display_map.get(item.id)
             blob = _classify_blob(item, card) if card else (item.source_key or "").lower()
             buckets[_category_for(blob)].append(item)
