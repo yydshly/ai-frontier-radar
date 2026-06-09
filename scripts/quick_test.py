@@ -3147,6 +3147,25 @@ def main():
               and "InsightCard 生成验收" in manual_acceptance_md
               and "Markdown 导出验收" in manual_acceptance_md,
               "manual acceptance record should cover the main loop modules")
+
+        # 23b. project_docs registry exposes V1 beta checkpoint docs
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+        check("project docs registry includes V1 beta checkpoint doc",
+              "V1_BETA_CHECKPOINT.md" in registry_py
+              and "v1-beta-checkpoint" in registry_py,
+              "browser project docs should expose V1 beta checkpoint doc")
+        check("project docs registry includes V1 beta manual acceptance doc",
+              "V1_BETA_MANUAL_ACCEPTANCE_RECORD.md" in registry_py
+              and "v1-beta-manual-acceptance" in registry_py,
+              "browser project docs should expose manual acceptance record")
+        check("project docs registry includes V1 beta status and checklist docs",
+              "V1_BETA_FIRST_USABLE_LOOP_STATUS.md" in registry_py
+              and "V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md" in registry_py,
+              "browser project docs should expose V1 beta status and checklist docs")
+        check("project docs registry keeps whitelist model",
+              "PROJECT_DOCS_REGISTRY" in registry_py
+              and "Path(" in registry_py,
+              "project docs should remain registry-based and not open arbitrary files")
     except Exception as e:
         check("V1 beta checkpoint documentation checks", False, str(e))
 

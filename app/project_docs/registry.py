@@ -144,6 +144,36 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="Beta 规划",
         description="V1.0-beta 下一阶段优先级规划：P0/P1/P2 分级落地路径。",
     ),
+
+    # V1.0-beta First Usable Loop 阶段包
+    "v1-beta-checkpoint": DocEntry(
+        key="v1-beta-checkpoint",
+        title="V1.0-beta First Usable Loop Checkpoint",
+        path="docs/V1_BETA_CHECKPOINT.md",
+        category="Beta 规划",
+        description="阶段稳定点说明，覆盖完整主链路、已完成能力、非目标、已知限制和下一阶段建议。",
+    ),
+    "v1-beta-manual-acceptance": DocEntry(
+        key="v1-beta-manual-acceptance",
+        title="V1.0-beta 人工验收记录",
+        path="docs/V1_BETA_MANUAL_ACCEPTANCE_RECORD.md",
+        category="Beta 规划",
+        description="用于记录 First Usable Loop 的真实人工验收环境、步骤、结果和问题。",
+    ),
+    "v1-beta-status": DocEntry(
+        key="v1-beta-status",
+        title="V1.0-beta First Usable Loop 状态说明",
+        path="docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md",
+        category="Beta 规划",
+        description="当前阶段定位、主链路、已完成能力、非目标、已知限制和后续规划。",
+    ),
+    "v1-beta-checklist": DocEntry(
+        key="v1-beta-checklist",
+        title="V1.0-beta First Usable Loop 验收清单",
+        path="docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md",
+        category="Beta 规划",
+        description="页面、抓取、中文摘要、InsightCard、导出和 checkpoint 的验收清单。",
+    ),
 }
 
 
