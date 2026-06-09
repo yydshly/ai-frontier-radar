@@ -2130,6 +2130,30 @@ def main():
               ".radar-panel-actions" in style_css and "flex-direction: column" in style_css,
               "right reading panel actions should be stacked vertically")
 
+        # ── Sidebar categories: source-code checks on today.py ──────────────
+        radar_py_path = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py")
+        try:
+            radar_py = radar_py_path.read_text(encoding="utf-8")
+        except Exception as e:
+            check("radar today.py is readable for category assertions", False, str(e))
+            radar_py = ""
+        check("today radar categories are less coarse",
+              "AI 编程 / 开发者工具" in radar_py
+              and "Agent 工作流" in radar_py
+              and "RAG / 知识库" in radar_py
+              and "文档理解 / 资料处理" in radar_py
+              and "基础设施 / 算力" in radar_py,
+              "radar categories should be more granular than broad buckets")
+        check("today radar classification uses Chinese summaries",
+              "zh_one_liner" in radar_py and "zh_summary" in radar_py,
+              "classification blob should include generated Chinese summary fields")
+        check("today radar model company category is not the only broad bucket",
+              "模型公司 / 发布动态" in radar_py and "开源模型 / Benchmark" in radar_py,
+              "model news should be split from benchmark/open-model news")
+        check("today radar route accepts section query param",
+              "section: str" in radar_py or "section=section" in radar_py or "section: section" in radar_py,
+              "route should accept section query param")
+
         # ── Per-page selector (header GET form) ────────────────────────────
         check("today radar has per_page selector",
               'name="per_page"' in radar_html and 'radar-page-size-form' in radar_html,
@@ -2140,6 +2164,17 @@ def main():
         check("today radar per_page change resets page to 1",
               'name="page" value="1"' in radar_html,
               "changing page size should reset to first page")
+
+        # ── Sidebar categories (V1-beta: all / today_focus / refined buckets) ──
+        check("today radar has all section",
+              "section=all" in radar_html and ">全部<" in radar_html,
+              "left sidebar should include an all section")
+        check("today radar has today focus section",
+              "section=today_focus" in radar_html and "今日重点" in radar_html,
+              "left sidebar should include today focus")
+        check("today radar has active-section heading",
+              "radar-active-section-title" in radar_html,
+              "main column should show current section name and count")
 
         radar_card_start = style_css.find(".radar-card {")
         radar_card_block = ""

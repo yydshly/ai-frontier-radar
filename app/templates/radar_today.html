@@ -47,16 +47,40 @@
             <nav class="radar-sidebar" aria-label="目录分类">
                 <div class="radar-sidebar-label">目录</div>
                 <ul class="radar-section-links">
-                    {% for section in view.sections %}
-                    {% if section.items %}
+                    {# 全部 — always shown #}
                     <li>
-                        <a href="#section-{{ section.key }}" class="radar-section-link">
+                        <a href="/radar/today?section=all&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'all' %}is-active{% endif %}">
+                            <span>全部</span>
+                            <span class="radar-section-count">{{ view.section_counts.get('all', view.total_items) }}</span>
+                        </a>
+                    </li>
+                    {# 今日重点 — always shown #}
+                    <li>
+                        <a href="/radar/today?section=today_focus&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'today_focus' %}is-active{% endif %}">
+                            <span>今日重点</span>
+                            <span class="radar-section-count">{{ view.section_counts.get('today_focus', 0) }}</span>
+                        </a>
+                    </li>
+                    {# Other categories — only shown when full-set count > 0 #}
+                    {% for section in view.sections %}
+                    {% if section.key != 'today_focus' and section.key != 'others' and view.section_counts.get(section.key, 0) > 0 %}
+                    <li>
+                        <a href="/radar/today?section={{ section.key }}&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == section.key %}is-active{% endif %}">
                             <span>{{ section.title }}</span>
-                            <span class="radar-section-count">{{ section.items|length }}</span>
+                            <span class="radar-section-count">{{ view.section_counts.get(section.key, 0) }}</span>
                         </a>
                     </li>
                     {% endif %}
                     {% endfor %}
+                    {# 其他 — only when full-set count > 0 #}
+                    {% if view.section_counts.get('others', 0) > 0 %}
+                    <li>
+                        <a href="/radar/today?section=others&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'others' %}is-active{% endif %}">
+                            <span>其他</span>
+                            <span class="radar-section-count">{{ view.section_counts.get('others', 0) }}</span>
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
             </nav>
 
@@ -65,10 +89,30 @@
                 {% if view.total_items == 0 %}
                 <p class="radar-empty">暂无候选内容。</p>
                 {% else %}
+                {# Active-section heading: shows the current filter name + total count #}
+                {% set active_label = {
+                    'all': '全部',
+                    'today_focus': '今日重点',
+                    'agent_workflow': 'Agent 工作流',
+                    'rag_knowledge': 'RAG / 知识库',
+                    'doc_understanding': '文档理解 / 资料处理',
+                    'model_release': '模型公司 / 发布动态',
+                    'open_model_benchmark': '开源模型 / Benchmark',
+                    'multimodal_video_image': '多模态 / 图像 / 视频',
+                    'voice_audio': '语音 / TTS / 音频',
+                    'safety_policy': 'AI 安全 / 政策',
+                    'product_business': '产品机会 / 商业化',
+                    'infra_compute': '基础设施 / 算力',
+                    'others': '其他',
+                } %}
+                <h2 class="radar-active-section-title">
+                    {{ active_label.get(view.active_section, view.active_section) }}
+                    <small>{{ view.total_items }}</small>
+                </h2>
                 {% for section in view.sections %}
-                {% if section.items %}
+                {% if section.items and (view.active_section == 'all' or view.active_section == section.key) %}
                 <section class="radar-section" id="section-{{ section.key }}">
-                    <h2 class="radar-section-title">{{ section.title }} <small>{{ section.items|length }}</small></h2>
+                    <h3 class="radar-section-title">{{ section.title }} <small>{{ section.items|length }}</small></h3>
                     <div class="radar-card-list">
                         {% for item in section.items %}
                         {% set display = display_map.get(item.id) %}

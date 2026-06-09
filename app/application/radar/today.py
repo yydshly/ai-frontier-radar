@@ -55,49 +55,122 @@ TODAY_FOCUS_KEY = "today_focus"
 TODAY_FOCUS_TITLE = "今日重点"
 OTHERS_KEY = "others"
 OTHERS_TITLE = "其他"
+ALL_KEY = "all"
+ALL_TITLE = "全部"
 
 # Keyword categories evaluated in order. Keywords are matched as lowercase
 # substrings against a text blob built from source_key/title/summary/metadata.
+# Order matters: "AI 编程" must come before "模型公司" so that a Codex article
+# tagged with "openai" still gets classified as coding. "Agent 工作流" must
+# come before "产品机会 / 商业化" so enterprise/workflow items don't drown
+# out core agent news.
 _CATEGORIES: tuple[_CategoryDef, ...] = (
     _CategoryDef(
         "ai_coding",
-        "AI 编程工具",
-        ("codex", "coding", "code", "developer", "cursor", "programming",
-         "software engineer", "copilot", "ide"),
+        "AI 编程 / 开发者工具",
+        (
+            "codex", "coding", "code", "developer", "cursor", "copilot",
+            "ide", "software engineer", "programming", "devtool",
+            "github", "git", "pull request", "cli",
+        ),
     ),
     _CategoryDef(
-        "agent_rag",
-        "Agent / RAG / 文档理解",
-        ("agent", "multi-agent", "rag", "retrieval", "document", "knowledge",
-         "workflow"),
+        "agent_workflow",
+        "Agent 工作流",
+        (
+            "agent", "agents", "multi-agent", "workflow", "tool use",
+            "computer use", "automation", "autonomous", "orchestration",
+        ),
     ),
     _CategoryDef(
-        "model_company",
-        "模型公司动态",
-        ("openai", "anthropic", "deepmind", "mistral", "cohere", "meta",
-         "microsoft", "nvidia", "huggingface", "hugging face", "google",
-         "claude", "gpt", "gemini", "llama"),
+        "rag_knowledge",
+        "RAG / 知识库",
+        (
+            "rag", "retrieval", "knowledge base", "vector", "embedding",
+            "search", "index", "semantic search", "memory",
+        ),
     ),
     _CategoryDef(
-        "multimodal_voice_video",
-        "多模态 / 语音 / 视频",
-        ("voice", "audio", "tts", "speech", "video", "image", "multimodal",
-         "vision"),
+        "doc_understanding",
+        "文档理解 / 资料处理",
+        (
+            "document", "pdf", "report", "paper", "reading", "extract",
+            "extraction", "ocr", "parser", "markdown", "dataset",
+        ),
+    ),
+    _CategoryDef(
+        "model_release",
+        "模型公司 / 发布动态",
+        (
+            "openai", "anthropic", "deepmind", "google", "mistral",
+            "cohere", "meta", "microsoft", "nvidia", "huggingface",
+            "hugging face", "claude", "gpt", "gemini", "llama",
+            "model release", "launches", "announces",
+        ),
+    ),
+    _CategoryDef(
+        "open_model_benchmark",
+        "开源模型 / Benchmark",
+        (
+            "open source", "open-weight", "benchmark", "leaderboard",
+            "eval", "evaluation", "mmlu", "swe-bench", "arena",
+            "performance", "reasoning model",
+        ),
+    ),
+    _CategoryDef(
+        "multimodal_video_image",
+        "多模态 / 图像 / 视频",
+        (
+            "multimodal", "vision", "image", "video", "sora", "veo",
+            "generate images", "image generation", "video generation",
+        ),
+    ),
+    _CategoryDef(
+        "voice_audio",
+        "语音 / TTS / 音频",
+        (
+            "voice", "audio", "tts", "speech", "speech-to-text",
+            "text-to-speech", "music", "sound", "transcription",
+        ),
     ),
     _CategoryDef(
         "safety_policy",
         "AI 安全 / 政策",
-        ("safety", "policy", "regulation", "risk", "eval", "alignment",
-         "security"),
+        (
+            "safety", "policy", "regulation", "risk", "alignment",
+            "security", "governance", "standard", "youth", "privacy",
+        ),
+    ),
+    _CategoryDef(
+        "product_business",
+        "产品机会 / 商业化",
+        (
+            "enterprise", "business", "startup", "product", "pricing",
+            "revenue", "market", "customer", "use case",
+            "case study", "adoption",
+        ),
+    ),
+    _CategoryDef(
+        "infra_compute",
+        "基础设施 / 算力",
+        (
+            "infrastructure", "compute", "gpu", "datacenter", "data center",
+            "cluster", "training", "inference", "chip", "server",
+            "stargate",
+        ),
     ),
 )
 
 # Stable order of sections as shown in the sidebar / main area.
+# "all" is a virtual section; rendered specially by the template.
 SECTION_ORDER: tuple[tuple[str, str], ...] = (
     (TODAY_FOCUS_KEY, TODAY_FOCUS_TITLE),
     *((c.key, c.title) for c in _CATEGORIES),
     (OTHERS_KEY, OTHERS_TITLE),
 )
+
+# Section keys that are always shown in the sidebar (even if empty).
+ALWAYS_VISIBLE_SECTIONS: frozenset[str] = frozenset({TODAY_FOCUS_KEY})
 
 
 @dataclass
@@ -125,6 +198,10 @@ class RadarTodayView:
     total_pages: int = 1
     has_prev: bool = False
     has_next: bool = False
+    # ── Active sidebar section (default: ALL_KEY) ───────────────────────────
+    active_section: str = ALL_KEY
+    # ── Per-section item counts over the FULL result set (not current page) ─
+    section_counts: dict = field(default_factory=dict)
 
 
 def _clamp(value: int, low: int, high: int) -> int:
@@ -189,8 +266,13 @@ def _classify_blob(item: SourceItem, card: CandidateDisplayCard) -> str:
     """Build a lowercase text blob used for keyword classification.
 
     Combines source_key, title, the display summary, and selected
-    raw_metadata_json fields (detail_description / rss_summary /
-    description / tags).
+    raw_metadata_json fields (zh_one_liner / zh_summary / detail_description
+    / rss_summary / description / summary / tags).
+
+    Including the generated Chinese summary fields ensures the classifier
+    can use them once `generate_one_liners.py` populates them — without
+    this, a Chinese-summarized item would still classify on English title
+    only.
     """
     parts: list[str] = [
         item.source_key or "",
@@ -203,7 +285,10 @@ def _classify_blob(item: SourceItem, card: CandidateDisplayCard) -> str:
             meta: dict[str, Any] = json.loads(item.raw_metadata_json)
         except (json.JSONDecodeError, TypeError):
             meta = {}
-        for key in ("detail_description", "rss_summary", "description"):
+        for key in (
+            "zh_one_liner", "zh_summary",
+            "detail_description", "rss_summary", "description", "summary",
+        ):
             value = meta.get(key)
             if isinstance(value, str):
                 parts.append(value)
@@ -214,6 +299,13 @@ def _classify_blob(item: SourceItem, card: CandidateDisplayCard) -> str:
             parts.append(tags)
 
     return " ".join(parts).lower()
+
+
+def _categorize_item(item: SourceItem, card: CandidateDisplayCard | None) -> str:
+    """Return the section key for an item, or OTHERS_KEY if no match."""
+    if card is None:
+        return OTHERS_KEY
+    return _category_for(_classify_blob(item, card))
 
 
 def _category_for(blob: str) -> str:
@@ -238,11 +330,17 @@ class RadarTodayService:
         limit: int = DEFAULT_LIMIT,
         page: int = 1,
         per_page: int = DEFAULT_PER_PAGE,
+        section: str = ALL_KEY,
     ) -> RadarTodayView:
         hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
         limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
         per_page = _clamp(int(per_page), MIN_PER_PAGE, MAX_PER_PAGE)
         page = max(1, int(page))
+
+        # Validate section against known keys (unknown → ALL_KEY).
+        valid_keys = {key for key, _ in SECTION_ORDER} | {ALL_KEY}
+        if section not in valid_keys:
+            section = ALL_KEY
 
         order = desc(func.coalesce(
             SourceItem.published_at,
@@ -279,30 +377,77 @@ class RadarTodayService:
         # ── Re-sort by display-layer datetime (handles mixed ISO/RFC822) ──
         items = sorted(items, key=_radar_sort_key, reverse=True)
 
-        # ── Pagination over the sorted candidate set ──────────────────────
-        total_items = len(items)
-        total_pages = max(1, math.ceil(total_items / per_page)) if total_items else 1
+        # ── Build display cards for the FULL result set (not just page) ──
+        # This is needed to compute per-section counts over the full set
+        # and to keep the right-side reading panel rendering consistent
+        # when an item_id is selected.
+        full_display_map: dict[int, CandidateDisplayCard] = {
+            item.id: build_candidate_display_card(item) for item in items
+        }
+
+        # ── Per-section counts over the FULL result set ──────────────────
+        section_counts: dict[str, int] = {key: 0 for key, _ in SECTION_ORDER}
+        section_counts[TODAY_FOCUS_KEY] = min(len(items), TODAY_FOCUS_SIZE)
+        for item in items[TODAY_FOCUS_SIZE:]:
+            key = _categorize_item(item, full_display_map.get(item.id))
+            section_counts[key] = section_counts.get(key, 0) + 1
+        # "all" count is the total items in the candidate set.
+        section_counts[ALL_KEY] = len(items)
+
+        # ── Filter items to the active section ───────────────────────────
+        if section == ALL_KEY:
+            filtered_items = items
+        elif section == TODAY_FOCUS_KEY:
+            filtered_items = items[:TODAY_FOCUS_SIZE]
+        else:
+            filtered_items = [
+                item for item in items[TODAY_FOCUS_SIZE:]
+                if _categorize_item(item, full_display_map.get(item.id)) == section
+            ]
+            # today_focus items are also relevant when section=ALL; for a
+            # specific category we only show items in that category, which
+            # excludes today_focus by design.
+
+        # ── Pagination over the section-filtered set ──────────────────────
+        total_items_in_section = len(filtered_items)
+        total_pages = max(1, math.ceil(total_items_in_section / per_page)) if total_items_in_section else 1
         page = min(page, total_pages)  # clamp into valid range
         start = (page - 1) * per_page
-        page_items = items[start:start + per_page]
+        page_items = filtered_items[start:start + per_page]
         has_prev = page > 1
         has_next = page < total_pages
 
         # ── Display cards — only for the current page items ───────────────
         display_map: dict[int, CandidateDisplayCard] = {
-            item.id: build_candidate_display_card(item) for item in page_items
+            item.id: full_display_map[item.id] for item in page_items
         }
 
-        # ── Section grouping (current page only) ──────────────────────────
-        sections = self._build_sections(page_items, display_map)
+        # ── Section grouping (current page only, all categories) ─────────
+        # We always build the full SECTION_ORDER list so the sidebar can
+        # show every category with its full-set count, even if the current
+        # page has 0 items in a category.
+        full_buckets: dict[str, list] = {key: [] for key, _ in SECTION_ORDER}
+        for item in page_items:
+            if item.id in {i.id for i in items[:TODAY_FOCUS_SIZE]} and section in (ALL_KEY, TODAY_FOCUS_KEY):
+                full_buckets[TODAY_FOCUS_KEY].append(item)
+            else:
+                key = _categorize_item(item, full_display_map.get(item.id))
+                full_buckets[key].append(item)
+        sections = [
+            RadarTodaySection(key=key, title=title, items=full_buckets[key])
+            for key, title in SECTION_ORDER
+        ]
 
         # ── Selected item resolution ──────────────────────────────────────
+        # Selected item should always be in full_display_map (so panel renders).
         selected_item, selected_missing = self._resolve_selected(
-            selected_item_id, page_items, display_map
+            selected_item_id, page_items, full_display_map
         )
+        if selected_item is not None and selected_item.id in full_display_map:
+            display_map[selected_item.id] = full_display_map[selected_item.id]
 
         return RadarTodayView(
-            total_items=total_items,
+            total_items=total_items_in_section,
             selected_item_id=selected_item_id,
             selected_item=selected_item,
             sections=sections,
@@ -316,6 +461,8 @@ class RadarTodayService:
             total_pages=total_pages,
             has_prev=has_prev,
             has_next=has_next,
+            active_section=section,
+            section_counts=section_counts,
         )
 
     def _build_sections(

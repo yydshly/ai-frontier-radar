@@ -3761,6 +3761,19 @@ body.app-shell .main-content {
     font-size: 0.8rem;
 }
 
+.radar-section-link.is-active {
+    background: #ddf4ff;
+    color: #0969da;
+    font-weight: 600;
+    border-color: #54aeff;
+}
+
+.radar-active-section-title {
+    font-size: 1.1rem;
+    margin: 0 0 0.75rem 0;
+    color: #24292f;
+}
+
 .radar-fallback-note {
     color: #9a6700;
     background: #fff8c5;
