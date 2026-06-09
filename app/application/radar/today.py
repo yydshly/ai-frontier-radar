@@ -14,7 +14,7 @@ Does NOT modify database state. Does NOT trigger fetching or compilation.
 """
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -122,8 +122,19 @@ def _clamp(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
 
 
+def _to_naive_utc(value: datetime) -> datetime:
+    """Strip timezone info and return a naive UTC datetime.
+
+    Converts aware datetimes to UTC, then removes tzinfo.
+    Leaves naive datetimes unchanged.
+    """
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
 def _radar_sort_key(item: SourceItem) -> datetime:
-    """Return a datetime used for display-layer sorting of a SourceItem.
+    """Return a naive UTC datetime used for display-layer sorting of a SourceItem.
 
     Priority:
     1. published_at — parsed if it is a datetime object, an ISO string,
@@ -132,33 +143,34 @@ def _radar_sort_key(item: SourceItem) -> datetime:
     3. first_seen_at — used as-is.
     4. datetime.min — used when nothing is available.
 
-    Never raises. Bad strings fall through to datetime.min.
+    All returned datetimes are naive (timezone-stripped) to allow safe sorting.
+    Bad strings fall through to datetime.min without raising.
     """
     # 1. published_at
     pub = item.published_at
     if pub is not None:
         if isinstance(pub, datetime):
-            return pub
+            return _to_naive_utc(pub)
         if isinstance(pub, str) and pub.strip():
             try:
-                # RFC822 / asctime format (email standard)
-                return parsedate_to_datetime(pub)
+                # RFC822 / asctime format (email standard) — always aware UTC
+                return _to_naive_utc(parsedate_to_datetime(pub))
             except (ValueError, TypeError):
                 pass
             try:
-                # ISO 8601 format
-                return datetime.fromisoformat(pub.strip())
+                # ISO 8601 format — may be aware or naive
+                return _to_naive_utc(datetime.fromisoformat(pub.strip()))
             except (ValueError, TypeError):
                 pass
         # Unusable (empty string, etc.) → fall through
 
     # 2. last_seen_at
     if item.last_seen_at is not None:
-        return item.last_seen_at
+        return _to_naive_utc(item.last_seen_at)
 
     # 3. first_seen_at
     if item.first_seen_at is not None:
-        return item.first_seen_at
+        return _to_naive_utc(item.first_seen_at)
 
     # 4. Nothing usable
     return datetime.min

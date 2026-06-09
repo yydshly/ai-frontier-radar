@@ -1807,6 +1807,92 @@ def main():
             view_fb = RadarTodayService(db_session).build_today_view(hours=1, limit=50)
             check("fallback never yields empty content when items exist",
                   (not view_fb.fallback_used) or (view_fb.total_items > 0))
+
+            # ── Timezone normalization tests ──────────────────────────────────
+            from datetime import datetime, timezone, timedelta
+            from app.application.radar.today import _to_naive_utc, _radar_sort_key
+
+            # _to_naive_utc: timezone-aware UTC → naive UTC
+            aware_utc = datetime(2026, 6, 9, 10, 0, 0, tzinfo=timezone.utc)
+            naive = _to_naive_utc(aware_utc)
+            check("_to_naive_utc strips timezone from aware UTC datetime",
+                  naive.tzinfo is None and naive.year == 2026)
+
+            # _to_naive_utc: already naive → unchanged
+            naive_in = datetime(2026, 6, 9, 10, 0, 0)
+            naive_out = _to_naive_utc(naive_in)
+            check("_to_naive_utc leaves naive datetime unchanged",
+                  naive_out == naive_in and naive_out.tzinfo is None)
+
+            # _radar_sort_key: RFC822 string (e.g. "Wed, 27 May 2026 10:00:00 GMT")
+            # parsedate_to_datetime returns aware datetime → normalized to naive.
+            item_rfc822 = SourceItem(
+                source_id=src.id, source_key=test_key, url="https://example.com/rfc822",
+                title="RFC822 Test", status="discovered",
+                published_at="Wed, 27 May 2026 10:00:00 GMT",
+                first_seen_at=datetime(2026, 1, 1, 0, 0, 0),  # naive, older
+                last_seen_at=datetime(2026, 1, 1, 0, 0, 0),
+            )
+            key_rfc822 = _radar_sort_key(item_rfc822)
+            check("_radar_sort_key RFC822 GMT returns naive datetime",
+                  key_rfc822.tzinfo is None and key_rfc822.year == 2026)
+
+            # _radar_sort_key: ISO string with timezone offset (+08:00) → naive UTC
+            item_iso_tz = SourceItem(
+                source_id=src.id, source_key=test_key, url="https://example.com/iso_tz",
+                title="ISO TZ Test", status="discovered",
+                published_at="2026-06-09T10:00:00+08:00",
+                first_seen_at=datetime(2026, 1, 1, 0, 0, 0),
+                last_seen_at=datetime(2026, 1, 1, 0, 0, 0),
+            )
+            key_iso_tz = _radar_sort_key(item_iso_tz)
+            check("_radar_sort_key ISO with +08:00 returns naive datetime",
+                  key_iso_tz.tzinfo is None)
+
+            # _radar_sort_key: naive datetime object → returns naive
+            item_naive = SourceItem(
+                source_id=src.id, source_key=test_key, url="https://example.com/naive",
+                title="Naive Test", status="discovered",
+                published_at=datetime(2026, 6, 9, 10, 0, 0),  # naive
+                first_seen_at=None, last_seen_at=None,
+            )
+            key_naive = _radar_sort_key(item_naive)
+            check("_radar_sort_key naive datetime returns naive datetime",
+                  key_naive.tzinfo is None)
+
+            # RadarTodayService: mixed RFC822 published_at + naive first_seen_at → no crash on sort.
+            # Creates two items with different timezone styles; service re-sorts them.
+            item_a = SourceItem(
+                source_id=src.id, source_key=test_key, url="https://example.com/a",
+                title="Mixed A", status="discovered",
+                published_at="Wed, 27 May 2026 10:00:00 GMT",  # aware UTC via RFC822
+                first_seen_at=datetime(2026, 1, 1, 0, 0, 0),  # naive
+                last_seen_at=datetime(2026, 1, 1, 0, 0, 0),
+            )
+            item_b = SourceItem(
+                source_id=src.id, source_key=test_key, url="https://example.com/b",
+                title="Mixed B", status="discovered",
+                published_at=datetime(2026, 6, 9, 10, 0, 0),  # naive
+                first_seen_at=datetime(2026, 6, 9, 8, 0, 0),  # naive, earlier
+                last_seen_at=datetime(2026, 6, 9, 8, 0, 0),
+            )
+            db_session.add_all([item_a, item_b])
+            db_session.commit()
+            # build_today_view re-sorts internally — must not raise.
+            try:
+                view_mixed = RadarTodayService(db_session).build_today_view(hours=24, limit=50)
+                check("mixed RFC822 + naive datetime sort does not crash", True)
+            except TypeError as e:
+                check("mixed RFC822 + naive datetime sort does not crash", False, str(e))
+            # Cleanup extra items
+            db_session.query(SourceItem).filter(
+                SourceItem.url.in_(["https://example.com/rfc822",
+                                     "https://example.com/iso_tz",
+                                     "https://example.com/naive",
+                                     "https://example.com/a",
+                                     "https://example.com/b"])
+            ).delete(synchronize_session=False)
+            db_session.commit()
         finally:
             db_session.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
             db_session.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
