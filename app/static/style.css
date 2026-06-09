@@ -3784,8 +3784,23 @@ body.app-shell .main-content {
 }
 
 /* ── Radar workbench: App Shell control ─────────────────────────────── */
-body.app-shell .main-content.radar-workbench-page {
+/* Page-level scroll lock — applies ONLY when body has .radar-workbench-shell.
+   Other pages are unaffected. */
+body.app-shell.radar-workbench-shell {
     height: 100vh;
+    overflow: hidden;
+}
+
+body.app-shell.radar-workbench-shell .main-wrapper {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+}
+
+body.app-shell .main-content.radar-workbench-page,
+body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
+    flex: 1 1 auto;
+    height: 100%;
     min-height: 0;
     overflow: hidden;
     display: flex;
@@ -3811,7 +3826,7 @@ body.app-shell .main-content.radar-workbench-page {
     min-height: 0;
     overflow: hidden;
     display: grid;
-    grid-template-columns: 200px minmax(0, 1fr) 320px;
+    grid-template-columns: 220px minmax(0, 1fr) 360px;
     gap: 1.25rem;
     align-items: stretch;
 }
@@ -3838,11 +3853,30 @@ body.app-shell .main-content.radar-workbench-page {
 
 .radar-sidebar {
     min-height: 0;
+    overflow: hidden;
+}
+
+.radar-sidebar-inner {
+    height: 100%;
+    min-height: 0;
     overflow-y: auto;
+    padding-right: 0.25rem;
 }
 
 .radar-main {
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.radar-main-toolbar {
+    flex: 0 0 auto;
+}
+
+.radar-main-scroll {
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     padding-right: 0.35rem;
@@ -4038,6 +4072,16 @@ body.app-shell .main-content.radar-workbench-page {
 }
 
 @media (max-width: 1024px) {
+    body.app-shell.radar-workbench-shell {
+        height: auto;
+        overflow: visible;
+    }
+
+    body.app-shell.radar-workbench-shell .main-wrapper {
+        height: auto;
+        overflow: visible;
+    }
+
     body.app-shell .main-content.radar-workbench-page {
         height: auto;
         overflow: visible;
@@ -4058,7 +4102,9 @@ body.app-shell .main-content.radar-workbench-page {
 
     .radar-main,
     .radar-sidebar,
-    .radar-panel {
+    .radar-panel,
+    .radar-sidebar-inner,
+    .radar-main-scroll {
         height: auto;
         max-height: none;
         overflow: visible;

@@ -4,6 +4,8 @@
 
 {% block main_class %}wide-page radar-workbench-page{% endblock %}
 
+{% block body_class %}radar-workbench-shell{% endblock %}
+
 {% set sel = view.selected_item %}
 {% set sel_card = display_map.get(sel.id) if sel else None %}
 
@@ -46,49 +48,53 @@
 
             {# ── Left: catalog ─────────────────────────────────────────── #}
             <nav class="radar-sidebar" aria-label="目录分类">
-                <div class="radar-sidebar-label">目录</div>
-                <ul class="radar-section-links">
-                    {# 全部 — always shown #}
-                    <li>
-                        <a href="/radar/today?section=all&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'all' %}is-active{% endif %}">
-                            <span>全部</span>
-                            <span class="radar-section-count">{{ view.section_counts.get('all', view.total_items) }}</span>
-                        </a>
-                    </li>
-                    {# 今日重点 — always shown #}
-                    <li>
-                        <a href="/radar/today?section=today_focus&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'today_focus' %}is-active{% endif %}">
-                            <span>今日重点</span>
-                            <span class="radar-section-count">{{ view.section_counts.get('today_focus', 0) }}</span>
-                        </a>
-                    </li>
-                    {# Other categories — only shown when full-set count > 0 #}
-                    {% for section in view.sections %}
-                    {% if section.key != 'today_focus' and section.key != 'others' and view.section_counts.get(section.key, 0) > 0 %}
-                    <li>
-                        <a href="/radar/today?section={{ section.key }}&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == section.key %}is-active{% endif %}">
-                            <span>{{ section.title }}</span>
-                            <span class="radar-section-count">{{ view.section_counts.get(section.key, 0) }}</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% endfor %}
-                    {# 其他 — only when full-set count > 0 #}
-                    {% if view.section_counts.get('others', 0) > 0 %}
-                    <li>
-                        <a href="/radar/today?section=others&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'others' %}is-active{% endif %}">
-                            <span>其他</span>
-                            <span class="radar-section-count">{{ view.section_counts.get('others', 0) }}</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
+                <div class="radar-sidebar-inner">
+                    <div class="radar-sidebar-label">目录</div>
+                    <ul class="radar-section-links">
+                        {# 全部 — always shown #}
+                        <li>
+                            <a href="/radar/today?section=all&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'all' %}is-active{% endif %}">
+                                <span>全部</span>
+                                <span class="radar-section-count">{{ view.section_counts.get('all', view.total_items) }}</span>
+                            </a>
+                        </li>
+                        {# 今日重点 — always shown #}
+                        <li>
+                            <a href="/radar/today?section=today_focus&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'today_focus' %}is-active{% endif %}">
+                                <span>今日重点</span>
+                                <span class="radar-section-count">{{ view.section_counts.get('today_focus', 0) }}</span>
+                            </a>
+                        </li>
+                        {# Other categories — only shown when full-set count > 0 #}
+                        {% for section in view.sections %}
+                        {% if section.key != 'today_focus' and section.key != 'others' and view.section_counts.get(section.key, 0) > 0 %}
+                        <li>
+                            <a href="/radar/today?section={{ section.key }}&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == section.key %}is-active{% endif %}">
+                                <span>{{ section.title }}</span>
+                                <span class="radar-section-count">{{ view.section_counts.get(section.key, 0) }}</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                        {# 其他 — only when full-set count > 0 #}
+                        {% if view.section_counts.get('others', 0) > 0 %}
+                        <li>
+                            <a href="/radar/today?section=others&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'others' %}is-active{% endif %}">
+                                <span>其他</span>
+                                <span class="radar-section-count">{{ view.section_counts.get('others', 0) }}</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
             </nav>
 
             {# ── Middle: candidate cards ───────────────────────────────── #}
             <div class="radar-main">
+                <div class="radar-main-toolbar">
                 {% if view.total_items == 0 %}
                 <p class="radar-empty">暂无候选内容。</p>
+                </div>{# <!-- /.radar-main-toolbar --> #}
                 {% else %}
                 {# Active-section heading: shows the current filter name + total count #}
                 {% set active_label = {
@@ -110,6 +116,8 @@
                     {{ active_label.get(view.active_section, view.active_section) }}
                     <small>{{ view.total_items }}</small>
                 </h2>
+                </div>{# <!-- /.radar-main-toolbar --> #}
+                <div class="radar-main-scroll">
                 {% for section in view.sections %}
                 {% if section.items and (view.active_section == 'all' or view.active_section == section.key) %}
                 <section class="radar-section" id="section-{{ section.key }}">
@@ -189,6 +197,7 @@
                 </nav>
                 {% endif %}
                 {% endif %}
+                </div>{# <!-- /.radar-main-scroll --> #}
             </div>
 
             {# ── Right: reading panel ──────────────────────────────────── #}

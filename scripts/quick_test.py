@@ -1777,8 +1777,10 @@ def main():
             brace_start = style_css.find("{", radar_main_start)
             brace_end = style_css.find("}", brace_start)
             radar_main_block = style_css[brace_start+1:brace_end]
-        check("style.css .radar-main has overflow-y: auto",
-              "overflow-y: auto" in radar_main_block)
+        check("style.css .radar-main is flex column (header + scroll split)",
+              "flex-direction: column" in radar_main_block
+              and "display: flex" in radar_main_block
+              and "overflow: hidden" in radar_main_block)
 
         # Extract .radar-panel rule
         radar_panel_start = style_css.find(".radar-panel {", radar_main_start) if radar_main_start >= 0 else style_css.find(".radar-panel")
@@ -2189,6 +2191,38 @@ def main():
         check("today radar has active-section heading",
               "radar-active-section-title" in radar_html,
               "main column should show current section name and count")
+
+        # ── Workbench scroll lock — body / main-wrapper / panels scroll
+        #     independently, page itself does not scroll.
+        check("base template supports body_class block",
+              "{% block body_class %}" in base_html,
+              "base template should allow page-specific body classes")
+        check("today radar uses radar workbench body class",
+              "{% block body_class %}radar-workbench-shell{% endblock %}" in radar_html,
+              "today radar should lock scroll only on this page")
+        check("today radar shell locks outer page scroll",
+              "body.app-shell.radar-workbench-shell" in style_css
+              and "overflow: hidden" in style_css,
+              "radar workbench should prevent page-level scrolling")
+        check("today radar main wrapper is height constrained",
+              ".main-wrapper" in style_css
+              and "height: 100vh" in style_css
+              and "radar-workbench-shell" in style_css,
+              "main wrapper should be constrained for radar workbench")
+        check("today radar panels have internal scrolling",
+              ".radar-sidebar" in style_css
+              and ".radar-main" in style_css
+              and ".radar-panel" in style_css
+              and "overflow-y: auto" in style_css,
+              "left, middle, and right panels should scroll internally")
+        check("today radar has dedicated main scroll area",
+              "radar-main-scroll" in radar_html
+              and ".radar-main-scroll" in style_css,
+              "middle list should scroll independently from toolbar")
+        check("today radar has dedicated sidebar inner scroll area",
+              "radar-sidebar-inner" in radar_html
+              and ".radar-sidebar-inner" in style_css,
+              "left catalog should scroll inside a fixed-height sidebar")
 
         radar_card_start = style_css.find(".radar-card {")
         radar_card_block = ""
