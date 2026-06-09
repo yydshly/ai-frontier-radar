@@ -191,7 +191,7 @@ def compute_due_sources(
         # 1. Check DB Source record exists.
         db_source: Source | None = db.query(Source).filter_by(source_key=source_key).first()
         if db_source is None:
-            unsupported.append(
+            missing.append(
                 DueSourceDecision(
                     source_key=source_key,
                     source_name=source_name,

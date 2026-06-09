@@ -3236,6 +3236,13 @@ def main():
               and "enqueue_source" not in check_due_sources_py
               and "CandidateOneLinerService" not in check_due_sources_py,
               "due-source diagnostic script should be read-only")
+        check("due source missing records go to missing bucket",
+              "missing.append(" in due_sources_py
+              and "REASON_MISSING_SOURCE_RECORD" in due_sources_py,
+              "missing source records should be counted in missing bucket, not unsupported")
+        check("unsupported.append does not receive status=missing",
+              'status="missing"\n    reason=REASON_MISSING_SOURCE_RECORD' not in due_sources_py,
+              "status=missing paired with REASON_MISSING_SOURCE_RECORD must not reach unsupported.append")
     except Exception as e:
         check("due source service checks", False, str(e))
 
