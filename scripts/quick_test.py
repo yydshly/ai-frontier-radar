@@ -2130,6 +2130,17 @@ def main():
               ".radar-panel-actions" in style_css and "flex-direction: column" in style_css,
               "right reading panel actions should be stacked vertically")
 
+        # ── Per-page selector (header GET form) ────────────────────────────
+        check("today radar has per_page selector",
+              'name="per_page"' in radar_html and 'radar-page-size-form' in radar_html,
+              "radar today should expose page size control")
+        check("today radar per_page selector supports compact options",
+              'value="5"' in radar_html and 'value="10"' in radar_html and 'value="20"' in radar_html and 'value="50"' in radar_html,
+              "per_page selector should support 5/10/20/50")
+        check("today radar per_page change resets page to 1",
+              'name="page" value="1"' in radar_html,
+              "changing page size should reset to first page")
+
         radar_card_start = style_css.find(".radar-card {")
         radar_card_block = ""
         if radar_card_start >= 0:
