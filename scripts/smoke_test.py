@@ -7876,6 +7876,692 @@ def test_v10_beta5_source_item_detail_shows_quality():
         db.close()
 
 
+# V1.0-beta.6 Fetch Delta Digest
+def test_v10_beta6_delta_digest_imports():
+    """FetchDeltaDigestService, FetchDeltaDigest, FetchDeltaItem, and extract_lightweight_summary can be imported."""
+    from app.application.fetch_runs.delta import (
+        FetchDeltaDigest,
+        FetchDeltaItem,
+        FetchDeltaDigestService,
+        extract_lightweight_summary,
+    )
+    print("[OK] V1.0-beta.6 delta digest classes can be imported")
+
+
+def test_v10_beta6_extract_summary_from_description():
+    """extract_lightweight_summary returns description content when available."""
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.models import SourceItem
+    import json
+
+    item = SourceItem(
+        source_key="test",
+        url="https://example.com",
+        raw_metadata_json=json.dumps({"description": "This is a short summary"}),
+    )
+    summary = extract_lightweight_summary(item)
+    assert "This is a short summary" in summary, f"Expected description in summary, got: {summary}"
+    print("[OK] extract_lightweight_summary returns description content")
+
+
+def test_v10_beta6_extract_summary_priority():
+    """Summary field takes priority over description."""
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.models import SourceItem
+    import json
+
+    item = SourceItem(
+        source_key="test",
+        url="https://example.com",
+        raw_metadata_json=json.dumps({
+            "summary": "High priority summary",
+            "description": "Lower priority description"
+        }),
+    )
+    summary = extract_lightweight_summary(item)
+    assert "High priority summary" in summary, f"Expected summary field in priority, got: {summary}"
+    print("[OK] extract_lightweight_summary respects field priority")
+
+
+def test_v10_beta6_extract_summary_strips_html():
+    """HTML tags are stripped from summaries."""
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.models import SourceItem
+    import json
+
+    item = SourceItem(
+        source_key="test",
+        url="https://example.com",
+        raw_metadata_json=json.dumps({
+            "description": "<p>This has <strong>HTML</strong> tags</p>"
+        }),
+    )
+    summary = extract_lightweight_summary(item)
+    assert "<" not in summary, f"HTML tags should be stripped, got: {summary}"
+    assert "This has HTML tags" in summary, f"Content should be preserved, got: {summary}"
+    print("[OK] extract_lightweight_summary strips HTML tags")
+
+
+def test_v10_beta6_extract_summary_truncates_long():
+    """Long summaries are truncated to 180 characters."""
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.models import SourceItem
+    import json
+
+    long_text = "A" * 300
+    item = SourceItem(
+        source_key="test",
+        url="https://example.com",
+        raw_metadata_json=json.dumps({"description": long_text}),
+    )
+    summary = extract_lightweight_summary(item)
+    assert len(summary) <= 180, f"Summary should be truncated, got length: {len(summary)}"
+    print("[OK] extract_lightweight_summary truncates long summaries")
+
+
+def test_v10_beta6_extract_summary_bad_json():
+    """Bad JSON in raw_metadata_json does not crash."""
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.models import SourceItem
+
+    item = SourceItem(
+        source_key="test",
+        url="https://example.com",
+        raw_metadata_json="not valid json {",
+    )
+    summary = extract_lightweight_summary(item)
+    # Should fall back to fallback text
+    assert "test" in summary or "候选资料" in summary, f"Expected fallback text, got: {summary}"
+    print("[OK] extract_lightweight_summary handles bad JSON gracefully")
+
+
+def test_v10_beta6_extract_summary_empty_metadata():
+    """Empty metadata uses fallback text."""
+    from app.application.fetch_runs.delta import extract_lightweight_summary
+    from app.models import SourceItem
+
+    item = SourceItem(
+        source_key="my_source",
+        url="https://example.com",
+        raw_metadata_json=None,
+    )
+    summary = extract_lightweight_summary(item)
+    assert "my_source" in summary, f"Expected fallback with source_key, got: {summary}"
+    print("[OK] extract_lightweight_summary uses fallback for empty metadata")
+
+
+def test_v10_beta6_delta_new_item():
+    """SourceItem first_seen within run window is classified as new."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    from app.application.fetch_runs.delta import FetchDeltaDigestService
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_new_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta New",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+            items_new=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="New Article Found",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+            last_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        service = FetchDeltaDigestService(db)
+        digest = service.build_for_run(run)
+
+        assert digest.new_count == 1, f"Expected 1 new item, got {digest.new_count}"
+        assert digest.new_items[0].item_id == item.id, f"Expected item id {item.id}, got {digest.new_items[0].item_id}"
+        print(f"[OK] Delta new item: {digest.new_count} new item(s)")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_delta_seen_item():
+    """SourceItem first_seen before run but last_seen in window is classified as seen."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    from app.application.fetch_runs.delta import FetchDeltaDigestService
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_seen_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta Seen",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        # Item first seen before the run
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Previously Seen Article",
+            status="discovered",
+            first_seen_at=now - timedelta(hours=1),
+            last_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        service = FetchDeltaDigestService(db)
+        digest = service.build_for_run(run)
+
+        assert digest.seen_count == 1, f"Expected 1 seen item, got {digest.seen_count}"
+        assert digest.seen_items[0].item_id == item.id, f"Expected item id {item.id}, got {digest.seen_items[0].item_id}"
+        print(f"[OK] Delta seen item: {digest.seen_count} seen item(s)")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_delta_failed_item():
+    """Failed URLs from metadata_json are captured in digest."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    from app.application.fetch_runs.delta import FetchDeltaDigestService
+    import uuid
+    import json
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_failed_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta Failed",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="partial_failed",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=0,
+            items_failed=1,
+            metadata_json=json.dumps({
+                "delta": {
+                    "failed_urls": [
+                        {"url": "https://failed.example.com/page", "error": "Connection timeout"}
+                    ]
+                }
+            }),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        service = FetchDeltaDigestService(db)
+        digest = service.build_for_run(run)
+
+        assert digest.failed_count == 1, f"Expected 1 failed item, got {digest.failed_count}"
+        assert digest.failed_items[0].url == "https://failed.example.com/page", \
+            f"Expected failed URL, got {digest.failed_items[0].url}"
+        assert "timeout" in digest.failed_items[0].summary.lower(), \
+            f"Expected error in summary, got {digest.failed_items[0].summary}"
+        print(f"[OK] Delta failed item: {digest.failed_count} failed item(s)")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_fetch_run_detail_shows_delta_digest():
+    """FetchRun detail page shows delta digest sections."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    import json
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_page_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta Page",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+            items_new=1,
+            metadata_json=json.dumps({
+                "delta": {
+                    "failed_urls": [
+                        {"url": "https://failed.example.com", "error": "test error"}
+                    ]
+                }
+            }),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="New Article For Delta Page",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+            last_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        assert "本次抓取摘要" in text, "Detail page should show '本次抓取摘要'"
+        assert "新增" in text, "Should show '新增'"
+        assert "已存在" in text, "Should show '已存在'"
+        assert "可能更新" in text, "Should show '可能更新'"
+        assert "失败" in text, "Should show '失败'"
+        assert "New Article For Delta Page" in text, "Should show new item title"
+        assert "Connection timeout" in text or "test error" in text, "Should show failed URL error"
+
+        print(f"[OK] FetchRun detail page shows delta digest for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_fetch_run_detail_compile_is_post():
+    """Generate InsightCard button is POST form on detail page."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_post_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta Post",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test Compile POST",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Check that compile button is a POST form
+        assert 'method="post"' in text.lower() or "method='post'" in text.lower() or 'action="/source-items/' in text, \
+            "Compile button should be POST form"
+        assert "生成 InsightCard" in text, "Should show '生成 InsightCard' button"
+
+        print(f"[OK] FetchRun detail compile button is POST form for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_fetch_run_detail_unsafe_url_not_link():
+    """Unsafe URLs in digest are not rendered as links."""
+    from app.db import SessionLocal
+    from app.models import Source, FetchRun
+    import uuid
+    import json
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_unsafe_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta Unsafe",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="partial_failed",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            metadata_json=json.dumps({
+                "delta": {
+                    "failed_urls": [
+                        {"url": "javascript:alert(1)", "error": "XSS attempt"}
+                    ]
+                }
+            }),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # javascript: should not be in an href attribute
+        assert 'href="javascript:' not in text.lower(), "javascript: URL should not be rendered as href"
+        assert "XSS attempt" in text, "Error message should still be shown"
+
+        print(f"[OK] Unsafe URLs are not rendered as links for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_delta_digest_safe_url_rendered():
+    """Safe URLs in new/seen/updated sections are rendered as href."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_url_safe_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta Safe URL",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+            items_new=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/article-{uuid.uuid4().hex[:6]}",
+            title="Safe URL Article",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+            last_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # Safe URL should be rendered as href
+        safe_url = f"https://example.com/article-"
+        assert safe_url in text, f"Safe URL should appear in page, got: {text[:500]}"
+        # Should have an href attribute with the URL
+        assert 'href="https://example.com/article-' in text, "Safe URL should be rendered as href"
+        # Generate InsightCard should still be POST form
+        assert 'method="post"' in text.lower() or "method='post'" in text.lower(), \
+            "Generate InsightCard should be POST form"
+
+        print(f"[OK] Safe URL rendered as href in delta digest for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta6_delta_digest_new_section_url_unsafe():
+    """Unsafe URLs in new items section are not rendered as links."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_delta_new_unsafe_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Delta New Unsafe",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+            items_found=1,
+            items_new=1,
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url="javascript:alert(1)",
+            title="Unsafe URL Article",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+            last_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/fetch-runs/{run.id}")
+        assert response.status_code == 200
+        text = response.text
+
+        # javascript: should appear in page (the content is shown)
+        assert "javascript:alert(1)" in text, "Unsafe URL content should still be shown"
+        # But should NOT be rendered as href
+        assert 'href="javascript:' not in text.lower(), "javascript: URL should not be rendered as href"
+        # Generate InsightCard should still be POST form
+        assert 'method="post"' in text.lower() or "method='post'" in text.lower(), \
+            "Generate InsightCard should be POST form"
+
+        print(f"[OK] Unsafe URL in new section not rendered as href for run {run.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
 if __name__ == "__main__":
     print("=" * 50)
     print("AI Frontier Radar - Smoke Test")
@@ -8141,6 +8827,23 @@ if __name__ == "__main__":
     test_v10_beta5_quality_evaluation_does_not_change_status()
     test_v10_beta5_candidate_pool_page_shows_quality()
     test_v10_beta5_source_item_detail_shows_quality()
+
+    # V1.0-beta.6 Fetch Delta Digest
+    test_v10_beta6_delta_digest_imports()
+    test_v10_beta6_extract_summary_from_description()
+    test_v10_beta6_extract_summary_priority()
+    test_v10_beta6_extract_summary_strips_html()
+    test_v10_beta6_extract_summary_truncates_long()
+    test_v10_beta6_extract_summary_bad_json()
+    test_v10_beta6_extract_summary_empty_metadata()
+    test_v10_beta6_delta_new_item()
+    test_v10_beta6_delta_seen_item()
+    test_v10_beta6_delta_failed_item()
+    test_v10_beta6_fetch_run_detail_shows_delta_digest()
+    test_v10_beta6_fetch_run_detail_compile_is_post()
+    test_v10_beta6_fetch_run_detail_unsafe_url_not_link()
+    test_v10_beta6_delta_digest_safe_url_rendered()
+    test_v10_beta6_delta_digest_new_section_url_unsafe()
 
     print("=" * 50)
     print("Smoke test completed!")

@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.db import get_db
 from app.application.fetch_runs.services import FetchRunService
+from app.application.fetch_runs.delta import FetchDeltaDigestService
 
 router = APIRouter(prefix="/fetch-runs", tags=["fetch-runs"])
 
@@ -178,6 +179,10 @@ def fetch_run_detail_page(request: Request, run_id: int):
         if detail is None:
             return RedirectResponse(url="/fetch-runs", status_code=303)
 
+        # Build delta digest
+        digest_service = FetchDeltaDigestService(db)
+        digest = digest_service.build_for_run(detail.run)
+
         return _fetch_runs_templates.TemplateResponse(
             "fetch_run_detail.html",
             {
@@ -185,6 +190,7 @@ def fetch_run_detail_page(request: Request, run_id: int):
                 "run": detail.run,
                 "source": detail.source,
                 "related_items": detail.related_items,
+                "digest": digest,
                 "get_status_display": get_status_display,
                 "safe_external_url": safe_external_url,
             },

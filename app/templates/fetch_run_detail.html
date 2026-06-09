@@ -172,6 +172,241 @@
             {% endif %}
         </div>
 
+        <!-- Delta Digest Section -->
+        <div class="detail-section">
+            <h2>本次抓取摘要</h2>
+
+            <!-- Summary Cards -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 2rem; font-weight: bold; color: #2e7d32;">{{ digest.new_count }}</div>
+                    <div style="color: #555;">新增</div>
+                </div>
+                <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 2rem; font-weight: bold; color: #1565c0;">{{ digest.seen_count }}</div>
+                    <div style="color: #555;">已存在</div>
+                </div>
+                <div style="background: #fff3e0; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 2rem; font-weight: bold; color: #ef6c00;">{{ digest.updated_count }}</div>
+                    <div style="color: #555;">可能更新</div>
+                </div>
+                <div style="background: #ffebee; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 2rem; font-weight: bold; color: #c62828;">{{ digest.failed_count }}</div>
+                    <div style="color: #555;">失败</div>
+                </div>
+            </div>
+
+            <!-- New Items -->
+            {% if digest.new_items %}
+            <h3 style="color: #2e7d32;">新增内容 ({{ digest.new_count }})</h3>
+            <div class="table-scroll" style="margin-bottom: 1.5rem;">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>标题</th>
+                            <th>URL</th>
+                            <th>来源</th>
+                            <th>发布时间</th>
+                            <th>摘要</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in digest.new_items %}
+                        <tr>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td>{{ item.published_at or '-' }}</td>
+                            <td class="summary-cell">{{ item.summary }}</td>
+                            <td class="action-cell">
+                                {% if item.item_id %}
+                                <a href="/source-items/{{ item.item_id }}" class="btn-sm">详情</a>
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                                {% if item.insight_card_id %}
+                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% else %}
+                                <form method="post" action="/source-items/{{ item.item_id }}/compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">生成 InsightCard</button>
+                                </form>
+                                {% endif %}
+                                {% else %}
+                                <span class="muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Seen Items -->
+            {% if digest.seen_items %}
+            <h3 style="color: #1565c0;">已存在内容 ({{ digest.seen_count }})</h3>
+            <div class="table-scroll" style="margin-bottom: 1.5rem;">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>标题</th>
+                            <th>URL</th>
+                            <th>来源</th>
+                            <th>发布时间</th>
+                            <th>摘要</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in digest.seen_items %}
+                        <tr>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td>{{ item.published_at or '-' }}</td>
+                            <td class="summary-cell">{{ item.summary }}</td>
+                            <td class="action-cell">
+                                {% if item.item_id %}
+                                <a href="/source-items/{{ item.item_id }}" class="btn-sm">详情</a>
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                                {% if item.insight_card_id %}
+                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% else %}
+                                <form method="post" action="/source-items/{{ item.item_id }}/compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">生成 InsightCard</button>
+                                </form>
+                                {% endif %}
+                                {% else %}
+                                <span class="muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Updated Items -->
+            {% if digest.updated_items %}
+            <h3 style="color: #ef6c00;">可能更新 ({{ digest.updated_count }})</h3>
+            <div class="table-scroll" style="margin-bottom: 1.5rem;">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>标题</th>
+                            <th>URL</th>
+                            <th>来源</th>
+                            <th>发布时间</th>
+                            <th>摘要</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in digest.updated_items %}
+                        <tr>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td>{{ item.published_at or '-' }}</td>
+                            <td class="summary-cell">{{ item.summary }}</td>
+                            <td class="action-cell">
+                                {% if item.item_id %}
+                                <a href="/source-items/{{ item.item_id }}" class="btn-sm">详情</a>
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                                {% if item.insight_card_id %}
+                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% else %}
+                                <form method="post" action="/source-items/{{ item.item_id }}/compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">生成 InsightCard</button>
+                                </form>
+                                {% endif %}
+                                {% else %}
+                                <span class="muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Failed Items -->
+            {% if digest.failed_items %}
+            <h3 style="color: #c62828;">失败项 ({{ digest.failed_count }})</h3>
+            <div class="table-scroll" style="margin-bottom: 1.5rem;">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>URL</th>
+                            <th>错误摘要</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in digest.failed_items %}
+                        <tr>
+                            <td class="url-cell">
+                                {% set safe_url = safe_external_url(item.url) %}
+                                {% if safe_url %}
+                                <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span title="{{ item.url | escape }}">
+                                    {{ item.url[:80] }}{% if item.url|length > 80 %}...{% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="summary-cell">{{ item.summary }}</td>
+                            <td class="action-cell">
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            {% if digest.total_count == 0 %}
+            <p class="empty-state">本次抓取暂无摘要信息。</p>
+            {% endif %}
+        </div>
+
         <p class="page-note">
             <a href="/fetch-runs">← 返回来源运行列表</a>
         </p>
