@@ -5,11 +5,18 @@
 {% block main_class %}{% endblock %}
 
 {% block content %}
-        <!-- ── V1.0-alpha 主流程第 4～6 步提示 ─────────────── -->
+        <!-- ── 完整 InsightCard 定位 ──────────────────────────────── -->
         {% if status_value == 'completed' %}
-        <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
-            <h3>🚦 你现在在主流程第 4～6 步</h3>
-            <p>阅读中文摘要 → 生成深度双语理解 → 做出判断。</p>
+        <div class="card-hero">
+            <h1 class="card-hero-title">完整 InsightCard</h1>
+            <p class="card-hero-subtitle">从内容理解到洞察判断，再到行动沉淀。</p>
+            <p class="card-hero-desc">本页面用于回答：</p>
+            <ol class="card-hero-questions">
+                <li>这篇资料说了什么？</li>
+                <li>为什么值得关注？</li>
+                <li>和我的方向有什么关系？</li>
+                <li>下一步可以做什么？</li>
+            </ol>
         </div>
         {% endif %}
 
@@ -26,6 +33,40 @@
             <h2>❌ 处理失败</h2>
             <p>{{ card.error_message }}</p>
         </div>
+        {% endif %}
+
+        <!-- ── 状态总览 ─────────────────────────────────────── -->
+        {% if status_value == 'completed' %}
+        <section class="card-status-section">
+            <div class="card-status-grid">
+                <div class="card-status-item">
+                    <span class="card-status-label">相关性分数</span>
+                    <span class="card-status-value">{{ card.relevance_score or '-' }}/100</span>
+                </div>
+                <div class="card-status-item">
+                    <span class="card-status-label">匹配方向</span>
+                    <div class="card-direction-chips">
+                        {% for direction in related_directions %}
+                        <span class="card-direction-chip">{{ direction }}</span>
+                        {% else %}
+                        <span class="card-empty-note">暂无</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="card-status-item">
+                    <span class="card-status-label">生成依据</span>
+                    <span class="card-status-value">{{ source_type_value }}</span>
+                </div>
+                <div class="card-status-item">
+                    <span class="card-status-label">当前判断</span>
+                    <span class="card-status-value">{{ current_decision_label or '未判断' }}</span>
+                </div>
+                <div class="card-status-item">
+                    <span class="card-status-label">创建时间</span>
+                    <span class="card-status-value">{{ card.created_at.strftime('%Y-%m-%d %H:%M') if card.created_at else '-' }}</span>
+                </div>
+            </div>
+        </section>
         {% endif %}
 
         <section class="meta-section">
@@ -49,19 +90,126 @@
         </section>
 
         {% if status_value == 'completed' %}
+        <!-- ── 内容摘要 ─────────────────────────────────────── -->
         <section class="summary-section">
-            <h2>📝 中文摘要</h2>
-            <p class="summary-purpose" style="font-size:0.88rem; color:#666; margin-bottom:0.75rem; background:#f8f9fa; border-left:3px solid #ccc; padding:0.5rem 0.75rem; border-radius:0 4px 4px 0;">
-                💡 用于快速看懂这篇资料，是 InsightCard 的基础内容。
+            <h2>📝 内容摘要：这篇资料说了什么</h2>
+            <p class="card-section-note">
+                用于快速理解原文核心内容，不代表最终产品或技术判断。
             </p>
+            {% if card.summary_zh %}
             <p class="summary-text">{{ card.summary_zh }}</p>
+            {% else %}
+            <p class="card-empty-note">暂无中文摘要</p>
+            {% endif %}
         </section>
 
-        {# V0.8: Bilingual Report Section #}
+        <!-- ── 洞察判断总览 ────────────────────────────────── -->
+        <section class="card-insight-overview">
+            <h2>🔍 洞察判断：为什么值得关注</h2>
+            <p class="card-section-note">
+                相关性评估和方向匹配，用于判断这篇资料和你的关注方向有多大关系。
+            </p>
+
+            <div class="card-overview-items">
+                <div class="card-overview-item">
+                    <h3>相关性分数</h3>
+                    <div class="relevance-score">
+                        <span class="score-label">综合评分：</span>
+                        <span class="score-value">{{ card.relevance_score or '-' }}</span>
+                        <span class="score-max">/100</span>
+                    </div>
+                </div>
+
+                <div class="card-overview-item">
+                    <h3>匹配的关注方向</h3>
+                    <div class="card-direction-chips">
+                        {% for direction in related_directions %}
+                        <span class="card-direction-chip">{{ direction }}</span>
+                        {% else %}
+                        <span class="card-empty-note">暂无匹配方向</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card-overview-item">
+                    <h3>判断理由</h3>
+                    <ul class="insight-list">
+                        {% for reason in relevance_reasons %}
+                        <li>{{ reason }}</li>
+                        {% else %}
+                        <li class="card-empty-note">暂无判断理由</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── 结构化洞察区块 ──────────────────────────────── -->
+        <section class="card-insight-section">
+            <h2>📌 关键事实：原文可以确认什么</h2>
+            <p class="card-section-note">从原文中提取的可信事实点，用于建立判断基础。</p>
+            <ul class="insight-list">
+                {% for point in key_points %}
+                <li>{{ point }}</li>
+                {% else %}
+                <li class="card-empty-note">暂无关键事实</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="card-insight-section">
+            <h2>💡 技术洞察：对技术方向的启发</h2>
+            <p class="card-section-note">对技术方向、产品实现、研究趋势的深度洞察。</p>
+            <ul class="insight-list">
+                {% for insight in technical_insights %}
+                <li>{{ insight }}</li>
+                {% else %}
+                <li class="card-empty-note">暂无技术洞察</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="card-insight-section">
+            <h2>🚀 产品机会：可能衍生的应用场景</h2>
+            <p class="card-section-note">基于原文洞察可能延伸的产品方向或商业机会。</p>
+            <ul class="insight-list">
+                {% for opp in product_opportunities %}
+                <li>{{ opp }}</li>
+                {% else %}
+                <li class="card-empty-note">暂无产品机会</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="card-insight-section">
+            <h2>⚠️ 风险提醒：需要谨慎判断的地方</h2>
+            <p class="card-section-note">需要警惕的风险点、局限性或不确定性。</p>
+            <ul class="insight-list">
+                {% for risk in risks %}
+                <li>{{ risk }}</li>
+                {% else %}
+                <li class="card-empty-note">暂无风险提醒</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="card-insight-section">
+            <h2>✅ 行动建议：下一步可以做什么</h2>
+            <p class="card-section-note">基于以上分析，建议的下一步行动。</p>
+            <ul class="insight-list">
+                {% for item in action_items %}
+                <li>{{ item }}</li>
+                {% else %}
+                <li class="card-empty-note">暂无行动建议</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <!-- ── 补充阅读：双语理解 ─────────────────────────── -->
         <section class="bilingual-section">
-            <h2>🌐 中英双语核心理解</h2>
-            <p class="bilingual-purpose" style="font-size:0.88rem; color:#666; margin-bottom:0.75rem; background:#f8f4fa; border-left:3px solid #9b59b6; padding:0.5rem 0.75rem; border-radius:0 4px 4px 0;">
-                💡 用于保留英文核心观点，并提供中文解释，适合深度阅读和长期沉淀。
+            <h2>📖 补充阅读：中英双语核心理解</h2>
+            <p class="card-section-note">
+                用于核对英文原意和中文解读边界，适合需要深度复盘时查看。
             </p>
 
             {% if bilingual_report %}
@@ -135,41 +283,6 @@
             </div>
             {% endif %}
         </section>
-
-        <section class="insights-section">
-            <h2>🔑 关键事实</h2>
-            <ul class="insight-list">{% for point in key_points %}<li>{{ point }}</li>{% endfor %}</ul>
-        </section>
-        <section class="insights-section">
-            <h2>💡 技术洞察</h2>
-            <ul class="insight-list">{% for insight in technical_insights %}<li>{{ insight }}</li>{% endfor %}</ul>
-        </section>
-        <section class="insights-section">
-            <h2>🚀 产品机会</h2>
-            <ul class="insight-list">{% for opp in product_opportunities %}<li>{{ opp }}</li>{% endfor %}</ul>
-        </section>
-        <section class="insights-section">
-            <h2>⚠️ 风险</h2>
-            <ul class="insight-list">{% for risk in risks %}<li>{{ risk }}</li>{% endfor %}</ul>
-        </section>
-
-        <section class="relevance-section">
-            <h2>🎯 相关性判断</h2>
-            <div class="relevance-score">
-                <span class="score-label">相关性分数：</span>
-                <span class="score-value">{{ card.relevance_score }}</span>
-                <span class="score-max">/100</span>
-            </div>
-            <h3>匹配的关注方向</h3>
-            <ul class="direction-list">{% for direction in related_directions %}<li>{{ direction }}</li>{% endfor %}</ul>
-            <h3>判断理由</h3>
-            <ul class="insight-list">{% for reason in relevance_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
-        </section>
-
-        <section class="action-section">
-            <h2>✅ 行动建议</h2>
-            <ul class="insight-list">{% for item in action_items %}<li>{{ item }}</li>{% endfor %}</ul>
-        </section>
         {% endif %}
 
         {% if card.cleaned_text_preview %}
@@ -182,7 +295,7 @@
         <section class="decision-section">
             <h2>🧭 看完后的判断</h2>
             <p class="decision-intro" style="background: #e8f5e9; border-left: 3px solid #4caf50; padding: 8px 12px; margin-bottom: 12px;">
-                💡 判断不是模型做的，而是你对这篇资料的个人处理结果。
+                💡 这是你对这张 InsightCard 的个人处理结果，不是模型自动判断。
             </p>
             <p class="decision-current">
                 当前判断：<strong>{{ current_decision_label }}</strong>

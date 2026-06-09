@@ -37,6 +37,7 @@ def main() -> int:
     style_css = read("app/static/style.css")
     main_py = read("app/main.py")
     background_fetch_py = read("app/application/sources/background_fetch.py")
+    card_detail_html = read("app/templates/card_detail.html")
 
     print("[1] 今日雷达主链路入口")
     check("今日雷达有更新入口",
@@ -175,6 +176,15 @@ def main() -> int:
     check("自动摘要有数量限制",
           "get_auto_summary_max_per_fetch_run" in background_fetch_py,
           "应有配置控制每次抓取的自动摘要数量")
+
+    print("\n[15] 完整 InsightCard 页面语义")
+    check(
+        "完整 InsightCard 页面匹配 beta 语义",
+        "完整 InsightCard" in card_detail_html
+        and "内容摘要：这篇资料说了什么" in card_detail_html
+        and "洞察判断：为什么值得关注" in card_detail_html,
+        "完整 InsightCard 页面应与今日雷达右侧预览使用同一套语义",
+    )
 
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")

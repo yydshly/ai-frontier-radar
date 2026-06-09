@@ -2996,6 +2996,43 @@ def main():
     except Exception as e:
         check("Today Radar generate summaries checks", False, str(e))
 
+    # ── 20. Complete InsightCard page V1.0-beta semantics ──────────────────────
+    print("\n[20] Complete InsightCard page V1.0-beta semantics")
+    try:
+        card_detail_html = (templates_dir / "card_detail.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("card detail uses v1 beta insightcard wording",
+              "完整 InsightCard" in card_detail_html
+              and "V1.0-alpha" not in card_detail_html
+              and "主流程第 4～6 步" not in card_detail_html,
+              "card detail page should use V1 beta product wording")
+
+        check("card detail separates summary and insight judgment",
+              "内容摘要：这篇资料说了什么" in card_detail_html
+              and "洞察判断：为什么值得关注" in card_detail_html,
+              "card detail should separate factual summary from insight judgment")
+
+        check("card detail has structured insight sections",
+              "关键事实：原文可以确认什么" in card_detail_html
+              and "技术洞察：对技术方向的启发" in card_detail_html
+              and "产品机会：可能衍生的应用场景" in card_detail_html
+              and "风险提醒：需要谨慎判断的地方" in card_detail_html
+              and "行动建议：下一步可以做什么" in card_detail_html,
+              "complete InsightCard should show structured insight sections")
+
+        check("card detail treats bilingual report as supplementary reading",
+              "补充阅读：中英双语核心理解" in card_detail_html,
+              "bilingual report should be supplementary, not primary flow")
+
+        check("card detail has card-specific styles",
+              ".card-hero" in style_css
+              and ".card-direction-chip" in style_css
+              and ".card-empty-note" in style_css,
+              "card detail should have isolated card-specific styles")
+    except Exception as e:
+        check("Complete InsightCard page V1.0-beta checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
