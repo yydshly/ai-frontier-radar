@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成队列 - AI Frontier Radar</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>⚙️ 生成队列</h1>
+        <nav>
+            <a href="/">← 返回首页</a>
+            <a href="/candidate-pool">候选池</a>
+            <a href="/fetch-runs">来源运行</a>
+            <a href="/source-items">原始资料</a>
+        </nav>
+    </header>
+
+    <main class="wide-page">
+        <div class="usage-guide" style="background: linear-gradient(135deg, #e8f5e9 0%, #e3f2fd 100%); border-left: 4px solid #2e7d32;">
+            <p>展示当前正在生成、已完成或失败的 InsightCard 候选资料。点击"查看 InsightCard"跳转到详情页。</p>
+        </div>
+
+        {% if items %}
+        <p class="result-count">共 {{ items|length }} 条（最近更新）</p>
+
+        <!-- Compiling Items -->
+        {% set compiling_items = [] %}
+        {% set compiled_items = [] %}
+        {% set failed_items = [] %}
+        {% set discovered_items = [] %}
+        {% for item in items %}
+            {% if item.status == 'compiling' %}
+                {% set _ = compiling_items.append(item) %}
+            {% elif item.status == 'compiled' %}
+                {% set _ = compiled_items.append(item) %}
+            {% elif item.status == 'failed' %}
+                {% set _ = failed_items.append(item) %}
+            {% elif item.status == 'discovered' %}
+                {% set _ = discovered_items.append(item) %}
+            {% endif %}
+        {% endfor %}
+
+        <!-- Compiling -->
+        {% if compiling_items %}
+        <div class="detail-section">
+            <h2 style="color: #1976d2;">⚙️ 生成中 ({{ compiling_items|length }})</h2>
+            <div class="table-scroll">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>来源</th>
+                            <th>加入生成时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in compiling_items %}
+                        <tr>
+                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td>{{ item.updated_at.strftime('%Y-%m-%d %H:%M:%S') if item.updated_at else '-' }}</td>
+                            <td>
+                                <a href="/source-items/{{ item.id }}" class="btn-sm">详情</a>
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Completed -->
+        {% if compiled_items %}
+        <div class="detail-section">
+            <h2 style="color: #2e7d32;">✅ 已完成 ({{ compiled_items|length }})</h2>
+            <div class="table-scroll">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>来源</th>
+                            <th>生成完成时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in compiled_items %}
+                        <tr>
+                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td>{{ item.updated_at.strftime('%Y-%m-%d %H:%M:%S') if item.updated_at else '-' }}</td>
+                            <td>
+                                {% if item.insight_card_id %}
+                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                {% endif %}
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Failed -->
+        {% if failed_items %}
+        <div class="detail-section">
+            <h2 style="color: #c62828;">❌ 失败 ({{ failed_items|length }})</h2>
+            <div class="table-scroll">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>来源</th>
+                            <th>失败时间</th>
+                            <th>错误摘要</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in failed_items %}
+                        <tr>
+                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td>{{ item.updated_at.strftime('%Y-%m-%d %H:%M:%S') if item.updated_at else '-' }}</td>
+                            <td class="summary-cell">{{ item.error_message or '-' }}</td>
+                            <td>
+                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm">重试生成</button>
+                                </form>
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Discovered (not yet processed) -->
+        {% if discovered_items %}
+        <div class="detail-section">
+            <h2 style="color: #7b1fa2;">🆕 未处理 ({{ discovered_items|length }})</h2>
+            <div class="table-scroll">
+                <table class="source-items-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>来源</th>
+                            <th>发现时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in discovered_items %}
+                        <tr>
+                            <td><a href="/source-items/{{ item.id }}">#{{ item.id }}</a></td>
+                            <td class="title-cell">{{ item.title or '无标题' }}</td>
+                            <td><code>{{ item.source_key }}</code></td>
+                            <td>{{ item.first_seen_at.strftime('%Y-%m-%d %H:%M:%S') if item.first_seen_at else '-' }}</td>
+                            <td>
+                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
+                                    <button type="submit" class="btn-sm btn-primary">加入生成</button>
+                                </form>
+                                <a href="/candidate-pool?source_key={{ item.source_key }}" class="btn-sm">候选池</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <p class="empty-state">暂无生成队列记录。</p>
+        {% endif %}
+
+        <p class="page-note">V1.0-beta.7：生成队列展示正在生成和已完成的 InsightCard 候选资料。</p>
+    </main>
+
+    <footer>
+        <p>AI Frontier Radar 生成队列</p>
+    </footer>
+</body>
+</html>

@@ -28,7 +28,7 @@
         <div class="usage-guide" style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid #2196f3;">
             {% if item.status == 'discovered' %}
             <h3>🚦 下一步</h3>
-            <p>点击「<strong>生成 InsightCard</strong>」，把这条资料编译为中文洞察卡。</p>
+            <p>点击「<strong>加入生成</strong>」，把这条资料加入后台生成队列。</p>
             {% elif item.status == 'compiled' %}
             <h3>🚦 下一步</h3>
             <p>打开关联 InsightCard，<a href="/cards/{{ item.insight_card_id }}">生成中英双语报告</a>并做判断。</p>
@@ -237,14 +237,27 @@
 
         <div class="action-area">
             {% if item.status == 'discovered' %}
-            <p class="status-hint">该条目尚未编译，可手动生成 InsightCard。</p>
+            <p class="status-hint">该条目尚未编译，可加入后台生成队列。</p>
             <p class="status-helper">
                 适合在你看不懂英文标题、但想知道它是否值得关注时使用。
-                编译过程包含网页抓取和模型分析，可能需要几十秒，请耐心等待。
+                加入后可在「<a href="/generation-queue">生成队列</a>」查看进度。
             </p>
-            <form method="post" action="/source-items/{{ item.id }}/compile" id="compile-form">
-                <button type="submit" class="btn-primary" id="compile-btn" onclick="return startCompile(this)">生成 InsightCard</button>
+            <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" id="enqueue-form">
+                <button type="submit" class="btn-primary" id="enqueue-btn">加入生成</button>
             </form>
+            <p class="status-helper" style="margin-top:0.5rem;">
+                <small>
+                    💡 同步生成（可能较慢）：
+                    <form method="post" action="/source-items/{{ item.id }}/compile" style="display:inline;">
+                        <button type="submit" class="btn-secondary" style="font-size:0.8rem; padding:0.2rem 0.5rem;">同步生成</button>
+                    </form>
+                </small>
+            </p>
+            {% elif item.status == 'compiling' %}
+            <p class="status-hint" style="background:#e3f2fd; border-left:3px solid #1976d2;">⚙️ 正在生成 InsightCard...</p>
+            <p class="status-helper">
+                已在后台加入生成队列，可在「<a href="/generation-queue">生成队列</a>」查看进度。
+            </p>
             {% elif item.status == 'failed' %}
             {% if '[intake:blocked]' in item.error_message %}
             <p class="status-hint status-hint-error">⚠️ 不适合直接生成 InsightCard</p>
@@ -266,8 +279,8 @@
             <p class="status-helper">
                 失败可能来自：网页无法访问、正文抽取失败、API Key 缺失、LLM 调用失败。你可以查看错误信息后重试。
             </p>
-            <form method="post" action="/source-items/{{ item.id }}/compile" id="compile-form">
-                <button type="submit" class="btn-primary" id="compile-btn" onclick="return startCompile(this)">重试生成</button>
+            <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" id="enqueue-form">
+                <button type="submit" class="btn-primary">重试生成</button>
             </form>
             {% endif %}
             {% elif item.status == 'compiled' %}

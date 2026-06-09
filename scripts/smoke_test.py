@@ -6658,7 +6658,7 @@ def test_source_item_compile_service_import():
 
 
 def test_candidate_pool_compile_button_in_page():
-    """Test that discovered candidate shows 'compile' POST button in candidate pool."""
+    """Test that discovered candidate shows '加入生成' POST button (enqueue-compile) in candidate pool."""
     from app.db import SessionLocal
     from app.models import Source, SourceItem
 
@@ -6702,24 +6702,22 @@ def test_candidate_pool_compile_button_in_page():
             f"Expected 200, got {response.status_code}"
         text = response.text
 
-        # The compile button form action should be present
-        expected_action = f"/candidate-pool/{item_id}/compile"
+        # V1.0-beta.7: discovered items now use enqueue-compile
+        expected_action = f"/candidate-pool/{item_id}/enqueue-compile"
         assert expected_action in text, \
-            f"Expected compile button action '{expected_action}' in page"
+            f"Expected enqueue-compile button action '{expected_action}' in page"
 
         # The form must be POST, not GET
-        # Find the form element
         assert f'action="{expected_action}"' in text, \
-            f"Expected action attribute pointing to compile route"
-        # Make sure it has method="post"
+            f"Expected action attribute pointing to enqueue-compile route"
         assert 'method="post"' in text, \
-            "Expected method='post' for compile form"
+            "Expected method='post' for enqueue-compile form"
 
-        # No GET link to compile route
+        # No GET link to enqueue-compile route
         assert f'href="{expected_action}"' not in text, \
-            f"Compile should not be a GET link"
+            f"Enqueue-compile should not be a GET link"
 
-        print(f"[OK] Candidate pool shows POST compile button for item {item_id}")
+        print(f"[OK] Candidate pool shows POST enqueue-compile button for item {item_id}")
     finally:
         db.rollback()
         db.close()
@@ -7106,18 +7104,18 @@ def test_v10_beta3_candidate_pool_row_action_labels():
         assert response.status_code == 200
         text = response.text
 
-        # discovered item row → "生成 InsightCard"
-        assert f'/candidate-pool/{discovered_item.id}/compile' in text, \
-            "Discovered item should have compile form"
-        # The button label should mention "生成 InsightCard" near the discovered item
+        # V1.0-beta.7: discovered item row → "加入生成" via enqueue-compile
+        assert f'/candidate-pool/{discovered_item.id}/enqueue-compile' in text, \
+            "Discovered item should have enqueue-compile form"
+        # The button label should mention "加入生成" near the discovered item
         # Use a slice around the discovered item id to check label
         disc_idx = text.find(f'value="{discovered_item.id}"')
         assert disc_idx != -1, "Discovered item checkbox not found"
         disc_slice = text[disc_idx:disc_idx + 6000]
-        assert "生成 InsightCard" in disc_slice, \
-            "Discovered item should show '生成 InsightCard' button"
+        assert "加入生成" in disc_slice, \
+            "Discovered item should show '加入生成' button"
 
-        # failed item row → "重试生成"
+        # V1.0-beta.7: failed item row → "重试生成" via enqueue-compile
         fail_idx = text.find(f'value="{failed_item.id}"')
         assert fail_idx != -1, "Failed item checkbox not found"
         fail_slice = text[fail_idx:fail_idx + 6000]
@@ -7133,7 +7131,7 @@ def test_v10_beta3_candidate_pool_row_action_labels():
         assert f'href="/cards/{card.id}"' in comp_slice, \
             "Compiled item should link to its InsightCard"
 
-        print(f"[OK] Candidate pool row actions: 生成 InsightCard / 重试生成 / 查看 InsightCard")
+        print(f"[OK] Candidate pool row actions: 加入生成 / 重试生成 / 查看 InsightCard")
 
     finally:
         db.rollback()
@@ -7424,7 +7422,7 @@ def test_v10_beta4_fetch_run_detail_not_found():
 
 
 def test_v10_beta4_fetch_run_detail_compile_is_post():
-    """FetchRun detail compile action must use POST form, not GET link."""
+    """FetchRun detail enqueue-compile action must use POST form, not GET link."""
     from app.db import SessionLocal
     from app.models import Source, FetchRun, SourceItem
     from datetime import datetime
@@ -7483,14 +7481,14 @@ def test_v10_beta4_fetch_run_detail_compile_is_post():
         assert response.status_code == 200
         text = response.text
 
-        # Must have POST form
-        assert f'<form method="post" action="/source-items/{item.id}/compile"' in text, \
-            f"Compile action must be POST form for item {item.id}"
+        # V1.0-beta.7: Must have POST form to enqueue-compile
+        assert f'<form method="post" action="/fetch-runs/{run.id}/source-items/{item.id}/enqueue-compile"' in text, \
+            f"Enqueue-compile action must be POST form for item {item.id}"
         # Must NOT have GET link
-        assert f'href="/source-items/{item.id}/compile"' not in text, \
-            f"Compile action must NOT be GET link for item {item.id}"
+        assert f'href="/fetch-runs/{run.id}/source-items/{item.id}/enqueue-compile"' not in text, \
+            f"Enqueue-compile action must NOT be GET link for item {item.id}"
 
-        print(f"[OK] FetchRun detail compile for item {item.id} uses POST form")
+        print(f"[OK] FetchRun detail enqueue-compile for item {item.id} uses POST form")
 
     finally:
         db.rollback()
@@ -8335,12 +8333,12 @@ def test_v10_beta6_fetch_run_detail_compile_is_post():
         assert response.status_code == 200
         text = response.text
 
-        # Check that compile button is a POST form
-        assert 'method="post"' in text.lower() or "method='post'" in text.lower() or 'action="/source-items/' in text, \
-            "Compile button should be POST form"
-        assert "生成 InsightCard" in text, "Should show '生成 InsightCard' button"
+        # Check that enqueue-compile button is a POST form
+        assert 'method="post"' in text.lower() or "method='post'" in text.lower() or 'action="/fetch-runs/' in text, \
+            "Enqueue-compile button should be POST form"
+        assert "加入生成" in text, "Should show '加入生成' button"
 
-        print(f"[OK] FetchRun detail compile button is POST form for run {run.id}")
+        print(f"[OK] FetchRun detail enqueue-compile button is POST form for run {run.id}")
 
     finally:
         db.rollback()
@@ -8560,6 +8558,484 @@ def test_v10_beta6_delta_digest_new_section_url_unsafe():
     finally:
         db.rollback()
         db.close()
+
+
+# V1.0-beta.7 Background InsightCard Generation
+def test_v10_beta7_background_compile_imports():
+    """BackgroundCompileService, BackgroundCompileEnqueueResult, and run_source_item_compile_in_background can be imported."""
+    from app.application.source_items.background_compile import (
+        BackgroundCompileService,
+        BackgroundCompileEnqueueResult,
+        run_source_item_compile_in_background,
+    )
+    print("[OK] V1.0-beta.7 background compile classes can be imported")
+
+
+def test_v10_beta7_enqueue_sets_compiling():
+    """Enqueue sets status to compiling immediately."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    from app.application.source_items.background_compile import BackgroundCompileService
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_enq_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Enqueue",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test Item",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        service = BackgroundCompileService()
+        result = service.enqueue_item(item.id)
+
+        assert result.accepted is True, f"Expected accepted=True, got {result.accepted}"
+        assert result.status == "compiling", f"Expected status=compiling, got {result.status}"
+        # Check DB state
+        db.refresh(item)
+        assert item.status == "compiling", f"Expected item.status=compiling, got {item.status}"
+
+        print(f"[OK] Enqueue sets status to compiling for item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_enqueue_idempotent_compiling():
+    """Enqueue is idempotent for compiling items."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    from app.application.source_items.background_compile import BackgroundCompileService
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_enq_idem_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Enqueue Idempotent",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test Item",
+            status="compiling",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        service = BackgroundCompileService()
+        result = service.enqueue_item(item.id)
+
+        assert result.accepted is False, f"Expected accepted=False, got {result.accepted}"
+        assert result.status == "compiling", f"Expected status=compiling, got {result.status}"
+        # Status should not change
+        db.refresh(item)
+        assert item.status == "compiling", f"Expected item.status=compiling, got {item.status}"
+
+        print(f"[OK] Enqueue is idempotent for compiling item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_enqueue_idempotent_compiled():
+    """Enqueue is idempotent for compiled items."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, InsightCard, CardStatus
+    from app.application.source_items.background_compile import BackgroundCompileService
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_enq_comp_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Enqueue Compiled",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        card = InsightCard(
+            source_url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            source_type="html",
+            status=CardStatus.COMPLETED,
+        )
+        db.add(card)
+        db.commit()
+        db.refresh(card)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test Item",
+            status="compiled",
+            insight_card_id=card.id,
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        service = BackgroundCompileService()
+        result = service.enqueue_item(item.id)
+
+        assert result.accepted is False, f"Expected accepted=False, got {result.accepted}"
+        assert result.status == "compiled", f"Expected status=compiled, got {result.status}"
+
+        print(f"[OK] Enqueue is idempotent for compiled item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_enqueue_route_sets_compiling():
+    """POST /source-items/{id}/enqueue-compile sets status to compiling."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_enq_route_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Enqueue Route",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test Enqueue Route Item",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.post(f"/source-items/{item.id}/enqueue-compile", follow_redirects=False)
+        assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+
+        db.refresh(item)
+        # Status should no longer be "discovered" — it was enqueued.
+        # With FastAPI BackgroundTasks, the background task runs synchronously,
+        # so the item may already be "compiling", "failed", etc.
+        assert item.status != "discovered", f"Expected status != discovered, got {item.status}"
+
+        print(f"[OK] POST /source-items/{item.id}/enqueue-compile enqueues item (status={item.status})")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_fetch_run_enqueue_route():
+    """POST /fetch-runs/{run_id}/source-items/{item_id}/enqueue-compile works."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem, FetchRun
+    import uuid
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_enq_run_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Enqueue Run",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        now = datetime.utcnow()
+        run = FetchRun(
+            source_id=src.id,
+            source_key=test_key,
+            run_type="manual",
+            status="success",
+            started_at=now,
+            finished_at=now + timedelta(minutes=1),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test FetchRun Enqueue Item",
+            status="discovered",
+            first_seen_at=now + timedelta(seconds=30),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.post(f"/fetch-runs/{run.id}/source-items/{item.id}/enqueue-compile", follow_redirects=False)
+        assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+
+        db.refresh(item)
+        # Status should no longer be "discovered" — it was enqueued.
+        assert item.status != "discovered", f"Expected status != discovered, got {item.status}"
+
+        print(f"[OK] POST /fetch-runs/{run.id}/source-items/{item.id}/enqueue-compile works (status={item.status})")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_generation_queue_page():
+    """GET /generation-queue returns 200 with queue content."""
+    response = client.get("/generation-queue")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    text = response.text
+    assert "生成队列" in text, "Page should show '生成队列'"
+    assert "生成中" in text or "已完成" in text or "失败" in text or "未处理" in text, \
+        "Page should show status sections"
+    print("[OK] GET /generation-queue returns 200 with content")
+
+
+def test_v10_beta7_candidate_pool_enqueue_button():
+    """Candidate pool shows '加入生成' button."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_cp_enq_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test CP Enqueue",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test CP Enqueue Item",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get("/candidate-pool")
+        assert response.status_code == 200
+        text = response.text
+        assert "加入生成" in text, "Candidate pool should show '加入生成' button"
+        # Should POST to enqueue-compile, not compile
+        assert f"/candidate-pool/{item.id}/enqueue-compile" in text, \
+            "Should link to enqueue-compile route"
+
+        print(f"[OK] Candidate pool shows '加入生成' for discovered item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_source_item_detail_enqueue():
+    """SourceItem detail page shows '加入生成' for discovered items."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_si_enq_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test SI Enqueue",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test SI Enqueue Item",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.get(f"/source-items/{item.id}")
+        assert response.status_code == 200
+        text = response.text
+        assert "加入生成" in text, "SourceItem detail should show '加入生成'"
+        assert f"/source-items/{item.id}/enqueue-compile" in text, \
+            "Should POST to enqueue-compile route"
+
+        print(f"[OK] SourceItem detail shows '加入生成' for discovered item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_sync_compile_route_still_works():
+    """Synchronous compile route POST /source-items/{id}/compile still works."""
+    from app.db import SessionLocal
+    from app.models import Source, SourceItem
+    import uuid
+
+    db = SessionLocal()
+    try:
+        test_key = f"test_sync_{uuid.uuid4().hex[:8]}"
+        src = Source(
+            source_key=test_key,
+            name="Test Sync",
+            description="Test",
+            source_type="rss",
+            homepage_url="https://example.com",
+            feed_url="https://example.com/rss.xml",
+            category="research",
+            tags_json='[]',
+            enabled=True,
+            fetch_strategy="rss",
+            relevance_hint="",
+            fetch_interval_hours=24,
+        )
+        db.add(src)
+        db.commit()
+        db.refresh(src)
+
+        item = SourceItem(
+            source_id=src.id,
+            source_key=test_key,
+            url=f"https://example.com/{uuid.uuid4().hex[:6]}",
+            title="Test Sync Item",
+            status="discovered",
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+        response = client.post(f"/source-items/{item.id}/compile", follow_redirects=False)
+        # Should redirect (303) even on failure
+        assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+
+        print(f"[OK] Synchronous compile route still works for item {item.id}")
+
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_v10_beta7_generation_queue_in_index():
+    """Index page quick actions include 生成队列."""
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    assert "生成队列" in text, "Index should show '生成队列' quick action"
+    print("[OK] Index shows '生成队列' quick action")
 
 
 if __name__ == "__main__":
@@ -8844,6 +9320,19 @@ if __name__ == "__main__":
     test_v10_beta6_fetch_run_detail_unsafe_url_not_link()
     test_v10_beta6_delta_digest_safe_url_rendered()
     test_v10_beta6_delta_digest_new_section_url_unsafe()
+
+    # V1.0-beta.7 Background InsightCard Generation
+    test_v10_beta7_background_compile_imports()
+    test_v10_beta7_enqueue_sets_compiling()
+    test_v10_beta7_enqueue_idempotent_compiling()
+    test_v10_beta7_enqueue_idempotent_compiled()
+    test_v10_beta7_enqueue_route_sets_compiling()
+    test_v10_beta7_fetch_run_enqueue_route()
+    test_v10_beta7_generation_queue_page()
+    test_v10_beta7_candidate_pool_enqueue_button()
+    test_v10_beta7_source_item_detail_enqueue()
+    test_v10_beta7_sync_compile_route_still_works()
+    test_v10_beta7_generation_queue_in_index()
 
     print("=" * 50)
     print("Smoke test completed!")

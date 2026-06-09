@@ -1,10 +1,14 @@
 """Fetch Run routes - observability cockpit for source fetch executions."""
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.db import get_db
 from app.application.fetch_runs.services import FetchRunService
 from app.application.fetch_runs.delta import FetchDeltaDigestService
+from app.application.source_items.background_compile import (
+    BackgroundCompileService,
+    run_source_item_compile_in_background,
+)
 
 router = APIRouter(prefix="/fetch-runs", tags=["fetch-runs"])
 
@@ -197,3 +201,19 @@ def fetch_run_detail_page(request: Request, run_id: int):
         )
     finally:
         db.close()
+
+
+@router.post("/{run_id}/source-items/{item_id}/enqueue-compile")
+def enqueue_fetch_run_source_item_compile(run_id: int, item_id: int, background_tasks: BackgroundTasks):
+    """Enqueue a SourceItem from a FetchRun detail page for background InsightCard generation.
+
+    Sets status to 'compiling' immediately, then dispatches a background task.
+    Redirects back to the FetchRun detail page.
+    """
+    service = BackgroundCompileService()
+    result = service.enqueue_item(item_id)
+
+    if result.accepted:
+        background_tasks.add_task(run_source_item_compile_in_background, item_id)
+
+    return RedirectResponse(url=f"/fetch-runs/{run_id}", status_code=303)
