@@ -9,21 +9,22 @@
 
 {% block content %}
         <div class="radar-page">
-        <div class="page-header">
-            <h1>今日 AI 前沿雷达</h1>
-            {% if view.fallback_used %}
-            <p class="radar-fallback-note">最近 {{ view.hours }} 小时暂无新内容，以下为最近发现内容（{{ view.total_items }} 条）。</p>
-            {% else %}
-            <p>最近 {{ view.hours }} 小时发现 {{ view.total_items }} 条内容</p>
-            {% endif %}
-        </div>
-
-        {# ── Quick entries ─────────────────────────────────────────────── #}
-        <div class="radar-quick-links">
-            <a href="/sources" class="radar-quick-link">信息来源</a>
-            <a href="/candidate-pool" class="radar-quick-link">候选池</a>
-            <a href="/generation-queue" class="radar-quick-link">生成队列</a>
-            <a href="/cards" class="radar-quick-link">InsightCard</a>
+        {# ── Compact header: title + meta on one row ─────────────────────── #}
+        <div class="radar-header">
+            <div class="radar-header-top">
+                <h1 class="radar-header-title">今日 AI 前沿雷达</h1>
+                {% if view.fallback_used %}
+                <span class="radar-header-meta radar-header-meta-warn">最近 {{ view.hours }} 小时暂无新内容 · 显示最近 {{ view.total_items }} 条</span>
+                {% else %}
+                <span class="radar-header-meta">最近 {{ view.hours }} 小时 · {{ view.total_items }} 条内容</span>
+                {% endif %}
+                <div class="radar-quick-links">
+                    <a href="/sources" class="radar-quick-link">信息来源</a>
+                    <a href="/candidate-pool" class="radar-quick-link">候选池</a>
+                    <a href="/generation-queue" class="radar-quick-link">生成队列</a>
+                    <a href="/cards" class="radar-quick-link">InsightCard</a>
+                </div>
+            </div>
         </div>
 
         <div class="radar-layout">
@@ -58,7 +59,7 @@
                         {% for item in section.items %}
                         {% set display = display_map.get(item.id) %}
                         {% set is_selected = sel and item.id == sel.id %}
-                        <article class="radar-card {% if is_selected %}radar-selected-card{% endif %}">
+                        <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
                             {# Summary first — prefer zh_one_liner via display.summary #}
                             {% if display and display.summary %}
                             <div class="radar-card-summary">{{ display.summary }}</div>
@@ -75,7 +76,7 @@
                                 <code>{{ item.source_key }}</code>
                                 <span>{{ display.time_label if display else '时间未知' }}</span>
                                 {% if item.status == 'discovered' %}
-                                    <span class="status-badge status-pending">待处理</span>
+                                    <span class="status-badge status-pending">待生成洞察</span>
                                 {% elif item.status == 'compiling' %}
                                     <span class="status-badge status-running">生成中</span>
                                 {% elif item.status == 'compiled' %}
@@ -89,7 +90,7 @@
                             </div>
 
                             <div class="radar-card-actions">
-                                <a href="/radar/today?item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}" class="btn-sm btn-primary">查看</a>
+                                <a href="/radar/today?item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}" class="btn-sm btn-primary">查看</a>
                                 {% if item.status == 'discovered' %}
                                 <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" style="display:inline;">
                                     <button type="submit" class="btn-sm">加入生成</button>
@@ -108,6 +109,24 @@
                 </section>
                 {% endif %}
                 {% endfor %}
+
+                {# ── Pagination control ────────────────────────────────── #}
+                {% if view.total_pages > 1 %}
+                <nav class="radar-pagination" aria-label="分页">
+                    {% set base_q = '/radar/today?hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&per_page=' ~ view.per_page %}
+                    {% if view.has_prev %}
+                    <a href="{{ base_q }}&page={{ view.page - 1 }}" class="btn-sm">上一页</a>
+                    {% else %}
+                    <span class="btn-sm radar-page-disabled">上一页</span>
+                    {% endif %}
+                    <span class="radar-page-indicator">第 {{ view.page }} / {{ view.total_pages }} 页</span>
+                    {% if view.has_next %}
+                    <a href="{{ base_q }}&page={{ view.page + 1 }}" class="btn-sm">下一页</a>
+                    {% else %}
+                    <span class="btn-sm radar-page-disabled">下一页</span>
+                    {% endif %}
+                </nav>
+                {% endif %}
                 {% endif %}
             </div>
 
@@ -135,7 +154,13 @@
                 <dl class="radar-panel-meta">
                     <dt>来源</dt><dd><code>{{ sel.source_key }}</code></dd>
                     <dt>时间</dt><dd>{{ sel_card.time_label if sel_card else '时间未知' }}</dd>
-                    <dt>状态</dt><dd>{{ sel.status }}</dd>
+                    <dt>状态</dt><dd>
+                        {% if sel.status == 'discovered' %}待生成洞察
+                        {% elif sel.status == 'compiling' %}生成中
+                        {% elif sel.status == 'compiled' %}已完成
+                        {% elif sel.status == 'failed' %}失败
+                        {% else %}{{ sel.status }}{% endif %}
+                    </dd>
                     <dt>编号</dt><dd>#{{ sel.id }}</dd>
                 </dl>
 
@@ -168,4 +193,16 @@
 
         <p class="page-note">V1.0-beta：今日雷达展示最近 {{ view.hours }} 小时（最多 {{ view.limit }} 条）的 AI 前沿内容。</p>
         </div>{# <!-- .radar-page --> #}
+
+        {# Keep the selected card visible inside the middle column without
+           scrolling the whole page back to the top. #}
+        <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          var selected = document.querySelector(".radar-card.is-selected");
+          var main = document.querySelector(".radar-main");
+          if (selected && main) {
+            selected.scrollIntoView({ block: "center" });
+          }
+        });
+        </script>
 {% endblock %}

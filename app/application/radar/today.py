@@ -13,6 +13,7 @@ Read-only view layer:
 Does NOT modify database state. Does NOT trigger fetching or compilation.
 """
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -33,6 +34,8 @@ DEFAULT_HOURS = 24
 DEFAULT_LIMIT = 50
 MIN_HOURS, MAX_HOURS = 1, 168
 MIN_LIMIT, MAX_LIMIT = 1, 100
+DEFAULT_PER_PAGE = 20
+MIN_PER_PAGE, MAX_PER_PAGE = 5, 50
 
 # Number of newest items pinned into the "today focus" section.
 TODAY_FOCUS_SIZE = 5
@@ -116,6 +119,12 @@ class RadarTodayView:
     limit: int
     # True when item_id was supplied but no matching SourceItem exists.
     selected_missing: bool = False
+    # ── Pagination (over the sorted candidate set) ──────────────────────────
+    page: int = 1
+    per_page: int = DEFAULT_PER_PAGE
+    total_pages: int = 1
+    has_prev: bool = False
+    has_next: bool = False
 
 
 def _clamp(value: int, low: int, high: int) -> int:
@@ -227,9 +236,13 @@ class RadarTodayService:
         selected_item_id: int | None = None,
         hours: int = DEFAULT_HOURS,
         limit: int = DEFAULT_LIMIT,
+        page: int = 1,
+        per_page: int = DEFAULT_PER_PAGE,
     ) -> RadarTodayView:
         hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
         limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
+        per_page = _clamp(int(per_page), MIN_PER_PAGE, MAX_PER_PAGE)
+        page = max(1, int(page))
 
         order = desc(func.coalesce(
             SourceItem.published_at,
@@ -266,21 +279,30 @@ class RadarTodayService:
         # ── Re-sort by display-layer datetime (handles mixed ISO/RFC822) ──
         items = sorted(items, key=_radar_sort_key, reverse=True)
 
-        # ── Display cards — only for the current `limit` items ────────────
+        # ── Pagination over the sorted candidate set ──────────────────────
+        total_items = len(items)
+        total_pages = max(1, math.ceil(total_items / per_page)) if total_items else 1
+        page = min(page, total_pages)  # clamp into valid range
+        start = (page - 1) * per_page
+        page_items = items[start:start + per_page]
+        has_prev = page > 1
+        has_next = page < total_pages
+
+        # ── Display cards — only for the current page items ───────────────
         display_map: dict[int, CandidateDisplayCard] = {
-            item.id: build_candidate_display_card(item) for item in items
+            item.id: build_candidate_display_card(item) for item in page_items
         }
 
-        # ── Section grouping ──────────────────────────────────────────────
-        sections = self._build_sections(items, display_map)
+        # ── Section grouping (current page only) ──────────────────────────
+        sections = self._build_sections(page_items, display_map)
 
         # ── Selected item resolution ──────────────────────────────────────
         selected_item, selected_missing = self._resolve_selected(
-            selected_item_id, items, display_map
+            selected_item_id, page_items, display_map
         )
 
         return RadarTodayView(
-            total_items=len(items),
+            total_items=total_items,
             selected_item_id=selected_item_id,
             selected_item=selected_item,
             sections=sections,
@@ -289,6 +311,11 @@ class RadarTodayService:
             hours=hours,
             limit=limit,
             selected_missing=selected_missing,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+            has_prev=has_prev,
+            has_next=has_next,
         )
 
     def _build_sections(

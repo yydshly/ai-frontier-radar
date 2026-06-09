@@ -3689,18 +3689,45 @@ body.app-shell .main-content {
 }
 
 /* ── Today Radar: catalog + cards + reading panel ───────────────────────── */
+/* ── Compact radar header ───────────────────────────────────────────────── */
+.radar-header {
+    margin-bottom: 0.75rem;
+}
+
+.radar-header-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.9rem;
+}
+
+.radar-header-title {
+    font-size: 1.25rem;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.radar-header-meta {
+    font-size: 0.85rem;
+    color: #57606a;
+}
+
+.radar-header-meta-warn {
+    color: #9a6700;
+}
+
 .radar-quick-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1.25rem;
+    gap: 0.4rem;
+    margin-left: auto;
 }
 
 .radar-quick-link {
-    padding: 0.35rem 0.85rem;
+    padding: 0.2rem 0.7rem;
     border: 1px solid #d0d7de;
     border-radius: 999px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: #24292f;
     text-decoration: none;
     background: #f6f8fa;
@@ -3730,9 +3757,29 @@ body.app-shell .main-content {
     grid-template-columns: 200px minmax(0, 1fr) 320px;
     gap: 1.25rem;
     align-items: stretch;
-    height: calc(100vh - 220px);
+    height: calc(100vh - 170px);
     min-height: 520px;
     overflow: hidden;
+}
+
+/* ── Radar pagination ───────────────────────────────────────────────────── */
+.radar-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0 1rem;
+}
+
+.radar-page-indicator {
+    font-size: 0.85rem;
+    color: #57606a;
+}
+
+.radar-page-disabled {
+    opacity: 0.45;
+    cursor: default;
+    pointer-events: none;
 }
 
 .radar-sidebar {

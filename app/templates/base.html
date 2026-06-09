@@ -104,7 +104,8 @@
     <!-- ── Main area ──────────────────────────────────────────── -->
     <div class="main-wrapper">
 
-        <!-- ── Top bar: URL input ─────────────────────────────── -->
+        <!-- ── Top bar: URL input (page-gated) ─────────────────── -->
+        {% if show_url_compile_bar|default(false) %}
         <header class="topbar">
             <form method="post" action="/compile" class="topbar-url-form" autocomplete="off">
                 <label for="url-input" class="topbar-url-label">
@@ -123,6 +124,7 @@
                 </div>
             </form>
         </header>
+        {% endif %}
 
         <!-- ── Page content ───────────────────────────────────── -->
         <main class="main-content {% block main_class %}{% endblock %}">

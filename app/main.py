@@ -315,6 +315,7 @@ def index(request: Request):
 
         return templates.TemplateResponse("index.html", {
             "request": request,
+            "show_url_compile_bar": True,
             "featured_sources": featured_sources,
             "dashboard_stats": dashboard_stats,
             "recent_fetch_runs": recent_fetch_runs_data,

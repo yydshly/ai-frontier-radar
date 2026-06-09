@@ -15,10 +15,13 @@ from app.application.radar.today import (
     RadarTodayService,
     DEFAULT_HOURS,
     DEFAULT_LIMIT,
+    DEFAULT_PER_PAGE,
     MIN_HOURS,
     MAX_HOURS,
     MIN_LIMIT,
     MAX_LIMIT,
+    MIN_PER_PAGE,
+    MAX_PER_PAGE,
 )
 from app.routes.fetch_runs import safe_external_url
 
@@ -36,6 +39,8 @@ def radar_today_page(
     item_id: int | None = Query(None),
     hours: int = Query(DEFAULT_HOURS, ge=MIN_HOURS, le=MAX_HOURS),
     limit: int = Query(DEFAULT_LIMIT, ge=MIN_LIMIT, le=MAX_LIMIT),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(DEFAULT_PER_PAGE, ge=MIN_PER_PAGE, le=MAX_PER_PAGE),
 ):
     """Render today's AI frontier radar reading view."""
     db = next(get_db())
@@ -45,6 +50,8 @@ def radar_today_page(
             selected_item_id=item_id,
             hours=hours,
             limit=limit,
+            page=page,
+            per_page=per_page,
         )
 
         return _radar_templates.TemplateResponse(

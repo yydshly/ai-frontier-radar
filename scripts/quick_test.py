@@ -1850,8 +1850,12 @@ def main():
             # 24h-window view builds without crash and respects the limit.
             view = service.build_today_view(hours=24, limit=50)
             check("24h radar view builds without crash", view.total_items >= 0)
-            check("display_map size equals window item count (no full load)",
-                  len(view.display_map) == view.total_items)
+            # display_map is built for the CURRENT PAGE only (not the full window),
+            # so its size equals the page slice, never the full total.
+            _expected_page = min(view.per_page, max(0, view.total_items - (view.page - 1) * view.per_page))
+            check("display_map size equals current-page item count (no full load)",
+                  len(view.display_map) == _expected_page
+                  and len(view.display_map) <= view.per_page)
 
             # Deterministic grouping logic (independent of dev-data volume):
             # build sections directly from a controlled single-item list.
@@ -1987,6 +1991,92 @@ def main():
             db_session.close()
     except Exception as e:
         check("Today Radar MVP", False, str(e))
+
+    # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
+    print("\n[17] Today Radar reading experience")
+    try:
+        from app.application.radar.today import (
+            RadarTodayService as _RTS,
+            DEFAULT_PER_PAGE, MIN_PER_PAGE, MAX_PER_PAGE,
+        )
+        from app.db import SessionLocal as _SL2
+
+        base_html = (templates_dir / "base.html").read_text(encoding="utf-8")
+        index_html = (templates_dir / "index.html").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (templates_dir.parents[1] / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        # 1. URL compile bar is gated by show_url_compile_bar.
+        check("base.html gates URL bar with show_url_compile_bar",
+              "show_url_compile_bar" in base_html
+              and 'placeholder="https://..."' in base_html)
+
+        # 2 & 3. Page-level rendering: radar hides URL bar, home shows it.
+        radar_resp = client.get("/radar/today")
+        home_resp = client.get("/")
+        check("GET /radar/today returns 200 (reading view)", radar_resp.status_code == 200)
+        check("/radar/today does NOT contain URL compile placeholder",
+              'placeholder="https://..."' not in radar_resp.text)
+        check("/ (home) DOES contain URL compile placeholder",
+              'placeholder="https://..."' in home_resp.text)
+
+        # 4. page / per_page params accepted.
+        check("GET /radar/today?page=1&per_page=5 returns 200",
+              client.get("/radar/today?page=1&per_page=5").status_code == 200)
+        check("GET /radar/today?page=2&per_page=10 returns 200",
+              client.get("/radar/today?page=2&per_page=10").status_code == 200)
+
+        # 6. View link drops #radar-panel anchor.
+        check("radar 查看 link omits #radar-panel anchor",
+              "#radar-panel" not in radar_resp.text)
+
+        # 7. Cards carry a stable radar-item-{id} id.
+        check("radar cards carry id=\"radar-item-...\"",
+              'id="radar-item-' in radar_resp.text)
+
+        # 8. Selected-card scroll script present.
+        check("radar page includes selected-card scroll script",
+              "scrollIntoView" in radar_resp.text and "is-selected" in radar_resp.text)
+
+        # 9 & 10. Independent scroll CSS.
+        check("style.css: radar-main overflow-y auto",
+              "radar-main" in style_css and "overflow-y: auto" in style_css)
+        check("style.css: radar-panel overflow-y auto + radar-pagination present",
+              "radar-panel" in style_css and "radar-pagination" in style_css)
+
+        # 11 & 12. Preserved behaviors.
+        check("radar enqueue stays method=\"post\"",
+              'method="post"' in radar_html and "enqueue-compile" in radar_html)
+        check("radar still uses safe_external_url", "safe_external_url" in radar_html)
+
+        # Product-friendly status text.
+        check("radar shows '待生成洞察' status text", "待生成洞察" in radar_html)
+
+        # Pagination control markup present in template.
+        check("radar_today.html has pagination control",
+              "radar-pagination" in radar_html and "上一页" in radar_html and "下一页" in radar_html)
+
+        # per_page bounds + total_pages math (service level).
+        db3 = _SL2()
+        try:
+            svc = _RTS(db3)
+            v_small = svc.build_today_view(per_page=5, page=1)
+            check("per_page=5 yields total_pages == ceil(total/5)",
+                  v_small.total_pages == max(1, -(-v_small.total_items // 5)))
+            check("per_page clamps above MAX_PER_PAGE",
+                  svc.build_today_view(per_page=999).per_page == MAX_PER_PAGE)
+            check("per_page clamps below MIN_PER_PAGE",
+                  svc.build_today_view(per_page=1).per_page == MIN_PER_PAGE)
+            v_over = svc.build_today_view(per_page=5, page=99999)
+            check("page clamps into valid range",
+                  v_over.page <= v_over.total_pages and v_over.page >= 1)
+            check("has_prev/has_next consistent on page 1",
+                  v_small.has_prev is False
+                  and v_small.has_next == (v_small.total_pages > 1))
+        finally:
+            db3.close()
+    except Exception as e:
+        check("Today Radar reading experience", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
