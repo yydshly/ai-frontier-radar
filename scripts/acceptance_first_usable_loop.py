@@ -121,6 +121,12 @@ def main() -> int:
     check("右面板可预览 InsightCard",
           "radar-panel-insight-preview" in radar_html,
           "右面板应能预览 InsightCard")
+    check("InsightCard 预览应展示洞察与行动，而非重复摘要",
+          "RadarInsightPreview" in radar_py
+          and "为什么值得关注" in radar_html
+          and "技术洞察" in radar_html
+          and "行动建议" in radar_html,
+          "InsightCard 预览应展示洞察与行动，而不是重复内容摘要")
 
     print("\n[10] 测试来源隔离")
     check("排除 test_* 来源",

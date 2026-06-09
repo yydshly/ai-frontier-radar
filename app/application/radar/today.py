@@ -40,6 +40,7 @@ class RadarPanelState:
     insight_label: str          # Human-readable label for the insight state
     insight_note: str | None    # Optional note (e.g. error message for failed)
     selected_insight_card: "InsightCard | None" = None
+    insight_preview: "RadarInsightPreview | None" = None
 
 
 @dataclass
@@ -56,6 +57,84 @@ class RadarFetchRunSummary:
     items_failed: int
     latest_started_at: "datetime | None"
     latest_finished_at: "datetime | None"
+
+
+@dataclass
+class RadarInsightPreview:
+    """Insight preview for the right reading panel — prioritizes actionable insight fields.
+
+    Only falls back to summary_zh when no structured insight fields are present.
+    """
+    relevance_score: int | None
+    related_user_directions: list[str]
+    relevance_reasons: list[str]
+    technical_insights: list[str]
+    product_opportunities: list[str]
+    action_items: list[str]
+    risks: list[str]
+    fallback_summary: str | None = None
+
+
+def _parse_json_list(value: str | None, *, limit: int = 3) -> list[str]:
+    """Parse a JSON string list field safely, returning up to `limit` non-empty strings."""
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    result = []
+    for item in parsed:
+        if not isinstance(item, str):
+            continue
+        text = " ".join(item.strip().split())
+        if not text:
+            continue
+        result.append(text)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _build_insight_preview(card: "InsightCard | None") -> "RadarInsightPreview | None":
+    """Build a RadarInsightPreview from an InsightCard, prioritizing structured insight fields.
+
+    Only uses summary_zh as fallback when no other insight fields are present.
+    Does not modify the card. Does not write to the database.
+    """
+    if card is None:
+        return None
+
+    related_user_directions = _parse_json_list(card.related_user_directions, limit=4)
+    relevance_reasons = _parse_json_list(card.relevance_reasons_zh, limit=2)
+    technical_insights = _parse_json_list(card.technical_insights_zh, limit=2)
+    product_opportunities = _parse_json_list(card.product_opportunities_zh, limit=2)
+    action_items = _parse_json_list(card.action_items_zh, limit=2)
+    risks = _parse_json_list(card.risks_zh, limit=1)
+
+    has_signal = any([
+        related_user_directions,
+        relevance_reasons,
+        technical_insights,
+        product_opportunities,
+        action_items,
+        risks,
+    ])
+
+    fallback_summary = None if has_signal else card.summary_zh
+
+    return RadarInsightPreview(
+        relevance_score=card.relevance_score,
+        related_user_directions=related_user_directions,
+        relevance_reasons=relevance_reasons,
+        technical_insights=technical_insights,
+        product_opportunities=product_opportunities,
+        action_items=action_items,
+        risks=risks,
+        fallback_summary=fallback_summary,
+    )
 
 
 # ── Query bounds ───────────────────────────────────────────────────────────
@@ -419,6 +498,7 @@ def _build_panel_state(
         insight_label=insight_label,
         insight_note=insight_note,
         selected_insight_card=selected_insight_card,
+        insight_preview=_build_insight_preview(selected_insight_card),
     )
 
 

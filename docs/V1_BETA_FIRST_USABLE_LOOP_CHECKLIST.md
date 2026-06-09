@@ -123,3 +123,19 @@ python scripts/check_sources_health.py
 - [ ] 如果 LLM 失败，FetchRun 抓取状态不应因此变 failed
 - [ ] 自动摘要失败原因只写入 metadata_json.auto_summary / 日志，不影响抓取结果
 - [ ] 不生成 InsightCard（那是"加入生成"按钮的责任）
+
+## 11. InsightCard 预览与内容摘要职责分离验收
+
+已生成 InsightCard 的条目，右侧面板检查：
+
+- [ ] 内容摘要仍显示中文详细摘要（回答"这篇文章说了什么"）
+- [ ] InsightCard 预览不再大段重复 summary_zh
+- [ ] InsightCard 预览显示相关性分数
+- [ ] 如果有 related_user_directions，显示为标签（相关方向）
+- [ ] 如果有 relevance_reasons_zh，显示"为什么值得关注"
+- [ ] 如果有 technical_insights_zh，显示"技术洞察"
+- [ ] 如果有 product_opportunities_zh，显示"产品机会"
+- [ ] 如果有 action_items_zh，显示"行动建议"
+- [ ] 如果有 risks_zh，显示"风险提醒"
+- [ ] 只有在没有任何洞察字段时才 fallback 显示 summary_zh
+- [ ] "查看完整 InsightCard"按钮仍可用

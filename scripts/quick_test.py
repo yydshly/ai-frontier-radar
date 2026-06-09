@@ -2908,6 +2908,44 @@ def main():
     except Exception as e:
         check("Today Radar panel state checks", False, str(e))
 
+    # ── 20b. Today Radar: InsightCard preview distinct from content summary ──────────
+    print("\n[20b] Today Radar InsightCard preview distinct from content summary")
+    try:
+        radar_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+
+        check("today radar has RadarInsightPreview dataclass",
+              "class RadarInsightPreview" in radar_py,
+              "today radar should have a distinct InsightCard preview model")
+        check("today radar parses InsightCard json list fields",
+              "def _parse_json_list" in radar_py
+              and "json.loads" in radar_py,
+              "InsightCard preview should safely parse JSON list fields")
+        check("today radar insight preview prioritizes insight fields",
+              "technical_insights_zh" in radar_py
+              and "product_opportunities_zh" in radar_py
+              and "action_items_zh" in radar_py
+              and "fallback_summary = None if has_signal else card.summary_zh" in radar_py,
+              "InsightCard preview should avoid duplicating summary when insight fields exist")
+        check("today radar template renders insight blocks",
+              "为什么值得关注" in radar_html
+              and "技术洞察" in radar_html
+              and "产品机会" in radar_html
+              and "行动建议" in radar_html
+              and "风险提醒" in radar_html,
+              "InsightCard preview should render distinct insight sections")
+        check("today radar template uses insight_preview",
+              "view.panel_state.insight_preview" in radar_html
+              and "preview.fallback_summary" in radar_html,
+              "template should use RadarInsightPreview instead of directly dumping summary_zh")
+        check("today radar insight preview styles exist",
+              ".radar-panel-chip-row" in style_css
+              and ".radar-panel-insight-block" in style_css,
+              "Insight preview should have styles for chips and insight blocks")
+    except Exception as e:
+        check("Today Radar insight preview checks", False, str(e))
+
     # ── 21. Today Radar: generate Chinese summaries for current page ─────────────
     print("\n[21] Today Radar generate Chinese summaries")
     try:

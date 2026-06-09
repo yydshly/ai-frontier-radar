@@ -68,6 +68,8 @@
 - OpenAI 原文 403 不再阻断轻量 InsightCard（fallback 到 snapshot）
 - 右侧面板可以展示 InsightCard 状态和预览
 - InsightCard 标注 "非全文解析" 提示
+- 右侧 InsightCard 预览与内容摘要职责分离：内容摘要回答"这篇文章说了什么"，InsightCard 预览回答"为什么值得关注、和我有什么关系、下一步做什么"
+- InsightCard 预览优先展示 structured insight 字段（相关性分数、相关方向、为什么值得关注、技术洞察、产品机会、行动建议、风险提醒），只在无洞察字段时才 fallback 到 summary_zh
 
 ## 4. 当前非目标
 

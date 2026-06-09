@@ -335,19 +335,83 @@
                 </section>
                 {% endif %}
 
-                {% if view.panel_state and view.panel_state.selected_insight_card %}
+                {% if view.panel_state and view.panel_state.insight_preview %}
+                {% set preview = view.panel_state.insight_preview %}
                 {% set insight = view.panel_state.selected_insight_card %}
                 <section class="radar-panel-section radar-panel-insight-preview">
                     <h3>InsightCard 预览</h3>
-                    {% if insight.relevance_score is not none %}
-                    <p class="radar-panel-score">相关性分数：{{ insight.relevance_score }}</p>
+
+                    {% if preview.relevance_score is not none %}
+                    <p class="radar-panel-score">相关性分数：{{ preview.relevance_score }}</p>
                     {% endif %}
-                    {% if insight.summary_zh %}
-                    <div class="radar-panel-insight-summary">{{ insight.summary_zh }}</div>
+
+                    {% if preview.related_user_directions %}
+                    <div class="radar-panel-chip-row">
+                        {% for direction in preview.related_user_directions %}
+                        <span class="radar-panel-chip">{{ direction }}</span>
+                        {% endfor %}
+                    </div>
                     {% endif %}
-                    {% if insight.related_user_directions %}
-                    <p class="radar-panel-muted">相关方向：{{ insight.related_user_directions }}</p>
+
+                    {% if preview.relevance_reasons %}
+                    <div class="radar-panel-insight-block">
+                        <h4>为什么值得关注</h4>
+                        <ul>
+                            {% for item in preview.relevance_reasons %}
+                            <li>{{ item }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                     {% endif %}
+
+                    {% if preview.technical_insights %}
+                    <div class="radar-panel-insight-block">
+                        <h4>技术洞察</h4>
+                        <ul>
+                            {% for item in preview.technical_insights %}
+                            <li>{{ item }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if preview.product_opportunities %}
+                    <div class="radar-panel-insight-block">
+                        <h4>产品机会</h4>
+                        <ul>
+                            {% for item in preview.product_opportunities %}
+                            <li>{{ item }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if preview.action_items %}
+                    <div class="radar-panel-insight-block">
+                        <h4>行动建议</h4>
+                        <ul>
+                            {% for item in preview.action_items %}
+                            <li>{{ item }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if preview.risks %}
+                    <div class="radar-panel-insight-block">
+                        <h4>风险提醒</h4>
+                        <ul>
+                            {% for item in preview.risks %}
+                            <li>{{ item }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if preview.fallback_summary %}
+                    <div class="radar-panel-insight-summary">{{ preview.fallback_summary }}</div>
+                    {% endif %}
+
                     <a href="/cards/{{ insight.id }}" class="btn-sm btn-primary">查看完整 InsightCard</a>
                 </section>
                 {% endif %}
