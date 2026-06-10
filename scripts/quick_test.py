@@ -3055,14 +3055,16 @@ def main():
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
 
-        check("one-liner service supports fill_missing_summary",
-              "fill_missing_summary" in one_liner_py
-              and "has_summary" in one_liner_py,
-              "one-liner service should support filling zh_summary for old data")
+        check("one-liner service has fill_missing_summary param",
+              "fill_missing_summary" in one_liner_py,
+              "one-liner service should keep fill_missing_summary for backward compatibility")
+        check("one-liner service has force param",
+              "force" in one_liner_py,
+              "one-liner service should have force parameter for overwrite control")
 
         check("generate_one_liners supports fill-missing-summary flag",
               "--fill-missing-summary" in generate_one_liners_py,
-              "script should support zh_summary repair mode")
+              "script should support fill-missing-summary flag for backward compatibility")
 
         check("today radar has generate summaries route",
               '@router.post("/today/generate-summaries")' in radar_route_py,
@@ -5040,6 +5042,319 @@ def main():
               "final checkpoint should suggest next version")
     except Exception as e:
         check("V1.0-beta.4 final checkpoint docs checks", False, str(e))
+
+    # ── [48] V1.0-beta.5 summary write policy ────────────────────────────
+    print("\n[48] V1.0-beta.5 summary write policy")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+
+        # Policy doc exists
+        check("docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md exists",
+              (project_root / "docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md").exists(),
+              "policy doc must exist")
+
+        policy_md = (project_root / "docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md").read_text(encoding="utf-8")
+
+        # Key field names are documented
+        check("policy contains zh_one_liner",
+              "zh_one_liner" in policy_md,
+              "policy must cover zh_one_liner")
+        check("policy contains zh_summary",
+              "zh_summary" in policy_md,
+              "policy must cover zh_summary")
+        check("policy contains InsightCard.summary_zh",
+              "InsightCard.summary_zh" in policy_md,
+              "policy must cover InsightCard.summary_zh")
+
+        # L0-L3 hierarchy is defined
+        check("policy contains L0",
+              "L0" in policy_md,
+              "policy must define L0")
+        check("policy contains L1",
+              "L1" in policy_md,
+              "policy must define L1")
+        check("policy contains L2",
+              "L2" in policy_md,
+              "policy must define L2")
+        check("policy contains L3",
+              "L3" in policy_md,
+              "policy must define L3")
+
+        # Key rules are documented
+        check("policy contains 默认不覆盖",
+              "默认不覆盖" in policy_md,
+              "policy must state default-no-overwrite rule")
+        check("policy contains 不自动覆盖 zh_one_liner",
+              "不自动覆盖 zh_one_liner" in policy_md,
+              "policy must state InsightCard.summary_zh does not auto-overwrite zh_one_liner")
+        check("policy contains 暂不改数据库 schema",
+              "暂不改数据库 schema" in policy_md or "暂不改 schema" in policy_md,
+              "policy must state no DB schema change in this phase")
+
+        # README or NEXT_EXECUTION_PLAN has V1.0-beta.5
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+        next_plan_path = project_root / "docs/NEXT_EXECUTION_PLAN.md"
+        has_next = False
+        if next_plan_path.exists():
+            next_plan = next_plan_path.read_text(encoding="utf-8")
+            has_next = "V1.0-beta.5" in next_plan or "beta.5" in next_plan
+        check("V1.0-beta.5 in README or NEXT_EXECUTION_PLAN",
+              "V1.0-beta.5" in readme_md or has_next,
+              "README or NEXT_EXECUTION_PLAN should reference V1.0-beta.5")
+
+        # ── summary_policy.py ───────────────────────────────────────────
+        summary_policy_path = project_root / "app/application/candidates/summary_policy.py"
+        check("summary_policy.py exists",
+              summary_policy_path.exists(),
+              "summary_policy.py must exist")
+
+        sp_content = summary_policy_path.read_text(encoding="utf-8")
+
+        # Key exports present
+        check("summary_policy.py contains SOURCE_SUMMARY_KEYS",
+              "SOURCE_SUMMARY_KEYS" in sp_content,
+              "summary_policy.py must export SOURCE_SUMMARY_KEYS")
+        check("summary_policy.py contains ZH_ONE_LINER_KEY",
+              "ZH_ONE_LINER_KEY" in sp_content,
+              "summary_policy.py must export ZH_ONE_LINER_KEY")
+        check("summary_policy.py contains ZH_SUMMARY_KEY",
+              "ZH_SUMMARY_KEY" in sp_content,
+              "summary_policy.py must export ZH_SUMMARY_KEY")
+        check("summary_policy.py contains classify_detail_summary_kind",
+              "classify_detail_summary_kind" in sp_content,
+              "summary_policy.py must export classify_detail_summary_kind")
+        check("summary_policy.py contains build_detail_summary",
+              "build_detail_summary" in sp_content,
+              "summary_policy.py must export build_detail_summary")
+
+        # Pure-function guarantees
+        check("summary_policy.py does not contain Session",
+              "Session" not in sp_content,
+              "summary_policy.py must be DB-free")
+        check("summary_policy.py does not contain .query(",
+              ".query(" not in sp_content,
+              "summary_policy.py must not query DB")
+        check("summary_policy.py does not contain llm",
+              "llm" not in sp_content.lower(),
+              "summary_policy.py must not call LLM")
+        check("summary_policy.py does not contain commit",
+              "commit" not in sp_content,
+              "summary_policy.py must not write to DB")
+
+        # ── display.py uses build_detail_summary ─────────────────────────
+        display_py = (project_root / "app/application/candidates/display.py").read_text(encoding="utf-8")
+        check("display.py imports build_detail_summary from summary_policy",
+              "from app.application.candidates.summary_policy import build_detail_summary" in display_py
+              or "from .summary_policy import build_detail_summary" in display_py,
+              "display.py must import build_detail_summary")
+        check("display.py calls build_detail_summary",
+              "build_detail_summary(" in display_py,
+              "display.py must call build_detail_summary")
+
+        # ── today.py uses classify_detail_summary_kind ───────────────────
+        today_py = (project_root / "app/application/radar/today.py").read_text(encoding="utf-8")
+        check("today.py imports classify_detail_summary_kind from summary_policy",
+              "from app.application.candidates.summary_policy import" in today_py
+              and "classify_detail_summary_kind" in today_py,
+              "today.py must import classify_detail_summary_kind")
+        check("today.py calls classify_detail_summary_kind",
+              "classify_detail_summary_kind(" in today_py,
+              "today.py must call classify_detail_summary_kind")
+        check("today.py calls get_detail_summary_label",
+              "get_detail_summary_label(" in today_py,
+              "today.py must call get_detail_summary_label")
+
+        # ── one_liner.py zh_one_liner write policy ─────────────────────
+        one_liner_py = (project_root / "app/application/candidates/one_liner.py").read_text(encoding="utf-8")
+
+        # force parameter present in public methods
+        check("one_liner.py has force parameter in should_generate",
+              "force: bool = False" in one_liner_py,
+              "should_generate must accept force parameter")
+        check("one_liner.py has force parameter in generate_for_item",
+              "force: bool = False" in one_liner_py,
+              "generate_for_item must accept force parameter")
+        check("one_liner.py has force parameter in generate_for_items",
+              "force: bool = False" in one_liner_py,
+              "generate_for_items must accept force parameter")
+
+        # Default-no-overwrite guard in should_generate
+        # Rule: force=False + has zh_one_liner → always skip (fill_missing_summary cannot bypass)
+        check("one_liner.py has 'not force and has_one_liner' guard",
+              "not force and has_one_liner" in one_liner_py,
+              "should_generate must guard: not force and has_one_liner")
+        # Old guard that allowed fill_missing_summary to bypass must be gone
+        check("one_liner.py does NOT use has_summary in force bypass guard",
+              "(has_summary or not fill_missing_summary)" not in one_liner_py,
+              "old guard using has_summary to bypass force must be removed")
+
+        # _write_result does NOT write zh_summary (that is a separate service's field)
+        check("one_liner.py _write_result does NOT write zh_summary",
+              'raw["zh_summary"]' not in one_liner_py,
+              "_write_result must not write zh_summary — belongs to a separate service")
+
+        # CandidateOneLinerService does not touch L0 source fields
+        check("one_liner.py does not clear description",
+              'del raw["description"]' not in one_liner_py and 'raw.pop("description")' not in one_liner_py,
+              "one_liner.py must not delete description field")
+        check("one_liner.py does not clear summary",
+              'del raw["summary"]' not in one_liner_py and 'raw.pop("summary")' not in one_liner_py,
+              "one_liner.py must not delete summary field")
+        check("one_liner.py does not clear rss_summary",
+              'del raw["rss_summary"]' not in one_liner_py and 'raw.pop("rss_summary")' not in one_liner_py,
+              "one_liner.py must not delete rss_summary field")
+
+        # Failure recording present
+        check("one_liner.py writes zh_one_liner_error on failure",
+              'zh_one_liner_error' in one_liner_py,
+              "_write_result must write zh_one_liner_error on failure")
+        check("one_liner.py writes zh_one_liner_status",
+              'zh_one_liner_status' in one_liner_py,
+              "_write_result must write zh_one_liner_status")
+
+        # ── Direct import + unit tests of pure functions ─────────────────
+        # These do NOT access DB or call LLM.
+        try:
+            from app.application.candidates.summary_policy import (
+                classify_detail_summary_kind,
+                build_detail_summary,
+                get_detail_summary_label,
+                normalize_summary_text,
+                has_cjk,
+                SUMMARY_KIND_ZH_SUMMARY,
+                SUMMARY_KIND_ZH_ONE_LINER,
+                SUMMARY_KIND_METADATA,
+                SUMMARY_KIND_ENGLISH_METADATA,
+                SUMMARY_KIND_MISSING,
+            )
+
+            # Test: zh_summary present → kind = zh_summary
+            result = classify_detail_summary_kind({"zh_summary": "中文详细摘要"})
+            check("classify_detail_summary_kind: zh_summary → zh_summary",
+                  result == SUMMARY_KIND_ZH_SUMMARY,
+                  f"expected {SUMMARY_KIND_ZH_SUMMARY!r}, got {result!r}")
+
+            # Test: zh_one_liner only → kind = zh_one_liner
+            result = classify_detail_summary_kind({"zh_one_liner": "中文一句话"})
+            check("classify_detail_summary_kind: zh_one_liner → zh_one_liner",
+                  result == SUMMARY_KIND_ZH_ONE_LINER,
+                  f"expected {SUMMARY_KIND_ZH_ONE_LINER!r}, got {result!r}")
+
+            # Test: Chinese metadata fallback → kind = metadata_summary
+            result = classify_detail_summary_kind({"description": "这是中文来源摘要"})
+            check("classify_detail_summary_kind: Chinese metadata → metadata_summary",
+                  result == SUMMARY_KIND_METADATA,
+                  f"expected {SUMMARY_KIND_METADATA!r}, got {result!r}")
+
+            # Test: English metadata fallback → kind = english_metadata_summary
+            result = classify_detail_summary_kind({"description": "This is English metadata."})
+            check("classify_detail_summary_kind: English metadata → english_metadata_summary",
+                  result == SUMMARY_KIND_ENGLISH_METADATA,
+                  f"expected {SUMMARY_KIND_ENGLISH_METADATA!r}, got {result!r}")
+
+            # Test: empty → kind = missing
+            result = classify_detail_summary_kind({})
+            check("classify_detail_summary_kind: empty → missing",
+                  result == SUMMARY_KIND_MISSING,
+                  f"expected {SUMMARY_KIND_MISSING!r}, got {result!r}")
+
+            # Test: build_detail_summary priority zh_summary > zh_one_liner > source
+            result = build_detail_summary({"zh_summary": "详细", "zh_one_liner": "简略"})
+            check("build_detail_summary: zh_summary wins over zh_one_liner",
+                  result == "详细",
+                  f"expected '详细', got {result!r}")
+
+            result = build_detail_summary({"zh_one_liner": "简略", "description": "来源"})
+            check("build_detail_summary: zh_one_liner wins over description",
+                  result == "简略",
+                  f"expected '简略', got {result!r}")
+
+            # Test: label mapping
+            check("get_detail_summary_label: 中文摘要",
+                  get_detail_summary_label(SUMMARY_KIND_ZH_SUMMARY) == "中文摘要",
+                  "label mismatch for zh_summary")
+            check("get_detail_summary_label: 中文概述",
+                  get_detail_summary_label(SUMMARY_KIND_ZH_ONE_LINER) == "中文概述",
+                  "label mismatch for zh_one_liner")
+            check("get_detail_summary_label: 来源摘要",
+                  get_detail_summary_label(SUMMARY_KIND_METADATA) == "来源摘要",
+                  "label mismatch for metadata_summary")
+            check("get_detail_summary_label: 英文来源摘要",
+                  get_detail_summary_label(SUMMARY_KIND_ENGLISH_METADATA) == "英文来源摘要",
+                  "label mismatch for english_metadata_summary")
+            check("get_detail_summary_label: 内容摘要",
+                  get_detail_summary_label(SUMMARY_KIND_MISSING) == "内容摘要",
+                  "label mismatch for missing")
+
+            # Test: normalize_summary_text
+            check("normalize_summary_text: strips HTML",
+                  normalize_summary_text("<b>bold</b> text") == "bold text",
+                  "HTML stripping failed")
+            check("normalize_summary_text: None for non-string",
+                  normalize_summary_text(123) is None,
+                  "non-string should return None")
+            check("normalize_summary_text: None for empty",
+                  normalize_summary_text("   ") is None,
+                  "whitespace-only should return None")
+            check("normalize_summary_text: truncates with ...",
+                  normalize_summary_text("a" * 300, max_length=10) == "a" * 7 + "...",
+                  "truncation failed")
+
+            # Test: has_cjk
+            check("has_cjk: detects CJK",
+                  has_cjk("这是中文") is True,
+                  "CJK detection failed")
+            check("has_cjk: returns False for English",
+                  has_cjk("This is English") is False,
+                  "should return False for English-only")
+
+        except Exception as exc:
+            check("summary_policy.py imports and unit tests", False, str(exc))
+
+    except Exception as e:
+        check("V1.0-beta.5 summary write policy checks", False, str(e))
+
+    # ── [50] V1.0-beta.5 final checkpoint docs ─────────────────────────
+    print("\n[50] V1.0-beta.5 final checkpoint docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("docs/V1_BETA_5_FINAL_CHECKPOINT.md exists",
+              (project_root / "docs/V1_BETA_5_FINAL_CHECKPOINT.md").exists(),
+              "final checkpoint doc must exist")
+        check("README.md links V1_BETA_5_FINAL_CHECKPOINT.md",
+              "V1_BETA_5_FINAL_CHECKPOINT.md" in readme_md,
+              "README should link final checkpoint")
+
+        if (project_root / "docs/V1_BETA_5_FINAL_CHECKPOINT.md").exists():
+            cp = (project_root / "docs/V1_BETA_5_FINAL_CHECKPOINT.md").read_text(encoding="utf-8")
+            check("final checkpoint contains V1.0-beta.5",
+                  "V1.0-beta.5" in cp,
+                  "final checkpoint should state version")
+            check("final checkpoint mentions summary_policy.py",
+                  "summary_policy.py" in cp,
+                  "final checkpoint should mention summary_policy.py")
+            check("final checkpoint mentions CandidateOneLinerService",
+                  "CandidateOneLinerService" in cp,
+                  "final checkpoint should mention CandidateOneLinerService")
+            check("final checkpoint mentions force=True",
+                  "force=True" in cp or "force" in cp,
+                  "final checkpoint should mention force parameter")
+            check("final checkpoint mentions fill_missing_summary",
+                  "fill_missing_summary" in cp,
+                  "final checkpoint should mention fill_missing_summary")
+            check("final checkpoint mentions 不改数据库 schema",
+                  "不改" in cp or "未改" in cp,
+                  "final checkpoint should confirm no DB schema change")
+            check("final checkpoint mentions merge-ready or 可合并",
+                  "merge-ready" in cp or "可合并" in cp,
+                  "final checkpoint should state merge-ready")
+            check("final checkpoint mentions V1.0-beta.6 or beta 6",
+                  "V1.0-beta.6" in cp or "beta.6" in cp or "下一阶段建议" in cp,
+                  "final checkpoint should suggest next version")
+    except Exception as e:
+        check("V1.0-beta.5 final checkpoint docs checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

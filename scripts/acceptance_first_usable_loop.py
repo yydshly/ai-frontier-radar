@@ -434,6 +434,358 @@ def main() -> int:
             finally:
                 db.close()
 
+    # ── [20] V1.0-beta.5 summary write policy ─────────────────────────────
+    print("\n[20] V1.0-beta.5 summary write policy")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        policy_path = project_root / "docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md"
+
+        check("V1_BETA_5_SUMMARY_WRITE_POLICY.md exists",
+              policy_path.exists(),
+              "policy doc must exist")
+
+        if policy_path.exists():
+            policy_md = policy_path.read_text(encoding="utf-8")
+
+            check("policy defines L0-L3 field hierarchy",
+                  all(k in policy_md for k in ("L0", "L1", "L2", "L3")),
+                  "policy must define L0/L1/L2/L3 hierarchy")
+
+            check("policy states InsightCard.summary_zh does not auto-overwrite zh_one_liner",
+                  "InsightCard.summary_zh" in policy_md and "不自动覆盖 zh_one_liner" in policy_md,
+                  "policy must state InsightCard.summary_zh does not auto-overwrite")
+
+            check("policy states metadata summary is not AI Chinese summary",
+                  "L0" in policy_md and ("不是 AI 中文摘要" in policy_md or "永远不是 AI 中文摘要" in policy_md),
+                  "policy must state L0 metadata summary is not AI-generated Chinese summary")
+
+            check("policy defines write rules for zh_one_liner",
+                  "zh_one_liner" in policy_md and "写入规则" in policy_md,
+                  "policy must define zh_one_liner write rules")
+
+            check("policy defines write rules for zh_summary",
+                  "zh_summary" in policy_md and "写入规则" in policy_md,
+                  "policy must define zh_summary write rules")
+
+        # summary_policy.py exists and is a pure policy module
+        sp_path = project_root / "app/application/candidates/summary_policy.py"
+        check("summary_policy.py exists",
+              sp_path.exists(),
+              "summary_policy.py must exist")
+
+        if sp_path.exists():
+            sp_content = sp_path.read_text(encoding="utf-8")
+            check("summary_policy.py is a pure policy module (no Session)",
+                  "Session" not in sp_content,
+                  "summary_policy.py must not use Session")
+
+        # display.py reuses build_detail_summary from summary_policy
+        display_py = (project_root / "app/application/candidates/display.py").read_text(encoding="utf-8")
+        check("display.py reuses build_detail_summary from summary_policy",
+              "from app.application.candidates.summary_policy import" in display_py
+              and "build_detail_summary" in display_py,
+              "display.py must import build_detail_summary from summary_policy")
+
+        # today.py reuses classify_detail_summary_kind from summary_policy
+        today_py = (project_root / "app/application/radar/today.py").read_text(encoding="utf-8")
+        check("today.py reuses classify_detail_summary_kind from summary_policy",
+              "from app.application.candidates.summary_policy import" in today_py
+              and "classify_detail_summary_kind" in today_py,
+              "today.py must import classify_detail_summary_kind from summary_policy")
+        check("today.py reuses get_detail_summary_label from summary_policy",
+              "get_detail_summary_label" in today_py,
+              "today.py must import get_detail_summary_label from summary_policy")
+
+    except Exception as e:
+        check("V1.0-beta.5 summary write policy checks", False, str(e))
+
+    # ── [21] V1.0-beta.5 zh_one_liner write policy ──────────────────────
+    print("\n[21] V1.0-beta.5 zh_one_liner write policy")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created — skipping DB-based tests")
+    else:
+        import json as _json
+        from datetime import datetime
+        from app.db import SessionLocal
+        from app.models import SourceItem
+        from app.application.candidates.one_liner import (
+            CandidateOneLinerService,
+            OneLinerProvider,
+            OneLinerGeneratedText,
+            OneLinerInput,
+        )
+
+        # ── Fake provider ────────────────────────────────────────────────
+        class FakeOneLinerProvider(OneLinerProvider):
+            """Deterministic fake that returns predictable text for testing."""
+
+            def generate(self, payload: OneLinerInput) -> OneLinerGeneratedText:
+                return OneLinerGeneratedText(
+                    one_liner=f"[FAKE] {payload.title[:20]}",
+                    summary=None,
+                )
+
+        # ── Setup: get a valid source_id ────────────────────────────────
+        db = SessionLocal()
+        try:
+            src_row = db.query(SourceItem.source_id).limit(1).first()
+            if src_row is None:
+                check("source_id available", False, "No sources found in DB — skipping insert tests")
+                src_id = None
+            else:
+                src_id = src_row[0]
+        except Exception:
+            check("source_id lookup", False, str(Exception))
+            src_id = None
+        finally:
+            db.close()
+
+        if src_id is None:
+            pass  # Already reported above.
+        else:
+            import time
+            _now = datetime.utcnow()
+            _unique_counter = 0
+            inserted_ids: list[int] = []
+
+            # Insert a single test item with a known state
+            def _make_item(raw_meta: dict) -> SourceItem:
+                nonlocal _unique_counter
+                _unique_counter += 1
+                return SourceItem(
+                    source_id=src_id,
+                    source_key="test_v1_beta5_one_liner",
+                    url=f"http://test-v1-beta5/{_now.timestamp()}.{_unique_counter}",
+                    title="Test item for zh_one_liner write policy",
+                    status="discovered",
+                    raw_metadata_json=_json.dumps(raw_meta),
+                    first_seen_at=_now,
+                    last_seen_at=_now,
+                )
+
+            tx = db.begin()
+            try:
+                # Case A: item already has zh_one_liner (force=False → skip)
+                item_a = _make_item({
+                    "zh_one_liner": "已有中文一句话摘要",
+                    "description": "This is English source metadata.",
+                })
+                db.add(item_a)
+                db.flush()
+                inserted_ids.append(item_a.id)
+
+                # Case B: item already has zh_one_liner (force=True → overwrite)
+                item_b = _make_item({
+                    "zh_one_liner": "旧摘要",
+                    "description": "Old description.",
+                })
+                db.add(item_b)
+                db.flush()
+                inserted_ids.append(item_b.id)
+
+                # Case C: item has no zh_one_liner → should write
+                item_c = _make_item({
+                    "description": "A source description.",
+                })
+                db.add(item_c)
+                db.flush()
+                inserted_ids.append(item_c.id)
+
+                tx.commit()
+            except Exception as e:
+                tx.rollback()
+                check("Insert test items", False, str(e))
+                inserted_ids = []
+            else:
+                try:
+                    # Case A: force=False with existing zh_one_liner → skipped, no change
+                    db_a = SessionLocal()
+                    try:
+                        item_a_row = db_a.query(SourceItem).filter(SourceItem.id == item_a.id).first()
+                        if item_a_row is not None:
+                            from app.application.candidates.one_liner import CandidateOneLinerService
+                            svc_a = CandidateOneLinerService(
+                                db_a,
+                                provider=FakeOneLinerProvider(),
+                            )
+                            res_a = svc_a.generate_for_item(item_a_row, force=False)
+                            check("Case A: force=False with existing zh_one_liner → skipped",
+                                  res_a.status == "skipped",
+                                  f"expected status=skipped, got {res_a.status!r}")
+                            db_a.refresh(item_a_row)
+                            meta_a = _json.loads(item_a_row.raw_metadata_json or "{}")
+                            check("Case A: zh_one_liner unchanged after force=False",
+                                  meta_a.get("zh_one_liner") == "已有中文一句话摘要",
+                                  f"expected unchanged, got {meta_a.get('zh_one_liner')!r}")
+                            check("Case A: description unchanged after force=False",
+                                  meta_a.get("description") == "This is English source metadata.",
+                                  f"description changed: {meta_a.get('description')!r}")
+                            check("Case A: zh_summary NOT written by one_liner service",
+                                  "zh_summary" not in meta_a or meta_a.get("zh_summary") is None,
+                                  f"zh_summary should not be written: {meta_a.get('zh_summary')!r}")
+                    finally:
+                        db_a.close()
+
+                    # Case B: force=True with existing zh_one_liner → overwritten
+                    db_b = SessionLocal()
+                    try:
+                        item_b_row = db_b.query(SourceItem).filter(SourceItem.id == item_b.id).first()
+                        if item_b_row is not None:
+                            svc_b = CandidateOneLinerService(
+                                db_b,
+                                provider=FakeOneLinerProvider(),
+                            )
+                            res_b = svc_b.generate_for_item(item_b_row, force=True)
+                            check("Case B: force=True with existing zh_one_liner → success",
+                                  res_b.status == "success",
+                                  f"expected status=success, got {res_b.status!r}")
+                            db_b.refresh(item_b_row)
+                            meta_b = _json.loads(item_b_row.raw_metadata_json or "{}")
+                            check("Case B: zh_one_liner overwritten with force=True",
+                                  "[FAKE]" in (meta_b.get("zh_one_liner") or ""),
+                                  f"expected [FAKE] in zh_one_liner, got {meta_b.get('zh_one_liner')!r}")
+                            check("Case B: description unchanged after force=True",
+                                  meta_b.get("description") == "Old description.",
+                                  f"description changed: {meta_b.get('description')!r}")
+                            check("Case B: zh_summary NOT written by one_liner service",
+                                  "zh_summary" not in meta_b or meta_b.get("zh_summary") is None,
+                                  f"zh_summary should not be written: {meta_b.get('zh_summary')!r}")
+                    finally:
+                        db_b.close()
+
+                    # Case C: no existing zh_one_liner → written
+                    db_c = SessionLocal()
+                    try:
+                        item_c_row = db_c.query(SourceItem).filter(SourceItem.id == item_c.id).first()
+                        if item_c_row is not None:
+                            svc_c = CandidateOneLinerService(
+                                db_c,
+                                provider=FakeOneLinerProvider(),
+                            )
+                            res_c = svc_c.generate_for_item(item_c_row, force=False)
+                            check("Case C: no zh_one_liner → written",
+                                  res_c.status == "success",
+                                  f"expected status=success, got {res_c.status!r}")
+                            db_c.refresh(item_c_row)
+                            meta_c = _json.loads(item_c_row.raw_metadata_json or "{}")
+                            check("Case C: zh_one_liner written",
+                                  "[FAKE]" in (meta_c.get("zh_one_liner") or ""),
+                                  f"expected [FAKE] in zh_one_liner, got {meta_c.get('zh_one_liner')!r}")
+                            check("Case C: description unchanged",
+                                  meta_c.get("description") == "A source description.",
+                                  f"description changed: {meta_c.get('description')!r}")
+                            check("Case C: zh_summary NOT written by one_liner service",
+                                  "zh_summary" not in meta_c or meta_c.get("zh_summary") is None,
+                                  f"zh_summary should not be written: {meta_c.get('zh_summary')!r}")
+                    finally:
+                        db_c.close()
+
+                    # Case D: failure recording — use a provider that raises
+                    class FailingProvider(OneLinerProvider):
+                        def generate(self, payload: OneLinerInput) -> OneLinerGeneratedText:
+                            raise RuntimeError("Fake provider failure for testing")
+
+                    db_d = SessionLocal()
+                    item_d = _make_item({"description": "Item D for failure test."})
+                    db_d.add(item_d)
+                    db_d.flush()
+                    inserted_ids.append(item_d.id)
+                    db_d.commit()
+                    try:
+                        item_d_row = db_d.query(SourceItem).filter(SourceItem.id == item_d.id).first()
+                        if item_d_row is not None:
+                            svc_d = CandidateOneLinerService(
+                                db_d,
+                                provider=FailingProvider(),
+                            )
+                            res_d = svc_d.generate_for_item(item_d_row, force=False)
+                            check("Case D: provider failure → status=failed",
+                                  res_d.status == "failed",
+                                  f"expected status=failed, got {res_d.status!r}")
+                            check("Case D: error message recorded",
+                                  res_d.error is not None and len(res_d.error) > 0,
+                                  f"expected error message, got {res_d.error!r}")
+                            db_d.refresh(item_d_row)
+                            meta_d = _json.loads(item_d_row.raw_metadata_json or "{}")
+                            check("Case D: zh_one_liner_status=failed",
+                                  meta_d.get("zh_one_liner_status") == "failed",
+                                  f"expected failed, got {meta_d.get('zh_one_liner_status')!r}")
+                            check("Case D: zh_one_liner_error recorded",
+                                  "Fake provider failure" in (meta_d.get("zh_one_liner_error") or ""),
+                                  f"expected error text, got {meta_d.get('zh_one_liner_error')!r}")
+                            check("Case D: description unchanged after failure",
+                                  meta_d.get("description") == "Item D for failure test.",
+                                  f"description changed: {meta_d.get('description')!r}")
+                    finally:
+                        db_d.close()
+
+                    # Case E: fill_missing_summary=True + existing zh_one_liner + force=False → MUST skip
+                    # Regression: fill_missing_summary must NOT bypass the force=False guard.
+                    class CountingFakeProvider(OneLinerProvider):
+                        """Fake that tracks call count so we can assert provider was never called."""
+                        call_count = 0
+
+                        def generate(self, payload: OneLinerInput) -> OneLinerGeneratedText:
+                            CountingFakeProvider.call_count += 1
+                            return OneLinerGeneratedText(
+                                one_liner=f"[FAKE] {payload.title[:20]}",
+                                summary=None,
+                            )
+
+                    CountingFakeProvider.call_count = 0
+                    db_e = SessionLocal()
+                    item_e = _make_item({
+                        "zh_one_liner": "已有中文一句话摘要",
+                        "description": "This is source metadata.",
+                    })
+                    db_e.add(item_e)
+                    db_e.flush()
+                    inserted_ids.append(item_e.id)
+                    db_e.commit()
+                    try:
+                        item_e_row = db_e.query(SourceItem).filter(SourceItem.id == item_e.id).first()
+                        if item_e_row is not None:
+                            svc_e = CandidateOneLinerService(
+                                db_e,
+                                provider=CountingFakeProvider(),
+                            )
+                            # fill_missing_summary=True should NOT bypass force=False guard
+                            res_e = svc_e.generate_for_item(item_e_row, fill_missing_summary=True, force=False)
+                            check("Case E: fill_missing_summary=True + force=False → skipped",
+                                  res_e.status == "skipped",
+                                  f"expected status=skipped, got {res_e.status!r}")
+                            check("Case E: zh_one_liner unchanged (not overwritten)",
+                                  res_e.text is None,
+                                  f"expected text=None (skipped), got {res_e.text!r}")
+                            db_e.refresh(item_e_row)
+                            meta_e = _json.loads(item_e_row.raw_metadata_json or "{}")
+                            check("Case E: zh_one_liner still '已有中文一句话摘要'",
+                                  meta_e.get("zh_one_liner") == "已有中文一句话摘要",
+                                  f"expected unchanged, got {meta_e.get('zh_one_liner')!r}")
+                            check("Case E: description unchanged",
+                                  meta_e.get("description") == "This is source metadata.",
+                                  f"description changed: {meta_e.get('description')!r}")
+                            check("Case E: zh_summary NOT written",
+                                  "zh_summary" not in meta_e or meta_e.get("zh_summary") is None,
+                                  f"zh_summary should not exist: {meta_e.get('zh_summary')!r}")
+                            check("Case E: provider NOT called (call_count == 0)",
+                                  CountingFakeProvider.call_count == 0,
+                                  f"provider should not be called, but call_count={CountingFakeProvider.call_count}")
+                    finally:
+                        db_e.close()
+
+                finally:
+                    # Cleanup: delete all test items
+                    try:
+                        db2 = SessionLocal()
+                        db2.query(SourceItem).filter(
+                            SourceItem.id.in_(inserted_ids)
+                        ).delete(synchronize_session=False)
+                        db2.commit()
+                        db2.close()
+                    except Exception:
+                        pass
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")
