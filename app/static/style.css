@@ -3988,12 +3988,12 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 }
 
 .radar-section {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .radar-section-title {
     font-size: 1.05rem;
-    margin: 0 0 0.6rem;
+    margin: 0 0 0.4rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px solid #eaeef2;
 }
@@ -4006,17 +4006,17 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 .radar-card-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .radar-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.5rem;
+    gap: 0.4rem;
     align-items: start;
     border: 1px solid #d0d7de;
     border-radius: 8px;
-    padding: 0.85rem 1rem;
+    padding: 0.6rem 0.8rem;
     background: #fff;
 }
 
@@ -4046,14 +4046,15 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 .radar-card-original-title {
     font-size: 0.8rem;
     color: #57606a;
-    margin-bottom: 0.4rem;
-    line-height: 1.4;
+    margin-bottom: 0.25rem;
+    line-height: 1.35;
 }
 
 .radar-card-title {
     font-size: 0.85rem;
     color: #57606a;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.2rem;
+    line-height: 1.35;
 }
 
 .radar-card-title-weak {
@@ -4068,7 +4069,7 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     gap: 0.5rem;
     font-size: 0.78rem;
     color: #57606a;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.3rem;
 }
 
 .radar-card-actions {

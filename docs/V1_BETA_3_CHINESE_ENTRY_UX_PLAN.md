@@ -127,6 +127,26 @@
 
 ---
 
-## 7. 相关文档
+## 8. Task 5：主列表紧凑布局优化
+
+- 目标：提高今日雷达中间列表的信息密度，让用户一屏看到更多内容
+- 不改变三栏布局
+- 不改变业务逻辑
+- 不改变摘要 / InsightCard / 抓取服务
+- 保留中文摘要优先的产品语义
+
+具体改动：
+- `.radar-card` padding: `0.85rem 1rem` → `0.6rem 0.8rem`
+- `.radar-card` gap: `0.5rem` → `0.4rem`
+- `.radar-card-list` gap: `0.75rem` → `0.5rem`
+- `.radar-section` margin-bottom: `1.5rem` → `1rem`
+- `.radar-section-title` margin-bottom: `0.6rem` → `0.4rem`
+- `.radar-card-title` margin-bottom: `0.5rem` → `0.2rem`，line-height: `1.5` → `1.35`
+- `.radar-card-original-title` margin-bottom: `0.4rem` → `0.25rem`，line-height: `1.4` → `1.35`
+- `.radar-card-meta` margin-bottom: `0.5rem` → `0.3rem`
+
+---
+
+## 9. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划

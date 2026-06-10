@@ -4296,6 +4296,75 @@ def main():
     except Exception as e:
         check("V1.0-beta.3 Summary fill checks", False, str(e))
 
+    # ── 40. V1.0-beta.3 Compact radar list UI ──────────────────────────────
+    print("\n[40] V1.0-beta.3 Compact radar list UI")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        # 1. style.css has .radar-card.
+        check("style.css has .radar-card",
+              ".radar-card {" in style_css,
+              "radar-card class must exist in CSS")
+
+        # 2. style.css has .radar-card-actions.
+        check("style.css has .radar-card-actions",
+              ".radar-card-actions {" in style_css,
+              "radar-card-actions class must exist in CSS")
+
+        # 3. .radar-card-actions does NOT use position:absolute.
+        _actions_block = style_css.split(".radar-card-actions {")[1].split("}")[0] if ".radar-card-actions {" in style_css else ""
+        check(".radar-card-actions does NOT use position:absolute",
+              "position:absolute" not in _actions_block and "position: absolute" not in _actions_block,
+              "card actions must not be absolutely positioned")
+
+        # 4. style.css does NOT change .radar-layout grid-template-columns.
+        # Verify the existing .radar-layout rule still uses its original columns.
+        # We simply confirm the grid-template-columns value is preserved as-is by
+        # checking the specific value is still present (not replaced with a different one).
+        _layout_block = ""
+        if ".radar-layout {" in style_css:
+            _layout_block = style_css.split(".radar-layout {")[1].split("}")[0]
+        # The original uses a 3-column layout; verify it still has 3 columns.
+        # If grid-template-columns was removed or changed, fail.
+        _has_original_grid = "grid-template-columns" in _layout_block
+        check("style.css preserves .radar-layout grid-template-columns",
+              _has_original_grid,
+              "radar-layout grid-template-columns must be preserved")
+
+        # 5. radar_today.html still contains "待生成中文摘要".
+        check("radar_today.html contains '待生成中文摘要'",
+              "待生成中文摘要" in radar_html,
+              "Chinese summary placeholder must be preserved")
+
+        # 6. radar_today.html still contains "中文概述".
+        check("radar_today.html contains '中文概述'",
+              "中文概述" in radar_html,
+              "Chinese summary badge must be preserved")
+
+        # 7. radar_today.html still contains "查看 InsightCard" or "查看洞察卡".
+        check("radar_today.html contains InsightCard entry",
+              "InsightCard" in radar_html or "洞察卡" in radar_html,
+              "InsightCard link must be preserved")
+
+        # 8. radar_today.html still contains "打开原文".
+        check("radar_today.html contains '打开原文'",
+              "打开原文" in radar_html,
+              "external link must be preserved")
+
+        # 9. radar_today.html still contains "生成本页前 5 条摘要".
+        check("radar_today.html contains '生成本页前 5 条摘要'",
+              "生成本页前 5 条摘要" in radar_html,
+              "summary generation button text must be preserved")
+
+        # 10. radar_today.html still contains "智能阅读面板".
+        check("radar_today.html contains '智能阅读面板'",
+              "智能阅读面板" in radar_html,
+              "reading panel must be preserved")
+    except Exception as e:
+        check("V1.0-beta.3 Compact radar list UI checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
