@@ -204,6 +204,29 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="V1.0-beta.1",
         description="来源调度、stale running 恢复、单来源手动探测与真实抓取验收记录。",
     ),
+
+    # V1.0-beta.2 自动调度与轻量任务队列
+    "v1-beta-2-automated-scheduling-design": DocEntry(
+        key="v1-beta-2-automated-scheduling-design",
+        title="V1.0-beta.2 自动调度设计",
+        path="docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md",
+        category="V1.0-beta.2",
+        description="自动调度、轻量任务队列、CLI 单轮调度与后续任务边界设计。",
+    ),
+    "v1-beta-2-execution-plan": DocEntry(
+        key="v1-beta-2-execution-plan",
+        title="V1.0-beta.2 执行计划",
+        path="docs/V1_BETA_2_EXECUTION_PLAN.md",
+        category="V1.0-beta.2",
+        description="V1.0-beta.2 Task 1–6 任务拆分、推荐顺序、测试策略和风险说明。",
+    ),
+    "v1-beta-2-decision-record": DocEntry(
+        key="v1-beta-2-decision-record",
+        title="V1.0-beta.2 决策记录",
+        path="docs/V1_BETA_2_DECISION_RECORD.md",
+        category="V1.0-beta.2",
+        description="V1.0-beta.2 七条关键决策：不引入 Celery / Redis、优先 CLI 单轮调度、默认不触发 LLM 等。",
+    ),
 }
 
 

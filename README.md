@@ -250,6 +250,19 @@ python scripts/check_sources_health.py
 
 真实验收数据：stale running 8→0，openai_news run_id=1067，items_found=50，SourceItem 50→53。
 
+## V1.0-beta.2 Automated Scheduling Design
+
+V1.0-beta.2 将从人工触发进入轻量自动调度设计阶段。
+本阶段先设计 CLI 单轮调度、任务边界、失败重试和配置项，不直接引入 Celery / Redis。
+
+核心约束：自动调度默认关闭、默认不触发 LLM、stale recovery 不自动执行、优先复用 FetchRun。
+
+规划文档：
+
+- [docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md](docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md) — 自动调度与轻量任务队列设计
+- [docs/V1_BETA_2_EXECUTION_PLAN.md](docs/V1_BETA_2_EXECUTION_PLAN.md) — Task 1–6 任务拆分与验收
+- [docs/V1_BETA_2_DECISION_RECORD.md](docs/V1_BETA_2_DECISION_RECORD.md) — 7 条关键决策（不引入 Celery / Redis 等）
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |

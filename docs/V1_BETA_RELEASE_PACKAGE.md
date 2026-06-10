@@ -109,3 +109,22 @@ V1.0-beta.1 将围绕来源调度和单来源工作台展开：
 - `docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md`
 - `docs/V1_BETA_1_EXECUTION_PLAN.md`
 - `docs/V1_BETA_1_DECISION_RECORD.md`
+
+---
+
+## V1.0-beta.2 planned focus
+
+V1.0-beta.2 进入轻量自动调度设计阶段，规划重点：
+
+- CLI due-source scheduler（`run_due_sources_once.py`，默认 dry-run）
+- lightweight task queue design（设计形状，暂不落地 TaskRun 表）
+- retry and timeout policy（失败重试与超时退避设计）
+- scheduler config（默认关闭、限制每轮来源数）
+- no default LLM automation（默认不触发 LLM 摘要 / InsightCard）
+- no Celery / Redis yet（不直接引入重型队列）
+
+参考：
+
+- `docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md`
+- `docs/V1_BETA_2_EXECUTION_PLAN.md`
+- `docs/V1_BETA_2_DECISION_RECORD.md`

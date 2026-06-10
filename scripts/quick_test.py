@@ -3631,6 +3631,94 @@ def main():
     except Exception as e:
         check("V1.0-beta.1 acceptance doc checks", False, str(e))
 
+    # ── 31. V1.0-beta.2 Automated Scheduling Docs ────────────────────────────
+    print("\n[31] V1.0-beta.2 Automated Scheduling Docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        design_doc = project_root / "docs" / "V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md"
+        execution_plan = project_root / "docs" / "V1_BETA_2_EXECUTION_PLAN.md"
+        decision_record = project_root / "docs" / "V1_BETA_2_DECISION_RECORD.md"
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+        readme = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("v1 beta 2 scheduling design exists",
+              design_doc.exists(),
+              "V1.0-beta.2 automated scheduling design doc should exist")
+        check("v1 beta 2 execution plan exists",
+              execution_plan.exists(),
+              "V1.0-beta.2 execution plan should exist")
+        check("v1 beta 2 decision record exists",
+              decision_record.exists(),
+              "V1.0-beta.2 decision record should exist")
+
+        design_text = design_doc.read_text(encoding="utf-8") if design_doc.exists() else ""
+        plan_text = execution_plan.read_text(encoding="utf-8") if execution_plan.exists() else ""
+        decision_text = decision_record.read_text(encoding="utf-8") if decision_record.exists() else ""
+
+        check("v1 beta 2 design covers core concepts",
+              "Celery" in design_text
+              and "Redis" in design_text
+              and "CLI" in design_text
+              and "due-source" in design_text
+              and "FetchRun" in design_text
+              and "AUTO_SUMMARY" in design_text,
+              "design should cover queue boundary, CLI scheduling, due-source, FetchRun and LLM config")
+
+        check("v1 beta 2 design avoids heavy queue first",
+              "Celery" in design_text
+              and "Redis" in design_text
+              and "不直接引入" in design_text,
+              "design should explicitly avoid heavy queue in this phase")
+
+        check("v1 beta 2 design prefers CLI single-shot scheduling",
+              "CLI" in design_text
+              and ("单轮调度" in design_text or "run_due_sources_once" in design_text),
+              "design should prefer CLI single-shot scheduling over in-process scheduler")
+
+        check("v1 beta 2 design keeps scheduler disabled by default",
+              "RADAR_SCHEDULER_ENABLED=false" in design_text
+              and "默认关闭" in design_text,
+              "design should keep auto scheduling disabled by default")
+
+        check("v1 beta 2 design keeps LLM disabled by default",
+              "AUTO_SUMMARY" in design_text
+              and "默认不触发 LLM" in design_text,
+              "scheduler design should avoid default LLM automation")
+
+        check("v1 beta 2 design keeps stale recovery manual",
+              "stale" in design_text
+              and ("不自动执行" in design_text or "人工确认" in design_text),
+              "design should keep stale recovery as a manual-confirmed action")
+
+        check("v1 beta 2 execution plan covers Task 1 to Task 6",
+              all(f"Task {i}" in plan_text for i in range(1, 7)),
+              "execution plan should split work into Task 1 through Task 6")
+
+        check("v1 beta 2 decision record avoids Celery / Redis",
+              ("不直接引入 Celery / Redis" in decision_text or "不直接引入" in decision_text)
+              and "Celery" in decision_text
+              and "Redis" in decision_text,
+              "decision record should record not adopting Celery / Redis this phase")
+
+        check("registry includes v1 beta 2 docs",
+              "v1-beta-2-automated-scheduling-design" in registry_py
+              and "v1-beta-2-execution-plan" in registry_py
+              and "v1-beta-2-decision-record" in registry_py,
+              "project docs registry should include three V1.0-beta.2 docs")
+
+        check("registry references v1 beta 2 doc paths",
+              "V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md" in registry_py
+              and "V1_BETA_2_EXECUTION_PLAN.md" in registry_py
+              and "V1_BETA_2_DECISION_RECORD.md" in registry_py,
+              "registry should reference the three V1.0-beta.2 doc paths")
+
+        check("README links V1.0-beta.2 scheduling design",
+              "V1.0-beta.2" in readme
+              and "V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md" in readme,
+              "README should expose a V1.0-beta.2 automated scheduling entry")
+    except Exception as e:
+        check("V1.0-beta.2 scheduling docs checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
