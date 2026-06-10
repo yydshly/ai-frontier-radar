@@ -434,6 +434,41 @@ def main() -> int:
             finally:
                 db.close()
 
+    # ── [20] V1.0-beta.5 summary write policy ─────────────────────────────
+    print("\n[20] V1.0-beta.5 summary write policy")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        policy_path = project_root / "docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md"
+
+        check("V1_BETA_5_SUMMARY_WRITE_POLICY.md exists",
+              policy_path.exists(),
+              "policy doc must exist")
+
+        if policy_path.exists():
+            policy_md = policy_path.read_text(encoding="utf-8")
+
+            check("policy defines L0-L3 field hierarchy",
+                  all(k in policy_md for k in ("L0", "L1", "L2", "L3")),
+                  "policy must define L0/L1/L2/L3 hierarchy")
+
+            check("policy states InsightCard.summary_zh does not auto-overwrite zh_one_liner",
+                  "InsightCard.summary_zh" in policy_md and "不自动覆盖 zh_one_liner" in policy_md,
+                  "policy must state InsightCard.summary_zh does not auto-overwrite")
+
+            check("policy states metadata summary is not AI Chinese summary",
+                  "L0" in policy_md and ("不是 AI 中文摘要" in policy_md or "永远不是 AI 中文摘要" in policy_md),
+                  "policy must state L0 metadata summary is not AI-generated Chinese summary")
+
+            check("policy defines write rules for zh_one_liner",
+                  "zh_one_liner" in policy_md and "写入规则" in policy_md,
+                  "policy must define zh_one_liner write rules")
+
+            check("policy defines write rules for zh_summary",
+                  "zh_summary" in policy_md and "写入规则" in policy_md,
+                  "policy must define zh_summary write rules")
+    except Exception as e:
+        check("V1.0-beta.5 summary write policy checks", False, str(e))
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

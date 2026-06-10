@@ -79,6 +79,41 @@
 
 ---
 
+## V1.0-beta.5：摘要写入规范
+
+> 已完成：V1.0-beta.4 摘要语义统一（展示层），V1.0-beta.5 聚焦写入规范（写入层）
+
+### V1.0-beta.5 目标
+
+定义摘要字段写入规范，解决：
+
+- `zh_one_liner` 和 `zh_summary` 的边界定义
+- 字段覆盖规则（默认不覆盖已有非空值）
+- L0（来源摘要）永远不能标记为 AI 中文摘要
+- `InsightCard.summary_zh` 不反向污染 `SourceItem` 摘要
+- 失败记录规范
+
+### V1.0-beta.5 完成项
+
+- ✅ `docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md` — 写入规范定义
+- ✅ L0 / L1 / L2 / L3 字段权威性等级定义
+- ✅ 生成者 / 写入者 / 消费者矩阵
+- ✅ `zh_one_liner` 写入规则（`CandidateOneLinerService`）
+- ✅ `zh_summary` 写入规则（待定义服务）
+- ✅ `InsightCard.summary_zh` 不自动覆盖 `zh_one_liner` / `zh_summary`
+- ✅ `quick_test.py` [48] V1.0-beta.5 summary write policy
+- ✅ `acceptance_first_usable_loop.py` [20] V1.0-beta.5 summary write policy
+- ✅ `NEXT_EXECUTION_PLAN.md` / `README.md` 包含 V1.0-beta.5
+
+### V1.0-beta.5 暂不改
+
+- ❌ 数据库 schema（Alembic / models.py / db.py）
+- ❌ 抓取逻辑
+- ❌ LLM 调用逻辑
+- ❌ `insight_compiler.py`
+
+---
+
 ## 验收标准
 
 - README 准确反映当前能力

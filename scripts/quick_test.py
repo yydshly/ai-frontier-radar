@@ -5041,6 +5041,84 @@ def main():
     except Exception as e:
         check("V1.0-beta.4 final checkpoint docs checks", False, str(e))
 
+    # ── [48] V1.0-beta.5 summary write policy ────────────────────────────
+    print("\n[48] V1.0-beta.5 summary write policy")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+
+        # Policy doc exists
+        check("docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md exists",
+              (project_root / "docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md").exists(),
+              "policy doc must exist")
+
+        policy_md = (project_root / "docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md").read_text(encoding="utf-8")
+
+        # Key field names are documented
+        check("policy contains zh_one_liner",
+              "zh_one_liner" in policy_md,
+              "policy must cover zh_one_liner")
+        check("policy contains zh_summary",
+              "zh_summary" in policy_md,
+              "policy must cover zh_summary")
+        check("policy contains InsightCard.summary_zh",
+              "InsightCard.summary_zh" in policy_md,
+              "policy must cover InsightCard.summary_zh")
+
+        # L0-L3 hierarchy is defined
+        check("policy contains L0",
+              "L0" in policy_md,
+              "policy must define L0")
+        check("policy contains L1",
+              "L1" in policy_md,
+              "policy must define L1")
+        check("policy contains L2",
+              "L2" in policy_md,
+              "policy must define L2")
+        check("policy contains L3",
+              "L3" in policy_md,
+              "policy must define L3")
+
+        # Key rules are documented
+        check("policy contains 默认不覆盖",
+              "默认不覆盖" in policy_md,
+              "policy must state default-no-overwrite rule")
+        check("policy contains 不自动覆盖 zh_one_liner",
+              "不自动覆盖 zh_one_liner" in policy_md,
+              "policy must state InsightCard.summary_zh does not auto-overwrite zh_one_liner")
+        check("policy contains 暂不改数据库 schema",
+              "暂不改数据库 schema" in policy_md or "暂不改 schema" in policy_md,
+              "policy must state no DB schema change in this phase")
+
+        # README or NEXT_EXECUTION_PLAN has V1.0-beta.5
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+        next_plan_path = project_root / "docs/NEXT_EXECUTION_PLAN.md"
+        has_next = False
+        if next_plan_path.exists():
+            next_plan = next_plan_path.read_text(encoding="utf-8")
+            has_next = "V1.0-beta.5" in next_plan or "beta.5" in next_plan
+        check("V1.0-beta.5 in README or NEXT_EXECUTION_PLAN",
+              "V1.0-beta.5" in readme_md or has_next,
+              "README or NEXT_EXECUTION_PLAN should reference V1.0-beta.5")
+
+        # summary_policy.py (optional) — if it exists, verify it is pure
+        summary_policy_path = project_root / "app/application/candidates/summary_policy.py"
+        if summary_policy_path.exists():
+            sp_content = summary_policy_path.read_text(encoding="utf-8")
+            check("summary_policy.py does not contain Session",
+                  "Session" not in sp_content,
+                  "summary_policy.py must be DB-free")
+            check("summary_policy.py does not contain query",
+                  ".query(" not in sp_content,
+                  "summary_policy.py must not query DB")
+            check("summary_policy.py does not contain llm",
+                  "llm" not in sp_content.lower(),
+                  "summary_policy.py must not call LLM")
+            check("summary_policy.py does not contain commit",
+                  "commit" not in sp_content,
+                  "summary_policy.py must not write to DB")
+    except Exception as e:
+        check("V1.0-beta.5 summary write policy checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
