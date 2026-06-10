@@ -5006,6 +5006,41 @@ def main():
     except Exception as e:
         check("V1.0-beta.4 summary semantics checks", False, str(e))
 
+    # ── [47] V1.0-beta.4 final checkpoint docs ────────────────────────────
+    print("\n[47] V1.0-beta.4 final checkpoint docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("docs/V1_BETA_4_FINAL_CHECKPOINT.md exists",
+              (project_root / "docs/V1_BETA_4_FINAL_CHECKPOINT.md").exists(),
+              "final checkpoint doc must exist")
+        check("README.md links V1_BETA_4_FINAL_CHECKPOINT.md",
+              "V1_BETA_4_FINAL_CHECKPOINT.md" in readme_md,
+              "README should link final checkpoint")
+
+        final_cp = (project_root / "docs/V1_BETA_4_FINAL_CHECKPOINT.md").read_text(encoding="utf-8")
+        check("final checkpoint contains V1.0-beta.4",
+              "V1.0-beta.4" in final_cp,
+              "final checkpoint should state version")
+        check("final checkpoint mentions 摘要语义统一",
+              "摘要语义统一" in final_cp,
+              "final checkpoint should describe the focus")
+        check("final checkpoint mentions detail_summary_label",
+              "detail_summary_label" in final_cp,
+              "final checkpoint should cover the new field")
+        check("final checkpoint mentions English detection is heuristic",
+              "启发式" in final_cp,
+              "final checkpoint should note the heuristic English detection")
+        check("final checkpoint states merge-ready or 可合并",
+              "merge-ready" in final_cp or "可合并" in final_cp,
+              "final checkpoint should state merge-ready")
+        check("final checkpoint mentions V1.0-beta.5",
+              "V1.0-beta.5" in final_cp or "beta.5" in final_cp,
+              "final checkpoint should suggest next version")
+    except Exception as e:
+        check("V1.0-beta.4 final checkpoint docs checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
