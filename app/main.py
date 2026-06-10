@@ -1290,12 +1290,19 @@ def source_workspace_page(request: Request, source_key: str):
             db.query(SourceItem).filter(SourceItem.source_key == source_key).count()
         )
 
-        # Summarized items: SourceItem.raw_metadata_json contains zh_one_liner or summary_zh.
-        summarized_items = 0
-        for item in db.query(SourceItem).filter(SourceItem.source_key == source_key).all():
-            raw = item.raw_metadata_json or ""
-            if '"zh_one_liner"' in raw or '"summary_zh"' in raw or '"auto_summary"' in raw:
-                summarized_items += 1
+        # Summarized items: SourceItem.raw_metadata_json contains a summary marker.
+        # Counted in SQL (no full-table load into Python).
+        from sqlalchemy import or_
+
+        _summary_markers = ('"zh_one_liner"', '"summary_zh"', '"auto_summary"')
+        summarized_items = (
+            db.query(SourceItem)
+            .filter(SourceItem.source_key == source_key)
+            .filter(
+                or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _summary_markers])
+            )
+            .count()
+        )
 
         # InsightCard linkage: insight_card_id is set.
         insightcard_items = (

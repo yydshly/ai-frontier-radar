@@ -264,6 +264,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="RSS 优先、API/单 URL 居中、爬虫后置的策略阶梯、能力矩阵、回退规则与受控边界。",
     ),
+    "source-workspace-enhancement": DocEntry(
+        key="source-workspace-enhancement",
+        title="精品来源工作台增强设计",
+        path="docs/V1_SOURCE_WORKSPACE_ENHANCEMENT_PLAN.md",
+        category="优化路线",
+        description="P-002：单来源工作台展示获取方式、抓取状态、文章列表、中文摘要预览与阅读入口。",
+    ),
 }
 
 

@@ -5398,8 +5398,21 @@ def main():
 
         check("registry includes optimization docs",
               "optimization-roadmap" in registry_py
-              and "source-ingestion-strategy" in registry_py,
+              and "source-ingestion-strategy" in registry_py
+              and "source-workspace-enhancement" in registry_py,
               "project docs registry should register the optimization docs")
+
+        workspace_plan = project_root / "docs" / "V1_SOURCE_WORKSPACE_ENHANCEMENT_PLAN.md"
+        check("source workspace enhancement plan exists",
+              workspace_plan.exists(),
+              "P-002 source workspace enhancement plan should exist")
+
+        # Optimization regression: source workspace must not full-scan SourceItems
+        # in Python just to count summarized items.
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+        check("source workspace counts summarized items in SQL",
+              "for item in db.query(SourceItem).filter(SourceItem.source_key == source_key).all():" not in main_py,
+              "summarized-items count should use a SQL count, not a Python full scan")
     except Exception as e:
         check("optimization roadmap docs checks", False, str(e))
 
