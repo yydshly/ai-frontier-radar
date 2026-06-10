@@ -3494,6 +3494,19 @@ def main():
               and "--run-id" in recovery_script
               and "--threshold-minutes" in recovery_script,
               "manual stale recovery should support targeted filters")
+
+        check("stale recovery script validates explicit threshold bounds",
+              "MIN_STALE_RUNNING_MINUTES" in recovery_script
+              and "MAX_STALE_RUNNING_MINUTES" in recovery_script
+              and "--threshold-minutes must be between" in recovery_script,
+              "explicit --threshold-minutes should be validated before recovery")
+        check("stale recovery script validates limit",
+              "--limit must be >= 1" in recovery_script
+              and "args.limit" in recovery_script,
+              "manual stale recovery should reject zero or negative limit")
+        check("stale recovery script exits with usage error on invalid args",
+              "sys.exit(2)" in recovery_script,
+              "invalid recovery CLI arguments should exit with code 2")
     except Exception as e:
         check("stale recovery script checks", False, str(e))
 

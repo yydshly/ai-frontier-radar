@@ -120,10 +120,30 @@ def main() -> None:
         from app.application.sources.stale_runs import (
             build_stale_fetch_run_report,
             get_stale_running_threshold_minutes,
+            MIN_STALE_RUNNING_MINUTES,
+            MAX_STALE_RUNNING_MINUTES,
         )
     except Exception as e:
         print(f"[ERROR] Failed to import required modules: {e}")
         sys.exit(1)
+
+    # ── Parameter validation (must run before DB session creation) ──────────
+    # Explicit --threshold-minutes / --limit must be inside the safe range.
+    # This recovery tool writes to the DB; explicit user input should fail fast
+    # rather than silently snap to a default.
+    if args.threshold_minutes is not None:
+        if (
+            args.threshold_minutes < MIN_STALE_RUNNING_MINUTES
+            or args.threshold_minutes > MAX_STALE_RUNNING_MINUTES
+        ):
+            print(
+                f"[ERROR] --threshold-minutes must be between "
+                f"{MIN_STALE_RUNNING_MINUTES} and {MAX_STALE_RUNNING_MINUTES}."
+            )
+            sys.exit(2)
+    if args.limit is not None and args.limit < 1:
+        print("[ERROR] --limit must be >= 1.")
+        sys.exit(2)
 
     now = datetime.utcnow()
     if args.threshold_minutes is not None:
