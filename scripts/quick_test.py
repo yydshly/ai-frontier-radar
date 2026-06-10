@@ -3600,6 +3600,22 @@ def main():
               "405" in acceptance_md and "303" in acceptance_md,
               "acceptance doc should record HTTP method constraints")
 
+        check("acceptance doc records POST redirect as 303",
+              "POST /sources/openai_news/fetch" in acceptance_md
+              and "303" in acceptance_md
+              and "/fetch-runs/1067" in acceptance_md,
+              "acceptance doc should record POST manual fetch redirect as 303")
+
+        check("acceptance doc should not record POST redirect as 302",
+              "302 → /fetch-runs/1067" not in acceptance_md
+              and "302 -> /fetch-runs/1067" not in acceptance_md,
+              "manual fetch acceptance should not record 302 for run_id=1067")
+
+        check("acceptance doc records auto summary disabled",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in acceptance_md
+              or "禁用了自动摘要" in acceptance_md,
+              "acceptance doc should explain LLM/summary was not triggered because auto summary was disabled")
+
         check("acceptance doc explains due=0 is cooldown",
               "冷却期" in acceptance_md,
               "acceptance doc should clarify due=0 means cooldown, not failure")

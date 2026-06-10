@@ -75,7 +75,7 @@ V1.0-beta.1 **不是**做一个全自动调度系统。
 
 ```
 POST /sources/openai_news/fetch
-→ 302 → /fetch-runs/1067
+→ 303 → /fetch-runs/1067
 
 run_id=1067
 status=success
@@ -97,7 +97,7 @@ POST 303
 ### 其他未触发项
 
 ```
-LLM（生成摘要）：未触发（本次为已有摘要的 SourceItem 抓取）
+LLM（生成摘要）：未触发（本次手动探测前设置 AUTO_SUMMARY_MAX_PER_FETCH_RUN=0）
 InsightCard：未生成
 /radar/today/update：未执行
 ```
