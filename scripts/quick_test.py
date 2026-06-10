@@ -2245,6 +2245,21 @@ def main():
         check("README links acceptance_first_usable_loop.py",
               "acceptance_first_usable_loop.py" in readme_md,
               "README should reference acceptance_first_usable_loop.py")
+
+        # Task 8.2: acceptance script must inject project root into sys.path
+        acceptance_src = (project_root / "scripts/acceptance_first_usable_loop.py").read_text(encoding="utf-8")
+        check("acceptance_first_usable_loop.py injects sys.path",
+              "sys.path.insert" in acceptance_src,
+              "acceptance script must insert ROOT into sys.path for direct execution")
+        check("acceptance_first_usable_loop.py uses Path(__file__).resolve().parents[1]",
+              "Path(__file__).resolve().parents[1]" in acceptance_src,
+              "acceptance script must compute ROOT from __file__")
+        check("acceptance_first_usable_loop.py creates TestClient",
+              "TestClient(app)" in acceptance_src,
+              "acceptance script must create TestClient")
+        check("acceptance_first_usable_loop.py tests /radar/today/panel",
+              "/radar/today/panel" in acceptance_src,
+              "acceptance script must test panel endpoint")
     except Exception as e:
         check("V1 beta docs and scripts checks", False, str(e))
 

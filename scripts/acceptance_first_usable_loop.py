@@ -7,15 +7,21 @@ acceptance_first_usable_loop.py — V1.0-beta First Usable Loop 轻量验收脚�
 import sys
 from pathlib import Path
 
+# Ensure project root is on sys.path so 'app' and 'scripts' imports work
+# whether this file is run directly (python scripts/acceptance_...) or
+# via -m (python -m scripts.acceptance_first_usable_loop).
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 # TestClient-based checks require the app to be importable.
 try:
     from fastapi.testclient import TestClient
     from app.main import app
     _client = TestClient(app)
-except Exception:
+except Exception as exc:
+    print(f"[WARN] TestClient could not be created: {exc}")
     _client = None
-
-ROOT = Path(__file__).resolve().parents[1]
 PASS = 0
 FAIL = 0
 

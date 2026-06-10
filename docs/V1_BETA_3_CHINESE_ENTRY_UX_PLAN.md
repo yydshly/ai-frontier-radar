@@ -238,6 +238,16 @@
 
 ---
 
+## 12.2. Task 8.2：验收脚本直接执行稳定性
+
+- 原因：acceptance_first_usable_loop.py 直接执行时 sys.path 未包含项目根路径
+- 修复：在 imports 前注入 `sys.path.insert(0, str(ROOT))`
+- 支持 `python scripts/acceptance_first_usable_loop.py` 直接执行
+- 支持 `python -m scripts.acceptance_first_usable_loop` 模块执行
+- quick_test.py 增加静态检查确保脚本包含 path injection 和 TestClient 创建
+
+---
+
 ## 13. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划
