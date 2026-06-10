@@ -75,6 +75,18 @@
 - apply 时设置单来源数量上限，bootstrap 默认最近 20 条，最大 50 条。
 - apply 时禁用 fetch 后自动摘要，避免本入口调用 LLM。
 
+## background apply vs sync apply（V1.0-beta.6.3）
+
+apply 执行分两种模式，由 `background_tasks` 参数决定：
+
+- **Web UI apply**（`POST /radar/today/bootstrap action=apply`）：传入 `BackgroundTasks`，创建 `FetchRun` 后立即放入 FastAPI 后台任务队列，请求立即返回（302 redirect）。`SourceDiscoveryRunResult.execution_mode = "background"`。UI 提示"后台已启动，稍后刷新今日雷达或查看 FetchRun 获取新增内容"。新增内容数需稍后从 `FetchRun` 或刷新今日雷达获取。
+
+- **CLI apply**（`python scripts/run_source_discovery_once.py --mode bootstrap --apply`）：不传 `background_tasks`（即 `None`），同步执行直到所有 `FetchRun` 完成后才返回。`SourceDiscoveryRunResult.execution_mode = "sync"`。便于本地观察最终 `FetchRun` / `SourceItem` 结果。
+
+- **dry-run**：两种入口均不写库、不 enqueue，`execution_mode = "dry_run"`。
+
+关键保证：`AUTO_SUMMARY_MAX_PER_FETCH_RUN=0` 在所有 apply 路径中生效，防止后台任务触发 LLM 自动摘要。
+
 ## bootstrap 和 daily_increment 差异
 
 - `bootstrap`：用于第一次建立本地候选池基线，读取 enabled YAML 来源，忽略 due-source 冷却时间，只跳过 unsupported / missing / already_running。

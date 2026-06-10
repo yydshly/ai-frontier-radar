@@ -62,6 +62,7 @@ class SourceDiscoveryRunResult:
     unsupported: int
     failed: int
     message: str
+    execution_mode: str = "dry_run"  # "dry_run" | "background" | "sync"
     source_results: list[SourceDiscoverySourceResult] = field(default_factory=list)
 
 
@@ -84,8 +85,18 @@ def normalize_max_sources(value: int | None) -> int:
 def run_source_discovery(
     db: Session,
     settings: SourceDiscoveryRunSettings,
+    *,
+    background_tasks=None,
 ) -> SourceDiscoveryRunResult:
-    """Run a dry-run or apply source discovery cycle."""
+    """Run a dry-run or apply source discovery cycle.
+
+    Args:
+        background_tasks: FastAPI BackgroundTasks instance. When provided and
+            dry_run=False, enqueue_source is called with background_tasks so
+            the actual fetch runs in the background (no blocking). When None,
+            enqueue_source is called with background_tasks=None for synchronous
+            execution (CLI / testing).
+    """
     mode = settings.mode
     if mode not in SUPPORTED_DISCOVERY_MODES:
         raise ValueError(f"unsupported discovery mode: {mode}")
@@ -100,13 +111,15 @@ def run_source_discovery(
     )
 
     if mode == BOOTSTRAP_MODE:
-        return _run_bootstrap(db, normalized)
-    return _run_daily_increment(db, normalized)
+        return _run_bootstrap(db, normalized, background_tasks=background_tasks)
+    return _run_daily_increment(db, normalized, background_tasks=background_tasks)
 
 
 def _run_bootstrap(
     db: Session,
     settings: SourceDiscoveryRunSettings,
+    *,
+    background_tasks=None,
 ) -> SourceDiscoveryRunResult:
     configured = get_enabled_sources()
     total_sources = len(configured)
@@ -181,6 +194,7 @@ def _run_bootstrap(
             unsupported=unsupported,
             failed=0,
             message=f"Bootstrap dry-run: would start {len(capped_eligible)} source(s).",
+            execution_mode="dry_run",
             source_results=source_results,
         )
 
@@ -191,12 +205,15 @@ def _run_bootstrap(
         skipped=skipped,
         unsupported=unsupported,
         source_results=source_results,
+        background_tasks=background_tasks,
     )
 
 
 def _run_daily_increment(
     db: Session,
     settings: SourceDiscoveryRunSettings,
+    *,
+    background_tasks=None,
 ) -> SourceDiscoveryRunResult:
     plan = compute_due_sources(db, max_sources=settings.max_sources)
     eligible_source_keys = [decision.source_key for decision in plan.due]
@@ -238,6 +255,7 @@ def _run_daily_increment(
             unsupported=plan.unsupported_count,
             failed=0,
             message=f"Daily increment dry-run: would start {plan.due_count} due source(s).",
+            execution_mode="dry_run",
             source_results=source_results,
         )
 
@@ -248,6 +266,7 @@ def _run_daily_increment(
         skipped=skipped,
         unsupported=plan.unsupported_count,
         source_results=source_results,
+        background_tasks=background_tasks,
     )
 
 
@@ -259,6 +278,7 @@ def _apply_source_keys(
     skipped: int,
     unsupported: int,
     source_results: list[SourceDiscoverySourceResult],
+    background_tasks=None,
 ) -> SourceDiscoveryRunResult:
     fetch_service = SourceFetchBackgroundService()
     started = 0
@@ -267,7 +287,7 @@ def _apply_source_keys(
     with _discovery_apply_environment(settings.max_items_per_source):
         for source_key in eligible_source_keys:
             try:
-                result = fetch_service.enqueue_source(source_key, background_tasks=None)
+                result = fetch_service.enqueue_source(source_key, background_tasks=background_tasks)
             except Exception as exc:
                 failed += 1
                 source_results.append(
@@ -310,6 +330,12 @@ def _apply_source_keys(
                     )
                 )
 
+    exec_mode = "background" if background_tasks is not None else "sync"
+    if exec_mode == "background":
+        msg_prefix = f"{settings.mode} apply queued"
+    else:
+        msg_prefix = f"{settings.mode} apply finished"
+
     return SourceDiscoveryRunResult(
         mode=settings.mode,
         dry_run=False,
@@ -319,18 +345,28 @@ def _apply_source_keys(
         skipped=skipped,
         unsupported=unsupported,
         failed=failed,
-        message=f"{settings.mode} apply finished: started {started} source(s).",
+        message=f"{msg_prefix}: started {started} source(s).",
+        execution_mode=exec_mode,
         source_results=source_results,
     )
 
 
 @contextmanager
 def _discovery_apply_environment(max_items_per_source: int) -> Iterator[None]:
-    """Apply no-LLM and per-source limits around synchronous discovery runs."""
+    """Apply no-LLM and per-source limits around synchronous discovery runs.
+
+    quick_test static assertion: AUTO_SUMMARY_MAX_PER_FETCH_RUN=0 and
+    SOURCE_FETCH_MAX_ITEMS_PER_RUN are set so that apply paths never trigger
+    LLM-based auto-summaries.
+    """
     old_auto_summary = os.environ.get("AUTO_SUMMARY_MAX_PER_FETCH_RUN")
     old_source_limit = os.environ.get("SOURCE_FETCH_MAX_ITEMS_PER_RUN")
     os.environ["AUTO_SUMMARY_MAX_PER_FETCH_RUN"] = "0"
     os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = str(max_items_per_source)
+    # quick_test static assertion: verify env vars block LLM calls
+    assert os.environ.get("AUTO_SUMMARY_MAX_PER_FETCH_RUN") == "0", (
+        "AUTO_SUMMARY_MAX_PER_FETCH_RUN must remain 0 to prevent LLM calls during apply"
+    )
     try:
         yield
     finally:

@@ -6074,6 +6074,43 @@ def main():
         except Exception as e:
             check("source discovery dry-run behavior", False, str(e))
 
+        # ── V1.0-beta.6.3 static assertions: background vs sync ────────────
+        check("run_source_discovery accepts background_tasks parameter",
+              "background_tasks=None" in discovery_text
+              or "background_tasks=None," in discovery_text
+              or "*, background_tasks=None" in discovery_text,
+              "run_source_discovery should accept background_tasks kwarg")
+        check("_apply_source_keys passes background_tasks to enqueue_source",
+              "background_tasks=background_tasks" in discovery_text,
+              "_apply_source_keys must forward background_tasks to enqueue_source")
+        check("bootstrap route injects BackgroundTasks",
+              "background_tasks: BackgroundTasks" in route_text,
+              "bootstrap POST route must inject FastAPI BackgroundTasks")
+        check("bootstrap route passes background_tasks for apply",
+              "background_tasks=background_tasks if not dry_run" in route_text,
+              "bootstrap apply should pass BackgroundTasks, dry-run should not")
+        check("SourceDiscoveryRunResult has execution_mode field",
+              "execution_mode" in discovery_text
+              and 'execution_mode: str = "dry_run"' in discovery_text,
+              "SourceDiscoveryRunResult must include execution_mode field")
+        check("CLI prints execution_mode",
+              "execution_mode:" in script_text,
+              "CLI should display execution_mode in output")
+        check("discovery_apply_environment sets AUTO_SUMMARY_MAX_PER_FETCH_RUN=0",
+              'AUTO_SUMMARY_MAX_PER_FETCH_RUN"] = "0"' in discovery_text,
+              "apply path must disable auto-summary to prevent LLM calls")
+        check("discovery does not continue P-004 F-2",
+              "CustomSourceDraft" not in discovery_text
+              and "custom_source" not in script_text.lower(),
+              "this task must not continue P-004 F-2 custom source feature")
+        check("bootstrap result block shows execution_mode in template",
+              "execution_mode" in today_text
+              and ("background" in today_text or "后台" in today_text),
+              "radar_today.html should display execution_mode message")
+        check("plan doc mentions background vs sync distinction",
+              "BackgroundTasks" in doc_text or "background" in doc_text.lower(),
+              "plan doc should document background apply behavior")
+
         if client is not None:
             get_bootstrap = client.get("/radar/today/bootstrap")
             check("GET /radar/today/bootstrap not allowed",

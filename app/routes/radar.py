@@ -109,10 +109,11 @@ def _build_bootstrap_result(
     unsupported: int | None,
     failed: int | None,
     message: str | None,
+    execution_mode: str | None = None,
 ) -> dict | None:
     if not any(
         v is not None
-        for v in (dry_run, total, eligible, started, skipped, unsupported, failed, message)
+        for v in (dry_run, total, eligible, started, skipped, unsupported, failed, message, execution_mode)
     ):
         return None
     return {
@@ -124,6 +125,7 @@ def _build_bootstrap_result(
         "unsupported": unsupported or 0,
         "failed": failed or 0,
         "message": message or "",
+        "execution_mode": execution_mode or "dry_run",
     }
 
 
@@ -263,6 +265,7 @@ def radar_today_page(
     bootstrap_unsupported: int | None = Query(None, ge=0),
     bootstrap_failed: int | None = Query(None, ge=0),
     bootstrap_message: str | None = Query(None),
+    bootstrap_execution_mode: str | None = Query(None),
 ):
     """Render today's AI frontier radar reading view."""
     # Build base context using shared helper
@@ -338,6 +341,7 @@ def radar_today_page(
         unsupported=bootstrap_unsupported,
         failed=bootstrap_failed,
         message=bootstrap_message,
+        execution_mode=bootstrap_execution_mode,
     )
 
     return _radar_templates.TemplateResponse(
@@ -623,6 +627,7 @@ def generate_today_summaries(
 
 @router.post("/today/bootstrap")
 def bootstrap_today_sources(
+    background_tasks: BackgroundTasks,
     section: str = Form(ALL_KEY),
     item_id: int | None = Form(None),
     hours: int = Form(DEFAULT_HOURS),
@@ -638,6 +643,9 @@ def bootstrap_today_sources(
     GET is intentionally not defined. Dry-run is the default; apply requires a
     form value of action=apply. The underlying discovery service disables
     fetch-run auto summaries during apply, so this route does not call LLMs.
+
+    Apply mode runs in the background via FastAPI BackgroundTasks to avoid
+    blocking the HTTP request. CLI apply uses synchronous execution instead.
     """
     dry_run = action != "apply"
     db = next(get_db())
@@ -650,6 +658,7 @@ def bootstrap_today_sources(
                 max_sources=max_sources,
                 dry_run=dry_run,
             ),
+            background_tasks=background_tasks if not dry_run else None,
         )
     finally:
         db.close()
@@ -668,6 +677,7 @@ def bootstrap_today_sources(
         "bootstrap_unsupported": result.unsupported,
         "bootstrap_failed": result.failed,
         "bootstrap_message": result.message,
+        "bootstrap_execution_mode": result.execution_mode,
     }
     if item_id is not None:
         params["item_id"] = item_id

@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     print("source_discovery_result:")
     print(f"  mode: {result.mode}")
     print(f"  dry_run: {str(result.dry_run).lower()}")
+    print(f"  execution_mode: {result.execution_mode}")
     print(f"  total_sources: {result.total_sources}")
     print(f"  eligible_sources: {result.eligible_sources}")
     print(f"  started: {result.started}")

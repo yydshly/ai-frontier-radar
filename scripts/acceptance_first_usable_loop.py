@@ -1073,6 +1073,28 @@ def main() -> int:
               and "generate_json" not in discovery_text,
               "discovery service must not call LLM")
 
+        # V1.0-beta.6.3: background vs sync apply assertions (static only)
+        radar_route_text = read("app/routes/radar.py")
+        discovery_text = read("app/application/sources/discovery_runs.py")
+        check("Source discovery: bootstrap route has BackgroundTasks parameter",
+              "background_tasks: BackgroundTasks" in radar_route_text,
+              "bootstrap route must inject BackgroundTasks for async apply")
+        check("Source discovery: bootstrap apply passes background_tasks",
+              "background_tasks=background_tasks if not dry_run" in radar_route_text,
+              "apply path must pass BackgroundTasks; dry-run must not")
+        check("Source discovery: run_source_discovery accepts background_tasks",
+              "background_tasks=None" in discovery_text,
+              "run_source_discovery must accept background_tasks kwarg")
+        check("Source discovery: _apply_source_keys forwards background_tasks",
+              "background_tasks=background_tasks" in discovery_text,
+              "_apply_source_keys must forward background_tasks to enqueue_source")
+        check("Source discovery: SourceDiscoveryRunResult has execution_mode",
+              "execution_mode" in discovery_text,
+              "SourceDiscoveryRunResult must carry execution_mode")
+        check("Source discovery: plan doc mentions background apply",
+              "BackgroundTasks" in read("docs/V1_BETA_6_SOURCE_DISCOVERY_BOOTSTRAP_AND_DAILY_INCREMENT_PLAN.md"),
+              "plan doc should document BackgroundTasks / background apply behavior")
+
         after_columns = [col.name for col in SourceItem.__table__.columns]
         check("Source discovery: does not change DB schema",
               before_columns == after_columns,

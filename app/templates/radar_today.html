@@ -266,7 +266,11 @@
                 </div>{# <!-- /.radar-main-toolbar --> #}
                 {% if bootstrap_result %}
                 <div class="radar-update-result">
-                    <div class="radar-update-result-title">初始化来源内容{% if bootstrap_result.dry_run %} · dry-run{% endif %}</div>
+                    <div class="radar-update-result-title">初始化来源内容
+                        {% if bootstrap_result.dry_run %} · dry-run{% endif %}
+                        {% if bootstrap_result.execution_mode == "background" %} · 后台{% endif %}
+                        {% if bootstrap_result.execution_mode == "sync" %} · 同步{% endif %}
+                    </div>
                     <div class="radar-update-result-grid">
                         <span>配置来源：{{ bootstrap_result.total }}</span>
                         <span>可初始化：{{ bootstrap_result.eligible }}</span>
@@ -280,6 +284,10 @@
                     <div class="radar-update-reasons">
                         {% if bootstrap_result.dry_run %}
                         dry-run 未写入数据库；确认后可用脚本 apply 初始化最近 20 条。
+                        {% elif bootstrap_result.execution_mode == "background" %}
+                        后台已启动，稍后刷新今日雷达或查看 FetchRun 获取新增内容。
+                        {% elif bootstrap_result.execution_mode == "sync" %}
+                        同步执行完成，已启动 {{ bootstrap_result.started }} 个来源抓取。
                         {% endif %}
                         {{ bootstrap_result.message }}
                     </div>
