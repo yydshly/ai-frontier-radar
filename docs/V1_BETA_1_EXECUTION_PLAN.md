@@ -169,6 +169,36 @@ class DueSourcePlan:
 
 ---
 
+### Task 3C：stale running FetchRun 人工恢复脚本 ✅ 已实现
+
+**背景**：
+Task 3B 诊断出 8 条长期 stale running FetchRun。它们会让 due-source 持续判为
+`already_running`，使对应来源一直被 `/radar/today/update` 跳过。本任务提供人工
+确认后的安全恢复工具——不是自动修复系统。
+
+**实现产物**：
+- `scripts/mark_stale_fetch_runs_failed.py`：
+  - **默认 dry-run**，只打印计划，不写库；只有 `--apply` 才写库
+  - 复用 `build_stale_fetch_run_report()` 筛选 stale running
+  - 支持 `--threshold-minutes` / `--source-key` / `--run-id` / `--limit`（默认 20）
+  - apply 前对每条 run 重新查询并重新确认仍为 `running` 且仍 stale，否则 skip
+  - 写入 `status="failed"`、`finished_at=now`、`updated_at=now`，
+    `error_message` 含 `[stale-timeout]` 标记
+  - 复用现有 `failed` 状态（不引入 `failed_timeout`），保证页面/统计/样式/过滤仍识别
+  - 不触发抓取、不重新 enqueue、不调用 LLM、不改 SourceItem / InsightCard
+
+**安全要求**：
+- dry-run 不写任何字段（`db.rollback()`）
+- 不接到网页按钮，不做自动恢复
+- 不一刀切，必须经过 stale 判断
+
+**验收**：
+- `python scripts/mark_stale_fetch_runs_failed.py` 默认 dry-run，不改 DB
+- `--apply` 后 stale running → failed，due-source 不再因 `already_running` 跳过
+- quick_test 第 28 节防回归断言通过
+
+---
+
 ### Task 4：单来源手动探测
 
 **范围**：

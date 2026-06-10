@@ -3454,6 +3454,49 @@ def main():
     except Exception as e:
         check("stale running diagnostic checks", False, str(e))
 
+    # ── 28. Stale running FetchRun manual recovery script ────────────────────
+    print("\n[28] Stale running FetchRun manual recovery script")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        recovery_path = project_root / "scripts" / "mark_stale_fetch_runs_failed.py"
+
+        check("stale recovery script exists",
+              recovery_path.exists(),
+              "manual stale recovery script should exist")
+
+        recovery_script = recovery_path.read_text(encoding="utf-8") if recovery_path.exists() else ""
+
+        check("stale recovery script defaults to dry-run",
+              "--apply" in recovery_script
+              and "DRY-RUN" in recovery_script
+              and "No database changes were made" in recovery_script,
+              "script should be dry-run by default and require --apply to write")
+
+        check("stale recovery script writes failed status only under apply path",
+              'status = "failed"' in recovery_script
+              and "[stale-timeout]" in recovery_script,
+              "stale running recovery should mark runs as failed with explicit stale-timeout marker")
+
+        check("stale recovery script rechecks running status before update",
+              'run.status != "running"' in recovery_script
+              or 'run.status == "running"' in recovery_script,
+              "apply path should recheck run is still running before update")
+
+        check("stale recovery script does not trigger fetch or LLM",
+              "SourceFetchBackgroundService" not in recovery_script
+              and "enqueue_source" not in recovery_script
+              and "CandidateOneLinerService" not in recovery_script
+              and "InsightCardGenerator" not in recovery_script,
+              "stale recovery must not trigger fetches or LLM work")
+
+        check("stale recovery script supports filters",
+              "--source-key" in recovery_script
+              and "--run-id" in recovery_script
+              and "--threshold-minutes" in recovery_script,
+              "manual stale recovery should support targeted filters")
+    except Exception as e:
+        check("stale recovery script checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
