@@ -27,6 +27,10 @@ from app.application.candidates.display import (
     CandidateDisplayCard,
     build_candidate_display_card,
 )
+from app.application.candidates.summary_policy import (
+    classify_detail_summary_kind,
+    get_detail_summary_label,
+)
 
 
 # ── Panel state ─────────────────────────────────────────────────────────────
@@ -498,43 +502,10 @@ def _build_panel_state(
         insight_note = None
 
     # ── Compute detail_summary_kind and detail_summary_label ─────────────────
-    # Mirrors the priority chain in build_candidate_display_card.
-    # We only check field existence here; actual content is not re-extracted.
-    detail_summary_kind: str
-    if has_zh_summary:
-        detail_summary_kind = "zh_summary"
-    elif has_zh_one_liner:
-        detail_summary_kind = "zh_one_liner"
-    else:
-        # Determine if the fallback metadata content is likely English-only.
-        # Check the first available fallback field for CJK characters.
-        is_english_only = True
-        fallback_fields = (
-            "detail_description", "summary", "description", "excerpt",
-            "content_snippet", "og_description", "meta_description",
-            "rss_summary", "rss_description",
-        )
-        for fk in fallback_fields:
-            raw_val = raw.get(fk)
-            if isinstance(raw_val, str) and raw_val.strip():
-                # If any CJK character is found, content is not English-only.
-                for ch in raw_val:
-                    if "一" <= ch <= "鿿":
-                        is_english_only = False
-                        break
-                if not is_english_only:
-                    break
-        detail_summary_kind = "english_metadata_summary" if is_english_only else "metadata_summary"
-
-    # Map kind → human-readable label for the detail_summary block heading.
-    _KIND_TO_LABEL = {
-        "zh_summary": "中文摘要",
-        "zh_one_liner": "中文概述",
-        "english_metadata_summary": "英文来源摘要",
-        "metadata_summary": "来源摘要",
-        "missing": "内容摘要",
-    }
-    detail_summary_label = _KIND_TO_LABEL.get(detail_summary_kind, "内容摘要")
+    # Centralized via summary_policy.classify_detail_summary_kind() and
+    # summary_policy.get_detail_summary_label().
+    detail_summary_kind = classify_detail_summary_kind(raw)
+    detail_summary_label = get_detail_summary_label(detail_summary_kind)
 
     return RadarPanelState(
         summary_state=summary_state,

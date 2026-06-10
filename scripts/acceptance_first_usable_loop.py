@@ -466,6 +466,36 @@ def main() -> int:
             check("policy defines write rules for zh_summary",
                   "zh_summary" in policy_md and "写入规则" in policy_md,
                   "policy must define zh_summary write rules")
+
+        # summary_policy.py exists and is a pure policy module
+        sp_path = project_root / "app/application/candidates/summary_policy.py"
+        check("summary_policy.py exists",
+              sp_path.exists(),
+              "summary_policy.py must exist")
+
+        if sp_path.exists():
+            sp_content = sp_path.read_text(encoding="utf-8")
+            check("summary_policy.py is a pure policy module (no Session)",
+                  "Session" not in sp_content,
+                  "summary_policy.py must not use Session")
+
+        # display.py reuses build_detail_summary from summary_policy
+        display_py = (project_root / "app/application/candidates/display.py").read_text(encoding="utf-8")
+        check("display.py reuses build_detail_summary from summary_policy",
+              "from app.application.candidates.summary_policy import" in display_py
+              and "build_detail_summary" in display_py,
+              "display.py must import build_detail_summary from summary_policy")
+
+        # today.py reuses classify_detail_summary_kind from summary_policy
+        today_py = (project_root / "app/application/radar/today.py").read_text(encoding="utf-8")
+        check("today.py reuses classify_detail_summary_kind from summary_policy",
+              "from app.application.candidates.summary_policy import" in today_py
+              and "classify_detail_summary_kind" in today_py,
+              "today.py must import classify_detail_summary_kind from summary_policy")
+        check("today.py reuses get_detail_summary_label from summary_policy",
+              "get_detail_summary_label" in today_py,
+              "today.py must import get_detail_summary_label from summary_policy")
+
     except Exception as e:
         check("V1.0-beta.5 summary write policy checks", False, str(e))
 

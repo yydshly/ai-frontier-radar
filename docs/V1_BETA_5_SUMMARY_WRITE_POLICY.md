@@ -286,15 +286,10 @@ zh_summary (L2) > zh_one_liner (L1) > L0 字段链
 ```
 
 ```python
-# display.py — build_candidate_display_card()
-detail_summary = (
-    raw_meta.get("zh_summary")
-    or raw_meta.get("zh_one_liner")
-    or raw_meta.get("detail_description")
-    or raw_meta.get("summary")
-    or raw_meta.get("description")
-    ...
-)
+# display.py — build_candidate_display_card() delegates to:
+from app.application.candidates.summary_policy import build_detail_summary
+
+detail_summary = build_detail_summary(raw_meta, max_length=260)
 ```
 
 ### 8.2 中间卡片 primary_text 读取
@@ -307,14 +302,14 @@ zh_one_liner (L1) 存在 → primary_text = zh_one_liner
 ### 8.3 标签判断（detail_summary_kind）
 
 ```python
-if has_zh_summary:
-    kind = "zh_summary"       # 标签："中文摘要"
-elif has_zh_one_liner:
-    kind = "zh_one_liner"     # 标签："中文概述"
-elif has_cjk(L0_fallback):
-    kind = "metadata_summary" # 标签："来源摘要"
-else:
-    kind = "english_metadata_summary"  # 标签："英文来源摘要"
+# today.py — _build_panel_state() delegates to:
+from app.application.candidates.summary_policy import (
+    classify_detail_summary_kind,
+    get_detail_summary_label,
+)
+
+kind = classify_detail_summary_kind(raw_meta)
+label = get_detail_summary_label(kind)
 ```
 
 ---
@@ -380,12 +375,14 @@ else:
 
 | 文件 | 修改类型 |
 |------|---------|
-| `docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md` | **新增** |
+| `docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md` | **新增**（Task 1 + Task 2 文档） |
 | `docs/NEXT_EXECUTION_PLAN.md` | 更新：增加 V1.0-beta.5 条目 |
 | `README.md` | 更新：增加 V1.0-beta.5 入口 |
 | `scripts/quick_test.py` | 更新：增加 [48] V1.0-beta.5 section |
 | `scripts/acceptance_first_usable_loop.py` | 更新：增加 [20] V1.0-beta.5 section |
-| `app/application/candidates/summary_policy.py` | 可选新增：纯常量模块 |
+| `app/application/candidates/summary_policy.py` | **新增**：纯函数策略模块 |
+| `app/application/candidates/display.py` | 重构：detail_summary 构建委托给 summary_policy |
+| `app/application/radar/today.py` | 重构：detail_summary_kind 判定委托给 summary_policy |
 
 ---
 
@@ -399,3 +396,53 @@ app/services/insight_compiler.py  — 不改
 抓取逻辑                   — 不改
 LLM 调用逻辑               — 不改
 ```
+
+---
+
+## 十四、Task 2：summary_policy.py 纯函数模块
+
+> V1.0-beta.5 Task 2 将 Task 1 定义的展示层规则落地为集中化纯函数模块。
+
+### 14.1 模块内容
+
+`app/application/candidates/summary_policy.py` 提供：
+
+| 导出 | 说明 |
+|------|------|
+| `ZH_ONE_LINER_KEY` | 常量：`"zh_one_liner"` |
+| `ZH_SUMMARY_KEY` | 常量：`"zh_summary"` |
+| `SOURCE_SUMMARY_KEYS` | L0 fallback key 元组 |
+| `SUMMARY_KIND_*` | 5 种 detail_summary_kind 常量 |
+| `SUMMARY_LABELS` | kind → 标签映射字典 |
+| `normalize_summary_text(value, *, max_length)` | 规范化摘要文本 |
+| `has_cjk(text)` | 检测是否含 CJK 字符 |
+| `get_first_source_summary(raw_meta)` | 返回第一个非空 L0 摘要 |
+| `classify_detail_summary_kind(raw_meta)` | 返回 detail_summary_kind |
+| `get_detail_summary_label(kind)` | 返回 kind 对应的人类可读标签 |
+| `build_detail_summary(raw_meta, *, max_length)` | 按优先级构建 detail_summary |
+
+### 14.2 纯函数保证
+
+- ❌ 无 `Session` / `query`
+- ❌ 无 LLM 调用
+- ❌ 无文件写入
+- ❌ 无 DB commit
+- ✅ 纯函数 + 常量
+
+### 14.3 消费方
+
+| 文件 | 消费函数 |
+|------|---------|
+| `display.py` | `build_detail_summary()` — 替代内联 fallback 逻辑 |
+| `today.py` | `classify_detail_summary_kind()` + `get_detail_summary_label()` — 替代内联 CJK 检测和标签映射 |
+
+### 14.4 验收
+
+- quick_test [48] 验证 `summary_policy.py` 存在且为纯函数
+- acceptance [20] 验证 `display.py` 和 `today.py` 复用 `summary_policy`
+- 直接 import 纯函数测试（quick_test 内联）：
+  - `{"zh_summary": "中文详细摘要"}` → `"zh_summary"` / `"中文摘要"`
+  - `{"zh_one_liner": "中文一句话"}` → `"zh_one_liner"` / `"中文概述"`
+  - `{"description": "这是中文来源摘要"}` → `"metadata_summary"` / `"来源摘要"`
+  - `{"description": "This is English metadata."}` → `"english_metadata_summary"` / `"英文来源摘要"`
+  - `{}` → `"missing"` / `"内容摘要"`

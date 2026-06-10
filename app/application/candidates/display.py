@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Union
 
 from app.models import SourceItem
+from app.application.candidates.summary_policy import build_detail_summary
 from app.application.fetch_runs.delta import extract_lightweight_summary
 
 
@@ -116,35 +117,7 @@ def build_candidate_display_card(item: SourceItem) -> "CandidateDisplayCard":
         else:
             secondary_text = None
 
-    detail_summary: str | None = raw_meta.get("zh_summary")
-    if not detail_summary:
-        # Fallback: zh_one_liner (for items generated before zh_summary existed)
-        detail_summary = raw_meta.get("zh_one_liner")
-    if not detail_summary:
-        # Final fallback: the existing summary chain
-        detail_summary = raw_meta.get(
-            "detail_description"
-        ) or raw_meta.get("summary") or raw_meta.get("description") or raw_meta.get(
-            "excerpt"
-        ) or raw_meta.get(
-            "content_snippet"
-        ) or raw_meta.get(
-            "og_description"
-        ) or raw_meta.get(
-            "meta_description"
-        ) or raw_meta.get(
-            "rss_summary"
-        ) or raw_meta.get("rss_description")
-
-    # Strip HTML and normalize whitespace for detail_summary
-    if detail_summary:
-        import re as _re
-        detail_summary = _re.sub(r"<[^>]+>", "", detail_summary)
-        detail_summary = " ".join(detail_summary.strip().split())
-        if len(detail_summary) > 260:
-            detail_summary = detail_summary[:257] + "..."
-    else:
-        detail_summary = None
+    detail_summary: str | None = build_detail_summary(raw_meta, max_length=260)
 
     # ── Time label: item.published_at > metadata > first_seen_at ─────────────
     time_label: str

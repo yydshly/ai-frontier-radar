@@ -5100,22 +5100,167 @@ def main():
               "V1.0-beta.5" in readme_md or has_next,
               "README or NEXT_EXECUTION_PLAN should reference V1.0-beta.5")
 
-        # summary_policy.py (optional) — if it exists, verify it is pure
+        # ── summary_policy.py ───────────────────────────────────────────
         summary_policy_path = project_root / "app/application/candidates/summary_policy.py"
-        if summary_policy_path.exists():
-            sp_content = summary_policy_path.read_text(encoding="utf-8")
-            check("summary_policy.py does not contain Session",
-                  "Session" not in sp_content,
-                  "summary_policy.py must be DB-free")
-            check("summary_policy.py does not contain query",
-                  ".query(" not in sp_content,
-                  "summary_policy.py must not query DB")
-            check("summary_policy.py does not contain llm",
-                  "llm" not in sp_content.lower(),
-                  "summary_policy.py must not call LLM")
-            check("summary_policy.py does not contain commit",
-                  "commit" not in sp_content,
-                  "summary_policy.py must not write to DB")
+        check("summary_policy.py exists",
+              summary_policy_path.exists(),
+              "summary_policy.py must exist")
+
+        sp_content = summary_policy_path.read_text(encoding="utf-8")
+
+        # Key exports present
+        check("summary_policy.py contains SOURCE_SUMMARY_KEYS",
+              "SOURCE_SUMMARY_KEYS" in sp_content,
+              "summary_policy.py must export SOURCE_SUMMARY_KEYS")
+        check("summary_policy.py contains ZH_ONE_LINER_KEY",
+              "ZH_ONE_LINER_KEY" in sp_content,
+              "summary_policy.py must export ZH_ONE_LINER_KEY")
+        check("summary_policy.py contains ZH_SUMMARY_KEY",
+              "ZH_SUMMARY_KEY" in sp_content,
+              "summary_policy.py must export ZH_SUMMARY_KEY")
+        check("summary_policy.py contains classify_detail_summary_kind",
+              "classify_detail_summary_kind" in sp_content,
+              "summary_policy.py must export classify_detail_summary_kind")
+        check("summary_policy.py contains build_detail_summary",
+              "build_detail_summary" in sp_content,
+              "summary_policy.py must export build_detail_summary")
+
+        # Pure-function guarantees
+        check("summary_policy.py does not contain Session",
+              "Session" not in sp_content,
+              "summary_policy.py must be DB-free")
+        check("summary_policy.py does not contain .query(",
+              ".query(" not in sp_content,
+              "summary_policy.py must not query DB")
+        check("summary_policy.py does not contain llm",
+              "llm" not in sp_content.lower(),
+              "summary_policy.py must not call LLM")
+        check("summary_policy.py does not contain commit",
+              "commit" not in sp_content,
+              "summary_policy.py must not write to DB")
+
+        # ── display.py uses build_detail_summary ─────────────────────────
+        display_py = (project_root / "app/application/candidates/display.py").read_text(encoding="utf-8")
+        check("display.py imports build_detail_summary from summary_policy",
+              "from app.application.candidates.summary_policy import build_detail_summary" in display_py
+              or "from .summary_policy import build_detail_summary" in display_py,
+              "display.py must import build_detail_summary")
+        check("display.py calls build_detail_summary",
+              "build_detail_summary(" in display_py,
+              "display.py must call build_detail_summary")
+
+        # ── today.py uses classify_detail_summary_kind ───────────────────
+        today_py = (project_root / "app/application/radar/today.py").read_text(encoding="utf-8")
+        check("today.py imports classify_detail_summary_kind from summary_policy",
+              "from app.application.candidates.summary_policy import" in today_py
+              and "classify_detail_summary_kind" in today_py,
+              "today.py must import classify_detail_summary_kind")
+        check("today.py calls classify_detail_summary_kind",
+              "classify_detail_summary_kind(" in today_py,
+              "today.py must call classify_detail_summary_kind")
+        check("today.py calls get_detail_summary_label",
+              "get_detail_summary_label(" in today_py,
+              "today.py must call get_detail_summary_label")
+
+        # ── Direct import + unit tests of pure functions ─────────────────
+        # These do NOT access DB or call LLM.
+        try:
+            from app.application.candidates.summary_policy import (
+                classify_detail_summary_kind,
+                build_detail_summary,
+                get_detail_summary_label,
+                normalize_summary_text,
+                has_cjk,
+                SUMMARY_KIND_ZH_SUMMARY,
+                SUMMARY_KIND_ZH_ONE_LINER,
+                SUMMARY_KIND_METADATA,
+                SUMMARY_KIND_ENGLISH_METADATA,
+                SUMMARY_KIND_MISSING,
+            )
+
+            # Test: zh_summary present → kind = zh_summary
+            result = classify_detail_summary_kind({"zh_summary": "中文详细摘要"})
+            check("classify_detail_summary_kind: zh_summary → zh_summary",
+                  result == SUMMARY_KIND_ZH_SUMMARY,
+                  f"expected {SUMMARY_KIND_ZH_SUMMARY!r}, got {result!r}")
+
+            # Test: zh_one_liner only → kind = zh_one_liner
+            result = classify_detail_summary_kind({"zh_one_liner": "中文一句话"})
+            check("classify_detail_summary_kind: zh_one_liner → zh_one_liner",
+                  result == SUMMARY_KIND_ZH_ONE_LINER,
+                  f"expected {SUMMARY_KIND_ZH_ONE_LINER!r}, got {result!r}")
+
+            # Test: Chinese metadata fallback → kind = metadata_summary
+            result = classify_detail_summary_kind({"description": "这是中文来源摘要"})
+            check("classify_detail_summary_kind: Chinese metadata → metadata_summary",
+                  result == SUMMARY_KIND_METADATA,
+                  f"expected {SUMMARY_KIND_METADATA!r}, got {result!r}")
+
+            # Test: English metadata fallback → kind = english_metadata_summary
+            result = classify_detail_summary_kind({"description": "This is English metadata."})
+            check("classify_detail_summary_kind: English metadata → english_metadata_summary",
+                  result == SUMMARY_KIND_ENGLISH_METADATA,
+                  f"expected {SUMMARY_KIND_ENGLISH_METADATA!r}, got {result!r}")
+
+            # Test: empty → kind = missing
+            result = classify_detail_summary_kind({})
+            check("classify_detail_summary_kind: empty → missing",
+                  result == SUMMARY_KIND_MISSING,
+                  f"expected {SUMMARY_KIND_MISSING!r}, got {result!r}")
+
+            # Test: build_detail_summary priority zh_summary > zh_one_liner > source
+            result = build_detail_summary({"zh_summary": "详细", "zh_one_liner": "简略"})
+            check("build_detail_summary: zh_summary wins over zh_one_liner",
+                  result == "详细",
+                  f"expected '详细', got {result!r}")
+
+            result = build_detail_summary({"zh_one_liner": "简略", "description": "来源"})
+            check("build_detail_summary: zh_one_liner wins over description",
+                  result == "简略",
+                  f"expected '简略', got {result!r}")
+
+            # Test: label mapping
+            check("get_detail_summary_label: 中文摘要",
+                  get_detail_summary_label(SUMMARY_KIND_ZH_SUMMARY) == "中文摘要",
+                  "label mismatch for zh_summary")
+            check("get_detail_summary_label: 中文概述",
+                  get_detail_summary_label(SUMMARY_KIND_ZH_ONE_LINER) == "中文概述",
+                  "label mismatch for zh_one_liner")
+            check("get_detail_summary_label: 来源摘要",
+                  get_detail_summary_label(SUMMARY_KIND_METADATA) == "来源摘要",
+                  "label mismatch for metadata_summary")
+            check("get_detail_summary_label: 英文来源摘要",
+                  get_detail_summary_label(SUMMARY_KIND_ENGLISH_METADATA) == "英文来源摘要",
+                  "label mismatch for english_metadata_summary")
+            check("get_detail_summary_label: 内容摘要",
+                  get_detail_summary_label(SUMMARY_KIND_MISSING) == "内容摘要",
+                  "label mismatch for missing")
+
+            # Test: normalize_summary_text
+            check("normalize_summary_text: strips HTML",
+                  normalize_summary_text("<b>bold</b> text") == "bold text",
+                  "HTML stripping failed")
+            check("normalize_summary_text: None for non-string",
+                  normalize_summary_text(123) is None,
+                  "non-string should return None")
+            check("normalize_summary_text: None for empty",
+                  normalize_summary_text("   ") is None,
+                  "whitespace-only should return None")
+            check("normalize_summary_text: truncates with ...",
+                  normalize_summary_text("a" * 300, max_length=10) == "a" * 7 + "...",
+                  "truncation failed")
+
+            # Test: has_cjk
+            check("has_cjk: detects CJK",
+                  has_cjk("这是中文") is True,
+                  "CJK detection failed")
+            check("has_cjk: returns False for English",
+                  has_cjk("This is English") is False,
+                  "should return False for English-only")
+
+        except Exception as exc:
+            check("summary_policy.py imports and unit tests", False, str(exc))
+
     except Exception as e:
         check("V1.0-beta.5 summary write policy checks", False, str(e))
 
