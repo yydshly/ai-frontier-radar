@@ -3510,6 +3510,53 @@ def main():
     except Exception as e:
         check("stale recovery script checks", False, str(e))
 
+    # ── 29. Source manual fetch action ───────────────────────────────────────
+    print("\n[29] Source manual fetch action")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+        source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        sources_html = (project_root / "app" / "templates" / "sources.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("single source manual fetch route is POST only",
+              '@app.post("/sources/{source_key}/fetch")' in main_py
+              and '@app.get("/sources/{source_key}/fetch")' not in main_py,
+              "manual source fetch must remain a POST-only side-effect route")
+
+        check("single source manual fetch uses background enqueue service",
+              "SourceFetchBackgroundService" in main_py
+              and "enqueue_source" in main_py
+              and "background_tasks" in main_py,
+              "manual source fetch should enqueue background work instead of doing work inline")
+
+        check("source workspace exposes manual fetch as POST form",
+              'method="POST"' in source_detail_html
+              and 'action="/sources/{{ source.source_key }}/fetch"' in source_detail_html
+              and "运行探测" in source_detail_html,
+              "source workspace should expose manual fetch as a POST form")
+
+        check("source workspace explains manual fetch side effect",
+              "有副作用" in source_detail_html
+              or "后台抓取" in source_detail_html
+              or "FetchRun" in source_detail_html,
+              "source workspace should explain manual fetch creates or reuses a FetchRun")
+
+        check("sources page keeps workspace before fetch action",
+              sources_html.find('href="/sources/{{ s.source_key }}"') < sources_html.find('action="/sources/{{ s.source_key }}/fetch"'),
+              "sources page should keep workspace before manual fetch")
+
+        check("source manual fetch styles exist",
+              ".source-manual-fetch" in style_css,
+              "manual source fetch panel should have dedicated styles")
+
+        resp = client.get("/sources/openai_news/fetch")
+        check("GET manual source fetch is not allowed",
+              resp.status_code in (404, 405),
+              f"manual source fetch should not be triggerable by GET, got {resp.status_code}")
+    except Exception as e:
+        check("source manual fetch checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

@@ -116,6 +116,37 @@
         </div>
         {% endif %}
 
+        <!-- Manual fetch (side-effect action) -->
+        <div class="source-workspace-card source-manual-fetch-panel">
+            <h2>手动探测</h2>
+            <p class="source-manual-fetch-note">
+                这是<strong>有副作用</strong>的操作：会为该来源创建或复用一个 FetchRun，并在后台抓取最新内容。
+                如果该来源已有运行中的 FetchRun，系统不会重复启动，会跳转到现有运行记录。
+            </p>
+            {% if stale_runs %}
+            <p class="source-manual-fetch-note source-workspace-muted">
+                该来源当前存在 stale running，建议先用恢复脚本处理，再手动探测。
+            </p>
+            {% elif decision and decision.status == 'running' %}
+            <p class="source-manual-fetch-note source-workspace-muted">
+                该来源已有运行中的 FetchRun，点击运行探测会跳转到现有运行记录，不会重复创建。
+            </p>
+            {% elif decision and decision.reason == 'not_due_yet' %}
+            <p class="source-manual-fetch-note source-workspace-muted">
+                该来源当前不在自动调度到期时间内，但你可以手动触发单来源探测。
+            </p>
+            {% elif not is_radar_source %}
+            <p class="source-manual-fetch-note source-workspace-muted">
+                该来源未纳入今日雷达自动更新，但仍可手动探测。
+            </p>
+            {% endif %}
+            <form method="POST" action="/sources/{{ source.source_key }}/fetch" class="source-manual-fetch-form">
+                <button type="submit" class="btn-fetch source-manual-fetch-button" title="手动触发该来源抓取">
+                    运行探测
+                </button>
+            </form>
+        </div>
+
         <!-- Coverage stats -->
         <div class="source-workspace-card">
             <h2>内容覆盖</h2>

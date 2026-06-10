@@ -4889,3 +4889,22 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     margin: 0.3rem 0;
     word-break: break-word;
 }
+
+/* ── Source workspace manual fetch panel (side-effect action) ─────── */
+.source-manual-fetch-panel {
+    border-left: 4px solid #1976d2;
+}
+
+.source-manual-fetch-note {
+    margin: 0.4rem 0;
+    font-size: 0.9rem;
+    color: #444;
+}
+
+.source-manual-fetch-form {
+    margin-top: 0.75rem;
+}
+
+.source-manual-fetch-button {
+    cursor: pointer;
+}

@@ -376,6 +376,24 @@ InsightCard 状态（待处理/生成中/已完成/失败）
 [返回今日雷达] → /radar/today
 ```
 
+### 6.8 单来源手动探测 vs due-source 自动调度（V1.0-beta.1 Task 4）
+
+单来源手动探测与 due-source 自动调度是两条不同入口：
+
+- `/radar/today/update`：遵守 due-source，只处理到期来源（`plan.due`）。
+- `/sources/{source_key}/fetch`：用户手动触发单来源探测，**POST-only**，仍必须
+  防重复 running。
+
+手动探测不会跳过后台任务治理，也不会绕过 FetchRun 状态记录：
+
+- 路由仍通过 `SourceFetchBackgroundService.enqueue_source()` 投递，不在请求线程内抓取。
+- `enqueue_source()` 有 running 窗口去重：若该来源已有 running FetchRun，返回
+  `already_running` 并重定向到现有 run，不创建新 FetchRun。
+- 工作台以 POST 表单暴露入口，并明确说明这是有副作用操作（创建/复用 FetchRun + 后台抓取）。
+
+适用场景：stale running 恢复后来源进入 `not_due_yet` 冷却期，用户想立刻重新抓某个
+来源时，走手动探测而非依赖 due-source 自动到期。
+
 ---
 
 ## 7. 来源池 / 雷达关注源分离
