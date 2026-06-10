@@ -40,6 +40,8 @@ def main() -> int:
     card_detail_html = read("app/templates/card_detail.html")
     card_export_markdown_html = read("app/templates/card_export_markdown.html")
     card_export_report_html = read("app/templates/card_export_report.html")
+    # Read panel partial for checks that verify right-panel content
+    radar_panel_partial = read("app/templates/partials/radar_today_panel.html")
 
     print("[1] 今日雷达主链路入口")
     check("今日雷达有更新入口",
@@ -49,7 +51,8 @@ def main() -> int:
           'action="/radar/today/generate-summaries"' in radar_html and "生成本页前 5 条摘要" in radar_html,
           "应有补齐当前页中文摘要表单")
     check("今日雷达有智能阅读面板",
-          "智能阅读面板" in radar_html and "radar-panel-state-stack" in radar_html,
+          ("智能阅读面板" in radar_html or "智能阅读面板" in radar_panel_partial)
+          and "radar-panel-state-stack" in radar_panel_partial,
           "右侧应为智能阅读面板")
 
     print("\n[2] 加入生成 return_to")
@@ -124,19 +127,19 @@ def main() -> int:
 
     print("\n[9] 右面板状态化")
     check("右面板显示摘要状态",
-          "radar-panel-state-summary" in radar_html,
+          "radar-panel-state-summary" in radar_panel_partial,
           "右面板应显示摘要状态")
     check("右面板显示 InsightCard 状态",
-          "radar-panel-state-insight" in radar_html,
+          "radar-panel-state-insight" in radar_panel_partial,
           "右面板应显示 InsightCard 状态")
     check("右面板可预览 InsightCard",
-          "radar-panel-insight-preview" in radar_html,
+          "radar-panel-insight-preview" in radar_panel_partial,
           "右面板应能预览 InsightCard")
     check("InsightCard 预览应展示洞察与行动，而非重复摘要",
           "RadarInsightPreview" in radar_py
-          and "为什么值得关注" in radar_html
-          and "技术洞察" in radar_html
-          and "行动建议" in radar_html,
+          and "为什么值得关注" in radar_panel_partial
+          and "技术洞察" in radar_panel_partial
+          and "行动建议" in radar_panel_partial,
           "InsightCard 预览应展示洞察与行动，而不是重复内容摘要")
 
     print("\n[10] 测试来源隔离")

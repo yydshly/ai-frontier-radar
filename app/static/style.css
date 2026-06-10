@@ -4212,6 +4212,11 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     background: #fafbfc;
 }
 
+.radar-panel.is-loading {
+    opacity: 0.65;
+    transition: opacity 0.2s;
+}
+
 .radar-panel-empty,
 .radar-empty {
     color: #57606a;

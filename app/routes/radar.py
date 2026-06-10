@@ -221,6 +221,87 @@ def radar_today_page(
     update_plan_source: str | None = Query(None),
 ):
     """Render today's AI frontier radar reading view."""
+    # Build base context using shared helper
+    context = _build_radar_today_view_context(
+        request=request,
+        item_id=item_id,
+        hours=hours,
+        limit=limit,
+        page=page,
+        per_page=per_page,
+        section=section,
+    )
+
+    summary_result = None
+    if (
+        summary_success is not None
+        or summary_skipped is not None
+        or summary_failed is not None
+    ):
+        summary_result = {
+            "success": summary_success or 0,
+            "skipped": summary_skipped or 0,
+            "failed": summary_failed or 0,
+            "details": _parse_summary_details(summary_details),
+        }
+
+    update_result = None
+    if any(v is not None for v in [
+        update_started,
+        update_running,
+        update_unsupported,
+        update_failed,
+        update_truncated,
+        update_unique_sources,
+        update_duplicate_sources,
+        update_configured_sources,
+        update_filtered_sources,
+        update_total,
+        update_due,
+        update_skipped,
+        update_missing,
+        update_reason_summary,
+        update_plan_source,
+    ]):
+        update_result = {
+            "started": update_started or 0,
+            "running": update_running or 0,
+            "unsupported": update_unsupported or 0,
+            "failed": update_failed or 0,
+            "truncated": update_truncated or 0,
+            "unique_sources": update_unique_sources or 0,
+            "duplicate_sources": update_duplicate_sources or 0,
+            "configured_sources": update_configured_sources or 0,
+            "filtered_sources": update_filtered_sources or 0,
+            # New due-source summary fields (V1.0-beta.1)
+            "total": update_total or 0,
+            "due": update_due or 0,
+            "skipped": update_skipped or 0,
+            "missing": update_missing or 0,
+            "reason_summary": update_reason_summary or "",
+            "reason_summary_label": _humanize_reason_summary(update_reason_summary) or "",
+            "plan_source": update_plan_source or "",
+        }
+
+    context["summary_result"] = summary_result
+    context["update_result"] = update_result
+
+    return _radar_templates.TemplateResponse(
+        "radar_today.html",
+        context,
+    )
+
+
+def _build_radar_today_view_context(
+    request: Request,
+    item_id: int | None,
+    hours: int,
+    limit: int,
+    page: int,
+    per_page: int,
+    section: str,
+):
+    """Build the context dict for radar today view (shared by full page and panel)."""
     db = next(get_db())
     try:
         configured_sources = [s for s in list_sources() if s.enabled]
@@ -237,59 +318,7 @@ def radar_today_page(
             fetch_run_source_keys=configured_keys,
         )
 
-        summary_result = None
-        if (
-            summary_success is not None
-            or summary_skipped is not None
-            or summary_failed is not None
-        ):
-            summary_result = {
-                "success": summary_success or 0,
-                "skipped": summary_skipped or 0,
-                "failed": summary_failed or 0,
-                "details": _parse_summary_details(summary_details),
-            }
-
-        update_result = None
-        if any(v is not None for v in [
-            update_started,
-            update_running,
-            update_unsupported,
-            update_failed,
-            update_truncated,
-            update_unique_sources,
-            update_duplicate_sources,
-            update_configured_sources,
-            update_filtered_sources,
-            update_total,
-            update_due,
-            update_skipped,
-            update_missing,
-            update_reason_summary,
-            update_plan_source,
-        ]):
-            update_result = {
-                "started": update_started or 0,
-                "running": update_running or 0,
-                "unsupported": update_unsupported or 0,
-                "failed": update_failed or 0,
-                "truncated": update_truncated or 0,
-                "unique_sources": update_unique_sources or 0,
-                "duplicate_sources": update_duplicate_sources or 0,
-                "configured_sources": update_configured_sources or 0,
-                "filtered_sources": update_filtered_sources or 0,
-                # New due-source summary fields (V1.0-beta.1)
-                "total": update_total or 0,
-                "due": update_due or 0,
-                "skipped": update_skipped or 0,
-                "missing": update_missing or 0,
-                "reason_summary": update_reason_summary or "",
-                "reason_summary_label": _humanize_reason_summary(update_reason_summary) or "",
-                "plan_source": update_plan_source or "",
-            }
-
         # V1.0-beta.3: read-only scheduler status for the sidebar block.
-        # Degrades gracefully — never blocks the main reading view.
         try:
             from app.application.radar.status_view import (
                 build_radar_scheduler_status_view,
@@ -298,20 +327,41 @@ def radar_today_page(
         except Exception:
             scheduler_status = None
 
-        return _radar_templates.TemplateResponse(
-            "radar_today.html",
-            {
-                "request": request,
-                "view": view,
-                "display_map": view.display_map,
-                "safe_external_url": safe_external_url,
-                "summary_result": summary_result,
-                "update_result": update_result,
-                "scheduler_status": scheduler_status,
-            },
-        )
+        return {
+            "request": request,
+            "view": view,
+            "display_map": view.display_map,
+            "safe_external_url": safe_external_url,
+            "scheduler_status": scheduler_status,
+        }
     finally:
         db.close()
+
+
+@router.get("/today/panel")
+def radar_today_panel(
+    request: Request,
+    item_id: int | None = Query(None),
+    hours: int = Query(DEFAULT_HOURS, ge=MIN_HOURS, le=MAX_HOURS),
+    limit: int = Query(DEFAULT_LIMIT, ge=MIN_LIMIT, le=MAX_LIMIT),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(DEFAULT_PER_PAGE, ge=MIN_PER_PAGE, le=MAX_PER_PAGE),
+    section: str = Query(ALL_KEY),
+):
+    """Return only the right-panel HTML fragment for partial fetch updates."""
+    context = _build_radar_today_view_context(
+        request=request,
+        item_id=item_id,
+        hours=hours,
+        limit=limit,
+        page=page,
+        per_page=per_page,
+        section=section,
+    )
+    return _radar_templates.TemplateResponse(
+        "partials/radar_today_panel.html",
+        context,
+    )
 
 
 @router.post("/today/generate-summaries")

@@ -1814,6 +1814,8 @@ def main():
 
         # radar_today.html must contain the page heading + POST enqueue + safe URL.
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
         check("radar_today.html contains '今日 AI 前沿雷达'", "今日 AI 前沿雷达" in radar_html)
         check("radar_today.html enqueue uses method=\"post\"",
               'method="post"' in radar_html and "enqueue-compile" in radar_html)
@@ -1821,7 +1823,7 @@ def main():
         check("radar_today.html has fallback (no-recent-content) note",
               "暂无新内容" in radar_html and "fallback_used" in radar_html)
         check("radar_today.html has missing-item panel message",
-              "内容不存在或已被清理" in radar_html)
+              "内容不存在或已被清理" in panel_partial)
         check("radar_today.html renders left catalog + reading panel",
               "radar-sidebar" in radar_html and "radar-panel" in radar_html and "radar-card" in radar_html)
 
@@ -2119,6 +2121,8 @@ def main():
     try:
         main_py = (Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         check("enqueue compile supports return_to form parameter",
               "return_to: str | None = Form(None)" in main_py,
@@ -2141,7 +2145,7 @@ def main():
               "card enqueue form should return to selected radar item")
 
         check("today radar panel enqueue form carries return_to",
-              "/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}" in radar_html,
+              "/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}" in panel_partial,
               "panel enqueue form should return to selected radar item")
 
         check("today radar return_to preserves pagination context",
@@ -2533,6 +2537,8 @@ def main():
     try:
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         check("radar_today.html contains radar-card-body or radar-card-main-link",
               "radar-card-body" in radar_html or "radar-card-main-link" in radar_html)
@@ -2912,6 +2918,9 @@ def main():
         radar_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        # Read panel partial for panel-content checks
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         check("today radar has panel state dataclass",
               "class RadarPanelState" in radar_py,
@@ -2934,15 +2943,15 @@ def main():
               "RadarTodayView should expose right panel state")
 
         check("today radar template renders smart panel state",
-              "智能阅读面板" in radar_html
-              and "radar-panel-state-stack" in radar_html
-              and "view.panel_state.summary_label" in radar_html
-              and "view.panel_state.insight_label" in radar_html,
+              "智能阅读面板" in (radar_html + panel_partial)
+              and "radar-panel-state-stack" in panel_partial
+              and "view.panel_state.summary_label" in panel_partial
+              and "view.panel_state.insight_label" in panel_partial,
               "right panel should display summary and insight generation states")
 
         check("today radar template renders insight preview",
-              ("宏观洞察" in radar_html or "InsightCard" in radar_html)
-              and "view.panel_state.selected_insight_card" in radar_html,
+              ("宏观洞察" in panel_partial or "InsightCard" in panel_partial)
+              and "view.panel_state.selected_insight_card" in panel_partial,
               "right panel should show insight preview")
 
         check("today radar panel state styles exist",
@@ -2959,6 +2968,9 @@ def main():
         radar_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        # Read panel partial for panel-content checks
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         check("today radar has RadarInsightPreview dataclass",
               "class RadarInsightPreview" in radar_py,
@@ -2974,15 +2986,15 @@ def main():
               and "fallback_summary = None if has_signal else card.summary_zh" in radar_py,
               "InsightCard preview should avoid duplicating summary when insight fields exist")
         check("today radar template renders insight blocks",
-              "为什么值得关注" in radar_html
-              and "技术洞察" in radar_html
-              and "产品机会" in radar_html
-              and "行动建议" in radar_html
-              and "风险提醒" in radar_html,
+              "为什么值得关注" in panel_partial
+              and "技术洞察" in panel_partial
+              and "产品机会" in panel_partial
+              and "行动建议" in panel_partial
+              and "风险提醒" in panel_partial,
               "InsightCard preview should render distinct insight sections")
         check("today radar template uses insight_preview",
-              "view.panel_state.insight_preview" in radar_html
-              and "preview.fallback_summary" in radar_html,
+              "view.panel_state.insight_preview" in panel_partial
+              and "preview.fallback_summary" in panel_partial,
               "template should use RadarInsightPreview instead of directly dumping summary_zh")
         check("today radar insight preview styles exist",
               ".radar-panel-chip-row" in style_css
@@ -4302,6 +4314,8 @@ def main():
         project_root = Path(__file__).resolve().parents[1]
         style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
         radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        panel_partial_path = project_root / "app" / "templates" / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         # 1. style.css has .radar-card.
         check("style.css has .radar-card",
@@ -4358,9 +4372,9 @@ def main():
               "生成本页前 5 条摘要" in radar_html,
               "summary generation button text must be preserved")
 
-        # 10. radar_today.html still contains "智能阅读面板".
+        # 10. radar_today.html still contains "智能阅读面板" (now in partial).
         check("radar_today.html contains '智能阅读面板'",
-              "智能阅读面板" in radar_html,
+              "智能阅读面板" in panel_partial,
               "reading panel must be preserved")
     except Exception as e:
         check("V1.0-beta.3 Compact radar list UI checks", False, str(e))
@@ -4570,9 +4584,9 @@ def main():
               ("全部" in radar_html and "今日重点" in radar_html and "最近探测状态" in radar_html),
               "existing sidebar content must be preserved")
 
-        # 10. radar_today.html still contains 智能阅读面板.
+        # 10. radar_today.html still contains 智能阅读面板 (now in partial).
         check("radar_today.html still contains 智能阅读面板",
-              "智能阅读面板" in radar_html,
+              "智能阅读面板" in panel_partial,
               "reading panel must be preserved")
 
         # 11. style.css has .radar-directory-collapsed .radar-layout (or equivalent).
@@ -4640,6 +4654,124 @@ def main():
               "toggle button must have title with '展开目录'")
     except Exception as e:
         check("V1.0-beta.3 Collapsible radar directory checks", False, str(e))
+
+    # ── 43. V1.0-beta.3 Partial radar panel refresh ─────────────────────────
+    print("\n[43] V1.0-beta.3 Partial radar panel refresh")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        partial_path = project_root / "app" / "templates" / "partials" / "radar_today_panel.html"
+        partial_html = partial_path.read_text(encoding="utf-8") if partial_path.exists() else ""
+
+        # 1. radar.py has /today/panel route.
+        check("radar.py has /today/panel route",
+              "/today/panel" in radar_py,
+              "panel endpoint must exist in radar.py")
+
+        # 2. radar.py renders partials/radar_today_panel.html.
+        check("radar.py renders partials/radar_today_panel.html",
+              "partials/radar_today_panel.html" in radar_py,
+              "panel route must render the partial template")
+
+        # 3. partial template exists.
+        check("partial template app/templates/partials/radar_today_panel.html exists",
+              partial_path.exists(),
+              "partial template file must exist")
+
+        # 4. partial contains id="radar-panel".
+        check("partial contains id=\"radar-panel\"",
+              'id="radar-panel"' in partial_html,
+              "partial must have radar-panel id")
+
+        # 5. partial contains "智能阅读面板".
+        check("partial contains '智能阅读面板'",
+              "智能阅读面板" in partial_html,
+              "partial must contain reading panel label")
+
+        # 6. radar_today.html includes partial.
+        check("radar_today.html includes partials/radar_today_panel.html",
+              'include "partials/radar_today_panel.html"' in radar_html
+              or "include 'partials/radar_today_panel.html'" in radar_html,
+              "main template must include the partial")
+
+        # 7. radar_today.html has data-radar-panel-url.
+        check("radar_today.html has data-radar-panel-url",
+              "data-radar-panel-url" in radar_html,
+              "card link must have panel URL data attribute")
+
+        # 8. radar_today.html has /radar/today/panel.
+        check("radar_today.html references /radar/today/panel",
+              "/radar/today/panel" in radar_html,
+              "card link must reference panel endpoint")
+
+        # 9. radar_today.html has preventDefault.
+        check("radar_today.html has preventDefault",
+              "preventDefault" in radar_html,
+              "JS must prevent default link behavior")
+
+        # 10. radar_today.html has fetch(panelUrl.
+        check("radar_today.html has fetch(panelUrl)",
+              "fetch(panelUrl" in radar_html,
+              "JS must fetch panel content")
+
+        # 11. radar_today.html has history.pushState.
+        check("radar_today.html has history.pushState",
+              "history.pushState" in radar_html,
+              "JS must update URL without full reload")
+
+        # 12. radar_today.html has window.location.href fallback.
+        check("radar_today.html has window.location.href fallback",
+              "window.location.href" in radar_html,
+              "JS must fallback to full navigation on error")
+
+        # 13. radar_today.html still has radar-card-main-link href.
+        check("radar_today.html still has radar-card-main-link href",
+              'radar-card-main-link' in radar_html and 'href=' in radar_html,
+              "card link href must be preserved for fallback")
+
+        # 14. radar_today.html does not import React.
+        check("radar_today.html does not import React",
+              "react" not in radar_html.lower() or "react-dom" not in radar_html.lower(),
+              "must not introduce React")
+
+        # 15. radar_today.html does not import Vue.
+        check("radar_today.html does not import Vue",
+              "vue" not in radar_html.lower(),
+              "must not introduce Vue")
+
+        # 16. radar_today.html does not import htmx.
+        check("radar_today.html does not import htmx",
+              "htmx" not in radar_html.lower(),
+              "must not introduce htmx")
+
+        # 17. radar_today.html still has radar-directory-toggle.
+        check("radar_today.html still has radar-directory-toggle",
+              "radar-directory-toggle" in radar_html,
+              "directory toggle must be preserved")
+
+        # 18. style.css still has radar-directory-collapsed .radar-layout.
+        check("style.css still has radar-directory-collapsed .radar-layout",
+              "radar-directory-collapsed" in style_css and ".radar-layout" in style_css,
+              "collapsed layout must be preserved")
+
+        # 19. style.css still has 52px minmax(0, 1fr) 360px.
+        check("style.css still has 52px collapsed layout",
+              "52px" in style_css and "minmax(0, 1fr)" in style_css,
+              "collapsed first column width must be preserved")
+
+        # 20. radar_today.html still has radar-card-footer.
+        check("radar_today.html still has radar-card-footer",
+              "radar-card-footer" in radar_html,
+              "card footer must be preserved")
+
+        # 21. radar_today.html still has radar-card-actions.
+        check("radar_today.html still has radar-card-actions",
+              "radar-card-actions" in radar_html,
+              "card actions must be preserved")
+    except Exception as e:
+        check("V1.0-beta.3 Partial radar panel refresh checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

@@ -290,8 +290,9 @@
                         {% set display = display_map.get(item.id) %}
                         {% set is_selected = sel and item.id == sel.id %}
                         {% set view_url = '/radar/today?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page ~ '#radar-item-' ~ item.id %}
+                        {% set panel_url = '/radar/today/panel?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page %}
                         <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
-                            <a class="radar-card-main-link" href="{{ view_url }}">
+                            <a class="radar-card-main-link" href="{{ view_url }}" data-radar-panel-url="{{ panel_url }}">
                                 {# Card body: Chinese summary priority, English title demoted #}
                                 {% if display and display.uses_zh_one_liner %}
                                 {# Has Chinese one-liner: line1=Chinese summary, line2=English title #}
@@ -361,170 +362,7 @@
             </div>
 
             {# ── Right: reading panel ──────────────────────────────────── #}
-            <aside class="radar-panel" id="radar-panel" aria-label="阅读面板">
-                {% if view.selected_missing %}
-                <div class="radar-panel-empty">内容不存在或已被清理。</div>
-                {% elif not sel %}
-                <div class="radar-panel-empty">暂无可阅读的内容。</div>
-                {% else %}
-                <div class="radar-panel-label">智能阅读面板</div>
-
-                {% if view.panel_state %}
-                <div class="radar-panel-state-stack">
-                    <div class="radar-panel-state radar-panel-state-summary radar-panel-state-{{ view.panel_state.summary_state }}">
-                        <strong>{{ view.panel_state.summary_label }}</strong>
-                        {% if view.panel_state.summary_note %}
-                        <p>{{ view.panel_state.summary_note }}</p>
-                        {% endif %}
-                    </div>
-
-                    <div class="radar-panel-state radar-panel-state-insight radar-panel-state-{{ view.panel_state.insight_state }}">
-                        <strong>{{ view.panel_state.insight_label }}</strong>
-                        {% if view.panel_state.insight_note %}
-                        <p>{{ view.panel_state.insight_note }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if sel_card and sel_card.detail_summary %}
-                <section class="radar-panel-section">
-                    <h3>中文摘要</h3>
-                    <div class="radar-panel-summary">{{ sel_card.detail_summary }}</div>
-                </section>
-                {% endif %}
-
-                {% if view.panel_state and view.panel_state.insight_preview %}
-                {% set preview = view.panel_state.insight_preview %}
-                {% set insight = view.panel_state.selected_insight_card %}
-                <section class="radar-panel-section radar-panel-insight-preview">
-                    <h3>宏观洞察</h3>
-
-                    {% if preview.relevance_score is not none %}
-                    <p class="radar-panel-score">相关性分数：{{ preview.relevance_score }}</p>
-                    {% endif %}
-
-                    {% if preview.related_user_directions %}
-                    <div class="radar-panel-chip-row">
-                        {% for direction in preview.related_user_directions %}
-                        <span class="radar-panel-chip">{{ direction }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-
-                    {% if preview.relevance_reasons %}
-                    <div class="radar-panel-insight-block">
-                        <h4>为什么值得关注</h4>
-                        <ul>
-                            {% for item in preview.relevance_reasons %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.technical_insights %}
-                    <div class="radar-panel-insight-block">
-                        <h4>技术洞察</h4>
-                        <ul>
-                            {% for item in preview.technical_insights %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.product_opportunities %}
-                    <div class="radar-panel-insight-block">
-                        <h4>产品机会</h4>
-                        <ul>
-                            {% for item in preview.product_opportunities %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.action_items %}
-                    <div class="radar-panel-insight-block">
-                        <h4>行动建议</h4>
-                        <ul>
-                            {% for item in preview.action_items %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.risks %}
-                    <div class="radar-panel-insight-block">
-                        <h4>风险提醒</h4>
-                        <ul>
-                            {% for item in preview.risks %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.fallback_summary %}
-                    <div class="radar-panel-insight-summary">{{ preview.fallback_summary }}</div>
-                    {% endif %}
-
-                    <a href="/cards/{{ insight.id }}" class="btn-sm btn-primary">查看完整 InsightCard</a>
-                </section>
-                {% endif %}
-
-                <h2 class="radar-panel-title">
-                    {% if sel_card and sel_card.is_title_weak %}
-                        <span title="原始标题：{{ sel.title | escape }}">标题待修复</span>
-                    {% else %}
-                        {{ (sel_card.title if sel_card else sel.title) or '无标题' }}
-                    {% endif %}
-                </h2>
-
-                <dl class="radar-panel-meta">
-                    <dt>来源</dt><dd><code>{{ sel.source_key }}</code></dd>
-                    <dt>时间</dt><dd>{{ sel_card.time_label if sel_card else '时间未知' }}</dd>
-                    <dt>状态</dt><dd>
-                        {% if sel.status == 'discovered' %}待生成洞察
-                        {% elif sel.status == 'compiling' %}生成中
-                        {% elif sel.status == 'compiled' %}已完成
-                        {% elif sel.status == 'failed' %}失败
-                        {% else %}{{ sel.status }}{% endif %}
-                    </dd>
-                    <dt>编号</dt><dd>#{{ sel.id }}</dd>
-                </dl>
-
-                {% set panel_url = safe_external_url(sel_card.url if sel_card else sel.url) %}
-                {% if panel_url %}
-                <div class="radar-panel-url">
-                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" title="{{ (sel_card.url if sel_card else sel.url) | escape }}">
-                        {{ (sel_card.url if sel_card else sel.url) | truncate(96, true, '...') }}
-                    </a>
-                </div>
-                {% endif %}
-
-                <div class="radar-panel-actions">
-                    {% if sel.status == 'discovered' %}
-                    <form method="post" action="/source-items/{{ sel.id }}/enqueue-compile" class="radar-panel-action-form">
-                        <input
-                            type="hidden"
-                            name="return_to"
-                            value="/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
-                        >
-                        <button type="submit" class="btn-sm btn-primary">加入生成</button>
-                    </form>
-                    {% elif sel.status == 'compiled' and sel.insight_card_id %}
-                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
-                    {% endif %}
-                    {% if panel_url %}
-                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
-                    {% endif %}
-                    <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
-                </div>
-                {% endif %}
-            </aside>
+            {% include "partials/radar_today_panel.html" %}
 
         </div>
 
@@ -559,6 +397,57 @@
               toggle.title = collapsed ? "展开目录" : "收起目录";
             });
           }
+
+          // Card click: partial panel refresh instead of full page reload
+          document.addEventListener("click", async function (event) {
+            var link = event.target.closest(".radar-card-main-link");
+            if (!link) return;
+
+            event.preventDefault();
+
+            var panelUrl = link.dataset.radarPanelUrl;
+            var href = link.getAttribute("href");
+
+            try {
+              var panel = document.getElementById("radar-panel");
+              if (panel) {
+                panel.classList.add("is-loading");
+              }
+
+              var response = await fetch(panelUrl, {
+                headers: {
+                  "X-Requested-With": "fetch"
+                }
+              });
+
+              if (!response.ok) {
+                throw new Error("panel fetch failed");
+              }
+
+              var html = await response.text();
+              var currentPanel = document.getElementById("radar-panel");
+              if (!currentPanel) {
+                throw new Error("panel container missing");
+              }
+
+              currentPanel.outerHTML = html;
+
+              // Update selected card highlight
+              document.querySelectorAll(".radar-card").forEach(function (card) {
+                card.classList.remove("radar-selected-card", "is-selected");
+              });
+              var selectedCard = link.closest(".radar-card");
+              if (selectedCard) {
+                selectedCard.classList.add("radar-selected-card", "is-selected");
+              }
+
+              // Update URL without full page reload
+              window.history.pushState({}, "", href);
+            } catch (error) {
+              // Fallback: full page navigation
+              window.location.href = href;
+            }
+          });
         });
         </script>
 {% endblock %}

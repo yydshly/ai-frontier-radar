@@ -204,6 +204,25 @@
 
 ---
 
-## 12. 相关文档
+## 12. Task 8：卡片点击局部刷新右侧智能阅读面板
+
+- 采用 SSR + partial endpoint + 原生 fetch 渐进增强
+- 不引入前端框架
+- 保留普通 href 降级能力
+- 解决点击卡片导致整页刷新和滚动跳动的问题
+- 保留目录栏收起状态
+- 不改变摘要 / InsightCard / 抓取服务
+
+具体改动：
+- 抽出右侧智能阅读面板为 `partials/radar_today_panel.html`
+- 新增 `GET /radar/today/panel` 返回右侧面板 HTML fragment
+- 前端拦截 `.radar-card-main-link` 点击
+- 使用 fetch 获取 partial HTML 并替换右侧面板容器
+- 使用 `history.pushState` 更新 URL
+- fetch 失败时降级为普通 href 跳转
+
+---
+
+## 13. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划
