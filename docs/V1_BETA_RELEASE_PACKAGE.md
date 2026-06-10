@@ -63,6 +63,38 @@ python scripts/check_sources_health.py
 - `docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md`
 - `docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md`
 
+## V1.0-beta.1 Source Scheduling
+
+**Tag**: `v1.0-beta-1-source-scheduling`
+
+V1.0-beta.1 已完成：
+
+- due-source 计算服务（`compute_due_sources()`）
+- /radar/today/update 接入 due-source
+- 单来源工作台 `/sources/{source_key}`（只读）
+- stale running FetchRun 诊断（只读）
+- stale running 人工恢复脚本（默认 dry-run）
+- 单来源手动探测入口（POST-only）
+- 真实 openai_news 手动探测验收（run_id=1067, items_found=50）
+
+**真实验收数据**：
+
+```
+stale running 恢复：running 8 → 0, stale_count 8 → 0
+真实探测：openai_news run_id=1067, status=success
+items_found=50, items_new=3, items_updated=47, items_failed=0
+SourceItem count: 50 → 53
+GET 405, POST 303 → /fetch-runs/1067
+```
+
+**文档入口**：
+
+- [V1.0-beta.1 Source Scheduling Acceptance](V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md)
+- [V1.0-beta.1 Source Scheduling Architecture](V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md)
+- [V1.0-beta.1 Execution Plan](V1_BETA_1_EXECUTION_PLAN.md)
+
+---
+
 ## 下一阶段
 
 V1.0-beta.1 将围绕来源调度和单来源工作台展开：

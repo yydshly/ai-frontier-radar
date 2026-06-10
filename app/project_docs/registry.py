@@ -197,6 +197,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="V1.0-beta.1",
         description="V1.0-beta.1 六条关键架构决策：不定时任务、config 雷达源、due-source 基于 FetchRun 等。",
     ),
+    "v1-beta-1-source-scheduling-acceptance": DocEntry(
+        key="v1-beta-1-source-scheduling-acceptance",
+        title="V1.0-beta.1 Source Scheduling Acceptance",
+        path="docs/V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md",
+        category="V1.0-beta.1",
+        description="来源调度、stale running 恢复、单来源手动探测与真实抓取验收记录。",
+    ),
 }
 
 

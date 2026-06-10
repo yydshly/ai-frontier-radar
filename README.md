@@ -242,6 +242,14 @@ python scripts/check_sources_health.py
 - [docs/V1_BETA_1_EXECUTION_PLAN.md](docs/V1_BETA_1_EXECUTION_PLAN.md) — 任务拆分、推荐顺序、测试策略
 - [docs/V1_BETA_1_DECISION_RECORD.md](docs/V1_BETA_1_DECISION_RECORD.md) — 6 条关键架构决策
 
+### V1.0-beta.1 Source Scheduling Checkpoint
+
+本阶段完成来源调度与单来源排查闭环：来源工作台、due-source、stale running 诊断、人工恢复、单来源手动探测和真实 openai_news 抓取验收。
+
+验收文档：[docs/V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md](docs/V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md)
+
+真实验收数据：stale running 8→0，openai_news run_id=1067，items_found=50，SourceItem 50→53。
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |

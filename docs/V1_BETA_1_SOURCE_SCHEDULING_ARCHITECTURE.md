@@ -489,3 +489,68 @@ V1.0-beta.1 完成时应满足：
 - 不做 DailyRadarReport
 - 不做语音播报
 ```
+
+---
+
+## 11. 阶段验收结论
+
+### 11.1 两条不同入口已验证
+
+| 入口 | 路径 | 行为 |
+|------|------|------|
+| due-source 自动调度 | POST /radar/today/update | 只处理 `plan.due`，展示跳过原因 |
+| 单来源手动探测 | POST /sources/{source_key}/fetch | 用户手动触发，绕过冷却期，POST-only |
+
+### 11.2 stale running 诊断与恢复已验证
+
+- stale running 诊断：**只读**查询，不修改 DB
+- stale running 恢复：**人工确认**，默认 dry-run，`--apply` 才写库
+- 真实验证：stale running 8→0，stale_count 8→0
+
+### 11.3 手动探测 HTTP 约束已验证
+
+```
+GET /sources/openai_news/fetch → 405 Method Not Allowed
+POST /sources/openai_news/fetch → 302 → /fetch-runs/1067
+```
+
+### 11.4 真实来源探测已验收
+
+```
+run_id: 1067
+status: success
+items_found: 50
+items_new: 3
+items_updated: 47
+items_failed: 0
+SourceItem count: 50 → 53
+```
+
+### 11.5 FetchRun 是任务状态治理中心
+
+所有探测都通过 FetchRun 记录状态：
+- `running` 状态用于去重（不能重复 enqueue）
+- `stale` 判定基于 `started_at` 时长
+- `failed` 状态标记 stale timeout 恢复
+
+### 11.6 当前系统状态
+
+```
+check_stale_fetch_runs.py: total_running=0, stale_count=0
+check_due_sources.py: due=0, skipped=15, running=0, unsupported=0, missing=0
+```
+
+**注意**：`due=0` 是因为所有来源都处于冷却期（`not_due_yet`），不是故障。
+
+---
+
+## 12. 下一阶段方向
+
+**V1.0-beta.2：自动调度与轻量任务队列设计**
+
+建议方向：
+- 不要马上上复杂 Celery/Redis
+- 先考虑轻量 scheduler / CLI 定时 / 单机队列
+- 先定义任务状态和重试策略
+
+本阶段（beta.1）已明确边界，不继续扩大范围。

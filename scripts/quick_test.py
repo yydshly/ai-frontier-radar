@@ -3557,6 +3557,64 @@ def main():
     except Exception as e:
         check("source manual fetch checks", False, str(e))
 
+    # ── 30. V1.0-beta.1 Source Scheduling Acceptance ─────────────────────
+    print("\n[30] V1.0-beta.1 Source Scheduling Acceptance")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        acceptance_md = (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md").read_text(encoding="utf-8")
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+
+        check("V1.0-beta.1 acceptance doc exists",
+              (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md").exists(),
+              "V1.0-beta.1 acceptance document should exist")
+
+        check("acceptance doc contains run_id=1067",
+              "run_id=1067" in acceptance_md,
+              "acceptance doc should record openai_news run_id=1067")
+
+        check("acceptance doc contains openai_news",
+              "openai_news" in acceptance_md,
+              "acceptance doc should record openai_news source key")
+
+        check("acceptance doc contains stale_count",
+              "stale_count" in acceptance_md,
+              "acceptance doc should record stale_count result")
+
+        check("acceptance doc contains due-source",
+              "due-source" in acceptance_md,
+              "acceptance doc should explain due-source concept")
+
+        check("acceptance doc contains SourceItem",
+              "SourceItem" in acceptance_md,
+              "acceptance doc should record SourceItem results")
+
+        check("acceptance doc records stale running 8→0",
+              "8" in acceptance_md and "0" in acceptance_md,
+              "acceptance doc should record stale running restoration (8→0)")
+
+        check("acceptance doc records SourceItem 50→53",
+              "50" in acceptance_md and "53" in acceptance_md,
+              "acceptance doc should record SourceItem count 50→53")
+
+        check("acceptance doc records GET 405 / POST 303",
+              "405" in acceptance_md and "303" in acceptance_md,
+              "acceptance doc should record HTTP method constraints")
+
+        check("acceptance doc explains due=0 is cooldown",
+              "冷却期" in acceptance_md,
+              "acceptance doc should clarify due=0 means cooldown, not failure")
+
+        # Registry entry
+        check("registry contains v1-beta-1-source-scheduling-acceptance",
+              "v1-beta-1-source-scheduling-acceptance" in registry_py,
+              "project docs registry should include acceptance doc entry")
+
+        check("registry acceptance entry has correct path",
+              "V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md" in registry_py,
+              "registry should reference the acceptance doc path")
+    except Exception as e:
+        check("V1.0-beta.1 acceptance doc checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
