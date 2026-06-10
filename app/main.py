@@ -232,8 +232,9 @@ app = FastAPI(title="AI Frontier Radar", version=APP_VERSION)
 BASE_DIR = Path(__file__).resolve().parent
 
 # Jinja2 templates
-from app.context_processors import inject_sources_nav
+from app.context_processors import inject_sources_nav, _format_dt
 templates = Jinja2Templates(directory=BASE_DIR / "templates", context_processors=[inject_sources_nav])
+templates.env.filters["format_dt"] = _format_dt
 
 # Static files - mount before any routes
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
