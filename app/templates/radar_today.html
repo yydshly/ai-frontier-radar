@@ -179,7 +179,7 @@
                     <input type="hidden" name="page" value="{{ view.page }}">
                     <input type="hidden" name="per_page" value="{{ view.per_page }}">
                     <input type="hidden" name="summary_limit" value="5">
-                    <button type="submit" class="btn-sm">补齐当前页中文摘要</button>
+                    <button type="submit" class="btn-sm" title="优先处理当前页还没有中文摘要的内容，最多处理 5 条">生成本页前 5 条摘要</button>
                 </form>
 
                 <form method="get" action="/radar/today" class="radar-page-size-form">
@@ -268,11 +268,8 @@
                         <li>
                             <strong>#{{ detail.item_id }}</strong>
                             <span class="radar-summary-status radar-summary-status-{{ detail.status }}">
-                                {{ detail.status }}
+                                {{ detail.message_label }}
                             </span>
-                            {% if detail.message %}
-                            <span>{{ detail.message }}</span>
-                            {% endif %}
                         </li>
                         {% endfor %}
                     </ul>

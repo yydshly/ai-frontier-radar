@@ -159,8 +159,30 @@ def _parse_summary_details(raw: str | None) -> list[dict[str, str]]:
             "item_id": item_id,
             "status": status,
             "message": message,
+            "message_label": _humanize_summary_detail_message(status, message),
         })
     return details
+
+
+def _has_zh_one_liner(item: SourceItem) -> bool:
+    """Return True if the item already has a Chinese one-liner in raw_metadata_json."""
+    import json
+    try:
+        raw = json.loads(item.raw_metadata_json or "{}")
+        return bool(raw.get("zh_one_liner", "").strip())
+    except Exception:
+        return False
+
+
+def _humanize_summary_detail_message(status: str, message: str | None) -> str:
+    """Convert a raw summary status + technical message to user-facing Chinese."""
+    if status == "success":
+        return "已生成中文摘要"
+    elif status == "skipped":
+        return "已有摘要，已跳过"
+    elif status == "failed":
+        return "中文摘要生成失败，可稍后重试"
+    return "处理失败"
 
 _radar_templates = Jinja2Templates(
     directory=Path(__file__).resolve().parent.parent / "templates",
@@ -315,22 +337,32 @@ def generate_today_summaries(
             section=section,
         )
 
-        # Collect currently-visible item IDs from all rendered sections.
-        visible_ids = []
+        # Collect currently-visible items in page display order (deduped).
+        visible_items = []
         seen_ids = set()
         for section_view in view.sections:
             for item in section_view.items:
                 if item.id not in seen_ids:
-                    visible_ids.append(item.id)
+                    visible_items.append(item)
                     seen_ids.add(item.id)
 
-        max_items = max(1, min(summary_limit, 5))
-        items = (
+        # Re-fetch items to ensure we have session-bound objects, but restore
+        # original page-order so visual sequence matches what the user sees.
+        visible_ids = [item.id for item in visible_items]
+        fetched_items = (
             db.query(SourceItem)
             .filter(SourceItem.id.in_(visible_ids))
-            .order_by(SourceItem.last_seen_at.desc(), SourceItem.id.desc())
             .all()
         )
+        items_by_id = {item.id: item for item in fetched_items}
+        items = [items_by_id[iid] for iid in visible_ids if iid in items_by_id]
+
+        # Prioritize items that are missing zh_one_liner.
+        missing_summary = [item for item in items if not _has_zh_one_liner(item)]
+        has_summary = [item for item in items if _has_zh_one_liner(item)]
+
+        max_items = max(1, min(summary_limit, 5))
+        items = (missing_summary + has_summary)[:max_items]
 
         settings = get_one_liner_settings()
         summary_service = CandidateOneLinerService(db, settings=settings)

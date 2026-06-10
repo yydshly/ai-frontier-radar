@@ -46,7 +46,7 @@ def main() -> int:
           'action="/radar/today/update"' in radar_html and "更新今日雷达" in radar_html,
           "应有更新今日雷达表单")
     check("今日雷达有中文摘要补齐入口",
-          'action="/radar/today/generate-summaries"' in radar_html and "补齐当前页中文摘要" in radar_html,
+          'action="/radar/today/generate-summaries"' in radar_html and "生成本页前 5 条摘要" in radar_html,
           "应有补齐当前页中文摘要表单")
     check("今日雷达有智能阅读面板",
           "智能阅读面板" in radar_html and "radar-panel-state-stack" in radar_html,

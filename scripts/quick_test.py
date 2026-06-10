@@ -3025,7 +3025,7 @@ def main():
 
         check("today radar toolbar has summary generation form",
               'action="/radar/today/generate-summaries"' in radar_html
-              and "补齐当前页中文摘要" in radar_html,
+              and "生成本页前 5 条摘要" in radar_html,
               "toolbar should expose current-page Chinese summary generation")
 
         check("today radar summary form preserves context",
@@ -4230,6 +4230,71 @@ def main():
               "update_result should include reason_summary_label")
     except Exception as e:
         check("V1.0-beta.3 Chinese entry UX checks", False, str(e))
+
+    # ── 39. V1.0-beta.3 Summary fill: page-order + humanized errors ─────────
+    print("\n[39] V1.0-beta.3 Summary fill: page-order + humanized errors")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        # 1. generate_today_summaries does NOT re-order by last_seen_at.desc().
+        check("route does NOT re-order by last_seen_at.desc()",
+              "last_seen_at.desc()" not in radar_py.split("def generate_today_summaries")[1].split("def ")[0]
+              if "def generate_today_summaries" in radar_py else False,
+              "generate_today_summaries must not re-sort items by last_seen_at.desc()")
+
+        # 2. route has _has_zh_one_liner or equivalent.
+        check("route has _has_zh_one_liner helper",
+              "_has_zh_one_liner" in radar_py,
+              "route should check zh_one_liner presence via _has_zh_one_liner")
+
+        # 3. route has _humanize_summary_detail_message or equivalent.
+        check("route has _humanize_summary_detail_message helper",
+              "_humanize_summary_detail_message" in radar_py,
+              "route should humanize summary errors via _humanize_summary_detail_message")
+
+        # 4. template does NOT display detail.message directly (only message_label).
+        _snippet = (
+            radar_html.split("radar-summary-detail-list")[1].split("{% endfor %}")[0]
+            if "radar-summary-detail-list" in radar_html else ""
+        )
+        import re
+        _raw_msg_pattern = re.compile(r"detail\.message(?![_\w])")
+        check("template does NOT display raw detail.message",
+              not _raw_msg_pattern.search(_snippet),
+              "template must not display raw detail.message in summary detail list")
+
+        # 5. template uses message_label (or equivalent user-friendly field).
+        check("template uses detail.message_label for display",
+              "detail.message_label" in radar_html
+              or "message_label" in radar_html,
+              "template should display message_label instead of raw message")
+
+        # 6. template does NOT contain "MiniMax JSON parse failed" error phrase.
+        check("template does NOT contain 'MiniMax JSON parse failed' error phrase",
+              "MiniMax JSON parse failed" not in radar_html,
+              "raw 'MiniMax JSON parse failed' error phrase must not appear in template")
+
+        # 7. template does NOT contain "Anthropic response" (error phrase).
+        check("template does NOT contain 'Anthropic response' error phrase",
+              "Anthropic response" not in radar_html,
+              "raw 'Anthropic response' error phrase must not appear in template")
+
+        # 8. _humanize_summary_detail_message maps failed → user-friendly label.
+        check("_humanize_summary_detail_message returns user-friendly failure label",
+              'return "中文摘要生成失败' in radar_py
+              and 'return "已生成中文摘要"' in radar_py
+              and 'return "已有摘要，已跳过"' in radar_py,
+              "humanize function should return Chinese labels for all status values")
+
+        # 9. button text mentions 前 5 条 or 最多 5 条.
+        check("button text mentions '前 5 条' or '最多 5 条'",
+              ("前 5 条" in radar_html or "最多 5 条" in radar_html)
+              and "生成本页" in radar_html,
+              "button should say '生成本页前 5 条摘要' or similar")
+    except Exception as e:
+        check("V1.0-beta.3 Summary fill checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
