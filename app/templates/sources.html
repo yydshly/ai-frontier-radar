@@ -146,13 +146,18 @@
                             <div class="source-meta">
                                 <span class="category-tag">{{ s.category }}</span>
                                 <span class="strategy-tag">{{ s.effective_strategy_label }}</span>
+                                {% if s.needs_review %}
+                                <span class="strategy-tag" style="background:#f57c00; color:white;">需补充 RSS</span>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
                     <!-- Status badge -->
                     <div class="source-status">
-                        {% if s.fetch_run_status == 'success' %}
-                        <span class="status-badge status-compiled">成功</span>
+                        {% if s.fetch_run_status == 'success' and s.fetch_run_items_new > 0 %}
+                        <span class="status-badge status-compiled">成功 +{{ s.fetch_run_items_new }} 新增</span>
+                        {% elif s.fetch_run_status == 'success' and s.fetch_run_items_new == 0 %}
+                        <span class="status-badge" style="background:#6a737d; color:white;">成功（无新增）</span>
                         {% elif s.fetch_run_status == 'running' %}
                         <span class="status-badge" style="background:#1976d2; color:white;">运行中</span>
                         {% elif s.fetch_run_status == 'partial_failed' %}

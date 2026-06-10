@@ -1692,9 +1692,9 @@ def main() -> int:
               "sidebar should have 全部来源 link")
 
         # Source workspace improvements
-        check("source_detail.html shows 推荐探测方式",
-              "推荐探测方式" in detail_html,
-              "workspace should show recommended strategy")
+        check("source_detail.html shows 推荐策略 (renamed from 推荐探测方式)",
+              "推荐策略" in detail_html,
+              "workspace should show 推荐策略")
         check("source_detail.html shows readable error",
               "readable_error" in detail_html or "error-msg" in detail_html,
               "workspace should show humanized error")
@@ -1717,6 +1717,91 @@ def main() -> int:
         check("no ViewModel class added",
               "class SourceWorkspaceViewModel" not in main_py,
               "should not do ViewModel refactor")
+
+        # ── V1.0-beta.13 Source Onboarding Audit additions ─────────
+
+        # New scripts exist
+        check("scripts/audit_sources_onboarding.py exists",
+              (project_root / "scripts" / "audit_sources_onboarding.py").exists(),
+              "audit_sources_onboarding.py should exist")
+        check("scripts/probe_feed_url.py exists",
+              (project_root / "scripts" / "probe_feed_url.py").exists(),
+              "probe_feed_url.py should exist")
+        check("scripts/diagnose_data_quality.py exists",
+              (project_root / "scripts" / "diagnose_data_quality.py").exists(),
+              "diagnose_data_quality.py should exist")
+
+        # sources.html: needs_review tag
+        check("sources.html shows 需补充 RSS for HTML-index sources",
+              "需补充 RSS" in sources_html,
+              "sources.html should show needs_review tag for HTML sources")
+        check("sources.html distinguishes 成功（无新增）",
+              "成功（无新增）" in sources_html,
+              "sources.html should distinguish zero-new from failure")
+        check("sources.html shows feed_url in tech details",
+              'tech-label">Feed' in sources_html,
+              "sources.html should show Feed URL in collapsed tech details")
+
+        # source_detail.html: new fields
+        check("source_detail shows 推荐策略 (not 推荐探测方式)",
+              "推荐策略" in detail_html,
+              "workspace should show 推荐策略")
+        check("source_detail shows 当前策略 (not 实际探测方式)",
+              "当前策略" in detail_html,
+              "workspace should show 当前策略")
+        check("source_detail shows 需补充 RSS when needs_review",
+              "需补充 RSS" in detail_html,
+              "workspace should show needs_review indicator")
+        check("source_detail shows 建议动作 section",
+              "建议动作" in detail_html,
+              "workspace should show suggested actions")
+        check("source_detail shows 最近失败原因",
+              "最近失败原因" in detail_html,
+              "workspace should show failure reason")
+        check("source_detail shows homepage_url",
+              "官网" in detail_html,
+              "workspace should show homepage_url")
+        check("source_detail shows RSS Feed row",
+              "RSS Feed" in detail_html,
+              "workspace should show RSS Feed URL")
+
+        # main.py provides new fields
+        check("main.py provides recommended_strategy for sources list",
+              '"recommended_strategy"' in main_py,
+              "main.py should provide recommended_strategy for /sources")
+        check("main.py provides needs_review for sources list",
+              '"needs_review"' in main_py,
+              "main.py should provide needs_review for /sources")
+        check("main.py provides recommended_strategy for source workspace",
+              "recommended_strategy" in main_py,
+              "main.py should provide recommended_strategy for source_detail")
+
+        # probe_feed_url.py is executable (has shebang + main guard)
+        probe_text = read("scripts/probe_feed_url.py")
+        check("probe_feed_url.py has main guard",
+              'if __name__ == "__main__"' in probe_text,
+              "probe_feed_url.py should have main guard")
+        check("probe_feed_url.py has --url argument",
+              'argparse' in probe_text and '--url' in probe_text,
+              "probe_feed_url.py should accept --url argument")
+
+        # audit_sources_onboarding.py is executable
+        audit_text = read("scripts/audit_sources_onboarding.py")
+        check("audit_sources_onboarding.py has main guard",
+              'if __name__ == "__main__"' in audit_text,
+              "audit_sources_onboarding.py should have main guard")
+        check("audit_sources_onboarding.py uses config_loader",
+              'load_sources_config' in audit_text,
+              "audit_sources_onboarding.py should use load_sources_config")
+
+        # diagnose_data_quality.py is executable
+        diag_text = read("scripts/diagnose_data_quality.py")
+        check("diagnose_data_quality.py has main guard",
+              'if __name__ == "__main__"' in diag_text,
+              "diagnose_data_quality.py should have main guard")
+        check("diagnose_data_quality.py checks snapshot quality",
+              'get_snapshot_path' in diag_text,
+              "diagnose_data_quality.py should check snapshot quality")
 
     except Exception as e:
         check("Source Experience: checks", False, str(e))

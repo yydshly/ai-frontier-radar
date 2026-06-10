@@ -1207,6 +1207,10 @@ def _render_sources_page(
             # V1.0-beta.13: effective strategy label (RSS when feed_url exists)
             effective_strategy = "rss" if s.feed_url else s.fetch_strategy
             effective_label = describe_fetch_strategy(effective_strategy)
+            # V1.0-beta.13: recommended strategy (RSS if feed works, HTML index otherwise)
+            recommended_strategy = effective_strategy
+            # V1.0-beta.13: needs_review when HTML index is used (no RSS feed)
+            needs_review = (effective_strategy == "html_index")
             # V1.0-beta.13: readable error message
             raw_error = (health.latest_error_message if health else None) or s.last_error_message
             readable_error = _humanize_fetch_error(raw_error, effective_strategy)
@@ -1233,6 +1237,9 @@ def _render_sources_page(
                 # V1.0-beta.13: effective strategy label
                 "effective_strategy": effective_strategy,
                 "effective_strategy_label": effective_label,
+                # V1.0-beta.13: recommended strategy and needs_review
+                "recommended_strategy": recommended_strategy,
+                "needs_review": needs_review,
                 # V1.0-beta.13: readable error
                 "readable_error": readable_error,
             })
@@ -1381,6 +1388,9 @@ def source_workspace_page(request: Request, source_key: str):
 
         # V1.0-beta.13: effective strategy for this source
         effective_strategy = "rss" if source.feed_url else source.fetch_strategy
+        # V1.0-beta.13: recommended strategy and needs_review flag
+        recommended_strategy = effective_strategy
+        needs_review = (effective_strategy == "html_index")
 
         # 4b. Stale running FetchRun diagnostics (read-only) for this source.
         from app.application.sources.stale_runs import build_stale_fetch_run_report
@@ -1498,6 +1508,8 @@ def source_workspace_page(request: Request, source_key: str):
                 "fetch_strategy_label": describe_fetch_strategy(source.fetch_strategy),
                 "effective_strategy": effective_strategy,
                 "effective_strategy_label": describe_fetch_strategy(effective_strategy),
+                "recommended_strategy": recommended_strategy,
+                "needs_review": needs_review,
                 "stale_runs": source_stale_runs,
                 "stale_threshold_minutes": stale_report.threshold_minutes,
                 "decision": decision,
