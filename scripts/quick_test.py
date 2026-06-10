@@ -3055,14 +3055,16 @@ def main():
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
 
-        check("one-liner service supports fill_missing_summary",
-              "fill_missing_summary" in one_liner_py
-              and "has_summary" in one_liner_py,
-              "one-liner service should support filling zh_summary for old data")
+        check("one-liner service has fill_missing_summary param",
+              "fill_missing_summary" in one_liner_py,
+              "one-liner service should keep fill_missing_summary for backward compatibility")
+        check("one-liner service has force param",
+              "force" in one_liner_py,
+              "one-liner service should have force parameter for overwrite control")
 
         check("generate_one_liners supports fill-missing-summary flag",
               "--fill-missing-summary" in generate_one_liners_py,
-              "script should support zh_summary repair mode")
+              "script should support fill-missing-summary flag for backward compatibility")
 
         check("today radar has generate summaries route",
               '@router.post("/today/generate-summaries")' in radar_route_py,
@@ -5177,9 +5179,14 @@ def main():
               "generate_for_items must accept force parameter")
 
         # Default-no-overwrite guard in should_generate
-        check("one_liner.py has force bypass guard",
-              "not force and has_one_liner" in one_liner_py or "force" in one_liner_py,
-              "should_generate must check force before skipping")
+        # Rule: force=False + has zh_one_liner → always skip (fill_missing_summary cannot bypass)
+        check("one_liner.py has 'not force and has_one_liner' guard",
+              "not force and has_one_liner" in one_liner_py,
+              "should_generate must guard: not force and has_one_liner")
+        # Old guard that allowed fill_missing_summary to bypass must be gone
+        check("one_liner.py does NOT use has_summary in force bypass guard",
+              "(has_summary or not fill_missing_summary)" not in one_liner_py,
+              "old guard using has_summary to bypass force must be removed")
 
         # _write_result does NOT write zh_summary (that is a separate service's field)
         check("one_liner.py _write_result does NOT write zh_summary",

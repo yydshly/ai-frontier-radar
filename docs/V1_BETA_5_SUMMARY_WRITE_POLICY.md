@@ -513,3 +513,62 @@ app/db.py                  — 不改
 app/services/insight_compiler.py  — 不改
 真实 LLM 调用逻辑           — 不改
 ```
+
+---
+
+## 十六、Task 3.1：修复 fill_missing_summary 非 force 覆盖漏洞
+
+> V1.0-beta.5 Task 3.1 修复 `should_generate()` 中 `fill_missing_summary=True` 可绕过 `force=False` 保护的漏洞。
+
+### 16.1 问题描述
+
+原始逻辑：
+
+```python
+if not force and has_one_liner and (has_summary or not fill_missing_summary):
+    return False
+```
+
+当 `fill_missing_summary=True`、`has_summary=False`、`force=False` 时：
+
+- `has_one_liner = True`
+- `has_summary = False`
+- `fill_missing_summary = True`
+- 条件变为 `True and True and (False or False)` = `False`
+- 生成继续执行 → **非 force 覆盖已有 zh_one_liner**（违反规范）
+
+### 16.2 修复内容
+
+简化 guard，移除 `has_summary` 和 `fill_missing_summary` 的绕过逻辑：
+
+```python
+if not force and has_one_liner:
+    return False
+```
+
+`fill_missing_summary` 参数保留以兼容旧调用，但不再旁路 `force=False` 保护。
+
+### 16.3 修复后行为
+
+| `has_one_liner` | `force` | `fill_missing_summary` | 结果 |
+|-----------------|---------|----------------------|------|
+| 有 | `False` | 任意 | 跳过 |
+| 有 | `True` | 任意 | 覆盖 |
+| 无 | `False` | `False` | 生成 |
+| 无 | `False` | `True` | 生成 |
+| 无 | `True` | 任意 | 生成 |
+
+### 16.4 Case E 验收
+
+| Case | 输入 | 调用 | 预期 |
+|------|------|------|------|
+| E | 已有 `zh_one_liner` + `description` | `fill_missing_summary=True, force=False` | `status=skipped`，`zh_one_liner` 不变，`description` 不变，`zh_summary` 不写入，provider 未被调用 |
+
+### 16.5 涉及文件
+
+| 文件 | 修改类型 |
+|------|---------|
+| `app/application/candidates/one_liner.py` | 修复：简化 `should_generate()` guard |
+| `scripts/quick_test.py` | 更新：断言新 guard 正确，旧 guard 已移除 |
+| `scripts/acceptance_first_usable_loop.py` | 新增 Case E（含 provider call_count 验证） |
+| `docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md` | 新增 Task 3.1 章节 |

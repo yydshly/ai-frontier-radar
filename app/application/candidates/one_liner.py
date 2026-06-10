@@ -244,10 +244,12 @@ class CandidateOneLinerService:
     ) -> bool:
         raw = _parse_metadata(item.raw_metadata_json)
         has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
-        has_summary = bool(str(raw.get("zh_summary") or "").strip())
 
-        # force=True bypasses the existing zh_one_liner check
-        if not force and has_one_liner and (has_summary or not fill_missing_summary):
+        # fill_missing_summary is kept for backward compatibility.
+        # This service no longer writes zh_summary (only zh_one_liner), so it must
+        # not bypass the non-force zh_one_liner overwrite guard.
+        # Rule: force=False + existing non-empty zh_one_liner = always skip.
+        if not force and has_one_liner:
             return False
 
         if item.status not in ELIGIBLE_STATUSES:

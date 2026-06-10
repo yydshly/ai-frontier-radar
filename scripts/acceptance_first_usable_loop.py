@@ -719,6 +719,61 @@ def main() -> int:
                     finally:
                         db_d.close()
 
+                    # Case E: fill_missing_summary=True + existing zh_one_liner + force=False → MUST skip
+                    # Regression: fill_missing_summary must NOT bypass the force=False guard.
+                    class CountingFakeProvider(OneLinerProvider):
+                        """Fake that tracks call count so we can assert provider was never called."""
+                        call_count = 0
+
+                        def generate(self, payload: OneLinerInput) -> OneLinerGeneratedText:
+                            CountingFakeProvider.call_count += 1
+                            return OneLinerGeneratedText(
+                                one_liner=f"[FAKE] {payload.title[:20]}",
+                                summary=None,
+                            )
+
+                    CountingFakeProvider.call_count = 0
+                    db_e = SessionLocal()
+                    item_e = _make_item({
+                        "zh_one_liner": "已有中文一句话摘要",
+                        "description": "This is source metadata.",
+                    })
+                    db_e.add(item_e)
+                    db_e.flush()
+                    inserted_ids.append(item_e.id)
+                    db_e.commit()
+                    try:
+                        item_e_row = db_e.query(SourceItem).filter(SourceItem.id == item_e.id).first()
+                        if item_e_row is not None:
+                            svc_e = CandidateOneLinerService(
+                                db_e,
+                                provider=CountingFakeProvider(),
+                            )
+                            # fill_missing_summary=True should NOT bypass force=False guard
+                            res_e = svc_e.generate_for_item(item_e_row, fill_missing_summary=True, force=False)
+                            check("Case E: fill_missing_summary=True + force=False → skipped",
+                                  res_e.status == "skipped",
+                                  f"expected status=skipped, got {res_e.status!r}")
+                            check("Case E: zh_one_liner unchanged (not overwritten)",
+                                  res_e.text is None,
+                                  f"expected text=None (skipped), got {res_e.text!r}")
+                            db_e.refresh(item_e_row)
+                            meta_e = _json.loads(item_e_row.raw_metadata_json or "{}")
+                            check("Case E: zh_one_liner still '已有中文一句话摘要'",
+                                  meta_e.get("zh_one_liner") == "已有中文一句话摘要",
+                                  f"expected unchanged, got {meta_e.get('zh_one_liner')!r}")
+                            check("Case E: description unchanged",
+                                  meta_e.get("description") == "This is source metadata.",
+                                  f"description changed: {meta_e.get('description')!r}")
+                            check("Case E: zh_summary NOT written",
+                                  "zh_summary" not in meta_e or meta_e.get("zh_summary") is None,
+                                  f"zh_summary should not exist: {meta_e.get('zh_summary')!r}")
+                            check("Case E: provider NOT called (call_count == 0)",
+                                  CountingFakeProvider.call_count == 0,
+                                  f"provider should not be called, but call_count={CountingFakeProvider.call_count}")
+                    finally:
+                        db_e.close()
+
                 finally:
                     # Cleanup: delete all test items
                     try:
