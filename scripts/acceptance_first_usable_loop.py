@@ -786,6 +786,90 @@ def main() -> int:
                     except Exception:
                         pass
 
+    print("\n[22] P-004 custom source intake preview")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created - skipping custom source tests")
+    else:
+        from app.db import SessionLocal
+        from app.models import Source
+
+        # Normalize existing config sync before measuring dry-run row counts.
+        get_resp = _client.get("/sources")
+        check("/sources shows custom source dry-run form",
+              get_resp.status_code == 200
+              and ("添加自定义来源" in get_resp.text or "预览，不写入" in get_resp.text),
+              "/sources should expose custom source preview UI")
+
+        db = SessionLocal()
+        try:
+            before_count = db.query(Source).count()
+            existing_source = db.query(Source).first()
+            duplicate_key = existing_source.source_key if existing_source is not None else "openai_news"
+        finally:
+            db.close()
+
+        valid_resp = _client.post(
+            "/sources/custom/preview",
+            data={
+                "name": "Acceptance Unique RSS F11",
+                "source_key": "acceptance_unique_rss_f11",
+                "fetch_strategy": "rss",
+                "feed_url": "https://example.com/acceptance-unique-rss-f11.xml",
+                "homepage_url": "",
+                "category": "other",
+                "relevance_hint": "AI updates",
+                "fetch_interval_hours": "24",
+            },
+        )
+        check("POST valid rss draft returns dry-run preview",
+              valid_resp.status_code == 200
+              and ("dry-run" in valid_resp.text or "未写入" in valid_resp.text),
+              "valid preview should render without writing")
+
+        localhost_resp = _client.post(
+            "/sources/custom/preview",
+            data={
+                "name": "Acceptance Localhost",
+                "fetch_strategy": "rss",
+                "feed_url": "http://localhost/feed.xml",
+                "homepage_url": "",
+                "category": "other",
+                "relevance_hint": "",
+                "fetch_interval_hours": "24",
+            },
+        )
+        check("POST localhost URL returns validation error",
+              localhost_resp.status_code == 200
+              and ("错误列表" in localhost_resp.text or "localhost" in localhost_resp.text),
+              "localhost URL should be rejected on the preview page")
+
+        duplicate_resp = _client.post(
+            "/sources/custom/preview",
+            data={
+                "name": "Acceptance Duplicate Key",
+                "source_key": duplicate_key,
+                "fetch_strategy": "rss",
+                "feed_url": "https://example.com/acceptance-duplicate-key.xml",
+                "homepage_url": "",
+                "category": "other",
+                "relevance_hint": "",
+                "fetch_interval_hours": "24",
+            },
+        )
+        check("POST duplicate source_key returns validation error",
+              duplicate_resp.status_code == 200
+              and ("source_key" in duplicate_resp.text or "错误列表" in duplicate_resp.text),
+              "duplicate source_key should be rejected")
+
+        db = SessionLocal()
+        try:
+            after_count = db.query(Source).count()
+        finally:
+            db.close()
+        check("custom preview POST does not change Source row count",
+              before_count == after_count,
+              "preview endpoint must not write Source rows")
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

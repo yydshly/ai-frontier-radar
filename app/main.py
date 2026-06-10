@@ -1135,6 +1135,16 @@ def card_export_report_download(card_id: int):
 @app.get("/sources", response_class=HTMLResponse)
 def list_sources_page(request: Request, include_test: int = Query(0, ge=0, le=1)):
     """List all configured sources from database."""
+    return _render_sources_page(request, include_test=include_test)
+
+
+def _render_sources_page(
+    request: Request,
+    *,
+    include_test: int = 0,
+    custom_preview: dict | None = None,
+    custom_form: dict | None = None,
+):
     db = next(get_db())
     try:
         # Sync config to DB first (no network access)
@@ -1190,10 +1200,64 @@ def list_sources_page(request: Request, include_test: int = Query(0, ge=0, le=1)
                 "sync_result": sync_result,
                 "include_test": show_test_sources,
                 "include_test_url": "/sources" if show_test_sources else "/sources?include_test=1",
+                "custom_preview": custom_preview,
+                "custom_form": custom_form or {},
             },
         )
     finally:
         db.close()
+
+
+@app.post("/sources/custom/preview", response_class=HTMLResponse)
+def preview_custom_source_page(
+    request: Request,
+    include_test: int = Form(0),
+    name: str = Form(""),
+    fetch_strategy: str = Form("rss"),
+    homepage_url: str = Form(""),
+    feed_url: str = Form(""),
+    category: str = Form("other"),
+    relevance_hint: str = Form(""),
+    fetch_interval_hours: int = Form(24),
+    source_key: str = Form(""),
+):
+    """Preview a custom source draft. Dry-run only: no writes, no network."""
+    from app.application.sources.custom_intake import CustomSourceDraft, preview_custom_source
+
+    form_data = {
+        "name": name,
+        "fetch_strategy": fetch_strategy,
+        "homepage_url": homepage_url,
+        "feed_url": feed_url,
+        "category": category,
+        "relevance_hint": relevance_hint,
+        "fetch_interval_hours": fetch_interval_hours,
+        "source_key": source_key,
+    }
+    db = next(get_db())
+    try:
+        preview = preview_custom_source(
+            db,
+            CustomSourceDraft(
+                name=name,
+                fetch_strategy=fetch_strategy,
+                homepage_url=homepage_url or None,
+                feed_url=feed_url or None,
+                category=category or "other",
+                relevance_hint=relevance_hint or "",
+                fetch_interval_hours=fetch_interval_hours,
+                source_key=source_key or None,
+            ),
+        )
+    finally:
+        db.close()
+
+    return _render_sources_page(
+        request,
+        include_test=include_test,
+        custom_preview=preview,
+        custom_form=form_data,
+    )
 
 
 @app.get("/sources/{source_key}", response_class=HTMLResponse)

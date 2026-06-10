@@ -318,7 +318,7 @@
                 <a href="/candidate-pool?source_key={{ source.source_key }}" class="btn-link">候选池</a>
                 <a href="/source-items?source_key={{ source.source_key }}" class="btn-link">原始资料</a>
             </div>
-            <p class="source-workspace-muted">本页面为只读工作台，不会触发探测、摘要或 InsightCard 生成。</p>
+            <p class="source-workspace-muted">本页面默认只读；只有点击“运行探测”等操作按钮时，才会触发有副作用的后台任务。</p>
         </div>
 {% endif %}
 {% endblock %}

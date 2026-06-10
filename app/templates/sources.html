@@ -29,6 +29,97 @@
             {% endif %}
         </div>
 
+        <section class="workflow-card custom-source-preview-card">
+            <h2>添加自定义来源（预览）</h2>
+            <p class="page-note">先校验来源配置并查看 dry-run 结果；本表单只预览，不写入数据库，不触发抓取。</p>
+            <form method="POST" action="/sources/custom/preview" class="custom-source-preview-form">
+                <input type="hidden" name="include_test" value="{{ 1 if include_test else 0 }}">
+                <div class="form-grid">
+                    <label>
+                        <span>来源名称</span>
+                        <input type="text" name="name" value="{{ custom_form.name or '' }}" placeholder="OpenAI Blog" required>
+                    </label>
+                    <label>
+                        <span>抓取策略</span>
+                        <select name="fetch_strategy">
+                            {% set selected_strategy = custom_form.fetch_strategy or 'rss' %}
+                            {% for strategy in ['rss', 'html_index', 'single_url', 'json_feed', 'sitemap', 'api', 'pdf', 'crawler', 'change_detect', 'newsletter'] %}
+                            <option value="{{ strategy }}" {% if selected_strategy == strategy %}selected{% endif %}>{{ strategy }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        <span>主页 URL</span>
+                        <input type="url" name="homepage_url" value="{{ custom_form.homepage_url or '' }}" placeholder="https://example.com/blog">
+                    </label>
+                    <label>
+                        <span>Feed URL</span>
+                        <input type="url" name="feed_url" value="{{ custom_form.feed_url or '' }}" placeholder="https://example.com/feed.xml">
+                    </label>
+                    <label>
+                        <span>分类</span>
+                        <input type="text" name="category" value="{{ custom_form.category or 'other' }}">
+                    </label>
+                    <label>
+                        <span>抓取间隔（小时）</span>
+                        <input type="number" name="fetch_interval_hours" min="1" max="720" value="{{ custom_form.fetch_interval_hours or 24 }}">
+                    </label>
+                    <label>
+                        <span>source_key（可选）</span>
+                        <input type="text" name="source_key" value="{{ custom_form.source_key or '' }}" placeholder="custom_ai_blog">
+                    </label>
+                    <label>
+                        <span>相关性提示</span>
+                        <input type="text" name="relevance_hint" value="{{ custom_form.relevance_hint or '' }}" placeholder="AI research / product updates">
+                    </label>
+                </div>
+                <button type="submit" class="btn-primary">预览，不写入</button>
+            </form>
+
+            {% if custom_preview %}
+            <div class="custom-source-preview-result">
+                <h3>预览结果</h3>
+                <p><strong>是否通过：</strong>{{ '是' if custom_preview.ok else '否' }}</p>
+                <p><strong>dry-run：</strong>未写入数据库</p>
+                {% if custom_preview.errors %}
+                <div class="alert alert-error">
+                    <strong>错误列表</strong>
+                    <ul>
+                        {% for error in custom_preview.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if custom_preview.warnings %}
+                <div class="alert alert-warning">
+                    <strong>警告列表</strong>
+                    <ul>
+                        {% for warning in custom_preview.warnings %}
+                        <li>{{ warning }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if custom_preview.would_create %}
+                <dl class="source-preview-fields">
+                    <dt>将创建的 source_key</dt>
+                    <dd>{{ custom_preview.would_create.source_key }}</dd>
+                    <dt>获取方式中文文案</dt>
+                    <dd>{{ custom_preview.would_create.fetch_method_label }}</dd>
+                    <dt>策略层级</dt>
+                    <dd>{{ custom_preview.would_create.strategy_tier }}</dd>
+                    <dt>是否当前进入调度</dt>
+                    <dd>否</dd>
+                    <dt>调度说明</dt>
+                    <dd>{{ custom_preview.would_create.scheduling_note }}</dd>
+                </dl>
+                {% endif %}
+                <p class="page-note">{{ custom_preview.note }}</p>
+            </div>
+            {% endif %}
+        </section>
+
         <!-- Usage guide -->
         <div class="usage-guide">
             <h3>使用流程</h3>

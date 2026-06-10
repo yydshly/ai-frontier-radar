@@ -1,76 +1,85 @@
 # 自定义来源接入设计（P-004 / Phase F）
 
-> 设计先行文档。目标：让用户自定义接入 RSS / HTML index / 单篇 URL / PDF，但
-> **抓取策略受白名单约束**。本阶段（F-1）只做**校验 + dry-run 预览（只读，不写库）**；
-> 实际写库与 UI 表单留到 F-2，且写入也走显式 gate。
+目标：让个人用户可以先在 `/sources` 预览自定义 RSS / HTML index / 单篇 URL / PDF 等来源是否可接入。本阶段只做校验和 dry-run 预览，不写库，不触发抓取，不调用 LLM。
 
-## 1. 现状与关键约束
+## F-1 / F-1.1 范围
 
-- 来源目前仅由 `config/sources.yaml` 定义，经 `sync_sources_config_to_db` 同步进 DB。
-- **关键发现**：`sync_sources_config_to_db` 只 **create/update** 配置中存在的
-  source_key，**从不删除/禁用** DB 中配置外的行。
-  ⇒ 用户自定义来源（key 不在 YAML）写入 DB 后，**不会被后续 config 同步清除**。
-- 不能新增数据库表 / 字段（纪律）。⇒ 用 `tags_json` 里的标记区分来源出身。
+- 只做 validation + dry-run preview。
+- 不 add Source，不 commit DB，不改数据库 schema。
+- 不触发抓取，不调用 LLM。
+- 不进入 `/radar/today/update` 的 due-source 调度。
+- preview 中所有 custom source 都不承诺自动调度，`enters_scheduling_now=false`。
 
-## 2. 共存模型
+## 共存模型
 
-| 来源出身 | 判定 | 同步影响 |
-|----------|------|----------|
-| 配置来源 | source_key ∈ config | 受 YAML 同步 create/update |
-| 自定义来源 | source_key ∉ config，且 tags 含 `user-source` | **不受同步影响**（DB-only） |
+现有正式来源由 `config/sources.yaml` 定义，并通过 `sync_sources_config_to_db` 同步到 DB。自定义来源后续如果写入 DB，应使用 `tags_json` 中的 `user-source` 标记区分来源出处，不新增表或字段。
 
-自定义来源写入时：`enabled=True`，`tags_json` 追加标记 `user-source`，
-source_key 必须与现有 config / DB key **不冲突**。
+F-1.1 的去重同时检查：
 
-## 3. 策略白名单（复用 P-001 能力矩阵）
+- DB `Source.source_key`
+- config sources 的 `source_key`
+- DB `feed_url` / `homepage_url`
+- config sources 的 `feed_url` / `homepage_url`
 
-| 层级 | 策略 | 自定义接入许可 |
-|------|------|----------------|
-| 轻量/中量（已支持） | `rss` / `html_index` | ✅ 普通用户可选 |
-| 中量（预留） | `single_url` / `json_feed` / `sitemap` / `api` | 🔜 预留：允许登记，但 probe 未实现前不进自动调度 |
-| 重量/外部 | `crawler` / `change_detect` / `pdf` / `newsletter` | ⛔ 需显式开启（`CUSTOM_SOURCE_ALLOW_RESTRICTED=true`），默认拒绝 |
+个人自用阶段，重复 URL 默认作为 error，避免同一来源重复抓取造成今日雷达重复内容。特殊允许重复的场景以后再设计，不在 F-1.1 实现开关。
 
-未知策略一律拒绝。
+## URL 安全校验
 
-## 4. F-1 校验 + dry-run 预览（本阶段，只读）
+F-1.1 只做静态 URL 安全校验，不做 DNS 解析，不做网络 probe。
 
-输入草稿 `CustomSourceDraft`：
+只允许公网 `http` / `https` URL。静态拒绝：
 
-```
-name / homepage_url / feed_url / fetch_strategy / category / relevance_hint /
-fetch_interval_hours / source_key(可选，自动从 name/url 派生)
-```
+- `localhost`
+- `127.0.0.1`
+- `0.0.0.0`
+- `::1`
+- 内网 IPv4：`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`
+- link-local：`169.254.0.0/16`
+- metadata service：`169.254.169.254`
+- IPv6 loopback / private / link-local
+- `.local` host
+- `file://`、`ftp://`、`data:`、`javascript:`
+- 空 host
 
-`validate_custom_source_draft(db, draft)` → `CustomSourceValidation`（只读）：
+## 策略边界
 
-1. 必填校验：name、fetch_strategy；rss 需 feed_url，html_index 需 homepage_url。
-2. URL 安全：feed_url / homepage_url 必须 http/https，禁止其它 scheme。
-3. 策略白名单：按上表分级；受限策略未显式开启则报错。
-4. source_key 规范化：缺省时从 name/域名派生 slug（小写、连字符、ASCII 安全）。
-5. 去重：规范化 key、feed_url、homepage_url 不得与现有 config / DB 来源冲突。
-6. 返回 `ok / errors[] / warnings[] / normalized_key / normalized_draft`。
+支持策略：
 
-`preview_custom_source(db, draft)` → 干跑计划（不写库）：返回"将要创建的来源"
-摘要（key、获取方式中文文案、策略层级、是否进自动调度），**绝不 add/commit**。
+- `rss`：必须有 `feed_url`
+- `html_index`：必须有 `homepage_url`
 
-## 5. F-2（后续）写库 + UI（不在本阶段）
+预留策略：
 
-- `add_custom_source(db, draft, *, apply=False)`：dry-run 默认；`apply=True` 才写库，
-  写前重新校验，写入 `user-source` 标记，commit。
-- UI：`/sources` 增加"添加来源"入口（POST 表单 + 预览），小调整不重做布局。
-- 隔离验收脚本（仿 `acceptance_run_due_sources_once_apply.py`）在 isolated DB 验证真实写入。
+- `single_url`：必须有 `homepage_url` 或 `feed_url`，更适合进入“手动内容导入”，不一定是长期 Source。
+- `json_feed`：必须有 `feed_url` 或 `homepage_url`
+- `sitemap`：必须有 `feed_url` 或 `homepage_url`
+- `api`：必须有 `homepage_url`
 
-## 6. 边界
+受限策略：
 
-- F-1 **只读**：不 add / 不 commit / 不触发抓取 / 不调用 LLM。
-- 不新增表 / 不改 schema / 不改 db_sync / 不改 due-source / 不改抓取流程。
-- 重量策略默认拒绝；预留策略允许登记但不进自动调度（due-source 仍判 unsupported）。
+- `pdf`：暂不建议作为长期 Source 写入。
+- `crawler` / `change_detect` / `newsletter`：默认拒绝，除非显式设置 `CUSTOM_SOURCE_ALLOW_RESTRICTED=true`。
 
-## 7. 验收（F-1）
+## F-2 调度接入方案选择
 
-- 合法 rss/html_index 草稿 → validation ok，preview 给出将创建摘要，DB 行数不变。
-- 缺 feed_url 的 rss、错误 scheme、未知/受限策略、重复 key → validation 报错。
-- quick_test 静态 + 只读功能断言；不写库、不调用 LLM。
+F-2 前必须先选择以下方案之一。
 
-参考：[V1_OPTIMIZATION_ROADMAP.md](V1_OPTIMIZATION_ROADMAP.md)、
-[V1_SOURCE_INGESTION_STRATEGY.md](V1_SOURCE_INGESTION_STRATEGY.md)
+方案 A：写入 `config/sources.yaml`
+
+- 优点：复用现有 `compute_due_sources`，无需改调度。
+- 缺点：需要安全写 YAML、处理用户配置和示例配置边界。
+
+方案 B：扩展 `compute_due_sources` 读取 DB user-source
+
+- 优点：自定义来源真正本地化，不污染 YAML。
+- 缺点：需要严格过滤 `tags_json` 含 `user-source`、`enabled=True`、`fetch_strategy in rss/html_index`，避免测试/历史脏数据进入调度。
+
+F-1.1 不实现方案 A 或 B，不写库，不进入调度。F-2 前必须先选择 A 或 B。
+
+## 验收
+
+- `/sources` 显示“添加自定义来源（预览）”表单。
+- POST preview 只返回校验结果和 would-create 信息，不写数据库。
+- 合法 `rss` / `html_index` 可通过校验，但 `enters_scheduling_now=false`。
+- `localhost`、内网、metadata IP、非 http(s) URL 被拒绝。
+- 与 config 或 DB 重复的 key / URL 被拒绝。

@@ -5667,6 +5667,8 @@ def main():
         project_root = Path(__file__).resolve().parents[1]
         intake_py = project_root / "app" / "application" / "sources" / "custom_intake.py"
         intake_plan = project_root / "docs" / "V1_CUSTOM_SOURCE_INTAKE_PLAN.md"
+        source_detail_html = project_root / "app" / "templates" / "source_detail.html"
+        sources_html = project_root / "app" / "templates" / "sources.html"
 
         check("custom source intake module exists",
               intake_py.exists(),
@@ -5676,16 +5678,45 @@ def main():
               "P-004 intake plan doc should exist")
 
         intake_text = intake_py.read_text(encoding="utf-8") if intake_py.exists() else ""
+        intake_plan_text = intake_plan.read_text(encoding="utf-8") if intake_plan.exists() else ""
+        source_detail_text = source_detail_html.read_text(encoding="utf-8") if source_detail_html.exists() else ""
+        sources_text = sources_html.read_text(encoding="utf-8") if sources_html.exists() else ""
         check("custom intake is read-only (no writes)",
               ".add(" not in intake_text
               and ".commit(" not in intake_text
-              and "enqueue" not in intake_text,
+              and "enqueue" not in intake_text
+              and ".fetch(" not in intake_text
+              and "run_source_fetch" not in intake_text,
               "F-1 intake must validate/preview only, never write or fetch")
         check("custom intake white-lists strategies",
               "STRATEGY_SUPPORTED" in intake_text
               and "STRATEGY_RESTRICTED" in intake_text
               and "CUSTOM_SOURCE_ALLOW_RESTRICTED" in intake_text,
               "intake should tier strategies and gate restricted ones")
+        check("custom intake has static SSRF URL guards",
+              "localhost" in intake_text
+              and "127.0.0.1" in intake_text
+              and "169.254.169.254" in intake_text
+              and "ipaddress" in intake_text,
+              "custom intake should block local/private/metadata URLs")
+        check("custom intake checks config sources",
+              "list_sources" in intake_text or "config_loader" in intake_text,
+              "custom intake should dedupe against config sources")
+        check("custom intake preview does not enter scheduling now",
+              "enters_scheduling_now" in intake_text and "enters_scheduling" in intake_text,
+              "preview must expose non-scheduling semantics")
+        check("custom source plan documents F-2方案 A/B",
+              "方案 A" in intake_plan_text and "方案 B" in intake_plan_text,
+              "plan should document both F-2 scheduling choices")
+        check("source detail read-only copy is not misleading",
+              "不会触发探测、摘要或 InsightCard 生成" not in source_detail_text,
+              "source detail should clarify action buttons can trigger side effects")
+        check("sources page exposes dry-run custom source UI",
+              "添加自定义来源" in sources_text or "预览，不写入" in sources_text,
+              "sources page should include preview UI")
+        check("custom preview form is POST dry-run",
+              'action="/sources/custom/preview"' in sources_text,
+              "preview form should post to custom preview endpoint")
 
         # Functional, read-only.
         from app.db import SessionLocal
@@ -5695,9 +5726,13 @@ def main():
             validate_custom_source_draft,
             preview_custom_source,
         )
+        from app.sources.config_loader import list_sources
         _db = SessionLocal()
         try:
             _before = _db.query(Source).count()
+            config_sources = list_sources(include_disabled=True)
+            config_source = config_sources[0] if config_sources else None
+            db_source = _db.query(Source).first()
 
             ok = validate_custom_source_draft(
                 _db, CustomSourceDraft(name="QT Sample Feed", fetch_strategy="rss",
@@ -5726,6 +5761,63 @@ def main():
                   not bad_scheme.ok,
                   "feed/homepage urls must be http/https")
 
+            for label, url in (
+                ("localhost", "http://localhost/feed.xml"),
+                ("127.0.0.1", "http://127.0.0.1/feed.xml"),
+                ("metadata", "http://169.254.169.254/latest/meta-data"),
+            ):
+                unsafe = validate_custom_source_draft(
+                    _db, CustomSourceDraft(name=f"QT {label}", fetch_strategy="rss", feed_url=url))
+                check(f"{label} url is rejected",
+                      not unsafe.ok,
+                      f"{url} must be rejected")
+
+            if config_source is not None:
+                dup_config_key = validate_custom_source_draft(
+                    _db,
+                    CustomSourceDraft(
+                        name="QT Dup Config Key",
+                        source_key=config_source.source_key,
+                        fetch_strategy="rss",
+                        feed_url="https://example.com/qt-dup-config-key.xml",
+                    ),
+                )
+                check("duplicate config source_key is rejected",
+                      not dup_config_key.ok,
+                      "config source_key duplicate must be rejected")
+                config_url = config_source.feed_url or config_source.homepage_url
+                if config_url:
+                    dup_config_url = validate_custom_source_draft(
+                        _db,
+                        CustomSourceDraft(name="QT Dup Config URL", fetch_strategy="rss", feed_url=config_url),
+                    )
+                    check("duplicate config feed/homepage URL is rejected",
+                          not dup_config_url.ok,
+                          "config URL duplicate must be rejected")
+
+            if db_source is not None:
+                dup_db_key = validate_custom_source_draft(
+                    _db,
+                    CustomSourceDraft(
+                        name="QT Dup DB Key",
+                        source_key=db_source.source_key,
+                        fetch_strategy="rss",
+                        feed_url="https://example.com/qt-dup-db-key.xml",
+                    ),
+                )
+                check("duplicate DB source_key is rejected",
+                      not dup_db_key.ok,
+                      "DB source_key duplicate must be rejected")
+                db_url = db_source.feed_url or db_source.homepage_url
+                if db_url:
+                    dup_db_url = validate_custom_source_draft(
+                        _db,
+                        CustomSourceDraft(name="QT Dup DB URL", fetch_strategy="rss", feed_url=db_url),
+                    )
+                    check("duplicate DB feed/homepage URL is rejected",
+                          not dup_db_url.ok,
+                          "DB URL duplicate must be rejected")
+
             preview = preview_custom_source(
                 _db, CustomSourceDraft(name="QT Blog", fetch_strategy="html_index",
                                        homepage_url="https://example.com/blog"))
@@ -5733,6 +5825,26 @@ def main():
                   preview["ok"] and preview["would_create"]["source_key"]
                   and "未写入" in preview["note"],
                   "preview should describe the would-create source and note no write")
+            check("html preview does not enter scheduling now",
+                  preview["ok"]
+                  and preview["would_create"]["enters_scheduling_now"] is False
+                  and preview["would_create"]["enters_scheduling"] is False,
+                  "custom previews must not promise automatic scheduling")
+
+            rss_preview = preview_custom_source(
+                _db,
+                CustomSourceDraft(
+                    name="QT Unique RSS F11",
+                    source_key="qt_unique_rss_f11",
+                    fetch_strategy="rss",
+                    feed_url="https://example.com/qt-unique-rss-f11.xml",
+                ),
+            )
+            check("rss preview does not enter scheduling now",
+                  rss_preview["ok"]
+                  and rss_preview["would_create"]["enters_scheduling_now"] is False
+                  and rss_preview["would_create"]["enters_scheduling"] is False,
+                  "rss custom preview must not promise automatic scheduling")
 
             _after = _db.query(Source).count()
             check("custom intake validation does not write rows",
