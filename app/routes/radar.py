@@ -6,8 +6,10 @@ by RadarTodayService. Read-only: no fetching, no compilation, no LLM.
 POST /radar/today/generate-summaries triggers one-liner generation for
 items visible on the current page.
 """
+from collections import Counter
 from pathlib import Path
 from urllib.parse import urlencode
+import os
 
 from fastapi import APIRouter, BackgroundTasks, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -30,6 +32,7 @@ from app.application.radar.today import (
     ALL_KEY,
 )
 from app.application.sources.background_fetch import SourceFetchBackgroundService
+from app.application.sources.due_sources import DueSourcePlan, compute_due_sources
 from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
 from app.models import SourceItem, Source
 from app.sources.config_loader import list_sources
@@ -60,6 +63,85 @@ def _dedupe_sources_by_key(sources: list[Source]) -> tuple[list[Source], int]:
     return list(selected.values()), duplicate_count
 
 
+def _get_radar_update_max_due_sources() -> int:
+    """Return the cap on due sources enqueued per update click.
+
+    Reads from RADAR_UPDATE_MAX_DUE_SOURCES env var.
+    Default 30. 0 means no due source will be started this cycle.
+    Falls back to 30 if invalid or out of [0, 500].
+    """
+    raw = os.getenv("RADAR_UPDATE_MAX_DUE_SOURCES")
+    if raw is None:
+        return 30
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 30
+    if value < 0 or value > 500:
+        return 30
+    return value
+
+
+def _build_due_source_reason_summary(plan: DueSourcePlan) -> str:
+    """Build a compact reason summary string for the redirect query param."""
+    counter: Counter[str] = Counter()
+    for bucket in (plan.skipped, plan.running, plan.unsupported, plan.missing):
+        for decision in bucket:
+            counter[decision.reason] += 1
+    return ",".join(f"{reason}:{count}" for reason, count in counter.most_common())
+
+
+# Mapping from internal reason keys to user-facing Chinese descriptions.
+_REASON_LABEL: dict[str, str] = {
+    "not_due_yet": "来源仍在冷却中",
+    "max_sources_limit": "达到本轮检查上限",
+    "already_running": "正在运行中",
+    "missing_source_row": "来源记录缺失",
+    "unsupported_fetch_strategy": "暂不支持的抓取方式",
+}
+
+
+def _humanize_reason_summary(raw: str | None) -> str | None:
+    """Convert a raw due-source reason summary to user-facing Chinese.
+
+    Examples:
+      "not_due_yet:15"  -> "15 个来源仍在冷却中，暂不需要重复检查。"
+      "not_due_yet:10,already_running:2" -> "10 个来源仍在冷却中，2 个正在运行中。"
+      "" or None -> None
+    """
+    if not raw:
+        return None
+    parts: list[str] = []
+    for segment in raw.split(","):
+        segment = segment.strip()
+        if not segment:
+            continue
+        if ":" in segment:
+            reason, count_str = segment.rsplit(":", 1)
+            try:
+                count = int(count_str)
+            except ValueError:
+                parts.append(segment)
+                continue
+            label = _REASON_LABEL.get(reason, reason)
+            parts.append(f"{count} 个{label}，暂不需要重复检查" if reason == "not_due_yet" else f"{count} 个{label}")
+        else:
+            parts.append(segment)
+    if not parts:
+        return None
+    return "".join(parts) + "。"
+
+
+def _parse_int_query(value: str | None, default: int = 0) -> int:
+    """Safely parse an int query param; return default on failure."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 router = APIRouter(prefix="/radar", tags=["radar"])
 
 
@@ -77,8 +159,30 @@ def _parse_summary_details(raw: str | None) -> list[dict[str, str]]:
             "item_id": item_id,
             "status": status,
             "message": message,
+            "message_label": _humanize_summary_detail_message(status, message),
         })
     return details
+
+
+def _has_zh_one_liner(item: SourceItem) -> bool:
+    """Return True if the item already has a Chinese one-liner in raw_metadata_json."""
+    import json
+    try:
+        raw = json.loads(item.raw_metadata_json or "{}")
+        return bool(raw.get("zh_one_liner", "").strip())
+    except Exception:
+        return False
+
+
+def _humanize_summary_detail_message(status: str, message: str | None) -> str:
+    """Convert a raw summary status + technical message to user-facing Chinese."""
+    if status == "success":
+        return "已生成中文摘要"
+    elif status == "skipped":
+        return "已有摘要，已跳过"
+    elif status == "failed":
+        return "中文摘要生成失败，可稍后重试"
+    return "处理失败"
 
 _radar_templates = Jinja2Templates(
     directory=Path(__file__).resolve().parent.parent / "templates",
@@ -108,8 +212,96 @@ def radar_today_page(
     update_duplicate_sources: int | None = Query(None, ge=0),
     update_configured_sources: int | None = Query(None, ge=0),
     update_filtered_sources: int | None = Query(None, ge=0),
+    # New due-source summary fields (V1.0-beta.1)
+    update_total: int | None = Query(None, ge=0),
+    update_due: int | None = Query(None, ge=0),
+    update_skipped: int | None = Query(None, ge=0),
+    update_missing: int | None = Query(None, ge=0),
+    update_reason_summary: str | None = Query(None),
+    update_plan_source: str | None = Query(None),
 ):
     """Render today's AI frontier radar reading view."""
+    # Build base context using shared helper
+    context = _build_radar_today_view_context(
+        request=request,
+        item_id=item_id,
+        hours=hours,
+        limit=limit,
+        page=page,
+        per_page=per_page,
+        section=section,
+    )
+
+    summary_result = None
+    if (
+        summary_success is not None
+        or summary_skipped is not None
+        or summary_failed is not None
+    ):
+        summary_result = {
+            "success": summary_success or 0,
+            "skipped": summary_skipped or 0,
+            "failed": summary_failed or 0,
+            "details": _parse_summary_details(summary_details),
+        }
+
+    update_result = None
+    if any(v is not None for v in [
+        update_started,
+        update_running,
+        update_unsupported,
+        update_failed,
+        update_truncated,
+        update_unique_sources,
+        update_duplicate_sources,
+        update_configured_sources,
+        update_filtered_sources,
+        update_total,
+        update_due,
+        update_skipped,
+        update_missing,
+        update_reason_summary,
+        update_plan_source,
+    ]):
+        update_result = {
+            "started": update_started or 0,
+            "running": update_running or 0,
+            "unsupported": update_unsupported or 0,
+            "failed": update_failed or 0,
+            "truncated": update_truncated or 0,
+            "unique_sources": update_unique_sources or 0,
+            "duplicate_sources": update_duplicate_sources or 0,
+            "configured_sources": update_configured_sources or 0,
+            "filtered_sources": update_filtered_sources or 0,
+            # New due-source summary fields (V1.0-beta.1)
+            "total": update_total or 0,
+            "due": update_due or 0,
+            "skipped": update_skipped or 0,
+            "missing": update_missing or 0,
+            "reason_summary": update_reason_summary or "",
+            "reason_summary_label": _humanize_reason_summary(update_reason_summary) or "",
+            "plan_source": update_plan_source or "",
+        }
+
+    context["summary_result"] = summary_result
+    context["update_result"] = update_result
+
+    return _radar_templates.TemplateResponse(
+        "radar_today.html",
+        context,
+    )
+
+
+def _build_radar_today_view_context(
+    request: Request,
+    item_id: int | None,
+    hours: int,
+    limit: int,
+    page: int,
+    per_page: int,
+    section: str,
+):
+    """Build the context dict for radar today view (shared by full page and panel)."""
     db = next(get_db())
     try:
         configured_sources = [s for s in list_sources() if s.enabled]
@@ -126,56 +318,55 @@ def radar_today_page(
             fetch_run_source_keys=configured_keys,
         )
 
-        summary_result = None
-        if (
-            summary_success is not None
-            or summary_skipped is not None
-            or summary_failed is not None
-        ):
-            summary_result = {
-                "success": summary_success or 0,
-                "skipped": summary_skipped or 0,
-                "failed": summary_failed or 0,
-                "details": _parse_summary_details(summary_details),
-            }
+        # V1.0-beta.3: read-only scheduler status for the sidebar block.
+        try:
+            from app.application.radar.status_view import (
+                build_radar_scheduler_status_view,
+            )
+            scheduler_status = build_radar_scheduler_status_view(db)
+        except Exception:
+            scheduler_status = None
 
-        update_result = None
-        if any(v is not None for v in [
-            update_started,
-            update_running,
-            update_unsupported,
-            update_failed,
-            update_truncated,
-            update_unique_sources,
-            update_duplicate_sources,
-            update_configured_sources,
-            update_filtered_sources,
-        ]):
-            update_result = {
-                "started": update_started or 0,
-                "running": update_running or 0,
-                "unsupported": update_unsupported or 0,
-                "failed": update_failed or 0,
-                "truncated": update_truncated or 0,
-                "unique_sources": update_unique_sources or 0,
-                "duplicate_sources": update_duplicate_sources or 0,
-                "configured_sources": update_configured_sources or 0,
-                "filtered_sources": update_filtered_sources or 0,
-            }
+        sel = view.selected_item
+        sel_card = view.display_map.get(sel.id) if sel else None
 
-        return _radar_templates.TemplateResponse(
-            "radar_today.html",
-            {
-                "request": request,
-                "view": view,
-                "display_map": view.display_map,
-                "safe_external_url": safe_external_url,
-                "summary_result": summary_result,
-                "update_result": update_result,
-            },
-        )
+        return {
+            "request": request,
+            "view": view,
+            "display_map": view.display_map,
+            "safe_external_url": safe_external_url,
+            "scheduler_status": scheduler_status,
+            "sel": sel,
+            "sel_card": sel_card,
+        }
     finally:
         db.close()
+
+
+@router.get("/today/panel")
+def radar_today_panel(
+    request: Request,
+    item_id: int | None = Query(None),
+    hours: int = Query(DEFAULT_HOURS, ge=MIN_HOURS, le=MAX_HOURS),
+    limit: int = Query(DEFAULT_LIMIT, ge=MIN_LIMIT, le=MAX_LIMIT),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(DEFAULT_PER_PAGE, ge=MIN_PER_PAGE, le=MAX_PER_PAGE),
+    section: str = Query(ALL_KEY),
+):
+    """Return only the right-panel HTML fragment for partial fetch updates."""
+    context = _build_radar_today_view_context(
+        request=request,
+        item_id=item_id,
+        hours=hours,
+        limit=limit,
+        page=page,
+        per_page=per_page,
+        section=section,
+    )
+    return _radar_templates.TemplateResponse(
+        "partials/radar_today_panel.html",
+        context,
+    )
 
 
 @router.post("/today/generate-summaries")
@@ -201,22 +392,32 @@ def generate_today_summaries(
             section=section,
         )
 
-        # Collect currently-visible item IDs from all rendered sections.
-        visible_ids = []
+        # Collect currently-visible items in page display order (deduped).
+        visible_items = []
         seen_ids = set()
         for section_view in view.sections:
             for item in section_view.items:
                 if item.id not in seen_ids:
-                    visible_ids.append(item.id)
+                    visible_items.append(item)
                     seen_ids.add(item.id)
 
-        max_items = max(1, min(summary_limit, 5))
-        items = (
+        # Re-fetch items to ensure we have session-bound objects, but restore
+        # original page-order so visual sequence matches what the user sees.
+        visible_ids = [item.id for item in visible_items]
+        fetched_items = (
             db.query(SourceItem)
             .filter(SourceItem.id.in_(visible_ids))
-            .order_by(SourceItem.last_seen_at.desc(), SourceItem.id.desc())
             .all()
         )
+        items_by_id = {item.id: item for item in fetched_items}
+        items = [items_by_id[iid] for iid in visible_ids if iid in items_by_id]
+
+        # Prioritize items that are missing zh_one_liner.
+        missing_summary = [item for item in items if not _has_zh_one_liner(item)]
+        has_summary = [item for item in items if _has_zh_one_liner(item)]
+
+        max_items = max(1, min(summary_limit, 5))
+        items = (missing_summary + has_summary)[:max_items]
 
         settings = get_one_liner_settings()
         summary_service = CandidateOneLinerService(db, settings=settings)
@@ -275,78 +476,37 @@ def update_today_radar(
     page: int = Form(1),
     per_page: int = Form(DEFAULT_PER_PAGE),
 ):
-    """Batch-enqueue enabled sources for background fetching.
+    """Compute due-source plan and enqueue only due sources.
 
-    Returns to /radar/today with update result stats.
+    V1.0-beta.1: enqueues only sources whose due-source plan status is "due".
+    Sources in skipped / running / unsupported / missing buckets are NOT enqueued.
     """
-    # Get configured enabled source keys (whitelist for today's radar)
-    configured_sources = [s for s in list_sources() if s.enabled]
-    configured_keys = {s.source_key for s in configured_sources}
-    configured_count = len(configured_keys)
+    max_due_sources = _get_radar_update_max_due_sources()
 
-    # Count enabled DB sources not in config for filtered-out stat
+    # Compute the due-source plan (read-only).
     db = next(get_db())
     try:
-        db_enabled_keys = {
-            row[0] for row in (
-                db.query(Source.source_key)
-                .filter(Source.enabled == True)  # noqa: E712
-                .all()
-            )
-        }
-        filtered_out_count = len(db_enabled_keys - configured_keys)
-
-        # Query DB sources: enabled AND in configured keys, then dedupe
-        sources = (
-            db.query(Source)
-            .filter(Source.enabled == True)  # noqa: E712
-            .filter(Source.source_key.in_(configured_keys))
-            .order_by(Source.source_key.asc(), Source.id.asc())
-            .all()
-        )
+        plan = compute_due_sources(db, max_sources=max_due_sources)
     finally:
         db.close()
 
-    # Deduplicate by source_key (protects against legacy duplicate rows)
-    unique_sources, duplicate_sources = _dedupe_sources_by_key(sources)
-
-    # Separate eligible (supported) vs unsupported sources
-    eligible_sources = []
-    unsupported = []
-    for source in unique_sources:
-        if source.fetch_strategy in SUPPORTED_STRATEGIES:
-            eligible_sources.append(source)
-        else:
-            unsupported.append(source)
-
-    # Limit batch size
-    max_sources = 30
-    truncated_count = max(0, len(eligible_sources) - max_sources)
-    eligible_sources = eligible_sources[:max_sources]
-
-    # Enqueue each eligible source
+    # Enqueue only plan.due — single failure does not affect the rest.
     fetch_service = SourceFetchBackgroundService()
     started = 0
-    already_running = 0
-    not_found = 0
     failed = 0
 
-    for source in eligible_sources:
+    for decision in plan.due:
         try:
             result = fetch_service.enqueue_source(
-                source.source_key,
+                decision.source_key,
                 background_tasks=background_tasks,
             )
         except Exception:
             failed += 1
             continue
 
-        if result.status == "running" and result.accepted:
+        if getattr(result, "accepted", False) and getattr(result, "status", "") in ("running", "queued"):
             started += 1
-        elif result.status == "already_running":
-            already_running += 1
-        elif result.status == "not_found":
-            not_found += 1
         else:
             failed += 1
 
@@ -365,22 +525,39 @@ def update_today_radar(
     finally:
         db.close()
 
-    # Redirect back to /radar/today with result stats
+    reason_summary = _build_due_source_reason_summary(plan)
+
+    # Redirect back to /radar/today with result stats.
+    # Both legacy and new due-source fields are carried so the template can
+    # render either style.
     redirect_url = (
         f"/radar/today?section={safe_section}"
         f"&hours={hours}&limit={limit}&page={page}&per_page={per_page}"
     )
     if item_id is not None:
         redirect_url += f"&item_id={item_id}"
+
+    # New due-source summary fields
     redirect_url += (
+        f"&update_total={plan.total_configured}"
+        f"&update_due={plan.due_count}"
         f"&update_started={started}"
-        f"&update_running={already_running}"
-        f"&update_unsupported={len(unsupported)}"
+        f"&update_skipped={plan.skipped_count}"
+        f"&update_running={plan.running_count}"
+        f"&update_unsupported={plan.unsupported_count}"
+        f"&update_missing={plan.missing_count}"
         f"&update_failed={failed}"
-        f"&update_truncated={truncated_count}"
-        f"&update_unique_sources={len(unique_sources)}"
-        f"&update_duplicate_sources={duplicate_sources}"
-        f"&update_configured_sources={configured_count}"
-        f"&update_filtered_sources={filtered_out_count}"
+        f"&update_plan_source=due_sources_v1"
+    )
+    if reason_summary:
+        redirect_url += f"&update_reason_summary={reason_summary}"
+
+    # Legacy compatibility fields (still computed for backwards compatibility)
+    redirect_url += (
+        f"&update_unique_sources={plan.total_configured}"
+        f"&update_duplicate_sources=0"
+        f"&update_configured_sources={plan.total_configured}"
+        f"&update_filtered_sources=0"
+        f"&update_truncated={max(0, plan.due_count - started)}"
     )
     return RedirectResponse(url=redirect_url, status_code=303)

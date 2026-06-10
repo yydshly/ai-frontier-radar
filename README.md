@@ -223,6 +223,81 @@ python scripts/quick_test.py
 python scripts/check_sources_health.py
 ```
 
+## V1.0-beta.1 Source Scheduling and Source Workspace
+
+下一阶段目标是让系统从"手动跑通"升级为"可持续运行"。
+
+核心问题：
+
+```
+哪些来源今天该探测？
+每个来源状态如何？
+来源池和雷达关注源如何区分？
+摘要生成如何排队和重试？
+```
+
+规划文档：
+
+- [docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md](docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md) — 架构说明、核心概念、due-source 设计
+- [docs/V1_BETA_1_EXECUTION_PLAN.md](docs/V1_BETA_1_EXECUTION_PLAN.md) — 任务拆分、推荐顺序、测试策略
+- [docs/V1_BETA_1_DECISION_RECORD.md](docs/V1_BETA_1_DECISION_RECORD.md) — 6 条关键架构决策
+
+### V1.0-beta.1 Source Scheduling Checkpoint
+
+本阶段完成来源调度与单来源排查闭环：来源工作台、due-source、stale running 诊断、人工恢复、单来源手动探测和真实 openai_news 抓取验收。
+
+验收文档：[docs/V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md](docs/V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md)
+
+真实验收数据：stale running 8→0，openai_news run_id=1067，items_found=50，SourceItem 50→53。
+
+## V1.0-beta.2 Automated Scheduling Design
+
+V1.0-beta.2 将从人工触发进入轻量自动调度设计阶段。
+本阶段先设计 CLI 单轮调度、任务边界、失败重试和配置项，不直接引入 Celery / Redis。
+
+核心约束：自动调度默认关闭、默认不触发 LLM、stale recovery 不自动执行、优先复用 FetchRun。
+
+已完成 isolated DB + local mock RSS 的真实 `--apply` 验收，不污染主数据库（FetchRun success、SourceItem 入库、auto_summary 关闭、InsightCard=0、stale_count=0）。
+
+V1.0-beta.2 已完成 dry-run、--apply 安全路径、isolated apply 验收和外部定时器操作手册。
+
+规划文档：
+
+- [docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md](docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md) — 自动调度与轻量任务队列设计
+- [docs/V1_BETA_2_EXECUTION_PLAN.md](docs/V1_BETA_2_EXECUTION_PLAN.md) — Task 1–6 任务拆分与验收
+- [docs/V1_BETA_2_DECISION_RECORD.md](docs/V1_BETA_2_DECISION_RECORD.md) — 7 条关键决策（不引入 Celery / Redis 等）
+- [docs/V1_BETA_2_SCHEDULER_OPERATIONS.md](docs/V1_BETA_2_SCHEDULER_OPERATIONS.md) — Windows Task Scheduler / cron 操作手册
+- [docs/V1_BETA_2_SCHEDULER_CHECKPOINT.md](docs/V1_BETA_2_SCHEDULER_CHECKPOINT.md) — 自动调度阶段验收与稳定点
+
+**当前建议通过外部定时器调用 CLI，不在 Web 进程内运行常驻 scheduler。**
+
+## V1.0-beta.3：今日雷达体验闭环
+
+V1.0-beta.3 聚焦 `/radar/today` 的可用性体验，将"能跑通"提升为"用起来舒服"。
+
+本阶段已完成：
+- 中文摘要优先展示，弱标题友好降级
+- 卡片紧凑布局，卡片主体可点击
+- 右侧智能阅读面板局部刷新（点击卡片不整页跳转）
+- 目录栏可收起并释放主列表空间
+- 调度状态和探测状态可见
+
+详见：
+- [docs/V1_BETA_3_RELEASE_NOTES.md](docs/V1_BETA_3_RELEASE_NOTES.md) — 版本说明、已完成能力清单
+- [docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md](docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md) — 验收清单
+- [docs/V1_BETA_3_CHINESE_ENTRY_UX_PLAN.md](docs/V1_BETA_3_CHINESE_ENTRY_UX_PLAN.md) — 任务规划
+
+Final checkpoint：
+- [docs/V1_BETA_3_FINAL_CHECKPOINT.md](docs/V1_BETA_3_FINAL_CHECKPOINT.md) — 最终 checkpoint、merge-ready 判断
+- [docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md](docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md) — 人工验收记录
+
+轻量验收：
+
+```bash
+python scripts/acceptance_first_usable_loop.py
+python -m scripts.acceptance_first_usable_loop
+```
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |
@@ -339,6 +414,11 @@ python scripts/check_card_encoding.py
 
 # 卡片详情页 HTML 编码检查
 python scripts/check_card_page.py
+
+# due-source 单轮调度计划（dry-run，只读，不创建 FetchRun）
+python scripts/run_due_sources_once.py
+# --apply 需要 RADAR_SCHEDULER_ENABLED=true 且 AUTO_SUMMARY_MAX_PER_FETCH_RUN=0
+RADAR_SCHEDULER_ENABLED=true AUTO_SUMMARY_MAX_PER_FETCH_RUN=0 python scripts/run_due_sources_once.py --apply
 ```
 
 ---

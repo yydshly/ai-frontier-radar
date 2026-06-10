@@ -7,7 +7,21 @@ acceptance_first_usable_loop.py — V1.0-beta First Usable Loop 轻量验收脚�
 import sys
 from pathlib import Path
 
+# Ensure project root is on sys.path so 'app' and 'scripts' imports work
+# whether this file is run directly (python scripts/acceptance_...) or
+# via -m (python -m scripts.acceptance_first_usable_loop).
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# TestClient-based checks require the app to be importable.
+try:
+    from fastapi.testclient import TestClient
+    from app.main import app
+    _client = TestClient(app)
+except Exception as exc:
+    print(f"[WARN] TestClient could not be created: {exc}")
+    _client = None
 PASS = 0
 FAIL = 0
 
@@ -40,16 +54,19 @@ def main() -> int:
     card_detail_html = read("app/templates/card_detail.html")
     card_export_markdown_html = read("app/templates/card_export_markdown.html")
     card_export_report_html = read("app/templates/card_export_report.html")
+    # Read panel partial for checks that verify right-panel content
+    radar_panel_partial = read("app/templates/partials/radar_today_panel.html")
 
     print("[1] 今日雷达主链路入口")
     check("今日雷达有更新入口",
           'action="/radar/today/update"' in radar_html and "更新今日雷达" in radar_html,
           "应有更新今日雷达表单")
     check("今日雷达有中文摘要补齐入口",
-          'action="/radar/today/generate-summaries"' in radar_html and "补齐当前页中文摘要" in radar_html,
+          'action="/radar/today/generate-summaries"' in radar_html and "生成本页前 5 条摘要" in radar_html,
           "应有补齐当前页中文摘要表单")
     check("今日雷达有智能阅读面板",
-          "智能阅读面板" in radar_html and "radar-panel-state-stack" in radar_html,
+          ("智能阅读面板" in radar_html or "智能阅读面板" in radar_panel_partial)
+          and "radar-panel-state-stack" in radar_panel_partial,
           "右侧应为智能阅读面板")
 
     print("\n[2] 加入生成 return_to")
@@ -78,9 +95,17 @@ def main() -> int:
     check("今日雷达使用雷达关注源词汇",
           "雷达关注源" in radar_html,
           "用户可见文案应使用雷达关注源")
-    check("更新路由限定雷达关注源范围",
-          "configured_keys" in radar_route_py and "Source.source_key.in_(configured_keys)" in radar_route_py,
-          "更新应限定在 configured_keys 范围内")
+    check("更新路由使用 due-source 计划限定雷达关注源范围",
+          "compute_due_sources" in radar_route_py
+          and "plan.due" in radar_route_py
+          and "enqueue_source" in radar_route_py,
+          "更新应通过 due-source plan 只启动到期雷达关注源")
+    check("更新路由不会启动 skipped/running/unsupported/missing 来源",
+          "plan.skipped" in radar_route_py
+          and "plan.running" in radar_route_py
+          and "plan.unsupported" in radar_route_py
+          and "plan.missing" in radar_route_py,
+          "非 due 来源应只用于解释，不应被 enqueue")
 
     print("\n[5] 工作台滚动模型")
     check("今日雷达使用工作台 shell 类",
@@ -116,19 +141,19 @@ def main() -> int:
 
     print("\n[9] 右面板状态化")
     check("右面板显示摘要状态",
-          "radar-panel-state-summary" in radar_html,
+          "radar-panel-state-summary" in radar_panel_partial,
           "右面板应显示摘要状态")
     check("右面板显示 InsightCard 状态",
-          "radar-panel-state-insight" in radar_html,
+          "radar-panel-state-insight" in radar_panel_partial,
           "右面板应显示 InsightCard 状态")
     check("右面板可预览 InsightCard",
-          "radar-panel-insight-preview" in radar_html,
+          "radar-panel-insight-preview" in radar_panel_partial,
           "右面板应能预览 InsightCard")
     check("InsightCard 预览应展示洞察与行动，而非重复摘要",
           "RadarInsightPreview" in radar_py
-          and "为什么值得关注" in radar_html
-          and "技术洞察" in radar_html
-          and "行动建议" in radar_html,
+          and "为什么值得关注" in radar_panel_partial
+          and "技术洞察" in radar_panel_partial
+          and "行动建议" in radar_panel_partial,
           "InsightCard 预览应展示洞察与行动，而不是重复内容摘要")
 
     print("\n[10] 测试来源隔离")
@@ -206,6 +231,80 @@ def main() -> int:
         and "基于来源摘要 / RSS metadata" in main_py,
         "完整 InsightCard 页面不应把 source_type=unknown 直接展示为生成依据",
     )
+
+    # ── 18. Task 8.1: panel partial sel/sel_card fix ───────────────────────
+    print("\n[18] Task 8.1: panel partial sel/sel_card fix")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created — skipping panel tests")
+    else:
+        # 18a. Full page returns 200.
+        resp_main = _client.get("/radar/today")
+        check("GET /radar/today returns 200", resp_main.status_code == 200,
+              f"status={resp_main.status_code}")
+
+        # 18b. Try to find a real SourceItem id from the page or DB.
+        item_id = None
+        try:
+            from app.db import SessionLocal
+            from app.models import SourceItem
+            db = SessionLocal()
+            try:
+                row = db.query(SourceItem.id).order_by(SourceItem.id.desc()).first()
+                if row:
+                    item_id = row[0]
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+        if item_id is None:
+            check("Panel endpoint test skipped — no SourceItem found in DB", True,
+                  "Cannot test panel partial without a real item_id; this is acceptable in fresh DB")
+        else:
+            # 18c. Panel fragment with real item_id returns 200.
+            panel_url = (
+                f"/radar/today/panel?section=all&item_id={item_id}"
+                f"&hours=24&limit=50&page=1&per_page=20"
+            )
+            resp_panel = _client.get(panel_url)
+            check(f"GET /radar/today/panel with item_id={item_id} returns 200",
+                  resp_panel.status_code == 200,
+                  f"status={resp_panel.status_code}")
+
+            # 18d. Panel fragment contains id="radar-panel".
+            check("Panel fragment contains id=\"radar-panel\"",
+                  'id="radar-panel"' in resp_panel.text,
+                  f"fragment length={len(resp_panel.text)}")
+
+            # 18e. Panel fragment does NOT contain <html or <body (must be a partial).
+            check("Panel fragment is NOT a full HTML page (no <html>)",
+                  "<html" not in resp_panel.text.lower())
+            check("Panel fragment is NOT a full HTML page (no <body>)",
+                  "<body" not in resp_panel.text.lower())
+
+            # 18f. Panel with real item_id should NOT show "暂无可阅读的内容".
+            # It may show other empty states like "内容不存在" but not the generic
+            # "no sel provided" message.
+            panel_text = resp_panel.text
+            has_no_content_msg = "暂无可阅读的内容" in panel_text
+            check(f"Panel with item_id={item_id} does NOT show '暂无可阅读的内容'",
+                  not has_no_content_msg,
+                  "Panel should show actual content for valid item_id")
+
+            # 18g. Panel should contain at least one meaningful content indicator.
+            content_indicators = [
+                "中文摘要", "宏观洞察", "来源", "编号",
+                "打开原文", "查看 InsightCard", "加入生成",
+            ]
+            has_any_content = any(indicator in panel_text for indicator in content_indicators)
+            check(f"Panel with item_id={item_id} contains meaningful content indicators",
+                  has_any_content,
+                  f"No content indicators found in panel fragment")
+        # 18h. Panel without item_id (empty selection) still returns 200.
+        resp_empty = _client.get("/radar/today/panel?section=all&hours=24&limit=50&page=1&per_page=20")
+        check("GET /radar/today/panel without item_id returns 200",
+              resp_empty.status_code == 200,
+              f"status={resp_empty.status_code}")
 
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")

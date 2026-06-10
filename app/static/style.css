@@ -3917,6 +3917,71 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     padding-right: 0.25rem;
 }
 
+/* ── Radar directory collapse ─────────────────────────────────── */
+.radar-directory-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.radar-directory-toggle {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.4rem;
+    background: #eef2f7;
+    color: #2c5aa0;
+    border: 1px solid #d0d9e4;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.radar-directory-toggle:hover {
+    background: #dce6f5;
+}
+
+.radar-directory-content {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Collapsed state — shrink the first column to free up main list space */
+.radar-workbench-shell.radar-directory-collapsed .radar-layout {
+    grid-template-columns: 52px minmax(0, 1fr) 360px;
+}
+
+.radar-workbench-shell.radar-directory-collapsed .radar-sidebar {
+    overflow: hidden;
+}
+
+.radar-workbench-shell.radar-directory-collapsed .radar-directory-content {
+    display: none;
+}
+
+.radar-workbench-shell.radar-directory-collapsed .radar-directory-header {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    margin-bottom: 0;
+    padding: 0.25rem 0;
+}
+
+.radar-workbench-shell.radar-directory-collapsed .radar-sidebar-label {
+    display: none;
+}
+
+.radar-workbench-shell.radar-directory-collapsed .radar-directory-toggle {
+    width: 40px;
+    padding: 0.3rem 0.2rem;
+    font-size: 0.7rem;
+    white-space: normal;
+    line-height: 1.2;
+    text-align: center;
+}
+
 .radar-main {
     min-width: 0;
     min-height: 0;
@@ -3988,12 +4053,12 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 }
 
 .radar-section {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .radar-section-title {
     font-size: 1.05rem;
-    margin: 0 0 0.6rem;
+    margin: 0 0 0.4rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px solid #eaeef2;
 }
@@ -4006,17 +4071,17 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 .radar-card-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .radar-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.5rem;
+    gap: 0.4rem;
     align-items: start;
     border: 1px solid #d0d7de;
     border-radius: 8px;
-    padding: 0.85rem 1rem;
+    padding: 0.6rem 0.8rem;
     background: #fff;
 }
 
@@ -4030,6 +4095,18 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     background: #f6fbff;
 }
 
+.radar-card-main-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    min-width: 0;
+}
+
+.radar-card:hover:not(.radar-selected-card) {
+    border-color: #8cafff;
+    background: #f8fbff;
+}
+
 .radar-card-summary {
     font-size: 0.95rem;
     color: #1f2328;
@@ -4037,10 +4114,24 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     line-height: 1.5;
 }
 
+.radar-card-summary-placeholder {
+    font-size: 0.78rem;
+    color: #9a6700;
+    font-style: italic;
+}
+
+.radar-card-original-title {
+    font-size: 0.8rem;
+    color: #57606a;
+    margin-bottom: 0.25rem;
+    line-height: 1.35;
+}
+
 .radar-card-title {
     font-size: 0.85rem;
     color: #57606a;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.2rem;
+    line-height: 1.35;
 }
 
 .radar-card-title-weak {
@@ -4055,7 +4146,7 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     gap: 0.5rem;
     font-size: 0.78rem;
     color: #57606a;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.3rem;
 }
 
 .radar-card-actions {
@@ -4067,6 +4158,38 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     gap: 0.35rem;
     margin-top: 0.35rem;
     flex-shrink: 0;
+}
+
+.radar-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.radar-card-footer .radar-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.radar-card-footer .radar-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    flex-shrink: 0;
+    margin-top: 0;
+}
+
+@media (max-width: 1200px) {
+    .radar-card-footer {
+        flex-wrap: wrap;
+    }
 }
 
 .radar-card-actions .btn-sm {
@@ -4087,6 +4210,11 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     border-radius: 8px;
     padding: 1rem;
     background: #fafbfc;
+}
+
+.radar-panel.is-loading {
+    opacity: 0.65;
+    transition: opacity 0.2s;
 }
 
 .radar-panel-empty,
@@ -4332,6 +4460,27 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     font-size: 0.86rem;
 }
 
+.radar-update-result-title {
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+
+.radar-update-result-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1rem;
+    line-height: 1.5;
+}
+
+.radar-update-reasons {
+    margin-top: 0.4rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed #b6e3ff;
+    color: #4b5c6b;
+    font-size: 0.82rem;
+    word-break: break-all;
+}
+
 /* ── Fetch run summary in today radar sidebar ─────────────────────── */
 .radar-fetch-summary {
     margin-top: 0.9rem;
@@ -4365,6 +4514,40 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     font-size: 0.78rem;
     color: #57606a;
     line-height: 1.45;
+}
+
+/* V1.0-beta.3 — scheduler status sub-block (read-only, additive) */
+.radar-scheduler-status {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.radar-scheduler-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #24292f;
+}
+
+.radar-scheduler-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: #57606a;
+}
+
+.radar-scheduler-value {
+    color: #24292f;
+    font-weight: 600;
+}
+
+.radar-scheduler-hint {
+    font-size: 0.74rem;
+    color: #57606a;
+    line-height: 1.4;
 }
 
 /* ============================================================
@@ -4703,4 +4886,187 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 
 .card-insight-section ul {
     margin: 0;
+}
+
+/* ── Source workspace (read-only single source page) ───────────── */
+.source-workspace-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+
+.source-workspace-hero h1 {
+    margin: 0 0 0.4rem;
+}
+
+.source-workspace-hero-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.source-workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.source-workspace-card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+.source-workspace-card > h2 {
+    font-size: 1.05rem;
+    margin: 0 0 0.75rem;
+    color: #2c3e50;
+}
+
+.source-workspace-status p {
+    margin: 0.4rem 0;
+    font-size: 0.9rem;
+}
+
+.source-workspace-muted {
+    color: #999;
+    font-size: 0.85rem;
+}
+
+.source-workspace-chip {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+}
+
+.source-workspace-chip.chip-ok { background: #e8f5e9; color: #2e7d32; }
+.source-workspace-chip.chip-due { background: #e3f2fd; color: #1565c0; }
+.source-workspace-chip.chip-running { background: #1976d2; color: white; }
+.source-workspace-chip.chip-skip { background: #f5f5f5; color: #666; }
+.source-workspace-chip.chip-warn { background: #fff3e0; color: #e65100; }
+.source-workspace-chip.chip-off { background: #f5f5f5; color: #999; }
+
+.source-workspace-stats {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.source-workspace-table-wrap {
+    overflow-x: auto;
+}
+
+.source-workspace-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.source-workspace-table th,
+.source-workspace-table td {
+    text-align: left;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+
+.source-workspace-table th {
+    color: #555;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.source-workspace-table a {
+    word-break: break-all;
+}
+
+.source-workspace-links {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 640px) {
+    .source-workspace-grid {
+        grid-template-columns: 1fr;
+    }
+    .source-workspace-card {
+        padding: 1rem;
+    }
+}
+
+/* ── Source workspace primary link + fetch secondary button ─────────────── */
+.source-fetch-inline-form {
+    display: inline;
+}
+
+.source-workspace-primary-link {
+    font-weight: 600;
+}
+
+.source-fetch-secondary-button {
+    opacity: 0.9;
+}
+
+/* ── Source workspace stale running warning (read-only diagnostic) ─── */
+.source-workspace-warning {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-left: 4px solid #f9a825;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.source-workspace-warning-title {
+    font-weight: 600;
+    color: #e65100;
+    margin-bottom: 0.5rem;
+}
+
+.source-workspace-warning p {
+    margin: 0.4rem 0;
+    font-size: 0.9rem;
+    color: #5d4037;
+}
+
+.source-workspace-warning-list {
+    margin: 0.5rem 0;
+    padding-left: 1.2rem;
+    font-size: 0.88rem;
+}
+
+.source-workspace-warning-list li {
+    margin: 0.3rem 0;
+    word-break: break-word;
+}
+
+/* ── Source workspace manual fetch panel (side-effect action) ─────── */
+.source-manual-fetch-panel {
+    border-left: 4px solid #1976d2;
+}
+
+.source-manual-fetch-note {
+    margin: 0.4rem 0;
+    font-size: 0.9rem;
+    color: #444;
+}
+
+.source-manual-fetch-form {
+    margin-top: 0.75rem;
+}
+
+.source-manual-fetch-button {
+    cursor: pointer;
 }

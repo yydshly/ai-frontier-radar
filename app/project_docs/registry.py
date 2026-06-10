@@ -174,6 +174,80 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="Beta 规划",
         description="页面、抓取、中文摘要、InsightCard、导出和 checkpoint 的验收清单。",
     ),
+
+    # V1.0-beta.1 来源调度与来源工作台
+    "v1-beta-1-source-scheduling-architecture": DocEntry(
+        key="v1-beta-1-source-scheduling-architecture",
+        title="V1.0-beta.1 来源调度与来源工作台架构",
+        path="docs/V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md",
+        category="V1.0-beta.1",
+        description="due-source 调度、单来源工作台、来源池与雷达关注源分离、摘要队列演进的架构设计。",
+    ),
+    "v1-beta-1-execution-plan": DocEntry(
+        key="v1-beta-1-execution-plan",
+        title="V1.0-beta.1 执行计划",
+        path="docs/V1_BETA_1_EXECUTION_PLAN.md",
+        category="V1.0-beta.1",
+        description="V1.0-beta.1 任务拆分、推荐顺序、测试策略和风险说明。",
+    ),
+    "v1-beta-1-decision-record": DocEntry(
+        key="v1-beta-1-decision-record",
+        title="V1.0-beta.1 架构决策记录",
+        path="docs/V1_BETA_1_DECISION_RECORD.md",
+        category="V1.0-beta.1",
+        description="V1.0-beta.1 六条关键架构决策：不定时任务、config 雷达源、due-source 基于 FetchRun 等。",
+    ),
+    "v1-beta-1-source-scheduling-acceptance": DocEntry(
+        key="v1-beta-1-source-scheduling-acceptance",
+        title="V1.0-beta.1 Source Scheduling Acceptance",
+        path="docs/V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md",
+        category="V1.0-beta.1",
+        description="来源调度、stale running 恢复、单来源手动探测与真实抓取验收记录。",
+    ),
+
+    # V1.0-beta.2 自动调度与轻量任务队列
+    "v1-beta-2-automated-scheduling-design": DocEntry(
+        key="v1-beta-2-automated-scheduling-design",
+        title="V1.0-beta.2 自动调度设计",
+        path="docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md",
+        category="V1.0-beta.2",
+        description="自动调度、轻量任务队列、CLI 单轮调度与后续任务边界设计。",
+    ),
+    "v1-beta-2-execution-plan": DocEntry(
+        key="v1-beta-2-execution-plan",
+        title="V1.0-beta.2 执行计划",
+        path="docs/V1_BETA_2_EXECUTION_PLAN.md",
+        category="V1.0-beta.2",
+        description="V1.0-beta.2 Task 1–6 任务拆分、推荐顺序、测试策略和风险说明。",
+    ),
+    "v1-beta-2-decision-record": DocEntry(
+        key="v1-beta-2-decision-record",
+        title="V1.0-beta.2 决策记录",
+        path="docs/V1_BETA_2_DECISION_RECORD.md",
+        category="V1.0-beta.2",
+        description="V1.0-beta.2 七条关键决策：不引入 Celery / Redis、优先 CLI 单轮调度、默认不触发 LLM 等。",
+    ),
+    "v1-beta-2-scheduling-apply-acceptance": DocEntry(
+        key="v1-beta-2-scheduling-apply-acceptance",
+        title="V1.0-beta.2 调度 apply 验收",
+        path="docs/V1_BETA_2_SCHEDULING_APPLY_ACCEPTANCE.md",
+        category="V1.0-beta.2",
+        description="isolated DB 与本地 mock RSS 下的 run_due_sources_once.py --apply 真实执行验收记录。",
+    ),
+    "v1-beta-2-scheduler-operations": DocEntry(
+        key="v1-beta-2-scheduler-operations",
+        title="V1.0-beta.2 调度操作手册",
+        path="docs/V1_BETA_2_SCHEDULER_OPERATIONS.md",
+        category="V1.0-beta.2",
+        description="Windows Task Scheduler、cron、环境变量、日志与排查手册。",
+    ),
+    "v1-beta-2-scheduler-checkpoint": DocEntry(
+        key="v1-beta-2-scheduler-checkpoint",
+        title="V1.0-beta.2 调度阶段稳定点",
+        path="docs/V1_BETA_2_SCHEDULER_CHECKPOINT.md",
+        category="V1.0-beta.2",
+        description="自动调度 dry-run、apply 安全路径、isolated apply 验收和操作手册的阶段归档。",
+    ),
 }
 
 

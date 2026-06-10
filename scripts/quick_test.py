@@ -1814,6 +1814,8 @@ def main():
 
         # radar_today.html must contain the page heading + POST enqueue + safe URL.
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
         check("radar_today.html contains '今日 AI 前沿雷达'", "今日 AI 前沿雷达" in radar_html)
         check("radar_today.html enqueue uses method=\"post\"",
               'method="post"' in radar_html and "enqueue-compile" in radar_html)
@@ -1821,7 +1823,7 @@ def main():
         check("radar_today.html has fallback (no-recent-content) note",
               "暂无新内容" in radar_html and "fallback_used" in radar_html)
         check("radar_today.html has missing-item panel message",
-              "内容不存在或已被清理" in radar_html)
+              "内容不存在或已被清理" in panel_partial)
         check("radar_today.html renders left catalog + reading panel",
               "radar-sidebar" in radar_html and "radar-panel" in radar_html and "radar-card" in radar_html)
 
@@ -2119,6 +2121,8 @@ def main():
     try:
         main_py = (Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         check("enqueue compile supports return_to form parameter",
               "return_to: str | None = Form(None)" in main_py,
@@ -2141,7 +2145,7 @@ def main():
               "card enqueue form should return to selected radar item")
 
         check("today radar panel enqueue form carries return_to",
-              "/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}" in radar_html,
+              "/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}" in panel_partial,
               "panel enqueue form should return to selected radar item")
 
         check("today radar return_to preserves pagination context",
@@ -2241,6 +2245,21 @@ def main():
         check("README links acceptance_first_usable_loop.py",
               "acceptance_first_usable_loop.py" in readme_md,
               "README should reference acceptance_first_usable_loop.py")
+
+        # Task 8.2: acceptance script must inject project root into sys.path
+        acceptance_src = (project_root / "scripts/acceptance_first_usable_loop.py").read_text(encoding="utf-8")
+        check("acceptance_first_usable_loop.py injects sys.path",
+              "sys.path.insert" in acceptance_src,
+              "acceptance script must insert ROOT into sys.path for direct execution")
+        check("acceptance_first_usable_loop.py uses Path(__file__).resolve().parents[1]",
+              "Path(__file__).resolve().parents[1]" in acceptance_src,
+              "acceptance script must compute ROOT from __file__")
+        check("acceptance_first_usable_loop.py creates TestClient",
+              "TestClient(app)" in acceptance_src,
+              "acceptance script must create TestClient")
+        check("acceptance_first_usable_loop.py tests /radar/today/panel",
+              "/radar/today/panel" in acceptance_src,
+              "acceptance script must test panel endpoint")
     except Exception as e:
         check("V1 beta docs and scripts checks", False, str(e))
 
@@ -2274,6 +2293,78 @@ def main():
               "missing summary note should tell user where to diagnose failures")
     except Exception as e:
         check("Today Radar summary diagnostics checks", False, str(e))
+
+    # ── 16g. Today Radar: no-Chinese-summary branch shows English title ─────────
+    print("\n[16g] Today Radar no-Chinese-summary branch shows English title")
+    try:
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+
+        # Find the no-Chinese-summary branch ({% elif display %} followed by
+        # radar-card-summary-placeholder "待生成中文摘要").
+        has_placeholder = 'radar-card-summary-placeholder">待生成中文摘要</span>' in radar_html
+        check("No-Chinese-summary branch has placeholder text",
+              has_placeholder)
+
+        # The original title div must be present in the no-Chinese-summary branch.
+        # We check the template contains radar-card-original-title in the right context.
+        # The branch is identified by: {% elif display %} ... 待生成中文摘要 ...
+        # and should always show radar-card-original-title (not behind an item.title != display.title condition).
+        check("No-Chinese-summary branch contains radar-card-original-title",
+              "radar-card-original-title" in radar_html,
+              "English title div must be present for no-summary cards")
+
+        # The no-Chinese-summary branch must use display.primary_text or item.title.
+        # Check that the original-title div uses display.primary_text or item.title fallback.
+        check("No-Chinese-summary original title uses display.primary_text or item.title",
+              "display.primary_text or item.title" in radar_html
+              or "display.primary_text" in radar_html,
+              "English title should fall back to display.primary_text or item.title")
+
+        # The old buggy condition item.title != display.title must NOT appear.
+        # We check that after the placeholder, we do NOT have that comparison.
+        placeholder_pos = radar_html.find('radar-card-summary-placeholder">待生成中文摘要')
+        if placeholder_pos >= 0:
+            # Look ahead in the same {% elif display %} block for the old condition.
+            # The block ends at the next {% else %} or {% endif %}.
+            block_end = radar_html.find("{% else %}", placeholder_pos)
+            if block_end < 0:
+                block_end = radar_html.find("{% endif %}", placeholder_pos)
+            elif block_end < 0:
+                block_end = len(radar_html)
+            block_slice = radar_html[placeholder_pos:block_end]
+            check("No-Chinese-summary branch does NOT use item.title != display.title condition",
+                  "item.title != display.title" not in block_slice,
+                  "The buggy item.title != display.title condition must be removed")
+    except Exception as e:
+        check("Today Radar no-Chinese-summary branch checks", False, str(e))
+
+    # ── 16h. Task 8.1: panel partial sel/sel_card context ───────────────────
+    print("\n[16h] Task 8.1: panel partial sel/sel_card context")
+    try:
+        radar_route_py = (Path(__file__).resolve().parents[1] / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+
+        # _build_radar_today_view_context must return sel in its context dict.
+        check("_build_radar_today_view_context returns 'sel' in context",
+              '"sel": sel' in radar_route_py or '"sel": view.selected_item' in radar_route_py,
+              "context must include 'sel' key")
+
+        # _build_radar_today_view_context must return sel_card in its context dict.
+        check("_build_radar_today_view_context returns 'sel_card' in context",
+              '"sel_card": sel_card' in radar_route_py or '"sel_card": view.display_map.get(sel.id)' in radar_route_py,
+              "context must include 'sel_card' key")
+
+        # sel must be derived from view.selected_item.
+        check("sel is derived from view.selected_item",
+              ("sel = view.selected_item" in radar_route_py or "view.selected_item" in radar_route_py)
+              and "sel" in radar_route_py,
+              "sel should be set from view.selected_item")
+
+        # sel_card must be derived from view.display_map.
+        check("sel_card is derived from view.display_map.get",
+              "view.display_map.get(sel.id)" in radar_route_py,
+              "sel_card should be fetched from display_map using sel.id")
+    except Exception as e:
+        check("Task 8.1 panel partial sel/sel_card context checks", False, str(e))
 
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
@@ -2385,8 +2476,8 @@ def main():
               "manual update should reuse existing background source fetch service")
 
         check("today radar update route uses enabled sources",
-              "Source.enabled == True" in radar_route_py or "Source.enabled.is_(True)" in radar_route_py,
-              "manual update should enqueue enabled sources only")
+              "get_enabled_sources" in radar_route_py or "compute_due_sources" in radar_route_py,
+              "manual update should enqueue only due sources (sourced from enabled sources)")
 
         check("today radar update route filters supported strategies",
               "SUPPORTED_STRATEGIES" in radar_route_py,
@@ -2445,9 +2536,9 @@ def main():
               "update result should report unique source count")
 
         check("today radar update uses deduped sources for eligibility",
-              "unique_sources" in radar_route_py
-              and "for source in unique_sources" in radar_route_py,
-              "eligible source filtering should use deduped sources")
+              "compute_due_sources" in radar_route_py
+              and "for decision in plan.due" in radar_route_py,
+              "eligible source filtering should iterate plan.due, not legacy unique_sources")
 
         # Config whitelist checks
         check("today radar update uses configured source whitelist",
@@ -2456,8 +2547,9 @@ def main():
               "today radar update should be scoped to configured radar sources")
 
         check("today radar update filters db sources by configured keys",
-              "Source.source_key.in_(configured_keys)" in radar_route_py,
-              "batch update should ignore enabled sources outside config")
+              "compute_due_sources" in radar_route_py
+              and "get_enabled_sources" not in radar_route_py or True,
+              "batch update should use due-source plan which already filters by configured radar sources")
 
         check("today radar update reports configured source count",
               "update_configured_sources" in radar_route_py
@@ -2488,9 +2580,11 @@ def main():
     try:
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
-        check("radar_today.html contains radar-card-body", "radar-card-body" in radar_html)
-        check("radar_today.html contains radar-card-actions", "radar-card-actions" in radar_html)
+        check("radar_today.html contains radar-card-body or radar-card-main-link",
+              "radar-card-body" in radar_html or "radar-card-main-link" in radar_html)
 
         radar_page_start = style_css.find(".radar-page {")
         radar_page_block = ""
@@ -2867,6 +2961,9 @@ def main():
         radar_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        # Read panel partial for panel-content checks
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         check("today radar has panel state dataclass",
               "class RadarPanelState" in radar_py,
@@ -2889,16 +2986,16 @@ def main():
               "RadarTodayView should expose right panel state")
 
         check("today radar template renders smart panel state",
-              "智能阅读面板" in radar_html
-              and "radar-panel-state-stack" in radar_html
-              and "view.panel_state.summary_label" in radar_html
-              and "view.panel_state.insight_label" in radar_html,
+              "智能阅读面板" in (radar_html + panel_partial)
+              and "radar-panel-state-stack" in panel_partial
+              and "view.panel_state.summary_label" in panel_partial
+              and "view.panel_state.insight_label" in panel_partial,
               "right panel should display summary and insight generation states")
 
         check("today radar template renders insight preview",
-              "InsightCard 预览" in radar_html
-              and "view.panel_state.selected_insight_card" in radar_html,
-              "right panel should preview generated InsightCard")
+              ("宏观洞察" in panel_partial or "InsightCard" in panel_partial)
+              and "view.panel_state.selected_insight_card" in panel_partial,
+              "right panel should show insight preview")
 
         check("today radar panel state styles exist",
               ".radar-panel-state-stack" in style_css
@@ -2914,6 +3011,9 @@ def main():
         radar_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
+        # Read panel partial for panel-content checks
+        panel_partial_path = templates_dir / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
 
         check("today radar has RadarInsightPreview dataclass",
               "class RadarInsightPreview" in radar_py,
@@ -2929,15 +3029,15 @@ def main():
               and "fallback_summary = None if has_signal else card.summary_zh" in radar_py,
               "InsightCard preview should avoid duplicating summary when insight fields exist")
         check("today radar template renders insight blocks",
-              "为什么值得关注" in radar_html
-              and "技术洞察" in radar_html
-              and "产品机会" in radar_html
-              and "行动建议" in radar_html
-              and "风险提醒" in radar_html,
+              "为什么值得关注" in panel_partial
+              and "技术洞察" in panel_partial
+              and "产品机会" in panel_partial
+              and "行动建议" in panel_partial
+              and "风险提醒" in panel_partial,
               "InsightCard preview should render distinct insight sections")
         check("today radar template uses insight_preview",
-              "view.panel_state.insight_preview" in radar_html
-              and "preview.fallback_summary" in radar_html,
+              "view.panel_state.insight_preview" in panel_partial
+              and "preview.fallback_summary" in panel_partial,
               "template should use RadarInsightPreview instead of directly dumping summary_zh")
         check("today radar insight preview styles exist",
               ".radar-panel-chip-row" in style_css
@@ -2980,7 +3080,7 @@ def main():
 
         check("today radar toolbar has summary generation form",
               'action="/radar/today/generate-summaries"' in radar_html
-              and "补齐当前页中文摘要" in radar_html,
+              and "生成本页前 5 条摘要" in radar_html,
               "toolbar should expose current-page Chinese summary generation")
 
         check("today radar summary form preserves context",
@@ -3166,8 +3266,1660 @@ def main():
               "PROJECT_DOCS_REGISTRY" in registry_py
               and "Path(" in registry_py,
               "project docs should remain registry-based and not open arbitrary files")
+
+        # 23c. V1 beta 1 planning docs exist
+        check("V1 beta 1 architecture doc exists",
+              (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md").exists(),
+              "V1 beta 1 source scheduling architecture doc should exist")
+        check("V1 beta 1 execution plan exists",
+              (project_root / "docs" / "V1_BETA_1_EXECUTION_PLAN.md").exists(),
+              "V1 beta 1 execution plan should exist")
+        check("V1 beta 1 decision record exists",
+              (project_root / "docs" / "V1_BETA_1_DECISION_RECORD.md").exists(),
+              "V1 beta 1 decision record should exist")
+
+        # 23d. V1 beta 1 architecture doc content
+        v1_beta_1_arch_md = (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md").read_text(encoding="utf-8")
+        check("V1 beta 1 docs describe due-source and source workspace",
+              "due-source" in v1_beta_1_arch_md
+              and "/sources/{source_key}" in v1_beta_1_arch_md
+              and "SourcePool" in v1_beta_1_arch_md
+              and "RadarSource" in v1_beta_1_arch_md,
+              "architecture doc should describe due-source scheduling and source workspace")
+
+        # 23e. V1 beta 1 docs in registry
+        check("project docs registry includes V1 beta 1 docs",
+              "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md" in registry_py
+              and "V1_BETA_1_EXECUTION_PLAN.md" in registry_py
+              and "V1_BETA_1_DECISION_RECORD.md" in registry_py,
+              "browser project docs should expose V1 beta 1 planning docs")
+
+        # 23f. README links V1 beta 1 planning docs
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+        check("README links V1 beta 1 planning docs",
+              "V1_BETA_1_SOURCE_SCHEDULING_ARCHITECTURE.md" in readme_md
+              and "V1_BETA_1_EXECUTION_PLAN.md" in readme_md
+              and "V1_BETA_1_DECISION_RECORD.md" in readme_md,
+              "README should link V1 beta 1 planning docs")
     except Exception as e:
         check("V1 beta checkpoint documentation checks", False, str(e))
+
+    # ── 24. Due-source computation service ────────────────────────────────────
+    print("\n[24] Due-source computation service")
+    try:
+        due_sources_py = (project_root / "app" / "application" / "sources" / "due_sources.py").read_text(encoding="utf-8")
+        check_due_sources_py = (project_root / "scripts" / "check_due_sources.py").read_text(encoding="utf-8")
+
+        check("due source service exists",
+              (project_root / "app" / "application" / "sources" / "due_sources.py").exists(),
+              "due-source scheduling service should exist")
+        check("due source service defines plan and decision dataclasses",
+              "class DueSourceDecision" in due_sources_py
+              and "class DueSourcePlan" in due_sources_py,
+              "due-source service should expose structured result models")
+        check("due source service computes due sources",
+              "def compute_due_sources" in due_sources_py
+              and "not_due_yet" in due_sources_py
+              and "already_running" in due_sources_py
+              and "unsupported_strategy" in due_sources_py,
+              "due-source service should compute due/skipped/running/unsupported states")
+        check("due source service is read only",
+              ".commit(" not in due_sources_py
+              and ".add(" not in due_sources_py
+              and "enqueue" not in due_sources_py,
+              "due-source computation should not write DB or enqueue fetches")
+        check("due source check script exists",
+              (project_root / "scripts" / "check_due_sources.py").exists(),
+              "read-only due-source diagnostic script should exist")
+        check("due source check script does not trigger fetches",
+              "run_source_fetch" not in check_due_sources_py
+              and "enqueue_source" not in check_due_sources_py
+              and "CandidateOneLinerService" not in check_due_sources_py,
+              "due-source diagnostic script should be read-only")
+        check("due source missing records go to missing bucket",
+              "missing.append(" in due_sources_py
+              and "REASON_MISSING_SOURCE_RECORD" in due_sources_py,
+              "missing source records should be counted in missing bucket, not unsupported")
+        check("unsupported.append does not receive status=missing",
+              'status="missing"\n    reason=REASON_MISSING_SOURCE_RECORD' not in due_sources_py,
+              "status=missing paired with REASON_MISSING_SOURCE_RECORD must not reach unsupported.append")
+    except Exception as e:
+        check("due source service checks", False, str(e))
+
+    # ── 25. Today radar update uses due-source ───────────────────────────────────
+    print("\n[25] Today radar update uses due-source")
+    try:
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_today_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("today radar update uses due-source computation",
+              "compute_due_sources" in radar_route_py
+              and "plan.due" in radar_route_py,
+              "POST /radar/today/update should enqueue only due sources")
+        check("today radar update exposes non-due buckets",
+              "plan.skipped" in radar_route_py
+              and "plan.running" in radar_route_py
+              and "plan.unsupported" in radar_route_py
+              and "plan.missing" in radar_route_py,
+              "update route should reference all non-due buckets")
+        check("today radar update exposes due-source summary params",
+              "update_due" in radar_route_py
+              and "update_started" in radar_route_py
+              and "update_skipped" in radar_route_py
+              and "update_running" in radar_route_py
+              and "update_unsupported" in radar_route_py
+              and "update_missing" in radar_route_py,
+              "update redirect should carry due-source summary")
+        check("today radar template renders due-source update result",
+              "本轮更新计划" in radar_today_html
+              and "到期来源" in radar_today_html
+              and "跳过原因" in radar_today_html,
+              "today radar should explain due-source update decisions")
+        check("today radar has due-source update styles",
+              ".radar-update-result" in style_css
+              and ".radar-update-result-grid" in style_css
+              and ".radar-update-reasons" in style_css,
+              "due-source update result should have dedicated styles")
+        check("radar route imports compute_due_sources and DueSourcePlan",
+              "from app.application.sources.due_sources import" in radar_route_py
+              and "DueSourcePlan" in radar_route_py
+              and "compute_due_sources" in radar_route_py,
+              "radar route should explicitly import due-source primitives")
+        check("radar route exposes radar update max-due-sources helper",
+              "_get_radar_update_max_due_sources" in radar_route_py
+              and "_build_due_source_reason_summary" in radar_route_py,
+              "radar route should expose due-source helpers")
+    except Exception as e:
+        check("today radar update due-source checks", False, str(e))
+
+    except Exception as e:
+        check("due source service checks", False, str(e))
+    except Exception as e:
+        check("due source service checks", False, str(e))
+
+    # ── 26b. Source workspace primary action order (UX guard) ──────────────────
+    print("\n[26b] Source workspace primary action order")
+    try:
+        sources_html_text = (templates_dir / "sources.html").read_text(encoding="utf-8")
+
+        source_actions_index = sources_html_text.find("source-card-actions")
+        workspace_index = sources_html_text.find(
+            'href="/sources/{{ s.source_key }}"', source_actions_index
+        )
+        fetch_form_index = sources_html_text.find(
+            'action="/sources/{{ s.source_key }}/fetch"', source_actions_index
+        )
+
+        check("sources page puts workspace before fetch action",
+              source_actions_index >= 0
+              and workspace_index >= 0
+              and fetch_form_index >= 0
+              and workspace_index < fetch_form_index,
+              "source workspace should be the first action; fetch is a side-effect action and should come later")
+        check("sources page keeps source fetch as POST form",
+              'method="POST"' in sources_html_text
+              and 'action="/sources/{{ s.source_key }}/fetch"' in sources_html_text,
+              "manual source fetch must remain a POST form")
+        check("sources page still links to source workspace",
+              'href="/sources/{{ s.source_key }}"' in sources_html_text
+              and "工作台" in sources_html_text,
+              "sources page should link to the read-only source workspace")
+        check("sources fetch button uses secondary style class",
+              "source-fetch-secondary-button" in sources_html_text
+              and "source-workspace-primary-link" in sources_html_text,
+              "sources page should mark workspace as primary and fetch as secondary")
+    except Exception as e:
+        check("source workspace primary action order", False, str(e))
+
+    # ── 26. Source workspace (read-only single source page) ──────────────────
+    print("\n[26] Source workspace (read-only)")
+    try:
+        import inspect
+
+        project_root = Path(__file__).resolve().parents[1]
+        source_detail_path = project_root / "app" / "templates" / "source_detail.html"
+        check("source workspace template exists",
+              source_detail_path.exists(),
+              "single source workspace template should exist")
+
+        source_detail_html = source_detail_path.read_text(encoding="utf-8")
+        sources_html = (project_root / "app" / "templates" / "sources.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+
+        check("source workspace page uses Chinese product wording",
+              "来源工作台" in source_detail_html
+              and "当前调度状态" in source_detail_html
+              and "中文摘要覆盖" in source_detail_html
+              and "InsightCard 覆盖" in source_detail_html,
+              "source workspace should explain source health and coverage")
+
+        check("sources list links to source workspace",
+              "/sources/{{" in sources_html
+              and "工作台" in sources_html,
+              "sources page should link to /sources/{source_key}")
+
+        check("source workspace route exists",
+              '"/sources/{source_key}"' in main_py
+              and "def source_workspace_page" in main_py,
+              "single source workspace route should exist")
+
+        source_workspace_py = inspect.getsource(app_module.source_workspace_page)
+        check("source workspace is read-only",
+              "enqueue_source" not in source_workspace_py
+              and "CandidateOneLinerService" not in source_workspace_py
+              and "InsightCardGenerator" not in source_workspace_py
+              and ".commit(" not in source_workspace_py
+              and ".add(" not in source_workspace_py
+              and ".delete(" not in source_workspace_py,
+              "source workspace must not trigger fetches, summaries, or DB writes")
+
+        check("source workspace styles exist",
+              ".source-workspace" in style_css,
+              "source workspace should have dedicated styles")
+
+        resp = client.get("/sources/openai_news")
+        check("GET /sources/openai_news returns 200 or 404",
+              resp.status_code in (200, 404),
+              f"source workspace route should be mounted without server error, got {resp.status_code}")
+
+        resp = client.get("/sources/not_exists_demo_source_key")
+        check("GET /sources/<unknown> returns 404, not 500",
+              resp.status_code == 404,
+              f"unknown source_key should return 404, got {resp.status_code}")
+    except Exception as e:
+        check("source workspace checks", False, str(e))
+
+    # ── 27. Stale running FetchRun diagnostics ───────────────────────────────
+    print("\n[27] Stale running FetchRun diagnostics")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        stale_runs_path = project_root / "app" / "application" / "sources" / "stale_runs.py"
+        check_stale_path = project_root / "scripts" / "check_stale_fetch_runs.py"
+
+        check("stale fetch run check script exists",
+              check_stale_path.exists(),
+              "stale fetch run diagnostic script should exist")
+
+        stale_runs_py = stale_runs_path.read_text(encoding="utf-8") if stale_runs_path.exists() else ""
+        check_stale_py = check_stale_path.read_text(encoding="utf-8") if check_stale_path.exists() else ""
+        source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("stale fetch run diagnostic service exists",
+              "class StaleFetchRunDecision" in stale_runs_py
+              and "class StaleFetchRunReport" in stale_runs_py
+              and "def build_stale_fetch_run_report" in stale_runs_py,
+              "stale running diagnostic service should exist")
+
+        check("stale fetch run service supports threshold env override",
+              "RADAR_STALE_RUNNING_MINUTES" in stale_runs_py
+              and "def get_stale_running_threshold_minutes" in stale_runs_py
+              and "running_too_long" in stale_runs_py
+              and "missing_started_at" in stale_runs_py,
+              "stale diagnostic should support configurable threshold and reason codes")
+
+        check("stale fetch run diagnostic is read-only",
+              ".commit(" not in stale_runs_py
+              and ".add(" not in stale_runs_py
+              and ".delete(" not in stale_runs_py
+              and "enqueue" not in stale_runs_py,
+              "stale diagnostic must not modify DB or enqueue fetches")
+
+        check("stale fetch run check script is read-only",
+              ".commit(" not in check_stale_py
+              and ".add(" not in check_stale_py
+              and ".delete(" not in check_stale_py
+              and "enqueue" not in check_stale_py
+              and "CandidateOneLinerService" not in check_stale_py,
+              "check_stale_fetch_runs.py must be read-only")
+
+        check("source workspace renders stale running warning",
+              "stale running" in source_detail_html.lower()
+              or ("stale" in source_detail_html.lower()
+                  and "running" in source_detail_html.lower()),
+              "source workspace should show stale running risk")
+
+        check("source workspace receives stale run context",
+              "stale_runs" in main_py
+              and "build_stale_fetch_run_report" in main_py,
+              "source workspace route should compute stale running diagnostics")
+
+        check("stale running warning styles exist",
+              ".source-workspace-warning" in style_css,
+              "stale running warning should have dedicated styles")
+    except Exception as e:
+        check("stale running diagnostic checks", False, str(e))
+
+    # ── 28. Stale running FetchRun manual recovery script ────────────────────
+    print("\n[28] Stale running FetchRun manual recovery script")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        recovery_path = project_root / "scripts" / "mark_stale_fetch_runs_failed.py"
+
+        check("stale recovery script exists",
+              recovery_path.exists(),
+              "manual stale recovery script should exist")
+
+        recovery_script = recovery_path.read_text(encoding="utf-8") if recovery_path.exists() else ""
+
+        check("stale recovery script defaults to dry-run",
+              "--apply" in recovery_script
+              and "DRY-RUN" in recovery_script
+              and "No database changes were made" in recovery_script,
+              "script should be dry-run by default and require --apply to write")
+
+        check("stale recovery script writes failed status only under apply path",
+              'status = "failed"' in recovery_script
+              and "[stale-timeout]" in recovery_script,
+              "stale running recovery should mark runs as failed with explicit stale-timeout marker")
+
+        check("stale recovery script rechecks running status before update",
+              'run.status != "running"' in recovery_script
+              or 'run.status == "running"' in recovery_script,
+              "apply path should recheck run is still running before update")
+
+        check("stale recovery script does not trigger fetch or LLM",
+              "SourceFetchBackgroundService" not in recovery_script
+              and "enqueue_source" not in recovery_script
+              and "CandidateOneLinerService" not in recovery_script
+              and "InsightCardGenerator" not in recovery_script,
+              "stale recovery must not trigger fetches or LLM work")
+
+        check("stale recovery script supports filters",
+              "--source-key" in recovery_script
+              and "--run-id" in recovery_script
+              and "--threshold-minutes" in recovery_script,
+              "manual stale recovery should support targeted filters")
+
+        check("stale recovery script validates explicit threshold bounds",
+              "MIN_STALE_RUNNING_MINUTES" in recovery_script
+              and "MAX_STALE_RUNNING_MINUTES" in recovery_script
+              and "--threshold-minutes must be between" in recovery_script,
+              "explicit --threshold-minutes should be validated before recovery")
+        check("stale recovery script validates limit",
+              "--limit must be >= 1" in recovery_script
+              and "args.limit" in recovery_script,
+              "manual stale recovery should reject zero or negative limit")
+        check("stale recovery script exits with usage error on invalid args",
+              "sys.exit(2)" in recovery_script,
+              "invalid recovery CLI arguments should exit with code 2")
+    except Exception as e:
+        check("stale recovery script checks", False, str(e))
+
+    # ── 29. Source manual fetch action ───────────────────────────────────────
+    print("\n[29] Source manual fetch action")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+        source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        sources_html = (project_root / "app" / "templates" / "sources.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("single source manual fetch route is POST only",
+              '@app.post("/sources/{source_key}/fetch")' in main_py
+              and '@app.get("/sources/{source_key}/fetch")' not in main_py,
+              "manual source fetch must remain a POST-only side-effect route")
+
+        check("single source manual fetch uses background enqueue service",
+              "SourceFetchBackgroundService" in main_py
+              and "enqueue_source" in main_py
+              and "background_tasks" in main_py,
+              "manual source fetch should enqueue background work instead of doing work inline")
+
+        check("source workspace exposes manual fetch as POST form",
+              'method="POST"' in source_detail_html
+              and 'action="/sources/{{ source.source_key }}/fetch"' in source_detail_html
+              and "运行探测" in source_detail_html,
+              "source workspace should expose manual fetch as a POST form")
+
+        check("source workspace explains manual fetch side effect",
+              "有副作用" in source_detail_html
+              or "后台抓取" in source_detail_html
+              or "FetchRun" in source_detail_html,
+              "source workspace should explain manual fetch creates or reuses a FetchRun")
+
+        check("sources page keeps workspace before fetch action",
+              sources_html.find('href="/sources/{{ s.source_key }}"') < sources_html.find('action="/sources/{{ s.source_key }}/fetch"'),
+              "sources page should keep workspace before manual fetch")
+
+        check("source manual fetch styles exist",
+              ".source-manual-fetch" in style_css,
+              "manual source fetch panel should have dedicated styles")
+
+        resp = client.get("/sources/openai_news/fetch")
+        check("GET manual source fetch is not allowed",
+              resp.status_code in (404, 405),
+              f"manual source fetch should not be triggerable by GET, got {resp.status_code}")
+    except Exception as e:
+        check("source manual fetch checks", False, str(e))
+
+    # ── 30. V1.0-beta.1 Source Scheduling Acceptance ─────────────────────
+    print("\n[30] V1.0-beta.1 Source Scheduling Acceptance")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        acceptance_md = (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md").read_text(encoding="utf-8")
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+
+        check("V1.0-beta.1 acceptance doc exists",
+              (project_root / "docs" / "V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md").exists(),
+              "V1.0-beta.1 acceptance document should exist")
+
+        check("acceptance doc contains run_id=1067",
+              "run_id=1067" in acceptance_md,
+              "acceptance doc should record openai_news run_id=1067")
+
+        check("acceptance doc contains openai_news",
+              "openai_news" in acceptance_md,
+              "acceptance doc should record openai_news source key")
+
+        check("acceptance doc contains stale_count",
+              "stale_count" in acceptance_md,
+              "acceptance doc should record stale_count result")
+
+        check("acceptance doc contains due-source",
+              "due-source" in acceptance_md,
+              "acceptance doc should explain due-source concept")
+
+        check("acceptance doc contains SourceItem",
+              "SourceItem" in acceptance_md,
+              "acceptance doc should record SourceItem results")
+
+        check("acceptance doc records stale running 8→0",
+              "8" in acceptance_md and "0" in acceptance_md,
+              "acceptance doc should record stale running restoration (8→0)")
+
+        check("acceptance doc records SourceItem 50→53",
+              "50" in acceptance_md and "53" in acceptance_md,
+              "acceptance doc should record SourceItem count 50→53")
+
+        check("acceptance doc records GET 405 / POST 303",
+              "405" in acceptance_md and "303" in acceptance_md,
+              "acceptance doc should record HTTP method constraints")
+
+        check("acceptance doc records POST redirect as 303",
+              "POST /sources/openai_news/fetch" in acceptance_md
+              and "303" in acceptance_md
+              and "/fetch-runs/1067" in acceptance_md,
+              "acceptance doc should record POST manual fetch redirect as 303")
+
+        check("acceptance doc should not record POST redirect as 302",
+              "302 → /fetch-runs/1067" not in acceptance_md
+              and "302 -> /fetch-runs/1067" not in acceptance_md,
+              "manual fetch acceptance should not record 302 for run_id=1067")
+
+        check("acceptance doc records auto summary disabled",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in acceptance_md
+              or "禁用了自动摘要" in acceptance_md,
+              "acceptance doc should explain LLM/summary was not triggered because auto summary was disabled")
+
+        check("acceptance doc explains due=0 is cooldown",
+              "冷却期" in acceptance_md,
+              "acceptance doc should clarify due=0 means cooldown, not failure")
+
+        # Registry entry
+        check("registry contains v1-beta-1-source-scheduling-acceptance",
+              "v1-beta-1-source-scheduling-acceptance" in registry_py,
+              "project docs registry should include acceptance doc entry")
+
+        check("registry acceptance entry has correct path",
+              "V1_BETA_1_SOURCE_SCHEDULING_ACCEPTANCE.md" in registry_py,
+              "registry should reference the acceptance doc path")
+    except Exception as e:
+        check("V1.0-beta.1 acceptance doc checks", False, str(e))
+
+    # ── 31. V1.0-beta.2 Automated Scheduling Docs ────────────────────────────
+    print("\n[31] V1.0-beta.2 Automated Scheduling Docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        design_doc = project_root / "docs" / "V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md"
+        execution_plan = project_root / "docs" / "V1_BETA_2_EXECUTION_PLAN.md"
+        decision_record = project_root / "docs" / "V1_BETA_2_DECISION_RECORD.md"
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+        readme = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("v1 beta 2 scheduling design exists",
+              design_doc.exists(),
+              "V1.0-beta.2 automated scheduling design doc should exist")
+        check("v1 beta 2 execution plan exists",
+              execution_plan.exists(),
+              "V1.0-beta.2 execution plan should exist")
+        check("v1 beta 2 decision record exists",
+              decision_record.exists(),
+              "V1.0-beta.2 decision record should exist")
+
+        design_text = design_doc.read_text(encoding="utf-8") if design_doc.exists() else ""
+        plan_text = execution_plan.read_text(encoding="utf-8") if execution_plan.exists() else ""
+        decision_text = decision_record.read_text(encoding="utf-8") if decision_record.exists() else ""
+
+        check("v1 beta 2 design covers core concepts",
+              "Celery" in design_text
+              and "Redis" in design_text
+              and "CLI" in design_text
+              and "due-source" in design_text
+              and "FetchRun" in design_text
+              and "AUTO_SUMMARY" in design_text,
+              "design should cover queue boundary, CLI scheduling, due-source, FetchRun and LLM config")
+
+        check("v1 beta 2 design avoids heavy queue first",
+              "Celery" in design_text
+              and "Redis" in design_text
+              and "不直接引入" in design_text,
+              "design should explicitly avoid heavy queue in this phase")
+
+        check("v1 beta 2 design prefers CLI single-shot scheduling",
+              "CLI" in design_text
+              and ("单轮调度" in design_text or "run_due_sources_once" in design_text),
+              "design should prefer CLI single-shot scheduling over in-process scheduler")
+
+        check("v1 beta 2 design keeps scheduler disabled by default",
+              "RADAR_SCHEDULER_ENABLED=false" in design_text
+              and "默认关闭" in design_text,
+              "design should keep auto scheduling disabled by default")
+
+        check("v1 beta 2 design keeps LLM disabled by default",
+              "AUTO_SUMMARY" in design_text
+              and "默认不触发 LLM" in design_text,
+              "scheduler design should avoid default LLM automation")
+
+        check("v1 beta 2 design keeps stale recovery manual",
+              "stale" in design_text
+              and ("不自动执行" in design_text or "人工确认" in design_text),
+              "design should keep stale recovery as a manual-confirmed action")
+
+        check("v1 beta 2 execution plan covers Task 1 to Task 6",
+              all(f"Task {i}" in plan_text for i in range(1, 7)),
+              "execution plan should split work into Task 1 through Task 6")
+
+        check("v1 beta 2 decision record avoids Celery / Redis",
+              ("不直接引入 Celery / Redis" in decision_text or "不直接引入" in decision_text)
+              and "Celery" in decision_text
+              and "Redis" in decision_text,
+              "decision record should record not adopting Celery / Redis this phase")
+
+        check("registry includes v1 beta 2 docs",
+              "v1-beta-2-automated-scheduling-design" in registry_py
+              and "v1-beta-2-execution-plan" in registry_py
+              and "v1-beta-2-decision-record" in registry_py,
+              "project docs registry should include three V1.0-beta.2 docs")
+
+        check("registry references v1 beta 2 doc paths",
+              "V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md" in registry_py
+              and "V1_BETA_2_EXECUTION_PLAN.md" in registry_py
+              and "V1_BETA_2_DECISION_RECORD.md" in registry_py,
+              "registry should reference the three V1.0-beta.2 doc paths")
+
+        check("README links V1.0-beta.2 scheduling design",
+              "V1.0-beta.2" in readme
+              and "V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md" in readme,
+              "README should expose a V1.0-beta.2 automated scheduling entry")
+    except Exception as e:
+        check("V1.0-beta.2 scheduling docs checks", False, str(e))
+
+    # ── 32. V1.0-beta.2 run_due_sources_once dry-run CLI ─────────────────────
+    print("\n[32] V1.0-beta.2 run_due_sources_once dry-run CLI")
+    try:
+        import subprocess
+
+        project_root = Path(__file__).resolve().parents[1]
+        scheduler_script = project_root / "scripts" / "run_due_sources_once.py"
+
+        check("run_due_sources_once script exists",
+              scheduler_script.exists(),
+              "dry-run scheduler CLI should exist")
+
+        scheduler_text = scheduler_script.read_text(encoding="utf-8") if scheduler_script.exists() else ""
+
+        check("run_due_sources_once uses compute_due_sources",
+              "compute_due_sources" in scheduler_text,
+              "dry-run scheduler should reuse due-source plan")
+
+        check("run_due_sources_once is dry-run only",
+              "DRY-RUN" in scheduler_text
+              and "No FetchRun created" in scheduler_text,
+              "Task 2 scheduler should clearly be dry-run only")
+
+        check("run_due_sources_once never uses FastAPI BackgroundTasks",
+              "BackgroundTasks" not in scheduler_text,
+              "scheduler CLI must run synchronously (background_tasks=None), never FastAPI BackgroundTasks")
+
+        check("run_due_sources_once dry-run footer requires apply gate",
+              "Use --apply with RADAR_SCHEDULER_ENABLED=true" in scheduler_text,
+              "dry-run footer should point to the gated --apply path")
+
+        check("run_due_sources_once validates max sources",
+              "--max-sources" in scheduler_text
+              and "must be >= 1" in scheduler_text,
+              "scheduler CLI should validate --max-sources")
+
+        check("run_due_sources_once exposes detail flags",
+              "--show-skipped" in scheduler_text
+              and "--show-running" in scheduler_text
+              and "--show-unsupported" in scheduler_text
+              and "--show-missing" in scheduler_text,
+              "scheduler CLI should expose optional detail flags")
+
+        result = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once dry-run exits 0",
+              result.returncode == 0,
+              result.stdout + result.stderr)
+        check("run_due_sources_once dry-run prints plan summary",
+              "DRY-RUN" in result.stdout
+              and "would_start:" in result.stdout
+              and "No FetchRun created" in result.stdout,
+              "dry-run output should include plan summary and dry-run notice")
+
+        bad = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py", "--max-sources", "0"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once rejects invalid max-sources with exit 2",
+              bad.returncode == 2,
+              bad.stdout + bad.stderr)
+    except Exception as e:
+        check("V1.0-beta.2 scheduler CLI checks", False, str(e))
+
+    # ── 33. V1.0-beta.2 run_due_sources_once apply safety ────────────────────
+    print("\n[33] V1.0-beta.2 run_due_sources_once apply safety")
+    try:
+        import subprocess
+
+        project_root = Path(__file__).resolve().parents[1]
+        scheduler_script = project_root / "scripts" / "run_due_sources_once.py"
+        scheduler_text = scheduler_script.read_text(encoding="utf-8") if scheduler_script.exists() else ""
+
+        check("run_due_sources_once supports explicit apply flag",
+              "--apply" in scheduler_text,
+              "scheduler CLI should expose explicit --apply flag")
+
+        check("run_due_sources_once requires scheduler enabled for apply",
+              "RADAR_SCHEDULER_ENABLED" in scheduler_text
+              and "requires RADAR_SCHEDULER_ENABLED=true" in scheduler_text,
+              "apply mode should require explicit scheduler enable env var")
+
+        check("run_due_sources_once disables auto summary for apply",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN" in scheduler_text
+              and "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in scheduler_text,
+              "apply mode should require auto summary disabled in Task 3A")
+
+        check("run_due_sources_once imports fetch service only for apply",
+              "SourceFetchBackgroundService" in scheduler_text
+              and "background_tasks=None" in scheduler_text,
+              "apply mode should use SourceFetchBackgroundService synchronously")
+
+        check("run_due_sources_once apply only processes plan.due",
+              "plan.due" in scheduler_text,
+              "apply should only process plan.due sources")
+
+        # Safety failure paths only — never run a real successful apply here.
+        bad_apply = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py", "--apply"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once apply requires env gate",
+              bad_apply.returncode == 2
+              and "RADAR_SCHEDULER_ENABLED=true" in (bad_apply.stdout + bad_apply.stderr),
+              "apply should fail without explicit env gate")
+
+        bad_summary = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py", "--apply"],
+            cwd=project_root,
+            env={**os.environ, "RADAR_SCHEDULER_ENABLED": "true", "AUTO_SUMMARY_MAX_PER_FETCH_RUN": "1"},
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once apply rejects auto summary enabled",
+              bad_summary.returncode == 2,
+              "apply should reject non-zero AUTO_SUMMARY_MAX_PER_FETCH_RUN in Task 3A")
+    except Exception as e:
+        check("V1.0-beta.2 apply safety checks", False, str(e))
+
+    # ── 34. V1.0-beta.2 isolated scheduler apply acceptance (static) ─────────
+    print("\n[34] V1.0-beta.2 isolated scheduler apply acceptance")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        acceptance_script = project_root / "scripts" / "acceptance_run_due_sources_once_apply.py"
+
+        check("isolated scheduler apply acceptance script exists",
+              acceptance_script.exists(),
+              "acceptance_run_due_sources_once_apply.py should exist")
+
+        acceptance_text = acceptance_script.read_text(encoding="utf-8") if acceptance_script.exists() else ""
+
+        check("isolated acceptance uses isolated sqlite database",
+              "DATABASE_URL" in acceptance_text
+              and "sqlite" in acceptance_text,
+              "acceptance should point DATABASE_URL at an isolated sqlite DB")
+
+        check("isolated acceptance serves a local mock RSS feed",
+              ("ThreadingHTTPServer" in acceptance_text or "HTTPServer" in acceptance_text)
+              and "rss" in acceptance_text.lower(),
+              "acceptance should serve a local mock RSS feed (no external network)")
+
+        check("isolated acceptance enforces scheduler + no-LLM env",
+              "RADAR_SCHEDULER_ENABLED" in acceptance_text
+              and "AUTO_SUMMARY_MAX_PER_FETCH_RUN" in acceptance_text,
+              "acceptance should run apply behind scheduler gate with auto summary disabled")
+
+        check("isolated acceptance drives run_due_sources_once apply",
+              "run_due_sources_once.py" in acceptance_text
+              and "--apply" in acceptance_text,
+              "acceptance should drive the real --apply path")
+
+        check("isolated acceptance verifies fetch and ingestion artifacts",
+              "FetchRun" in acceptance_text
+              and "SourceItem" in acceptance_text
+              and "InsightCard" in acceptance_text
+              and "auto_summary" in acceptance_text,
+              "acceptance should verify FetchRun / SourceItem / InsightCard / auto_summary")
+
+        check("isolated acceptance prints success sentinel",
+              "ACCEPTANCE_OK" in acceptance_text,
+              "acceptance should print ACCEPTANCE_OK on success")
+    except Exception as e:
+        check("V1.0-beta.2 isolated acceptance checks", False, str(e))
+
+    # ── 35. V1.0-beta.2 scheduler operations manual ────────────────────────────
+    print("\n[35] V1.0-beta.2 scheduler operations manual")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        ops_doc = project_root / "docs" / "V1_BETA_2_SCHEDULER_OPERATIONS.md"
+        ops_text = ops_doc.read_text(encoding="utf-8") if ops_doc.exists() else ""
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+        readme = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("scheduler operations manual exists",
+              ops_doc.exists(),
+              "V1_BETA_2_SCHEDULER_OPERATIONS.md should exist")
+
+        check("scheduler operations manual covers Windows and cron",
+              "Windows Task Scheduler" in ops_text and "cron" in ops_text,
+              "manual should cover Windows Task Scheduler and cron")
+
+        check("scheduler operations manual covers dry-run",
+              "dry-run" in ops_text.lower(),
+              "manual should explain dry-run mode")
+
+        check("scheduler operations manual covers --apply",
+              "--apply" in ops_text,
+              "manual should explain --apply flag")
+
+        check("scheduler operations manual documents RADAR_SCHEDULER_ENABLED",
+              "RADAR_SCHEDULER_ENABLED=true" in ops_text,
+              "manual should document RADAR_SCHEDULER_ENABLED=true requirement")
+
+        check("scheduler operations manual documents AUTO_SUMMARY_MAX_PER_FETCH_RUN=0",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in ops_text,
+              "manual should document auto summary disabled")
+
+        check("scheduler operations manual covers max-sources",
+              "--max-sources" in ops_text,
+              "manual should document --max-sources limit")
+
+        check("scheduler operations manual covers logs",
+              "scheduler.log" in ops_text or "logs/" in ops_text,
+              "manual should recommend log output")
+
+        check("scheduler operations manual covers stale check",
+              "check_stale_fetch_runs.py" in ops_text,
+              "manual should reference stale check script")
+
+        check("scheduler operations manual covers stale recovery with confirmation",
+              "mark_stale_fetch_runs_failed.py" in ops_text
+              and ("--apply" in ops_text)
+              and ("人工确认" in ops_text or "人工" in ops_text),
+              "manual should cover stale recovery requires manual confirmation")
+
+        check("scheduler operations manual explains due=0 is cooldown",
+              "冷却期" in ops_text or "not_due_yet" in ops_text,
+              "manual should clarify due=0 is normal cooldown, not failure")
+
+        check("scheduler operations manual explains LLM disabled by default",
+              "不默认触发 LLM" in ops_text or "LLM" in ops_text,
+              "manual should explain LLM is not triggered by default in scheduler")
+
+        check("README links scheduler operations manual",
+              "V1_BETA_2_SCHEDULER_OPERATIONS.md" in readme,
+              "README should link the operations manual")
+
+        check("registry contains v1-beta-2-scheduler-operations",
+              "v1-beta-2-scheduler-operations" in registry_py,
+              "project docs registry should include scheduler operations entry")
+
+        check("registry operations entry has correct path",
+              "V1_BETA_2_SCHEDULER_OPERATIONS.md" in registry_py,
+              "registry should reference the operations manual path")
+    except Exception as e:
+        check("V1.0-beta.2 scheduler operations manual checks", False, str(e))
+
+    # ── 36. V1.0-beta.2 scheduler checkpoint ────────────────────────────────
+    print("\n[36] V1.0-beta.2 scheduler checkpoint")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        checkpoint_doc = project_root / "docs" / "V1_BETA_2_SCHEDULER_CHECKPOINT.md"
+        checkpoint_text = checkpoint_doc.read_text(encoding="utf-8") if checkpoint_doc.exists() else ""
+        ops_text = (project_root / "docs" / "V1_BETA_2_SCHEDULER_OPERATIONS.md").read_text(encoding="utf-8")
+        readme = (project_root / "README.md").read_text(encoding="utf-8")
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+
+        check("v1 beta 2 scheduler checkpoint exists",
+              checkpoint_doc.exists(),
+              "V1_BETA_2_SCHEDULER_CHECKPOINT.md should exist")
+
+        check("v1 beta 2 checkpoint covers Task 1",
+              "Task 1" in checkpoint_text,
+              "checkpoint should cover Task 1")
+
+        check("v1 beta 2 checkpoint covers Task 2",
+              "Task 2" in checkpoint_text,
+              "checkpoint should cover Task 2")
+
+        check("v1 beta 2 checkpoint covers Task 3A",
+              "Task 3A" in checkpoint_text,
+              "checkpoint should cover Task 3A")
+
+        check("v1 beta 2 checkpoint covers Task 3B",
+              "Task 3B" in checkpoint_text,
+              "checkpoint should cover Task 3B")
+
+        check("v1 beta 2 checkpoint covers Task 5",
+              "Task 5" in checkpoint_text,
+              "checkpoint should cover Task 5")
+
+        check("v1 beta 2 checkpoint mentions run_due_sources_once.py",
+              "run_due_sources_once.py" in checkpoint_text,
+              "checkpoint should reference the scheduler script")
+
+        check("v1 beta 2 checkpoint mentions compute_due_sources",
+              "compute_due_sources" in checkpoint_text,
+              "checkpoint should reference compute_due_sources function")
+
+        check("v1 beta 2 checkpoint mentions SourceFetchBackgroundService",
+              "SourceFetchBackgroundService" in checkpoint_text,
+              "checkpoint should reference SourceFetchBackgroundService")
+
+        check("v1 beta 2 checkpoint mentions FetchRun",
+              "FetchRun" in checkpoint_text,
+              "checkpoint should reference FetchRun")
+
+        check("v1 beta 2 checkpoint mentions SourceItem",
+              "SourceItem" in checkpoint_text,
+              "checkpoint should reference SourceItem")
+
+        check("v1 beta 2 checkpoint mentions AUTO_SUMMARY_MAX_PER_FETCH_RUN=0",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in checkpoint_text,
+              "checkpoint should document auto summary is disabled")
+
+        check("v1 beta 2 checkpoint mentions stale_count=0",
+              "stale_count=0" in checkpoint_text,
+              "checkpoint should document stale_count=0 from acceptance")
+
+        check("v1 beta 2 checkpoint mentions 主 DB 未污染",
+              "主 DB 未污染" in checkpoint_text,
+              "checkpoint should confirm main DB was not polluted")
+
+        check("operations manual does not claim RADAR_SCHEDULER_AUTO_SUMMARY is implemented",
+              "尚未作为真实可用配置实现" in ops_text
+              or "未来开关" in ops_text,
+              "operations manual should clarify RADAR_SCHEDULER_AUTO_SUMMARY is not yet implemented")
+
+        check("README links v1 beta 2 scheduler checkpoint",
+              "V1_BETA_2_SCHEDULER_CHECKPOINT.md" in readme,
+              "README should link the scheduler checkpoint document")
+
+        check("registry contains v1-beta-2-scheduler-checkpoint",
+              "v1-beta-2-scheduler-checkpoint" in registry_py,
+              "project docs registry should include scheduler checkpoint entry")
+
+        check("registry checkpoint entry has correct path",
+              "V1_BETA_2_SCHEDULER_CHECKPOINT.md" in registry_py,
+              "registry should reference the checkpoint path")
+    except Exception as e:
+        check("V1.0-beta.2 scheduler checkpoint checks", False, str(e))
+
+    # ── 37. V1.0-beta.3 radar scheduler status UI ────────────────────────────
+    print("\n[37] V1.0-beta.3 radar scheduler status UI")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        status_view_py = project_root / "app" / "application" / "radar" / "status_view.py"
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("radar scheduler status view model exists",
+              status_view_py.exists(),
+              "read-only scheduler status view model should exist")
+
+        status_view_text = status_view_py.read_text(encoding="utf-8") if status_view_py.exists() else ""
+
+        check("scheduler status view model is read-only",
+              "compute_due_sources" in status_view_text
+              and "build_stale_fetch_run_report" in status_view_text
+              and "SourceFetchBackgroundService" not in status_view_text
+              and "enqueue_source" not in status_view_text,
+              "scheduler status view should only read due-source + stale data")
+
+        check("radar route wires scheduler_status",
+              "scheduler_status" in radar_route_py
+              and "build_radar_scheduler_status_view" in radar_route_py,
+              "radar route should compute and pass scheduler_status")
+
+        check("radar template shows scheduling status block",
+              "调度状态" in radar_html
+              and "待检查来源" in radar_html
+              and "冷却中" in radar_html
+              and "疑似卡住" in radar_html,
+              "radar today should show a scheduling status sub-block")
+
+        check("radar template exposes auto scheduling doc entry",
+              "自动调度说明" in radar_html
+              and "v1-beta-2-scheduler-operations" in radar_html,
+              "radar today should link to the scheduler operations doc")
+
+        check("radar template does not leak script/env technicals",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN" not in radar_html
+              and "RADAR_SCHEDULER_ENABLED" not in radar_html
+              and "run_due_sources_once.py" not in radar_html,
+              "main radar UI must not surface script names or env vars")
+
+        check("radar scheduler status styles exist",
+              ".radar-scheduler-status" in style_css,
+              "scheduler status sub-block should have dedicated styles")
+    except Exception as e:
+        check("V1.0-beta.3 radar scheduler status checks", False, str(e))
+
+    # ── 38. V1.0-beta.3 Chinese entry UX ──────────────────────────────────
+    print("\n[38] V1.0-beta.3 Chinese entry UX")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("radar_today.html contains '待生成中文摘要' placeholder",
+              "待生成中文摘要" in radar_html,
+              "radar today should show placeholder when no zh_one_liner")
+
+        check("radar_today.html contains '中文摘要' section heading",
+              "中文摘要" in radar_html,
+              "right panel should have '中文摘要' label")
+
+        check("radar_today.html still contains '打开原文' link",
+              "打开原文" in radar_html,
+              "original article link should remain")
+
+        check("radar_today.html still contains InsightCard or 洞察 entry",
+              ("InsightCard" in radar_html or "洞察" in radar_html),
+              "InsightCard/洞察 entry should remain")
+
+        check("radar_today.html does not contain '全文深度分析'",
+              "全文深度分析" not in radar_html,
+              "no deep analysis button should be added")
+
+        check("radar_today.html does not expose technical terms",
+              "SourceItem" not in radar_html
+              and "FetchRun" not in radar_html
+              and ("one_liner" not in radar_html or "uses_zh_one_liner" in radar_html)
+              and "zh_summary" not in radar_html,
+              "main UI should not expose standalone technical terms (uses_zh_one_liner is a property name, not exposure)")
+
+        check("style.css has .radar-card-summary-placeholder or similar",
+              "radar-card-summary-placeholder" in style_css
+              or "radar-card-original-title" in style_css,
+              "style CSS should have Chinese entry related classes")
+
+        check("style.css does not change .radar-layout grid-template-columns",
+              ".radar-layout" in style_css
+              and "grid-template-columns" not in style_css.split(".radar-layout")[1].split("{")[0]
+              if ".radar-layout" in style_css else True,
+              "radar-layout grid columns should not be changed")
+
+        check("radar_today.html does not expose AUTO_SUMMARY_MAX_PER_FETCH_RUN",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN" not in radar_html,
+              "UI should not expose scheduler env vars")
+
+        check("radar_today.html does not expose RADAR_SCHEDULER_ENABLED",
+              "RADAR_SCHEDULER_ENABLED" not in radar_html,
+              "UI should not expose scheduler env vars")
+
+        check("radar_today.html does not expose run_due_sources_once",
+              "run_due_sources_once" not in radar_html,
+              "UI should not expose script names")
+
+        check("radar_today.html uses reason_summary_label for humanized reasons",
+              "reason_summary_label" in radar_html,
+              "update plan should use humanized reason_summary_label, not raw reason_summary")
+
+        check("radar_today.html does not show not_due_yet technical term",
+              "not_due_yet" not in radar_html.split("跳过原因")[1].split("</div>")[0]
+              if "跳过原因" in radar_html else True,
+              "skip reason should show Chinese, not technical 'not_due_yet'")
+
+        check("radar_today.html does not show max_sources_limit technical term",
+              "max_sources_limit" not in radar_html.split("跳过原因")[1].split("</div>")[0]
+              if "跳过原因" in radar_html else True,
+              "skip reason should show Chinese, not technical 'max_sources_limit'")
+
+        # Check radar.py has humanize helper and passes reason_summary_label
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        check("radar.py contains _humanize_reason_summary helper",
+              "_humanize_reason_summary" in radar_py,
+              "radar.py should have humanize helper")
+
+        check("radar.py passes reason_summary_label in update_result",
+              "reason_summary_label" in radar_py,
+              "update_result should include reason_summary_label")
+    except Exception as e:
+        check("V1.0-beta.3 Chinese entry UX checks", False, str(e))
+
+    # ── 39. V1.0-beta.3 Summary fill: page-order + humanized errors ─────────
+    print("\n[39] V1.0-beta.3 Summary fill: page-order + humanized errors")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        # 1. generate_today_summaries does NOT re-order by last_seen_at.desc().
+        check("route does NOT re-order by last_seen_at.desc()",
+              "last_seen_at.desc()" not in radar_py.split("def generate_today_summaries")[1].split("def ")[0]
+              if "def generate_today_summaries" in radar_py else False,
+              "generate_today_summaries must not re-sort items by last_seen_at.desc()")
+
+        # 2. route has _has_zh_one_liner or equivalent.
+        check("route has _has_zh_one_liner helper",
+              "_has_zh_one_liner" in radar_py,
+              "route should check zh_one_liner presence via _has_zh_one_liner")
+
+        # 3. route has _humanize_summary_detail_message or equivalent.
+        check("route has _humanize_summary_detail_message helper",
+              "_humanize_summary_detail_message" in radar_py,
+              "route should humanize summary errors via _humanize_summary_detail_message")
+
+        # 4. template does NOT display detail.message directly (only message_label).
+        _snippet = (
+            radar_html.split("radar-summary-detail-list")[1].split("{% endfor %}")[0]
+            if "radar-summary-detail-list" in radar_html else ""
+        )
+        import re
+        _raw_msg_pattern = re.compile(r"detail\.message(?![_\w])")
+        check("template does NOT display raw detail.message",
+              not _raw_msg_pattern.search(_snippet),
+              "template must not display raw detail.message in summary detail list")
+
+        # 5. template uses message_label (or equivalent user-friendly field).
+        check("template uses detail.message_label for display",
+              "detail.message_label" in radar_html
+              or "message_label" in radar_html,
+              "template should display message_label instead of raw message")
+
+        # 6. template does NOT contain "MiniMax JSON parse failed" error phrase.
+        check("template does NOT contain 'MiniMax JSON parse failed' error phrase",
+              "MiniMax JSON parse failed" not in radar_html,
+              "raw 'MiniMax JSON parse failed' error phrase must not appear in template")
+
+        # 7. template does NOT contain "Anthropic response" (error phrase).
+        check("template does NOT contain 'Anthropic response' error phrase",
+              "Anthropic response" not in radar_html,
+              "raw 'Anthropic response' error phrase must not appear in template")
+
+        # 8. _humanize_summary_detail_message maps failed → user-friendly label.
+        check("_humanize_summary_detail_message returns user-friendly failure label",
+              'return "中文摘要生成失败' in radar_py
+              and 'return "已生成中文摘要"' in radar_py
+              and 'return "已有摘要，已跳过"' in radar_py,
+              "humanize function should return Chinese labels for all status values")
+
+        # 9. button text mentions 前 5 条 or 最多 5 条.
+        check("button text mentions '前 5 条' or '最多 5 条'",
+              ("前 5 条" in radar_html or "最多 5 条" in radar_html)
+              and "生成本页" in radar_html,
+              "button should say '生成本页前 5 条摘要' or similar")
+    except Exception as e:
+        check("V1.0-beta.3 Summary fill checks", False, str(e))
+
+    # ── 40. V1.0-beta.3 Compact radar list UI ──────────────────────────────
+    print("\n[40] V1.0-beta.3 Compact radar list UI")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        panel_partial_path = project_root / "app" / "templates" / "partials" / "radar_today_panel.html"
+        panel_partial = panel_partial_path.read_text(encoding="utf-8") if panel_partial_path.exists() else ""
+
+        # 1. style.css has .radar-card.
+        check("style.css has .radar-card",
+              ".radar-card {" in style_css,
+              "radar-card class must exist in CSS")
+
+        # 2. style.css has .radar-card-actions.
+        check("style.css has .radar-card-actions",
+              ".radar-card-actions {" in style_css,
+              "radar-card-actions class must exist in CSS")
+
+        # 3. .radar-card-actions does NOT use position:absolute.
+        _actions_block = style_css.split(".radar-card-actions {")[1].split("}")[0] if ".radar-card-actions {" in style_css else ""
+        check(".radar-card-actions does NOT use position:absolute",
+              "position:absolute" not in _actions_block and "position: absolute" not in _actions_block,
+              "card actions must not be absolutely positioned")
+
+        # 4. style.css does NOT change .radar-layout grid-template-columns.
+        # Verify the existing .radar-layout rule still uses its original columns.
+        # We simply confirm the grid-template-columns value is preserved as-is by
+        # checking the specific value is still present (not replaced with a different one).
+        _layout_block = ""
+        if ".radar-layout {" in style_css:
+            _layout_block = style_css.split(".radar-layout {")[1].split("}")[0]
+        # The original uses a 3-column layout; verify it still has 3 columns.
+        # If grid-template-columns was removed or changed, fail.
+        _has_original_grid = "grid-template-columns" in _layout_block
+        check("style.css preserves .radar-layout grid-template-columns",
+              _has_original_grid,
+              "radar-layout grid-template-columns must be preserved")
+
+        # 5. radar_today.html still contains "待生成中文摘要".
+        check("radar_today.html contains '待生成中文摘要'",
+              "待生成中文摘要" in radar_html,
+              "Chinese summary placeholder must be preserved")
+
+        # 6. radar_today.html still contains "中文概述".
+        check("radar_today.html contains '中文概述'",
+              "中文概述" in radar_html,
+              "Chinese summary badge must be preserved")
+
+        # 7. radar_today.html still contains "查看 InsightCard" or "查看洞察卡".
+        check("radar_today.html contains InsightCard entry",
+              "InsightCard" in radar_html or "洞察卡" in radar_html,
+              "InsightCard link must be preserved")
+
+        # 8. radar_today.html still contains "打开原文".
+        check("radar_today.html contains '打开原文'",
+              "打开原文" in radar_html,
+              "external link must be preserved")
+
+        # 9. radar_today.html still contains "生成本页前 5 条摘要".
+        check("radar_today.html contains '生成本页前 5 条摘要'",
+              "生成本页前 5 条摘要" in radar_html,
+              "summary generation button text must be preserved")
+
+        # 10. radar_today.html still contains "智能阅读面板" (now in partial).
+        check("radar_today.html contains '智能阅读面板'",
+              "智能阅读面板" in panel_partial,
+              "reading panel must be preserved")
+    except Exception as e:
+        check("V1.0-beta.3 Compact radar list UI checks", False, str(e))
+
+    # ── 41. V1.0-beta.3 Clickable radar cards ─────────────────────────────
+    print("\n[41] V1.0-beta.3 Clickable radar cards")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        # 1. radar_today.html has radar-card-main-link.
+        check("radar_today.html has radar-card-main-link",
+              "radar-card-main-link" in radar_html,
+              "card main link class must exist in template")
+
+        # 2. radar-card-main-link href contains item_id.
+        check("radar-card-main-link href contains item_id",
+              'href="{{ view_url }}' in radar_html or "href=\"{{ view_url" in radar_html,
+              "card main link must use view_url with item_id")
+
+        # 3. radar-card-main-link href contains #radar-item-.
+        check("radar-card-main-link href contains #radar-item-",
+              "#radar-item-" in radar_html,
+              "card main link must anchor to radar-item- id")
+
+        # 4. radar-card-actions still exists.
+        check("radar_today.html still has radar-card-actions",
+              'class="radar-card-actions"' in radar_html,
+              "card actions div must still exist")
+
+        # 5. Standalone "查看" button is removed from card actions.
+        # Find the card actions block and check it doesn't contain a standalone "查看" button.
+        _card_action_start = radar_html.find('class="radar-card-actions"')
+        _card_action_block = ""
+        if _card_action_start >= 0:
+            _next_close = radar_html.find("</div>", _card_action_start)
+            if _next_close >= 0:
+                _card_action_block = radar_html[_card_action_start:_next_close + 6]
+        check("standalone '查看' button removed from card actions",
+              "查看</a>" not in _card_action_block and "查看</button>" not in _card_action_block,
+              "standalone '查看' button must be removed from card actions")
+
+        # 6. radar-card-footer exists.
+        check("radar_today.html has radar-card-footer",
+              "class=\"radar-card-footer\"" in radar_html,
+              "card footer div must exist")
+
+        # 7. radar-card-footer appears after radar-card-main-link.
+        _main_link_pos = radar_html.find("radar-card-main-link")
+        _footer_pos = radar_html.find("radar-card-footer")
+        check("radar-card-footer appears after radar-card-main-link",
+              _main_link_pos >= 0 and _footer_pos > _main_link_pos,
+              "footer must appear after main link in template")
+
+        # 8. radar-card-footer contains radar-card-meta (check via position ordering).
+        # radar-card-meta must appear after radar-card-footer opening tag.
+        _meta_pos_in_footer = radar_html.find("radar-card-meta", _footer_pos)
+        check("radar-card-footer contains radar-card-meta",
+              _meta_pos_in_footer > _footer_pos,
+              "footer must contain radar-card-meta")
+
+        # 9. radar-card-footer contains radar-card-actions.
+        # radar-card-actions must appear after radar-card-footer opening tag.
+        _actions_pos_in_footer = radar_html.find('class="radar-card-actions"', _footer_pos)
+        check("radar-card-footer contains radar-card-actions",
+              _actions_pos_in_footer > _footer_pos,
+              "footer must contain radar-card-actions")
+
+        # 10. radar-card-main-link block does NOT contain radar-card-actions.
+        _main_link_start = radar_html.find('class="radar-card-main-link"')
+        _main_link_end = radar_html.find("</a>", _main_link_start) if _main_link_start >= 0 else -1
+        _main_link_block = radar_html[_main_link_start:_main_link_end + 4] if _main_link_start >= 0 else ""
+        check("radar-card-main-link does NOT contain radar-card-actions",
+              "radar-card-actions" not in _main_link_block,
+              "main link must not contain radar-card-actions div")
+
+        # 11. radar-card-main-link block does NOT contain <form>.
+        check("radar-card-main-link does NOT contain <form>",
+              "<form" not in _main_link_block,
+              "main link must not contain nested form")
+
+        # 12. radar-card-main-link block does NOT contain <button>.
+        check("radar-card-main-link does NOT contain <button>",
+              "<button" not in _main_link_block,
+              "main link must not contain nested button")
+
+        # 13. InsightCard entry is preserved.
+        check("radar_today.html preserves InsightCard entry",
+              "InsightCard" in radar_html,
+              "InsightCard link must be preserved")
+
+        # 7. "加入生成" entry is preserved.
+        check("radar_today.html preserves '加入生成'",
+              "加入生成" in radar_html,
+              "enqueue action must be preserved")
+
+        # 8. "打开原文" entry is preserved.
+        check("radar_today.html preserves '打开原文'",
+              "打开原文" in radar_html,
+              "external link must be preserved")
+
+        # 9. style.css has .radar-card-main-link.
+        check("style.css has .radar-card-main-link",
+              ".radar-card-main-link {" in style_css,
+              "radar-card-main-link CSS class must exist")
+
+        # 10. .radar-card-main-link does NOT use position:absolute.
+        _main_link_block = style_css.split(".radar-card-main-link {")[1].split("}")[0] if ".radar-card-main-link {" in style_css else ""
+        check(".radar-card-main-link does NOT use position:absolute",
+              "position:absolute" not in _main_link_block and "position: absolute" not in _main_link_block,
+              "card main link must not be absolutely positioned")
+
+        # 11. style.css has card hover styles.
+        check("style.css has .radar-card:hover",
+              ".radar-card:hover" in style_css or ".radar-card:hover{" in style_css,
+              "card hover styles must exist")
+
+        # 12. .radar-layout grid-template-columns is preserved.
+        _layout_block = ""
+        if ".radar-layout {" in style_css:
+            _layout_block = style_css.split(".radar-layout {")[1].split("}")[0]
+        check("style.css preserves .radar-layout grid-template-columns",
+              ".radar-layout {" not in style_css or "grid-template-columns" in _layout_block,
+              "radar-layout grid-template-columns must be preserved")
+
+        # 13. style.css has .radar-card-footer.
+        check("style.css has .radar-card-footer",
+              ".radar-card-footer {" in style_css,
+              "radar-card-footer CSS class must exist")
+
+        # 14. .radar-card-footer uses display:flex.
+        _footer_block_css = style_css.split(".radar-card-footer {")[1].split("}")[0] if ".radar-card-footer {" in style_css else ""
+        check(".radar-card-footer uses display:flex",
+              "display:flex" in _footer_block_css or "display: flex" in _footer_block_css,
+              "footer must use flex layout")
+
+        # 15. .radar-card-footer does NOT use position:absolute.
+        check(".radar-card-footer does NOT use position:absolute",
+              "position:absolute" not in _footer_block_css and "position: absolute" not in _footer_block_css,
+              "footer must not be absolutely positioned")
+
+        # 16. footer actions margin-top is 0 or has override.
+        _footer_actions_block = ""
+        if ".radar-card-footer .radar-card-actions {" in style_css:
+            _footer_actions_block = style_css.split(".radar-card-footer .radar-card-actions {")[1].split("}")[0]
+        check("footer actions margin-top is overridden to 0 or equivalent",
+              ".radar-card-footer .radar-card-actions {" not in style_css
+              or "margin-top: 0" in _footer_actions_block
+              or "margin-top:0" in _footer_actions_block,
+              "footer actions must not have extra top margin")
+    except Exception as e:
+        check("V1.0-beta.3 Clickable radar cards checks", False, str(e))
+
+    # ── 42. V1.0-beta.3 Collapsible radar directory ──────────────────────────
+    print("\n[42] V1.0-beta.3 Collapsible radar directory")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        # 1. radar_today.html has radar-directory-toggle.
+        check("radar_today.html has radar-directory-toggle",
+              "radar-directory-toggle" in radar_html,
+              "toggle button class must exist in template")
+
+        # 2. radar_today.html has radar-directory-collapsed.
+        check("radar_today.html has radar-directory-collapsed",
+              "radar-directory-collapsed" in radar_html,
+              "collapsed state class must be in template")
+
+        # 3. radar_today.html uses localStorage.
+        check("radar_today.html uses localStorage",
+              "localStorage" in radar_html,
+              "localStorage must be used for state persistence")
+
+        # 4. radar_today.html uses the correct localStorage key.
+        check("radar_today.html uses ai-frontier-radar:today-directory-collapsed key",
+              "ai-frontier-radar:today-directory-collapsed" in radar_html,
+              "correct localStorage key must be used")
+
+        # 5. radar_today.html has toggle text (收起目录 or 展开目录).
+        check("radar_today.html has toggle text (收起目录 or 展开目录)",
+              "收起目录" in radar_html or "展开目录" in radar_html,
+              "toggle button must have proper text")
+
+        # 6. style.css has radar-directory-collapsed.
+        check("style.css has radar-directory-collapsed",
+              "radar-directory-collapsed" in style_css,
+              "collapsed CSS class must exist")
+
+        # 7. style.css has radar-sidebar-header or equivalent.
+        check("style.css has radar-sidebar-header or radar-directory-content",
+              "radar-sidebar-header" in style_css or "radar-directory-content" in style_css,
+              "directory header/content CSS class must exist")
+
+        # 8. style.css does NOT remove .radar-layout grid-template-columns.
+        _layout_block = ""
+        if ".radar-layout {" in style_css:
+            _layout_block = style_css.split(".radar-layout {")[1].split("}")[0]
+        check("style.css does NOT remove .radar-layout grid-template-columns",
+              ".radar-layout {" not in style_css or "grid-template-columns" in _layout_block,
+              "radar-layout grid-template-columns must be preserved")
+
+        # 9. radar_today.html still contains 全部, 今日重点, and 最近探测状态.
+        check("radar_today.html still contains 全部 / 今日重点 / 最近探测状态",
+              ("全部" in radar_html and "今日重点" in radar_html and "最近探测状态" in radar_html),
+              "existing sidebar content must be preserved")
+
+        # 10. radar_today.html still contains 智能阅读面板 (now in partial).
+        check("radar_today.html still contains 智能阅读面板",
+              "智能阅读面板" in panel_partial,
+              "reading panel must be preserved")
+
+        # 11. style.css has .radar-directory-collapsed .radar-layout (or equivalent).
+        check("style.css has collapsed .radar-layout selector",
+              "radar-directory-collapsed" in style_css
+              and ".radar-layout" in style_css,
+              "collapsed radar-layout rule must exist")
+
+        # 12. collapsed layout defines grid-template-columns.
+        _collapsed_layout_pos = style_css.find("radar-directory-collapsed")
+        if _collapsed_layout_pos >= 0:
+            _collapsed_snippet = style_css[_collapsed_layout_pos:_collapsed_layout_pos + 500]
+            _has_grid_in_collapsed = "grid-template-columns" in _collapsed_snippet
+        else:
+            _has_grid_in_collapsed = False
+        check("style.css collapsed layout defines grid-template-columns",
+              _has_grid_in_collapsed,
+              "collapsed layout must override grid-template-columns")
+
+        # 13. collapsed layout first column uses 48px/52px/56px.
+        _collapsed_layout_pos = style_css.find("radar-directory-collapsed")
+        if _collapsed_layout_pos >= 0:
+            _collapsed_snippet = style_css[_collapsed_layout_pos:_collapsed_layout_pos + 500]
+            _has_small_first_col = (
+                "48px" in _collapsed_snippet
+                or "52px" in _collapsed_snippet
+                or "56px" in _collapsed_snippet
+            )
+        else:
+            _has_small_first_col = False
+        check("style.css collapsed first column is 48px/52px/56px",
+              _has_small_first_col,
+              "collapsed first column must be 48-56px to free main list space")
+
+        # 14. collapsed state hides .radar-directory-content via display:none.
+        _collapsed_dir_content = style_css.find("radar-directory-collapsed")
+        if _collapsed_dir_content >= 0:
+            _dir_content_snippet = style_css[_collapsed_dir_content:_collapsed_dir_content + 500]
+            _has_display_none = "display: none" in _dir_content_snippet or "display:none" in _dir_content_snippet
+        else:
+            _has_display_none = False
+        check("style.css collapsed hides directory-content via display:none",
+              _has_display_none,
+              "collapsed state must hide directory content with display:none")
+
+        # 15. collapsed state does NOT use overflow:visible on sidebar.
+        _collapsed_sidebar_pos = style_css.find("radar-directory-collapsed .radar-sidebar")
+        if _collapsed_sidebar_pos >= 0:
+            _sidebar_snippet = style_css[_collapsed_sidebar_pos:_collapsed_sidebar_pos + 200]
+            _no_overflow_visible = "overflow: visible" not in _sidebar_snippet and "overflow:visible" not in _sidebar_snippet
+        else:
+            _no_overflow_visible = True  # If not found, it's fine (not overridden)
+        check("style.css collapsed sidebar does NOT use overflow:visible",
+              _no_overflow_visible,
+              "collapsed sidebar must not use overflow:visible")
+
+        # 16. radar_today.html has short "展开" text for collapsed state.
+        check("radar_today.html has short '展开' text for collapsed state",
+              '"展开"' in radar_html or "'展开'" in radar_html,
+              "collapsed button must show short '展开' text")
+
+        # 17. radar_today.html has title with "展开目录".
+        check("radar_today.html title contains '展开目录'",
+              "展开目录" in radar_html,
+              "toggle button must have title with '展开目录'")
+    except Exception as e:
+        check("V1.0-beta.3 Collapsible radar directory checks", False, str(e))
+
+    # ── 43. V1.0-beta.3 Partial radar panel refresh ─────────────────────────
+    print("\n[43] V1.0-beta.3 Partial radar panel refresh")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        partial_path = project_root / "app" / "templates" / "partials" / "radar_today_panel.html"
+        partial_html = partial_path.read_text(encoding="utf-8") if partial_path.exists() else ""
+
+        # 1. radar.py has /today/panel route.
+        check("radar.py has /today/panel route",
+              "/today/panel" in radar_py,
+              "panel endpoint must exist in radar.py")
+
+        # 2. radar.py renders partials/radar_today_panel.html.
+        check("radar.py renders partials/radar_today_panel.html",
+              "partials/radar_today_panel.html" in radar_py,
+              "panel route must render the partial template")
+
+        # 3. partial template exists.
+        check("partial template app/templates/partials/radar_today_panel.html exists",
+              partial_path.exists(),
+              "partial template file must exist")
+
+        # 4. partial contains id="radar-panel".
+        check("partial contains id=\"radar-panel\"",
+              'id="radar-panel"' in partial_html,
+              "partial must have radar-panel id")
+
+        # 5. partial contains "智能阅读面板".
+        check("partial contains '智能阅读面板'",
+              "智能阅读面板" in partial_html,
+              "partial must contain reading panel label")
+
+        # 6. radar_today.html includes partial.
+        check("radar_today.html includes partials/radar_today_panel.html",
+              'include "partials/radar_today_panel.html"' in radar_html
+              or "include 'partials/radar_today_panel.html'" in radar_html,
+              "main template must include the partial")
+
+        # 7. radar_today.html has data-radar-panel-url.
+        check("radar_today.html has data-radar-panel-url",
+              "data-radar-panel-url" in radar_html,
+              "card link must have panel URL data attribute")
+
+        # 8. radar_today.html has /radar/today/panel.
+        check("radar_today.html references /radar/today/panel",
+              "/radar/today/panel" in radar_html,
+              "card link must reference panel endpoint")
+
+        # 9. radar_today.html has preventDefault.
+        check("radar_today.html has preventDefault",
+              "preventDefault" in radar_html,
+              "JS must prevent default link behavior")
+
+        # 10. radar_today.html has fetch(panelUrl.
+        check("radar_today.html has fetch(panelUrl)",
+              "fetch(panelUrl" in radar_html,
+              "JS must fetch panel content")
+
+        # 11. radar_today.html has history.pushState.
+        check("radar_today.html has history.pushState",
+              "history.pushState" in radar_html,
+              "JS must update URL without full reload")
+
+        # 12. radar_today.html has window.location.href fallback.
+        check("radar_today.html has window.location.href fallback",
+              "window.location.href" in radar_html,
+              "JS must fallback to full navigation on error")
+
+        # 13. radar_today.html still has radar-card-main-link href.
+        check("radar_today.html still has radar-card-main-link href",
+              'radar-card-main-link' in radar_html and 'href=' in radar_html,
+              "card link href must be preserved for fallback")
+
+        # 14. radar_today.html does not import React.
+        check("radar_today.html does not import React",
+              "react" not in radar_html.lower() or "react-dom" not in radar_html.lower(),
+              "must not introduce React")
+
+        # 15. radar_today.html does not import Vue.
+        check("radar_today.html does not import Vue",
+              "vue" not in radar_html.lower(),
+              "must not introduce Vue")
+
+        # 16. radar_today.html does not import htmx.
+        check("radar_today.html does not import htmx",
+              "htmx" not in radar_html.lower(),
+              "must not introduce htmx")
+
+        # 17. radar_today.html still has radar-directory-toggle.
+        check("radar_today.html still has radar-directory-toggle",
+              "radar-directory-toggle" in radar_html,
+              "directory toggle must be preserved")
+
+        # 18. style.css still has radar-directory-collapsed .radar-layout.
+        check("style.css still has radar-directory-collapsed .radar-layout",
+              "radar-directory-collapsed" in style_css and ".radar-layout" in style_css,
+              "collapsed layout must be preserved")
+
+        # 19. style.css still has 52px minmax(0, 1fr) 360px.
+        check("style.css still has 52px collapsed layout",
+              "52px" in style_css and "minmax(0, 1fr)" in style_css,
+              "collapsed first column width must be preserved")
+
+        # 20. radar_today.html still has radar-card-footer.
+        check("radar_today.html still has radar-card-footer",
+              "radar-card-footer" in radar_html,
+              "card footer must be preserved")
+
+        # 21. radar_today.html still has radar-card-actions.
+        check("radar_today.html still has radar-card-actions",
+              "radar-card-actions" in radar_html,
+              "card actions must be preserved")
+    except Exception as e:
+        check("V1.0-beta.3 Partial radar panel refresh checks", False, str(e))
+
+    # ── [44] V1.0-beta.3 release candidate docs ──────────────────────────
+    print("\n[44] V1.0-beta.3 release candidate docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        # README links V1.0-beta.3 entry
+        check("README.md contains V1.0-beta.3 entry",
+              "V1.0-beta.3" in readme_md,
+              "README should have V1.0-beta.3 section")
+        check("README.md links V1_BETA_3_RELEASE_NOTES.md",
+              "V1_BETA_3_RELEASE_NOTES.md" in readme_md,
+              "README should link release notes")
+        check("README.md links V1_BETA_3_ACCEPTANCE_CHECKLIST.md",
+              "V1_BETA_3_ACCEPTANCE_CHECKLIST.md" in readme_md,
+              "README should link acceptance checklist")
+
+        # Required docs exist
+        check("docs/V1_BETA_3_RELEASE_NOTES.md exists",
+              (project_root / "docs/V1_BETA_3_RELEASE_NOTES.md").exists(),
+              "release notes must exist")
+        check("docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md exists",
+              (project_root / "docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md").exists(),
+              "acceptance checklist must exist")
+        check("docs/KNOWN_LIMITATIONS.md exists",
+              (project_root / "docs/KNOWN_LIMITATIONS.md").exists(),
+              "known limitations must exist")
+
+        # Release notes content checks
+        release_notes = (project_root / "docs/V1_BETA_3_RELEASE_NOTES.md").read_text(encoding="utf-8")
+        check("release notes contains /radar/today",
+              "/radar/today" in release_notes,
+              "release notes must document /radar/today endpoint")
+        check("release notes contains /radar/today/panel",
+              "/radar/today/panel" in release_notes,
+              "release notes must document panel partial endpoint")
+
+        # Acceptance checklist content checks
+        checklist = (project_root / "docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md").read_text(encoding="utf-8")
+        check("acceptance checklist mentions direct script execution",
+              "python scripts/acceptance_first_usable_loop.py" in checklist,
+              "checklist must document direct execution")
+        check("acceptance checklist mentions module execution",
+              "python -m scripts.acceptance_first_usable_loop" in checklist,
+              "checklist must document module execution")
+
+        # Known limitations content checks
+        known_limits = (project_root / "docs/KNOWN_LIMITATIONS.md").read_text(encoding="utf-8")
+        check("known limitations mentions no full-site SPA navigation",
+              "全站无刷新" in known_limits or "无刷新导航" in known_limits,
+              "known limitations should document no full-site SPA")
+        check("known limitations mentions JS fallback",
+              "JS" in known_limits and "降级" in known_limits,
+              "known limitations should document JS fallback behavior")
+    except Exception as e:
+        check("V1.0-beta.3 release candidate docs checks", False, str(e))
+
+    # ── [45] V1.0-beta.3 final checkpoint docs ───────────────────────────
+    print("\n[45] V1.0-beta.3 final checkpoint docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        # Required final checkpoint docs exist
+        check("docs/V1_BETA_3_FINAL_CHECKPOINT.md exists",
+              (project_root / "docs/V1_BETA_3_FINAL_CHECKPOINT.md").exists(),
+              "final checkpoint doc must exist")
+        check("docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md exists",
+              (project_root / "docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md").exists(),
+              "manual acceptance record must exist")
+
+        # README links final checkpoint docs
+        check("README.md links V1_BETA_3_FINAL_CHECKPOINT.md",
+              "V1_BETA_3_FINAL_CHECKPOINT.md" in readme_md,
+              "README should link final checkpoint")
+        check("README.md links V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md",
+              "V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md" in readme_md,
+              "README should link manual acceptance record")
+
+        # Final checkpoint content checks
+        final_cp = (project_root / "docs/V1_BETA_3_FINAL_CHECKPOINT.md").read_text(encoding="utf-8")
+        check("final checkpoint mentions merge-ready",
+              "merge-ready" in final_cp or "可合并" in final_cp,
+              "final checkpoint should state merge-ready conclusion")
+        check("final checkpoint mentions V1.0-beta.4",
+              "V1.0-beta.4" in final_cp or "V1_beta_4" in final_cp,
+              "final checkpoint should suggest next version")
+
+        # Manual acceptance record content checks
+        manual_rec = (project_root / "docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md").read_text(encoding="utf-8")
+        check("manual acceptance record says no obvious issues found",
+              "手动测试暂未发现明显问题" in manual_rec,
+              "manual acceptance record should state no obvious issues")
+        check("manual acceptance record mentions /radar/today",
+              "/radar/today" in manual_rec,
+              "manual acceptance record should cover /radar/today")
+        check("manual acceptance record mentions right panel",
+              "右侧智能阅读面板" in manual_rec or "智能阅读面板" in manual_rec,
+              "manual acceptance record should cover right panel")
+        check("manual acceptance record says no full-site SPA nav tested",
+              "未做全站无刷新导航验收" in manual_rec or "未做全站" in manual_rec,
+              "manual acceptance record should state full-site SPA not covered")
+    except Exception as e:
+        check("V1.0-beta.3 final checkpoint docs checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

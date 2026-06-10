@@ -34,8 +34,12 @@
             {# ── Left: catalog ─────────────────────────────────────────── #}
             <nav class="radar-sidebar" aria-label="目录分类">
                 <div class="radar-sidebar-inner">
-                    <div class="radar-sidebar-label">目录</div>
-                    <ul class="radar-section-links">
+                    <div class="radar-directory-header">
+                        <span class="radar-sidebar-label">目录</span>
+                        <button type="button" class="radar-directory-toggle" id="radar-directory-toggle" title="收起目录">收起目录</button>
+                    </div>
+                    <div class="radar-directory-content">
+                        <ul class="radar-section-links">
                         {# 全部 — always shown #}
                         <li>
                             <a href="/radar/today?section=all&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'all' %}is-active{% endif %}">
@@ -109,7 +113,35 @@
                         <div class="radar-fetch-summary-empty">暂无探测记录</div>
                         {% endif %}
 
+                        {% if scheduler_status %}
+                        <div class="radar-scheduler-status">
+                            <div class="radar-scheduler-title">调度状态</div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">待检查来源</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.due_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">冷却中</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.not_due_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">疑似卡住</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.stale_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">来源缺失</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.missing_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-hint">自动调度：{{ scheduler_status.scheduler_mode_label }}</div>
+                        </div>
+                        {% else %}
+                        <div class="radar-scheduler-hint">调度状态暂不可用</div>
+                        {% endif %}
+
                         <a href="/fetch-runs" class="btn-sm">查看运行记录</a>
+                        {% if scheduler_status %}
+                        <a href="/project-docs/v1-beta-2-scheduler-operations" class="btn-sm">自动调度说明</a>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -151,7 +183,7 @@
                     <input type="hidden" name="page" value="{{ view.page }}">
                     <input type="hidden" name="per_page" value="{{ view.per_page }}">
                     <input type="hidden" name="summary_limit" value="5">
-                    <button type="submit" class="btn-sm">补齐当前页中文摘要</button>
+                    <button type="submit" class="btn-sm" title="优先处理当前页还没有中文摘要的内容，最多处理 5 条">生成本页前 5 条摘要</button>
                 </form>
 
                 <form method="get" action="/radar/today" class="radar-page-size-form">
@@ -185,6 +217,28 @@
                 </nav>
                 </div>{# <!-- /.radar-main-toolbar --> #}
                 {% if update_result %}
+                {% if update_result.plan_source == "due_sources_v1" %}
+                {# ── V1.0-beta.1 due-source plan summary ──────────────────────── #}
+                <div class="radar-update-result">
+                    <div class="radar-update-result-title">本轮更新计划</div>
+                    <div class="radar-update-result-grid">
+                        <span>配置来源：{{ update_result.total }}</span>
+                        <span>到期来源：{{ update_result.due }}</span>
+                        <span>已启动：{{ update_result.started }}</span>
+                        <span>跳过：{{ update_result.skipped }}</span>
+                        <span>运行中：{{ update_result.running }}</span>
+                        <span>不支持：{{ update_result.unsupported }}</span>
+                        <span>缺失：{{ update_result.missing }}</span>
+                        {% if update_result.failed %}
+                        <span>启动失败：{{ update_result.failed }}</span>
+                        {% endif %}
+                    </div>
+                    {% if update_result.reason_summary_label %}
+                    <div class="radar-update-reasons">跳过原因：{{ update_result.reason_summary_label }}</div>
+                    {% endif %}
+                </div>
+                {% else %}
+                {# ── Legacy update-result block (kept for backwards compatibility) ── #}
                 <div class="radar-update-result">
                     今日雷达更新已启动：
                     唯一来源 {{ update_result.unique_sources }} 个，
@@ -202,6 +256,7 @@
                     {% endif %}
                 </div>
                 {% endif %}
+                {% endif %}
                 {% if summary_result %}
                 <div class="radar-summary-result">
                     <div>
@@ -217,11 +272,8 @@
                         <li>
                             <strong>#{{ detail.item_id }}</strong>
                             <span class="radar-summary-status radar-summary-status-{{ detail.status }}">
-                                {{ detail.status }}
+                                {{ detail.message_label }}
                             </span>
-                            {% if detail.message %}
-                            <span>{{ detail.message }}</span>
-                            {% endif %}
                         </li>
                         {% endfor %}
                     </ul>
@@ -237,23 +289,32 @@
                         {% for item in section.items %}
                         {% set display = display_map.get(item.id) %}
                         {% set is_selected = sel and item.id == sel.id %}
+                        {% set view_url = '/radar/today?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page ~ '#radar-item-' ~ item.id %}
+                        {% set panel_url = '/radar/today/panel?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page %}
                         <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
-                            <div class="radar-card-body">
-                                {# Primary text: zh_one_liner when available, else title #}
-                                {% if display %}
+                            <a class="radar-card-main-link" href="{{ view_url }}" data-radar-panel-url="{{ panel_url }}">
+                                {# Card body: Chinese summary priority, English title demoted #}
+                                {% if display and display.uses_zh_one_liner %}
+                                {# Has Chinese one-liner: line1=Chinese summary, line2=English title #}
                                 <div class="radar-card-title">
                                     {{ display.primary_text }}
-                                    {% if display.uses_zh_one_liner %}
                                     <span class="radar-card-zh-badge">中文概述</span>
-                                    {% endif %}
                                 </div>
                                 {% if display.secondary_text %}
-                                <div class="radar-card-summary">{{ display.secondary_text }}</div>
+                                <div class="radar-card-original-title">{{ display.secondary_text }}</div>
                                 {% endif %}
+                                {% elif display %}
+                                {# No Chinese one-liner: line1=placeholder, line2=English title #}
+                                <div class="radar-card-title">
+                                    <span class="radar-card-summary-placeholder">待生成中文摘要</span>
+                                </div>
+                                <div class="radar-card-original-title">{{ display.primary_text or item.title or '无标题' }}</div>
                                 {% else %}
                                 <div class="radar-card-title">{{ item.title or '无标题' }}</div>
                                 {% endif %}
+                            </a>
 
+                            <div class="radar-card-footer">
                                 <div class="radar-card-meta">
                                     <code>{{ item.source_key }}</code>
                                     <span>{{ display.time_label if display else '时间未知' }}</span>
@@ -270,26 +331,25 @@
                                     {% endif %}
                                     <small class="muted">#{{ item.id }}</small>
                                 </div>
-                            </div>
 
-                            <div class="radar-card-actions">
-                                <a href="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}" class="btn-sm btn-primary">查看</a>
-                                {% if item.status == 'discovered' %}
-                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
-                                    <input
-                                        type="hidden"
-                                        name="return_to"
-                                        value="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
-                                    >
-                                    <button type="submit" class="btn-sm">加入生成</button>
-                                </form>
-                                {% elif item.insight_card_id %}
-                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
-                                {% endif %}
-                                {% set card_url = safe_external_url(display.url if display else item.url) %}
-                                {% if card_url %}
-                                <a href="{{ card_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
-                                {% endif %}
+                                <div class="radar-card-actions">
+                                    {% if item.status == 'discovered' %}
+                                    <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
+                                        <input
+                                            type="hidden"
+                                            name="return_to"
+                                            value="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
+                                        >
+                                        <button type="submit" class="btn-sm">加入生成</button>
+                                    </form>
+                                    {% elif item.insight_card_id %}
+                                    <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                    {% endif %}
+                                    {% set card_url = safe_external_url(display.url if display else item.url) %}
+                                    {% if card_url %}
+                                    <a href="{{ card_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
+                                    {% endif %}
+                                </div>
                             </div>
                         </article>
                         {% endfor %}
@@ -302,170 +362,7 @@
             </div>
 
             {# ── Right: reading panel ──────────────────────────────────── #}
-            <aside class="radar-panel" id="radar-panel" aria-label="阅读面板">
-                {% if view.selected_missing %}
-                <div class="radar-panel-empty">内容不存在或已被清理。</div>
-                {% elif not sel %}
-                <div class="radar-panel-empty">暂无可阅读的内容。</div>
-                {% else %}
-                <div class="radar-panel-label">智能阅读面板</div>
-
-                {% if view.panel_state %}
-                <div class="radar-panel-state-stack">
-                    <div class="radar-panel-state radar-panel-state-summary radar-panel-state-{{ view.panel_state.summary_state }}">
-                        <strong>{{ view.panel_state.summary_label }}</strong>
-                        {% if view.panel_state.summary_note %}
-                        <p>{{ view.panel_state.summary_note }}</p>
-                        {% endif %}
-                    </div>
-
-                    <div class="radar-panel-state radar-panel-state-insight radar-panel-state-{{ view.panel_state.insight_state }}">
-                        <strong>{{ view.panel_state.insight_label }}</strong>
-                        {% if view.panel_state.insight_note %}
-                        <p>{{ view.panel_state.insight_note }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if sel_card and sel_card.detail_summary %}
-                <section class="radar-panel-section">
-                    <h3>内容摘要</h3>
-                    <div class="radar-panel-summary">{{ sel_card.detail_summary }}</div>
-                </section>
-                {% endif %}
-
-                {% if view.panel_state and view.panel_state.insight_preview %}
-                {% set preview = view.panel_state.insight_preview %}
-                {% set insight = view.panel_state.selected_insight_card %}
-                <section class="radar-panel-section radar-panel-insight-preview">
-                    <h3>InsightCard 预览</h3>
-
-                    {% if preview.relevance_score is not none %}
-                    <p class="radar-panel-score">相关性分数：{{ preview.relevance_score }}</p>
-                    {% endif %}
-
-                    {% if preview.related_user_directions %}
-                    <div class="radar-panel-chip-row">
-                        {% for direction in preview.related_user_directions %}
-                        <span class="radar-panel-chip">{{ direction }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-
-                    {% if preview.relevance_reasons %}
-                    <div class="radar-panel-insight-block">
-                        <h4>为什么值得关注</h4>
-                        <ul>
-                            {% for item in preview.relevance_reasons %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.technical_insights %}
-                    <div class="radar-panel-insight-block">
-                        <h4>技术洞察</h4>
-                        <ul>
-                            {% for item in preview.technical_insights %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.product_opportunities %}
-                    <div class="radar-panel-insight-block">
-                        <h4>产品机会</h4>
-                        <ul>
-                            {% for item in preview.product_opportunities %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.action_items %}
-                    <div class="radar-panel-insight-block">
-                        <h4>行动建议</h4>
-                        <ul>
-                            {% for item in preview.action_items %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.risks %}
-                    <div class="radar-panel-insight-block">
-                        <h4>风险提醒</h4>
-                        <ul>
-                            {% for item in preview.risks %}
-                            <li>{{ item }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-
-                    {% if preview.fallback_summary %}
-                    <div class="radar-panel-insight-summary">{{ preview.fallback_summary }}</div>
-                    {% endif %}
-
-                    <a href="/cards/{{ insight.id }}" class="btn-sm btn-primary">查看完整 InsightCard</a>
-                </section>
-                {% endif %}
-
-                <h2 class="radar-panel-title">
-                    {% if sel_card and sel_card.is_title_weak %}
-                        <span title="原始标题：{{ sel.title | escape }}">标题待修复</span>
-                    {% else %}
-                        {{ (sel_card.title if sel_card else sel.title) or '无标题' }}
-                    {% endif %}
-                </h2>
-
-                <dl class="radar-panel-meta">
-                    <dt>来源</dt><dd><code>{{ sel.source_key }}</code></dd>
-                    <dt>时间</dt><dd>{{ sel_card.time_label if sel_card else '时间未知' }}</dd>
-                    <dt>状态</dt><dd>
-                        {% if sel.status == 'discovered' %}待生成洞察
-                        {% elif sel.status == 'compiling' %}生成中
-                        {% elif sel.status == 'compiled' %}已完成
-                        {% elif sel.status == 'failed' %}失败
-                        {% else %}{{ sel.status }}{% endif %}
-                    </dd>
-                    <dt>编号</dt><dd>#{{ sel.id }}</dd>
-                </dl>
-
-                {% set panel_url = safe_external_url(sel_card.url if sel_card else sel.url) %}
-                {% if panel_url %}
-                <div class="radar-panel-url">
-                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" title="{{ (sel_card.url if sel_card else sel.url) | escape }}">
-                        {{ (sel_card.url if sel_card else sel.url) | truncate(96, true, '...') }}
-                    </a>
-                </div>
-                {% endif %}
-
-                <div class="radar-panel-actions">
-                    {% if sel.status == 'discovered' %}
-                    <form method="post" action="/source-items/{{ sel.id }}/enqueue-compile" class="radar-panel-action-form">
-                        <input
-                            type="hidden"
-                            name="return_to"
-                            value="/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
-                        >
-                        <button type="submit" class="btn-sm btn-primary">加入生成</button>
-                    </form>
-                    {% elif sel.status == 'compiled' and sel.insight_card_id %}
-                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
-                    {% endif %}
-                    {% if panel_url %}
-                    <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
-                    {% endif %}
-                    <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
-                </div>
-                {% endif %}
-            </aside>
+            {% include "partials/radar_today_panel.html" %}
 
         </div>
 
@@ -480,6 +377,77 @@
           if (selected && main) {
             selected.scrollIntoView({ block: "center" });
           }
+
+          // Collapsible radar directory
+          var toggle = document.getElementById("radar-directory-toggle");
+          var shell = document.querySelector(".radar-workbench-shell");
+          if (toggle && shell) {
+            var STORAGE_KEY = "ai-frontier-radar:today-directory-collapsed";
+            // Restore saved state
+            if (localStorage.getItem(STORAGE_KEY) === "1") {
+              shell.classList.add("radar-directory-collapsed");
+              toggle.textContent = "展开";
+              toggle.title = "展开目录";
+            }
+            // Toggle handler
+            toggle.addEventListener("click", function () {
+              var collapsed = shell.classList.toggle("radar-directory-collapsed");
+              localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
+              toggle.textContent = collapsed ? "展开" : "收起目录";
+              toggle.title = collapsed ? "展开目录" : "收起目录";
+            });
+          }
+
+          // Card click: partial panel refresh instead of full page reload
+          document.addEventListener("click", async function (event) {
+            var link = event.target.closest(".radar-card-main-link");
+            if (!link) return;
+
+            event.preventDefault();
+
+            var panelUrl = link.dataset.radarPanelUrl;
+            var href = link.getAttribute("href");
+
+            try {
+              var panel = document.getElementById("radar-panel");
+              if (panel) {
+                panel.classList.add("is-loading");
+              }
+
+              var response = await fetch(panelUrl, {
+                headers: {
+                  "X-Requested-With": "fetch"
+                }
+              });
+
+              if (!response.ok) {
+                throw new Error("panel fetch failed");
+              }
+
+              var html = await response.text();
+              var currentPanel = document.getElementById("radar-panel");
+              if (!currentPanel) {
+                throw new Error("panel container missing");
+              }
+
+              currentPanel.outerHTML = html;
+
+              // Update selected card highlight
+              document.querySelectorAll(".radar-card").forEach(function (card) {
+                card.classList.remove("radar-selected-card", "is-selected");
+              });
+              var selectedCard = link.closest(".radar-card");
+              if (selectedCard) {
+                selectedCard.classList.add("radar-selected-card", "is-selected");
+              }
+
+              // Update URL without full page reload
+              window.history.pushState({}, "", href);
+            } catch (error) {
+              // Fallback: full page navigation
+              window.location.href = href;
+            }
+          });
         });
         </script>
 {% endblock %}
