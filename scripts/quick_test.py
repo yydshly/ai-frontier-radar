@@ -5863,11 +5863,13 @@ def main():
         radar_today_html = project_root / "app" / "templates" / "radar_today.html"
         radar_panel_html = project_root / "app" / "templates" / "partials" / "radar_today_panel.html"
         radar_route_py = project_root / "app" / "routes" / "radar.py"
+        bootstrap_plan = project_root / "docs" / "V1_BETA_6_SOURCE_DISCOVERY_BOOTSTRAP_AND_DAILY_INCREMENT_PLAN.md"
 
         today_item_card_text = today_item_card_py.read_text(encoding="utf-8") if today_item_card_py.exists() else ""
         radar_today_text = radar_today_html.read_text(encoding="utf-8") if radar_today_html.exists() else ""
         radar_panel_text = radar_panel_html.read_text(encoding="utf-8") if radar_panel_html.exists() else ""
         radar_route_text = radar_route_py.read_text(encoding="utf-8") if radar_route_py.exists() else ""
+        bootstrap_plan_text = bootstrap_plan.read_text(encoding="utf-8") if bootstrap_plan.exists() else ""
 
         check("today_item_card.py exists",
               today_item_card_py.exists(),
@@ -5878,6 +5880,21 @@ def main():
         check("build_today_item_card exists",
               "def build_today_item_card" in today_item_card_text,
               "today item card builder should exist")
+        check("TodayItemCard splits zh one-liner and zh summary states",
+              "zh_one_liner_state" in today_item_card_text
+              and "zh_one_liner_label" in today_item_card_text
+              and "zh_summary_state" in today_item_card_text
+              and "zh_summary_label" in today_item_card_text,
+              "TodayItemCard should distinguish Chinese overview and detailed summary")
+        check("radar today no longer only shows coarse summary label",
+              "摘要：{{ today_card.summary_label }}" not in radar_today_text,
+              "today cards should not only show coarse summary state")
+        check("radar today shows Chinese overview state",
+              "中文概述" in radar_today_text,
+              "today cards should show Chinese one-liner state")
+        check("radar today shows Chinese summary state",
+              "中文摘要" in radar_today_text,
+              "today cards should show detailed Chinese summary state")
         check("radar today shows content state",
               "正文：" in radar_today_text or "正文状态" in radar_today_text,
               "today cards should show content state")
@@ -5885,8 +5902,11 @@ def main():
               "打开原文" in radar_today_text,
               "today cards should keep original link")
         check("radar today has fetch content entry",
-              "获取正文" in radar_today_text and "fetch-content" in radar_today_text,
-              "today cards should expose POST fetch-content")
+              "标记待获取正文" in radar_today_text and "fetch-content" in radar_today_text,
+              "today cards should expose POST fetch-content intent")
+        check("radar today clarifies content fetch is intent-only",
+              "仅记录获取意图" in radar_today_text or "尚未执行真实抓取" in radar_today_text,
+              "UI should not imply real background fetching")
         check("fetch-content route is POST-only",
               '@router.post("/today/items/{item_id}/fetch-content")' in radar_route_text
               and '@router.get("/today/items/{item_id}/fetch-content")' not in radar_route_text,
@@ -5900,6 +5920,28 @@ def main():
               and "InsightCard 状态" in radar_panel_text
               and "当前处理链路" in radar_panel_text,
               "reading panel should show the processing chain")
+        check("panel shows Chinese overview and summary states",
+              "中文概述状态" in radar_panel_text and "中文摘要状态" in radar_panel_text,
+              "panel should show both Chinese summary levels")
+        check("panel_state passes content_note",
+              "content_note=today_card.content_note" in radar_route_text
+              or "content_note=today_card.content_note" in (project_root / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8"),
+              "RadarPanelState should receive content note")
+        check("bootstrap daily increment plan exists",
+              bootstrap_plan.exists(),
+              "beta.6 bootstrap/daily increment plan should exist")
+        check("bootstrap plan mentions recent 20/50 items",
+              "最近 20/50 条" in bootstrap_plan_text,
+              "plan should define bootstrap size")
+        check("bootstrap plan mentions first_seen_at",
+              "first_seen_at" in bootstrap_plan_text,
+              "plan should define first seen semantics")
+        check("bootstrap plan mentions published_at",
+              "published_at" in bootstrap_plan_text,
+              "plan should define original publish time semantics")
+        check("bootstrap plan mentions dedupe",
+              "去重" in bootstrap_plan_text,
+              "plan should define dedupe rules")
 
         if client is not None:
             resp = client.get("/radar/today")

@@ -529,7 +529,7 @@ def _build_panel_state(
         detail_summary_kind=detail_summary_kind,
         content_state=today_card.content_state,
         content_label=today_card.content_label,
-        content_note=None,
+        content_note=today_card.content_note,
     )
 
 

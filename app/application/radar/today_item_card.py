@@ -29,6 +29,14 @@ class TodayItemCard:
     first_seen_label: str
     published_label: str | None
     summary_state: str
+    zh_one_liner_state: str
+    zh_one_liner_label: str
+    zh_summary_state: str
+    zh_summary_label: str
+    overview_state: str
+    overview_label: str
+    detailed_summary_state: str
+    detailed_summary_label: str
     content_state: str
     insight_state: str
     primary_text: str | None
@@ -38,6 +46,7 @@ class TodayItemCard:
     fetch_method_label: str = "来源探测"
     summary_label: str = "待生成"
     content_label: str = "未获取"
+    content_note: str | None = None
     insight_label: str = "未生成"
 
 
@@ -65,7 +74,7 @@ def build_today_item_content_state(item: SourceItem) -> TodayItemContentState:
     explicit_error = str(raw.get("content_fetch_error") or "").strip() or None
 
     if explicit_status == "queued":
-        return TodayItemContentState("queued", "等待获取", "正文获取已记录为待处理。")
+        return TodayItemContentState("queued", "待获取", "正文获取已记录为待处理。")
     if explicit_status == "fetched":
         return TodayItemContentState("fetched", "已获取")
     if explicit_status in {"failed", "fetch_failed"}:
@@ -86,6 +95,12 @@ def build_today_item_content_state(item: SourceItem) -> TodayItemContentState:
     if item.url:
         return TodayItemContentState("not_fetched", "未获取")
     return TodayItemContentState("unknown", "无法判断", "当前条目没有可用于获取正文的 URL。")
+
+
+def _generated_or_missing(value: Any) -> tuple[str, str]:
+    if isinstance(value, str) and value.strip():
+        return "generated", "已生成"
+    return "missing", "待生成"
 
 
 def _summary_state(raw: dict[str, Any]) -> tuple[str, str]:
@@ -130,6 +145,8 @@ def build_today_item_card(
     """Build a TodayItemCard from a SourceItem and optional display card."""
     raw = _read_raw_metadata(item)
     summary_state, summary_label = _summary_state(raw)
+    zh_one_liner_state, zh_one_liner_label = _generated_or_missing(raw.get("zh_one_liner"))
+    zh_summary_state, zh_summary_label = _generated_or_missing(raw.get("zh_summary"))
     content = build_today_item_content_state(item)
     insight_state, insight_label = _insight_state(item)
 
@@ -152,6 +169,14 @@ def build_today_item_card(
         first_seen_label=_format_datetime(item.first_seen_at) or "发现时间未知",
         published_label=_format_datetime(item.published_at),
         summary_state=summary_state,
+        zh_one_liner_state=zh_one_liner_state,
+        zh_one_liner_label=zh_one_liner_label,
+        zh_summary_state=zh_summary_state,
+        zh_summary_label=zh_summary_label,
+        overview_state=zh_one_liner_state,
+        overview_label=zh_one_liner_label,
+        detailed_summary_state=zh_summary_state,
+        detailed_summary_label=zh_summary_label,
         content_state=content.state,
         insight_state=insight_state,
         primary_text=primary_text,
@@ -161,5 +186,6 @@ def build_today_item_card(
         fetch_method_label=_fetch_method_label(raw),
         summary_label=summary_label,
         content_label=content.label,
+        content_note=content.note,
         insight_label=insight_label,
     )

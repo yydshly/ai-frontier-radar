@@ -410,10 +410,19 @@ def main() -> int:
                             expected_label in resp.text,
                             f"expected '{expected_label}' in panel",
                         )
+                        # V1.0-beta.6.1 adds a processing-chain summary that can
+                        # list both overview and detailed-summary states. The
+                        # beta.4 semantic check should only assert that the main
+                        # summary heading is not mislabeled.
+                        forbidden_heading = (
+                            must_not_appear
+                            if must_not_appear.startswith("<h3>")
+                            else f"<h3>{must_not_appear}</h3>"
+                        )
                         check(
-                            f"Case {case_key}: panel does NOT contain '{must_not_appear}'",
-                            must_not_appear not in resp.text,
-                            f"'{must_not_appear}' should not appear when {case_key}",
+                            f"Case {case_key}: panel main heading is not '{must_not_appear}'",
+                            forbidden_heading not in resp.text,
+                            f"'{forbidden_heading}' should not be the main heading when {case_key}",
                         )
                         check(
                             f"Case {case_key}: panel is a partial (no <html>)",
@@ -886,12 +895,21 @@ def main() -> int:
         check("Today radar page contains content state",
               "正文" in today_resp.text,
               "page should show content state")
+        check("Today radar page contains Chinese overview state",
+              "中文概述" in today_resp.text,
+              "page should show Chinese one-liner state")
+        check("Today radar page contains Chinese summary state",
+              "中文摘要" in today_resp.text,
+              "page should show detailed Chinese summary state")
         check("Today radar page contains open original entry",
               "打开原文" in today_resp.text,
               "page should keep original link")
         check("Today radar page contains fetch content entry",
-              "获取正文" in today_resp.text and "fetch-content" in today_resp.text,
-              "page should expose fetch-content POST")
+              "标记待获取正文" in today_resp.text and "fetch-content" in today_resp.text,
+              "page should expose fetch-content POST intent")
+        check("Today radar page clarifies intent-only content fetch",
+              "仅记录获取意图" in today_resp.text or "尚未执行真实抓取" in today_resp.text,
+              "page should not imply real content fetching")
 
         get_fetch_resp = _client.get("/radar/today/items/0/fetch-content")
         check("GET fetch-content is not allowed",
@@ -912,6 +930,42 @@ def main() -> int:
         check("POST missing item safely redirects",
               post_missing_resp.status_code in (303, 307),
               "missing item should safely return to today radar")
+
+        import json as _json
+        db = SessionLocal()
+        item_for_post = None
+        old_metadata = None
+        try:
+            item_for_post = db.query(SourceItem).filter(SourceItem.url.isnot(None)).first()
+            if item_for_post is not None:
+                old_metadata = item_for_post.raw_metadata_json
+                post_existing_resp = _client.post(
+                    f"/radar/today/items/{item_for_post.id}/fetch-content",
+                    data={
+                        "section": "all",
+                        "hours": "24",
+                        "limit": "50",
+                        "page": "1",
+                        "per_page": "20",
+                    },
+                    follow_redirects=True,
+                )
+                check("POST existing item renders intent-only state",
+                      post_existing_resp.status_code == 200
+                      and ("待获取" in post_existing_resp.text or "仅记录获取意图" in post_existing_resp.text),
+                      "POST should show queued/intent-only semantics")
+                db.refresh(item_for_post)
+                raw = _json.loads(item_for_post.raw_metadata_json or "{}")
+                check("POST fetch-content writes queued metadata",
+                      raw.get("content_fetch_status") == "queued",
+                      "content_fetch_status should be queued")
+            else:
+                check("SourceItem with URL available for fetch-content POST", False, "no SourceItem URL found")
+        finally:
+            if item_for_post is not None:
+                item_for_post.raw_metadata_json = old_metadata
+                db.commit()
+            db.close()
 
         radar_route_text = read("app/routes/radar.py")
         check("fetch-content route does not call LLM",
