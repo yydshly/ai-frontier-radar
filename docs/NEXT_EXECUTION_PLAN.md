@@ -124,10 +124,10 @@
 
 ### V1.0-beta.6 完成项
 
-- ✅ TodayItemCard 中文概述状态（zh_preview / summary_state）
-- ✅ 右侧面板展示中文概述 / 中文摘要 / 待生成状态
-- ✅ 内容获取 intent-only 链路（POST fetch-content）
-- ✅ bootstrap / daily_increment 入口设计
+- ✅ TodayItemCard 多维状态（zh_one_liner / zh_summary / content / insight）
+- ✅ 右侧面板展示各维度状态标签及操作入口
+- ✅ 内容获取 intent-only 链路（POST fetch-content，只写 queued）
+- ✅ bootstrap / daily_increment 入口设计（bootstrap 独立，daily_increment 复用 due-source）
 - ✅ bootstrap dry-run / apply 语义
 - ✅ Web apply background（FastAPI BackgroundTasks）
 - ✅ CLI apply sync
