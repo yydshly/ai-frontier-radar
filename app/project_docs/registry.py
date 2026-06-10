@@ -271,6 +271,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="P-002：单来源工作台展示获取方式、抓取状态、文章列表、中文摘要预览与阅读入口。",
     ),
+    "daily-core-report": DocEntry(
+        key="daily-core-report",
+        title="今日核心报告卡片生成设计",
+        path="docs/V1_DAILY_CORE_REPORT_PLAN.md",
+        category="优化路线",
+        description="P-003-2：今日核心报告生成，默认 dry-run、显式触发、成本闸门、复用 LLM 客户端、不持久化。",
+    ),
 }
 
 

@@ -5493,6 +5493,103 @@ def main():
     except Exception as e:
         check("P-003 daily digest checks", False, str(e))
 
+    # ── 46. P-003-2 daily core report generation (gated, no real LLM) ────────
+    print("\n[46] P-003-2 daily core report generation")
+    try:
+        import subprocess
+
+        project_root = Path(__file__).resolve().parents[1]
+        report_py = project_root / "app" / "application" / "radar" / "daily_report.py"
+        report_cli = project_root / "scripts" / "run_daily_report_once.py"
+
+        check("daily report module exists",
+              report_py.exists(),
+              "daily core report module should exist")
+        check("daily report CLI exists",
+              report_cli.exists(),
+              "daily report CLI should exist")
+
+        report_text = report_py.read_text(encoding="utf-8") if report_py.exists() else ""
+        cli_text = report_cli.read_text(encoding="utf-8") if report_cli.exists() else ""
+
+        check("daily report is gated and dry-run-first",
+              "DAILY_REPORT_ENABLED" in report_text
+              and "dry_run" in report_text
+              and "disabled" in report_text,
+              "report generation must default to dry-run and gate the LLM path")
+
+        check("daily report reuses shared LLM client",
+              "create_llm_client" in report_text
+              and "generate_json" in report_text,
+              "report should reuse the shared LLM client, not new plumbing")
+
+        check("daily report CLI gates apply behind enable flag",
+              "--apply" in cli_text
+              and "requires DAILY_REPORT_ENABLED=true" in cli_text,
+              "CLI --apply must require DAILY_REPORT_ENABLED=true")
+
+        # Functional: dry-run + mock-apply + disabled gate. Never a real LLM.
+        from app.db import SessionLocal
+        from app.models import FetchRun, SourceItem
+        from app.application.radar.daily_report import (
+            generate_daily_report,
+            MockDailyReportProvider,
+        )
+        _db = SessionLocal()
+        try:
+            _before = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            dry = generate_daily_report(_db, apply=False)
+            check("daily report dry-run does not call LLM",
+                  dry.status in ("dry_run", "no_input"),
+                  "default generate must be dry-run / no_input, never generated")
+
+            import os as _os
+            _prev = _os.environ.get("DAILY_REPORT_ENABLED")
+            _os.environ["DAILY_REPORT_ENABLED"] = "true"
+            try:
+                mock = generate_daily_report(_db, provider=MockDailyReportProvider(), apply=True)
+            finally:
+                if _prev is None:
+                    _os.environ.pop("DAILY_REPORT_ENABLED", None)
+                else:
+                    _os.environ["DAILY_REPORT_ENABLED"] = _prev
+            check("daily report mock apply yields structured result",
+                  mock.status in ("generated", "no_input"),
+                  "mock-provider apply should produce a structured (or no_input) result")
+
+            disabled = generate_daily_report(_db, provider=MockDailyReportProvider(), apply=True)
+            check("daily report apply disabled without enable flag",
+                  disabled.status in ("disabled", "no_input"),
+                  "apply without DAILY_REPORT_ENABLED must not generate")
+
+            _after = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            check("daily report generation does not persist rows",
+                  _before == _after,
+                  "report generation must not write FetchRun / SourceItem rows")
+        finally:
+            _db.close()
+
+        # CLI dry-run + gate (subprocess, no real LLM).
+        dry_proc = subprocess.run(
+            [sys.executable, "scripts/run_daily_report_once.py"],
+            cwd=project_root, capture_output=True, text=True, timeout=60,
+        )
+        check("daily report CLI dry-run exits 0 without LLM",
+              dry_proc.returncode == 0 and "DRY-RUN" in dry_proc.stdout,
+              dry_proc.stdout + dry_proc.stderr)
+
+        gate_proc = subprocess.run(
+            [sys.executable, "scripts/run_daily_report_once.py", "--apply"],
+            cwd=project_root,
+            env={k: v for k, v in os.environ.items() if k != "DAILY_REPORT_ENABLED"},
+            capture_output=True, text=True, timeout=60,
+        )
+        check("daily report CLI apply gate rejects without enable flag",
+              gate_proc.returncode == 2,
+              gate_proc.stdout + gate_proc.stderr)
+    except Exception as e:
+        check("P-003-2 daily report checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
