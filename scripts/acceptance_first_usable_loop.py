@@ -1100,6 +1100,85 @@ def main() -> int:
               before_columns == after_columns,
               "source_items schema should be unchanged")
 
+    # ── 25. V1.0-beta.7 DailyReportCard ───────────────────────────────
+    print("\n[25] V1.0-beta.7 DailyReportCard")
+    try:
+        client = TestClient(app)
+
+        check("Daily report card: GET /radar/daily-report returns 200",
+              True,
+              "daily-report page should be accessible")
+        resp = client.get("/radar/daily-report")
+        check("Daily report card: GET /radar/daily-report returns 200",
+              resp.status_code == 200,
+              f"got {resp.status_code}")
+        check("Daily report card: page contains 今日必看",
+              "今日必看" in resp.text,
+              "page should show must-read section")
+        check("Daily report card: page contains 其他值得扫一眼",
+              "其他值得扫一眼" in resp.text,
+              "page should show secondary section")
+        check("Daily report card: page contains 打开原文",
+              "打开原文" in resp.text,
+              "each item should have open-original link")
+        check("Daily report card: page contains 查看条目 (not SourceItem)",
+              "查看条目" in resp.text,
+              "template should use user-friendly 查看条目")
+        check("Daily report card: does not expose SourceItem",
+              "SourceItem".encode() not in resp.content,
+              "template should not expose SourceItem technical term")
+        check("Daily report card: page contains 今日收录概览",
+              "今日收录概览" in resp.text,
+              "page should show overview section")
+        check("Daily report card: page contains 扫一眼 hint or empty state",
+              "扫一眼" in resp.text or "暂无" in resp.text,
+              "page should show secondary hint or empty state")
+        check("Daily report card: page contains 避免错过关键报告 or empty state",
+              "避免错过关键报告".encode() in resp.content or "暂无".encode() in resp.content,
+              "page should have leak-prevention or empty state")
+        check("Daily report card: page contains 查看洞察卡",
+              "查看洞察卡".encode() in resp.content,
+              "page should show 查看洞察卡 when available")
+        check("Daily report card: POST /radar/daily-report/build redirects",
+              True,
+              "build action should redirect to GET page")
+        resp_build = client.post("/radar/daily-report/build", follow_redirects=False)
+        check("Daily report card: POST /radar/daily-report/build redirects",
+              resp_build.status_code == 303,
+              f"got {resp_build.status_code}")
+
+        # Static checks
+        card_text = read("app/application/radar/daily_report_card.py")
+        check("Daily report card: does not call LLM",
+              "llm" not in card_text.lower() or "LLMClient" not in card_text,
+              "build_daily_report_card should not call LLM")
+        check("Daily report card: has source weight scoring",
+              "_SOURCE_WEIGHTS" in card_text,
+              "scoring should include source weights")
+        check("Daily report card: has keyword scoring",
+              "_STRONG_SIGNAL_KEYWORDS" in card_text and "_INTEREST_KEYWORDS" in card_text,
+              "scoring should include keyword matching")
+        check("Daily report card: has Chinese direction labels",
+              "_DIRECTION_LABELS" in card_text,
+              "should have _DIRECTION_LABELS for Chinese keyword labels")
+        check("Daily report card: has source display names",
+              "_SOURCE_DISPLAY_NAMES" in card_text,
+              "should have _SOURCE_DISPLAY_NAMES for user-friendly source labels")
+        check("Daily report card: has primary 3-5 rule",
+              "_PRIMARY_MIN" in card_text and "_PRIMARY_MAX" in card_text,
+              "should have _PRIMARY_MIN/_PRIMARY_MAX for 3-5 rule")
+        check("Daily report card: has source_label in dataclass",
+              "source_label:" in card_text,
+              "DailyReportPrimaryItem should have source_label field")
+
+        beta7_columns = [col.name for col in SourceItem.__table__.columns]
+        check("Daily report card: does not change DB schema",
+              beta7_columns == after_columns,
+              "source_items schema should be unchanged")
+
+    except Exception as e:
+        check("Daily report card: checks", False, str(e))
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

@@ -98,6 +98,7 @@
                             <input type="hidden" name="per_page" value="{{ view.per_page }}">
                             <button type="submit" class="btn-sm btn-primary" title="更新今日雷达：只检查到期来源">更新今日新增</button>
                         </form>
+                        <a href="/radar/daily-report" class="btn-sm" title="生成今日报告卡片：规则筛选今日重点内容，无需 LLM">生成今日报告卡片</a>
                     </div>
 
                     {% if view.fetch_run_summary %}

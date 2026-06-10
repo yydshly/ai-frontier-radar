@@ -6129,6 +6129,140 @@ def main():
     except Exception as e:
         check("V1.0-beta.6.2 source discovery checks", False, str(e))
 
+    # ── 51. V1.0-beta.7 DailyReportCard ────────────────────────────────────
+    print("\n[51] V1.0-beta.7 DailyReportCard")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        card_py = project_root / "app" / "application" / "radar" / "daily_report_card.py"
+        card_text = card_py.read_text(encoding="utf-8") if card_py.exists() else ""
+        radar_html = (project_root / "app" / "templates" / "radar_daily_report.html").read_text(encoding="utf-8") if (project_root / "app" / "templates" / "radar_daily_report.html").exists() else ""
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        # Module and dataclasses exist
+        check("daily_report_card.py exists",
+              card_py.exists(),
+              "daily_report_card.py should exist")
+
+        check("DailyReportCard dataclass exists",
+              "class DailyReportCard" in card_text,
+              "DailyReportCard dataclass should be defined")
+
+        check("DailyReportPrimaryItem dataclass exists",
+              "class DailyReportPrimaryItem" in card_text,
+              "DailyReportPrimaryItem dataclass should be defined")
+
+        check("DailyReportSecondaryItem dataclass exists",
+              "class DailyReportSecondaryItem" in card_text,
+              "DailyReportSecondaryItem dataclass should be defined")
+
+        check("DailyReportOverview dataclass exists",
+              "class DailyReportOverview" in card_text,
+              "DailyReportOverview dataclass should be defined")
+
+        # Sorting rules present
+        check("Source weight in scoring",
+              "_SOURCE_WEIGHTS" in card_text or "source_weight" in card_text,
+              "scoring should include source weight")
+
+        check("Strong-signal keyword scoring",
+              "_STRONG_SIGNAL_KEYWORDS" in card_text or "signal" in card_text.lower(),
+              "scoring should include strong-signal keywords")
+
+        check("Interest keyword scoring",
+              "_INTEREST_KEYWORDS" in card_text or "interest" in card_text.lower(),
+              "scoring should include user interest keywords")
+
+        check("Has _DIRECTION_LABELS for Chinese label mapping",
+              "_DIRECTION_LABELS" in card_text,
+              "_DIRECTION_LABELS should map keywords to Chinese labels")
+
+        check("Has primary_min and primary_max limits",
+              "_PRIMARY_MIN" in card_text and "_PRIMARY_MAX" in card_text,
+              "primary_min and primary_max constants should exist for 3-5 rule")
+
+        check("Chinese reason builder exists",
+              "_build_reason" in card_text,
+              "_build_reason should build natural Chinese reason sentences")
+
+        # Routes
+        check("GET /radar/daily-report route exists",
+              'get("/daily-report"' in radar_py,
+              "GET /radar/daily-report route should be defined")
+
+        check("POST /radar/daily-report/build route exists",
+              'post("/daily-report/build")' in radar_py,
+              "POST /radar/daily-report/build route should be defined")
+
+        # Template content
+        check("Template has 今日必看",
+              "今日必看" in radar_html,
+              "template should have 今日必看 section")
+
+        check("Template has 其他值得扫一眼",
+              "其他值得扫一眼" in radar_html,
+              "template should have 其他值得扫一眼 section")
+
+        check("Template has 打开原文 link",
+              "打开原文" in radar_html,
+              "each item should have 打开原文 link")
+
+        check("Template has 查看条目 (not SourceItem)",
+              "查看条目" in radar_html,
+              "template should use user-friendly 查看条目 not SourceItem")
+
+        check("Template does not expose SourceItem",
+              "SourceItem" not in radar_html,
+              "template should not expose SourceItem technical term")
+
+        check("Template has 今日收录概览",
+              "今日收录概览" in radar_html,
+              "template should have overview section")
+
+        check("Template has 防漏提示",
+              "以下内容未进入今日必看" in radar_html or "扫一眼" in radar_html,
+              "template should have leak-prevention hint for secondary items")
+
+        check("Template has 避免错过关键报告",
+              "避免错过关键报告" in radar_html,
+              "template should have leak-prevention message for secondary items")
+
+        check("Template has 查看洞察卡 link",
+              "查看洞察卡" in radar_html,
+              "template should show 查看洞察卡 link when available")
+
+        check("Template has empty state",
+              "今日暂无内容" in radar_html or "暂无" in radar_html,
+              "template should show empty state when no content")
+
+        # CSS
+        check("radar-report CSS classes exist",
+              ".radar-report-section" in style_css or "radar-report" in style_css,
+              "style.css should have radar-report classes")
+
+        # No LLM calls in the build function
+        check("build_daily_report_card does not call LLM",
+              "llm" not in card_text.lower() or "LLMClient" not in card_text,
+              "daily_report_card.py should not call LLM")
+
+        # radar_today.html has daily-report link
+        radar_today_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        check("radar_today.html has daily-report link",
+              "daily-report" in radar_today_html,
+              "today radar sidebar should link to daily-report")
+
+        # TestClient verification
+        if client:
+            resp = client.get("/radar/daily-report")
+            check("GET /radar/daily-report returns 200",
+                  resp.status_code == 200,
+                  f"daily-report page should return 200, got {resp.status_code}")
+        else:
+            check("TestClient available for daily report checks", False, "client is not available")
+
+    except Exception as e:
+        check("V1.0-beta.7 DailyReportCard checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

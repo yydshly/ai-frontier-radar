@@ -5146,3 +5146,260 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 .source-manual-fetch-button {
     cursor: pointer;
 }
+
+/* ── Daily Report Card ─────────────────────────────────────────────── */
+
+.radar-report-overview {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.radar-report-overview-title {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.6rem;
+    font-weight: 600;
+}
+
+.radar-report-overview-grid {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.radar-report-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+}
+
+.radar-report-stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1976d2;
+    line-height: 1.2;
+}
+
+.radar-report-stat-label {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 0.15rem;
+}
+
+.radar-report-section {
+    margin-bottom: 2rem;
+}
+
+.radar-report-section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #1976d2;
+}
+
+.radar-report-section-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1976d2;
+    margin: 0;
+}
+
+.radar-report-section-count {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.radar-report-secondary-hint {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+    font-style: italic;
+}
+
+.radar-report-primary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.radar-report-primary-item {
+    border: 1px solid #e0e0e0;
+    border-left: 4px solid #1976d2;
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    background: #fff;
+}
+
+.radar-report-primary-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.radar-report-source-tag {
+    font-size: 0.75rem;
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.radar-report-reason {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.radar-report-primary-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #212121;
+    margin: 0 0 0.4rem;
+    line-height: 1.4;
+}
+
+.radar-report-primary-summary {
+    font-size: 0.9rem;
+    color: #424242;
+    margin: 0 0 0.5rem;
+    line-height: 1.5;
+}
+
+.radar-report-tags {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+.radar-report-tag {
+    font-size: 0.72rem;
+    background: #f5f5f5;
+    color: #555;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid #e0e0e0;
+}
+
+.radar-report-primary-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.radar-report-secondary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.radar-report-secondary-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    border: 1px solid #e8e8e8;
+    border-radius: 5px;
+    padding: 0.65rem 0.9rem;
+    background: #fafafa;
+    flex-wrap: wrap;
+}
+
+.radar-report-secondary-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    min-width: 120px;
+}
+
+.radar-report-secondary-content {
+    flex: 1;
+    min-width: 200px;
+}
+
+.radar-report-secondary-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #212121;
+    margin: 0 0 0.2rem;
+    line-height: 1.4;
+}
+
+.radar-report-secondary-brief {
+    font-size: 0.8rem;
+    color: #555;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.radar-report-secondary-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.radar-report-action-link {
+    font-size: 0.8rem;
+    color: #1976d2;
+    text-decoration: none;
+}
+
+.radar-report-action-link:hover {
+    text-decoration: underline;
+}
+
+.radar-report-action-hint {
+    font-size: 0.75rem;
+    color: #888;
+    font-style: italic;
+}
+
+.radar-report-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #666;
+}
+
+.radar-report-empty p {
+    margin-bottom: 1rem;
+}
+
+.radar-report-footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.radar-report-primary-summary {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #212121;
+    margin: 0 0 0.3rem;
+    line-height: 1.5;
+}
+
+.radar-report-original-title {
+    font-size: 0.8rem;
+    color: #888;
+    margin: 0 0 0.5rem;
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.radar-report-secondary-original {
+    font-size: 0.75rem;
+    color: #888;
+    margin: 0.1rem 0 0;
+    font-style: italic;
+    line-height: 1.3;
+}
