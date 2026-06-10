@@ -4816,6 +4816,63 @@ def main():
     except Exception as e:
         check("V1.0-beta.3 Partial radar panel refresh checks", False, str(e))
 
+    # ── [44] V1.0-beta.3 release candidate docs ──────────────────────────
+    print("\n[44] V1.0-beta.3 release candidate docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        # README links V1.0-beta.3 entry
+        check("README.md contains V1.0-beta.3 entry",
+              "V1.0-beta.3" in readme_md,
+              "README should have V1.0-beta.3 section")
+        check("README.md links V1_BETA_3_RELEASE_NOTES.md",
+              "V1_BETA_3_RELEASE_NOTES.md" in readme_md,
+              "README should link release notes")
+        check("README.md links V1_BETA_3_ACCEPTANCE_CHECKLIST.md",
+              "V1_BETA_3_ACCEPTANCE_CHECKLIST.md" in readme_md,
+              "README should link acceptance checklist")
+
+        # Required docs exist
+        check("docs/V1_BETA_3_RELEASE_NOTES.md exists",
+              (project_root / "docs/V1_BETA_3_RELEASE_NOTES.md").exists(),
+              "release notes must exist")
+        check("docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md exists",
+              (project_root / "docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md").exists(),
+              "acceptance checklist must exist")
+        check("docs/KNOWN_LIMITATIONS.md exists",
+              (project_root / "docs/KNOWN_LIMITATIONS.md").exists(),
+              "known limitations must exist")
+
+        # Release notes content checks
+        release_notes = (project_root / "docs/V1_BETA_3_RELEASE_NOTES.md").read_text(encoding="utf-8")
+        check("release notes contains /radar/today",
+              "/radar/today" in release_notes,
+              "release notes must document /radar/today endpoint")
+        check("release notes contains /radar/today/panel",
+              "/radar/today/panel" in release_notes,
+              "release notes must document panel partial endpoint")
+
+        # Acceptance checklist content checks
+        checklist = (project_root / "docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md").read_text(encoding="utf-8")
+        check("acceptance checklist mentions direct script execution",
+              "python scripts/acceptance_first_usable_loop.py" in checklist,
+              "checklist must document direct execution")
+        check("acceptance checklist mentions module execution",
+              "python -m scripts.acceptance_first_usable_loop" in checklist,
+              "checklist must document module execution")
+
+        # Known limitations content checks
+        known_limits = (project_root / "docs/KNOWN_LIMITATIONS.md").read_text(encoding="utf-8")
+        check("known limitations mentions no full-site SPA navigation",
+              "全站无刷新" in known_limits or "无刷新导航" in known_limits,
+              "known limitations should document no full-site SPA")
+        check("known limitations mentions JS fallback",
+              "JS" in known_limits and "降级" in known_limits,
+              "known limitations should document JS fallback behavior")
+    except Exception as e:
+        check("V1.0-beta.3 release candidate docs checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
