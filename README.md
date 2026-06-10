@@ -325,6 +325,7 @@ V1.0-beta.4 已区分展示标签，V1.0-beta.5 继续解决更底层的问题�
 
 详见：
 - [docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md](docs/V1_BETA_5_SUMMARY_WRITE_POLICY.md) — 摘要写入规范定义
+- [docs/V1_BETA_5_FINAL_CHECKPOINT.md](docs/V1_BETA_5_FINAL_CHECKPOINT.md) — 最终 checkpoint、merge-ready 判断
 
 ## 项目理解与维护文档
 

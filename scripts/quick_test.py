@@ -5314,6 +5314,48 @@ def main():
     except Exception as e:
         check("V1.0-beta.5 summary write policy checks", False, str(e))
 
+    # ── [50] V1.0-beta.5 final checkpoint docs ─────────────────────────
+    print("\n[50] V1.0-beta.5 final checkpoint docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("docs/V1_BETA_5_FINAL_CHECKPOINT.md exists",
+              (project_root / "docs/V1_BETA_5_FINAL_CHECKPOINT.md").exists(),
+              "final checkpoint doc must exist")
+        check("README.md links V1_BETA_5_FINAL_CHECKPOINT.md",
+              "V1_BETA_5_FINAL_CHECKPOINT.md" in readme_md,
+              "README should link final checkpoint")
+
+        if (project_root / "docs/V1_BETA_5_FINAL_CHECKPOINT.md").exists():
+            cp = (project_root / "docs/V1_BETA_5_FINAL_CHECKPOINT.md").read_text(encoding="utf-8")
+            check("final checkpoint contains V1.0-beta.5",
+                  "V1.0-beta.5" in cp,
+                  "final checkpoint should state version")
+            check("final checkpoint mentions summary_policy.py",
+                  "summary_policy.py" in cp,
+                  "final checkpoint should mention summary_policy.py")
+            check("final checkpoint mentions CandidateOneLinerService",
+                  "CandidateOneLinerService" in cp,
+                  "final checkpoint should mention CandidateOneLinerService")
+            check("final checkpoint mentions force=True",
+                  "force=True" in cp or "force" in cp,
+                  "final checkpoint should mention force parameter")
+            check("final checkpoint mentions fill_missing_summary",
+                  "fill_missing_summary" in cp,
+                  "final checkpoint should mention fill_missing_summary")
+            check("final checkpoint mentions 不改数据库 schema",
+                  "不改" in cp or "未改" in cp,
+                  "final checkpoint should confirm no DB schema change")
+            check("final checkpoint mentions merge-ready or 可合并",
+                  "merge-ready" in cp or "可合并" in cp,
+                  "final checkpoint should state merge-ready")
+            check("final checkpoint mentions V1.0-beta.6 or beta 6",
+                  "V1.0-beta.6" in cp or "beta.6" in cp or "下一阶段建议" in cp,
+                  "final checkpoint should suggest next version")
+    except Exception as e:
+        check("V1.0-beta.5 final checkpoint docs checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
