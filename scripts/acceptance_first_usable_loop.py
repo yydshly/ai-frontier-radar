@@ -1127,6 +1127,12 @@ def main() -> int:
         check("Daily report card: page contains 扫一眼 hint or empty state",
               "扫一眼" in resp.text or "暂无" in resp.text,
               "page should show secondary hint or empty state")
+        check("Daily report card: page contains 避免错过关键报告 or empty state",
+              "避免错过关键报告".encode() in resp.content or "暂无".encode() in resp.content,
+              "page should have leak-prevention or empty state")
+        check("Daily report card: page contains 查看 InsightCard",
+              "查看 InsightCard".encode() in resp.content,
+              "page should show 查看 InsightCard when available")
         check("Daily report card: POST /radar/daily-report/build redirects",
               True,
               "build action should redirect to GET page")
@@ -1146,6 +1152,12 @@ def main() -> int:
         check("Daily report card: has keyword scoring",
               "_STRONG_SIGNAL_KEYWORDS" in card_text and "_INTEREST_KEYWORDS" in card_text,
               "scoring should include keyword matching")
+        check("Daily report card: has Chinese direction labels",
+              "_DIRECTION_LABELS" in card_text,
+              "should have _DIRECTION_LABELS for Chinese keyword labels")
+        check("Daily report card: has primary 3-5 rule",
+              "_PRIMARY_MIN" in card_text and "_PRIMARY_MAX" in card_text,
+              "should have _PRIMARY_MIN/_PRIMARY_MAX for 3-5 rule")
 
         beta7_columns = [col.name for col in SourceItem.__table__.columns]
         check("Daily report card: does not change DB schema",

@@ -145,6 +145,34 @@
 
 ---
 
+## V1.0-beta.7：日报卡片（进行中）
+
+> 分支：`feature/v1-beta-7-daily-report-card`
+
+### V1.0-beta.7 目标
+
+规则打分分层日报卡片：今日必看 3-5 条 + 其他值得扫一眼，不调用 LLM。
+
+### V1.0-beta.7 完成项
+
+- ✅ DailyReportCard 两层结构（今日必看 / 其他值得扫一眼）
+- ✅ 规则打分排序（来源权重 + 关键词 + 新鲜度）
+- ✅ 中文方向标签映射（`_DIRECTION_LABELS`）
+- ✅ 3-5 条主次分层语义
+- ✅ 防漏提示（"避免错过关键报告"）
+- ✅ 每条保留原文链接
+- ✅ InsightCard 链接（已有时）
+- ✅ `docs/V1_BETA_7_DAILY_REPORT_CARD_CHECKPOINT.md`
+
+### V1.0-beta.7 暂不改
+
+- ❌ LLM 日报总结
+- ❌ 音频播报
+- ❌ 真实正文抓取
+- ❌ DB schema
+
+---
+
 ## 验收标准
 
 - README 准确反映当前能力

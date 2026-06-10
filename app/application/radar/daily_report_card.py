@@ -33,7 +33,7 @@ _INTEREST_KEYWORDS = {
     "document understanding", "tts", "voice", "video", "ai safety",
     "claude", "anthropic", "openai", "deepmind", "minimax", "mistral",
     "google", "meta", "microsoft", "nvidia", "amazon", "apple",
-    "hugging face", "stability ai", " Cohere", "replicate", "LangChain",
+    "hugging face", "stability ai", "cohere", "replicate", "LangChain",
     "embedding", "vector", "chunking", "retrieval", "generation",
     "synthetic data", "data engineering", "pipeline", "finetuning",
 }
@@ -57,11 +57,92 @@ _SOURCE_WEIGHTS: dict[str, float] = {
     "berkeley_bair_blog": 1.3,
 }
 
+# Keyword → Chinese label mapping for display.
+_DIRECTION_LABELS: dict[str, str] = {
+    # Agent / workflow
+    "agent": "多 Agent / Agent 工作流",
+    "multi-agent": "多 Agent / Agent 工作流",
+    # Knowledge
+    "rag": "RAG / 知识库",
+    "knowledge base": "RAG / 知识库",
+    "document understanding": "文档理解",
+    "embedding": "向量 Embedding",
+    "vector": "向量检索",
+    "retrieval": "检索增强",
+    # Voice / Audio
+    "tts": "语音 / TTS",
+    "voice": "语音产品",
+    # Video
+    "video": "视频生成",
+    # Coding
+    "coding": "AI 编程",
+    "developer": "开发者工具",
+    "open source": "开源",
+    # Safety
+    "ai safety": "AI 安全",
+    "safety": "AI 安全",
+    # Model releases
+    "model": "模型发布",
+    "release": "模型发布",
+    "benchmark": "评测 / Benchmark",
+    "evaluation": "评测 / Benchmark",
+    "research": "研究报告",
+    "roadmap": "路线图",
+    "paper": "论文",
+    "architecture": "模型架构",
+    "fine-tuning": "微调",
+    "pre-training": "预训练",
+    "alignment": "对齐研究",
+    "dataset": "数据集",
+    "inference": "推理优化",
+    "deployment": "部署落地",
+    "production": "生产应用",
+    "synthetic data": "合成数据",
+    "data engineering": "数据工程",
+    "pipeline": "流程编排",
+    "finetuning": "微调",
+    "multimodal": "多模态",
+    "policy": "政策与治理",
+    "law": "政策法规",
+    "regulation": "政策法规",
+    "government": "政府动态",
+    "privacy": "隐私安全",
+    "security": "隐私安全",
+    "startup": "创业投资",
+    "funding": "创业投资",
+    "acquisition": "收购并购",
+    "generation": "内容生成",
+    "LangChain": "LangChain",
+    # Companies
+    "openai": "OpenAI",
+    "anthropic": "Anthropic / Claude",
+    "claude": "Anthropic / Claude",
+    "deepmind": "Google DeepMind",
+    "minimax": "MiniMax",
+    "mistral": "Mistral",
+    "google": "Google",
+    "meta": "Meta",
+    "microsoft": "Microsoft",
+    "nvidia": "NVIDIA",
+    "amazon": "Amazon",
+    "apple": "Apple",
+    "hugging face": "Hugging Face",
+    "stability ai": "Stability AI",
+    "cohere": "Cohere",
+    "replicate": "Replicate",
+}
+
+
+# Primary card limits.
+_PRIMARY_MIN = 3   # minimum primary items when content is sufficient
+_PRIMARY_MAX = 5   # maximum primary items
+
 
 @dataclass(frozen=True)
 class DailyReportPrimaryItem:
     """A top-ranked "must read" item."""
     item_id: int
+    insight_card_id: int | None
     title: str
     source_key: str
     url: str | None
@@ -153,8 +234,8 @@ def _score_item(item: SourceItem, now: datetime) -> float:
     content_bonus = (has_one_liner * 0.5) + (has_summary * 0.3) + (has_insight * 1.0)
 
     # 5. Freshness: prefer newer items.
-    hours_old = _hours_old(item.published_at or item.first_seen_at, now)
-    freshness = math.exp(-hours_old / 48)  # decay half-life ~48h
+    hours_old_val = _hours_old(item.published_at or item.first_seen_at, now)
+    freshness = math.exp(-hours_old_val / 48)  # decay half-life ~48h
 
     return (
         source_weight * 3.0
@@ -165,33 +246,51 @@ def _score_item(item: SourceItem, now: datetime) -> float:
     )
 
 
-def _extract_keywords(text: str) -> list[str]:
-    """Extract matching keywords from text."""
+def _extract_directions(text: str) -> list[str]:
+    """Extract matching keywords and return Chinese labels."""
     text_lower = text.lower()
     matched: list[str] = []
+    seen: set[str] = set()
     for kw in _STRONG_SIGNAL_KEYWORDS | _INTEREST_KEYWORDS:
-        if kw in text_lower:
-            matched.append(kw)
+        if kw in text_lower and kw not in seen:
+            label = _DIRECTION_LABELS.get(kw, kw)
+            if label not in seen:
+                matched.append(label)
+                seen.add(label)
     return matched[:5]  # cap at 5
 
 
-def _build_reason(title: str, matched_keywords: list[str], source_key: str) -> str:
-    """Build a human-readable reason string."""
-    if not matched_keywords:
-        parts = [f"来自{source_key}的更新"]
-    else:
-        keyword_str = "、".join(matched_keywords[:3])
-        parts = [f"涉及{keyword_str}"]
-        if source_key in _SOURCE_WEIGHTS and _SOURCE_WEIGHTS[source_key] >= 1.8:
-            parts.append("重要来源")
-    return "，".join(parts) if parts else "今日更新"
+def _build_reason(source_key: str, directions: list[str], has_insight: bool) -> str:
+    """Build a natural Chinese reason sentence for a primary item."""
+    source_weight = _SOURCE_WEIGHTS.get(source_key, 1.0)
+    is_high_weight = source_weight >= 1.8
+
+    # Build parts
+    parts: list[str] = []
+
+    if is_high_weight and directions:
+        parts.append("高权重来源")
+    elif is_high_weight:
+        parts.append("重要来源")
+    elif directions:
+        parts.append("值得关注")
+
+    if directions:
+        direction_str = "、".join(directions[:2])
+        parts.append(f"涉及{direction_str}")
+
+    if has_insight:
+        parts.append("已有洞察卡片")
+
+    return "，".join(parts) if parts else "今日重要更新"
 
 
 def build_daily_report_card(
     db,
     *,
     now: datetime | None = None,
-    primary_limit: int = 5,
+    primary_min: int = _PRIMARY_MIN,
+    primary_max: int = _PRIMARY_MAX,
     secondary_limit: int = 10,
 ) -> DailyReportCard:
     """Build a DailyReportCard from today's SourceItems using rule-based ranking.
@@ -249,19 +348,26 @@ def build_daily_report_card(
         covered_sources=len(source_keys),
     )
 
+    # Determine primary count: 3-5 when enough items exist.
+    total = len(rows)
+    if total >= primary_min:
+        primary_count = min(primary_max, max(primary_min, total))
+    else:
+        primary_count = total
+
     # Top items = primary.
-    primary_rows = [r for _, r in scored[:primary_limit]]
+    primary_rows = [r for _, r in scored[:primary_count]]
     primary_items: list[DailyReportPrimaryItem] = []
     for item in primary_rows:
         raw = _read_raw_metadata(item)
         title = item.title or "无标题"
-        keywords = _extract_keywords(title)
-        reason = _build_reason(title, keywords, item.source_key)
+        directions = _extract_directions(title)
+        has_insight = item.status == "compiled" and item.insight_card_id
+        reason = _build_reason(item.source_key, directions, has_insight)
         zh_one_liner = str(raw.get("zh_one_liner") or "").strip() or None
-        related = keywords[:3] if keywords else []
 
         # Suggested action based on state.
-        if item.status == "compiled" and item.insight_card_id:
+        if has_insight:
             suggested = "查看 InsightCard"
         elif zh_one_liner:
             suggested = "阅读中文概述"
@@ -270,22 +376,23 @@ def build_daily_report_card(
 
         primary_items.append(DailyReportPrimaryItem(
             item_id=item.id,
+            insight_card_id=item.insight_card_id if has_insight else None,
             title=title,
             source_key=item.source_key,
             url=item.url,
             zh_one_liner=zh_one_liner,
             reason=reason,
-            related_directions=related,
+            related_directions=directions[:3],
             suggested_action=suggested,
         ))
 
     # Remaining = secondary.
-    secondary_rows = [r for _, r in scored[primary_limit:primary_limit + secondary_limit]]
+    secondary_rows = [r for _, r in scored[primary_count:primary_count + secondary_limit]]
     secondary_items: list[DailyReportSecondaryItem] = []
     for item in secondary_rows:
         raw = _read_raw_metadata(item)
         title = item.title or "无标题"
-        keywords = _extract_keywords(title)
+        directions = _extract_directions(title)
         brief = str(raw.get("zh_one_liner") or "").strip() or str(
             raw.get("zh_summary") or "").strip() or None
         secondary_items.append(DailyReportSecondaryItem(
@@ -294,7 +401,7 @@ def build_daily_report_card(
             source_key=item.source_key,
             url=item.url,
             brief=brief,
-            tags=keywords[:3],
+            tags=directions[:3],
         ))
 
     return DailyReportCard(

@@ -87,8 +87,12 @@
                     {% if item.url %}
                     <a href="{{ item.url }}" target="_blank" rel="noopener" class="radar-report-action-link">打开原文</a>
                     {% endif %}
-                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看 SourceItem</a>
-                    {% if item.suggested_action %}
+                    {% if item.insight_card_id %}
+                    <a href="/cards/{{ item.insight_card_id }}" class="radar-report-action-link">查看 InsightCard</a>
+                    {% else %}
+                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看详情</a>
+                    {% endif %}
+                    {% if item.suggested_action and not item.insight_card_id %}
                     <span class="radar-report-action-hint">{{ item.suggested_action }}</span>
                     {% endif %}
                 </div>

@@ -6173,6 +6173,18 @@ def main():
               "_INTEREST_KEYWORDS" in card_text or "interest" in card_text.lower(),
               "scoring should include user interest keywords")
 
+        check("Has _DIRECTION_LABELS for Chinese label mapping",
+              "_DIRECTION_LABELS" in card_text,
+              "_DIRECTION_LABELS should map keywords to Chinese labels")
+
+        check("Has primary_min and primary_max limits",
+              "_PRIMARY_MIN" in card_text and "_PRIMARY_MAX" in card_text,
+              "primary_min and primary_max constants should exist for 3-5 rule")
+
+        check("Chinese reason builder exists",
+              "_build_reason" in card_text,
+              "_build_reason should build natural Chinese reason sentences")
+
         # Routes
         check("GET /radar/daily-report route exists",
               'get("/daily-report"' in radar_py,
@@ -6202,6 +6214,14 @@ def main():
         check("Template has 防漏提示",
               "以下内容未进入今日必看" in radar_html or "扫一眼" in radar_html,
               "template should have leak-prevention hint for secondary items")
+
+        check("Template has 避免错过关键报告",
+              "避免错过关键报告" in radar_html,
+              "template should have leak-prevention message for secondary items")
+
+        check("Template has 查看 InsightCard link",
+              "查看 InsightCard" in radar_html,
+              "template should show 查看 InsightCard link when available")
 
         check("Template has empty state",
               "今日暂无内容" in radar_html or "暂无" in radar_html,
