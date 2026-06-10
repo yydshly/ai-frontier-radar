@@ -410,10 +410,19 @@ def main() -> int:
                             expected_label in resp.text,
                             f"expected '{expected_label}' in panel",
                         )
+                        # V1.0-beta.6.1 adds a processing-chain summary that can
+                        # list both overview and detailed-summary states. The
+                        # beta.4 semantic check should only assert that the main
+                        # summary heading is not mislabeled.
+                        forbidden_heading = (
+                            must_not_appear
+                            if must_not_appear.startswith("<h3>")
+                            else f"<h3>{must_not_appear}</h3>"
+                        )
                         check(
-                            f"Case {case_key}: panel does NOT contain '{must_not_appear}'",
-                            must_not_appear not in resp.text,
-                            f"'{must_not_appear}' should not appear when {case_key}",
+                            f"Case {case_key}: panel main heading is not '{must_not_appear}'",
+                            forbidden_heading not in resp.text,
+                            f"'{forbidden_heading}' should not be the main heading when {case_key}",
                         )
                         check(
                             f"Case {case_key}: panel is a partial (no <html>)",
@@ -785,6 +794,311 @@ def main() -> int:
                         db2.close()
                     except Exception:
                         pass
+
+    print("\n[22] P-004 custom source intake preview")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created - skipping custom source tests")
+    else:
+        from app.db import SessionLocal
+        from app.models import Source
+
+        # Normalize existing config sync before measuring dry-run row counts.
+        get_resp = _client.get("/sources")
+        check("/sources shows custom source dry-run form",
+              get_resp.status_code == 200
+              and ("添加自定义来源" in get_resp.text or "预览，不写入" in get_resp.text),
+              "/sources should expose custom source preview UI")
+
+        db = SessionLocal()
+        try:
+            before_count = db.query(Source).count()
+            existing_source = db.query(Source).first()
+            duplicate_key = existing_source.source_key if existing_source is not None else "openai_news"
+        finally:
+            db.close()
+
+        valid_resp = _client.post(
+            "/sources/custom/preview",
+            data={
+                "name": "Acceptance Unique RSS F11",
+                "source_key": "acceptance_unique_rss_f11",
+                "fetch_strategy": "rss",
+                "feed_url": "https://example.com/acceptance-unique-rss-f11.xml",
+                "homepage_url": "",
+                "category": "other",
+                "relevance_hint": "AI updates",
+                "fetch_interval_hours": "24",
+            },
+        )
+        check("POST valid rss draft returns dry-run preview",
+              valid_resp.status_code == 200
+              and ("dry-run" in valid_resp.text or "未写入" in valid_resp.text),
+              "valid preview should render without writing")
+
+        localhost_resp = _client.post(
+            "/sources/custom/preview",
+            data={
+                "name": "Acceptance Localhost",
+                "fetch_strategy": "rss",
+                "feed_url": "http://localhost/feed.xml",
+                "homepage_url": "",
+                "category": "other",
+                "relevance_hint": "",
+                "fetch_interval_hours": "24",
+            },
+        )
+        check("POST localhost URL returns validation error",
+              localhost_resp.status_code == 200
+              and ("错误列表" in localhost_resp.text or "localhost" in localhost_resp.text),
+              "localhost URL should be rejected on the preview page")
+
+        duplicate_resp = _client.post(
+            "/sources/custom/preview",
+            data={
+                "name": "Acceptance Duplicate Key",
+                "source_key": duplicate_key,
+                "fetch_strategy": "rss",
+                "feed_url": "https://example.com/acceptance-duplicate-key.xml",
+                "homepage_url": "",
+                "category": "other",
+                "relevance_hint": "",
+                "fetch_interval_hours": "24",
+            },
+        )
+        check("POST duplicate source_key returns validation error",
+              duplicate_resp.status_code == 200
+              and ("source_key" in duplicate_resp.text or "错误列表" in duplicate_resp.text),
+              "duplicate source_key should be rejected")
+
+        db = SessionLocal()
+        try:
+            after_count = db.query(Source).count()
+        finally:
+            db.close()
+        check("custom preview POST does not change Source row count",
+              before_count == after_count,
+              "preview endpoint must not write Source rows")
+
+    print("\n[23] TodayItemCard content chain")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created - skipping TodayItemCard tests")
+    else:
+        from app.db import SessionLocal
+        from app.models import SourceItem
+
+        before_columns = [col.name for col in SourceItem.__table__.columns]
+
+        today_resp = _client.get("/radar/today")
+        check("Today radar page opens",
+              today_resp.status_code == 200,
+              "GET /radar/today should render")
+        check("Today radar page contains content state",
+              "正文" in today_resp.text,
+              "page should show content state")
+        check("Today radar page contains Chinese overview state",
+              "中文概述" in today_resp.text,
+              "page should show Chinese one-liner state")
+        check("Today radar page contains Chinese summary state",
+              "中文摘要" in today_resp.text,
+              "page should show detailed Chinese summary state")
+        check("Today radar page contains open original entry",
+              "打开原文" in today_resp.text,
+              "page should keep original link")
+        check("Today radar page contains fetch content entry",
+              "标记待获取正文" in today_resp.text and "fetch-content" in today_resp.text,
+              "page should expose fetch-content POST intent")
+        check("Today radar page clarifies intent-only content fetch",
+              "仅记录获取意图" in today_resp.text or "尚未执行真实抓取" in today_resp.text,
+              "page should not imply real content fetching")
+
+        get_fetch_resp = _client.get("/radar/today/items/0/fetch-content")
+        check("GET fetch-content is not allowed",
+              get_fetch_resp.status_code in (404, 405),
+              "GET must not trigger content fetch")
+
+        post_missing_resp = _client.post(
+            "/radar/today/items/999999999/fetch-content",
+            data={
+                "section": "all",
+                "hours": "24",
+                "limit": "50",
+                "page": "1",
+                "per_page": "20",
+            },
+            follow_redirects=False,
+        )
+        check("POST missing item safely redirects",
+              post_missing_resp.status_code in (303, 307),
+              "missing item should safely return to today radar")
+
+        import json as _json
+        db = SessionLocal()
+        item_for_post = None
+        old_metadata = None
+        try:
+            item_for_post = db.query(SourceItem).filter(SourceItem.url.isnot(None)).first()
+            if item_for_post is not None:
+                old_metadata = item_for_post.raw_metadata_json
+                post_existing_resp = _client.post(
+                    f"/radar/today/items/{item_for_post.id}/fetch-content",
+                    data={
+                        "section": "all",
+                        "hours": "24",
+                        "limit": "50",
+                        "page": "1",
+                        "per_page": "20",
+                    },
+                    follow_redirects=True,
+                )
+                check("POST existing item renders intent-only state",
+                      post_existing_resp.status_code == 200
+                      and ("待获取" in post_existing_resp.text or "仅记录获取意图" in post_existing_resp.text),
+                      "POST should show queued/intent-only semantics")
+                db.refresh(item_for_post)
+                raw = _json.loads(item_for_post.raw_metadata_json or "{}")
+                check("POST fetch-content writes queued metadata",
+                      raw.get("content_fetch_status") == "queued",
+                      "content_fetch_status should be queued")
+            else:
+                check("SourceItem with URL available for fetch-content POST", False, "no SourceItem URL found")
+        finally:
+            if item_for_post is not None:
+                item_for_post.raw_metadata_json = old_metadata
+                db.commit()
+            db.close()
+
+        radar_route_text = read("app/routes/radar.py")
+        check("fetch-content route does not call LLM",
+              "fetch_today_item_content" in radar_route_text
+              and "CandidateOneLinerService" not in radar_route_text.split("def fetch_today_item_content", 1)[1].split("@router.post", 1)[0],
+              "fetch-content must not call LLM")
+
+        after_columns = [col.name for col in SourceItem.__table__.columns]
+        check("fetch-content does not change DB schema",
+              before_columns == after_columns,
+              "source_items columns must be unchanged")
+
+    print("\n[24] Source discovery bootstrap and daily increment")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created - skipping source discovery tests")
+    else:
+        from app.db import SessionLocal
+        from app.models import SourceItem
+        from app.application.sources.discovery_runs import (
+            DAILY_INCREMENT_MODE,
+            SourceDiscoveryRunSettings,
+            run_source_discovery,
+        )
+        from app.application.sources.due_sources import compute_due_sources
+
+        before_columns = [col.name for col in SourceItem.__table__.columns]
+
+        today_resp = _client.get("/radar/today")
+        check("Source discovery: today radar opens",
+              today_resp.status_code == 200,
+              "GET /radar/today should render")
+        check("Source discovery: page contains bootstrap/update entries",
+              "初始化来源内容" in today_resp.text and "更新今日新增" in today_resp.text,
+              "today radar should expose initialization and daily increment entries")
+
+        get_bootstrap_resp = _client.get("/radar/today/bootstrap")
+        check("Source discovery: GET bootstrap not allowed",
+              get_bootstrap_resp.status_code in (404, 405),
+              "GET bootstrap must not trigger side effects")
+
+        db = SessionLocal()
+        try:
+            before_count = db.query(SourceItem).count()
+        finally:
+            db.close()
+
+        post_bootstrap_resp = _client.post(
+            "/radar/today/bootstrap",
+            data={
+                "action": "dry_run",
+                "max_items_per_source": "20",
+                "max_sources": "1",
+                "section": "all",
+                "hours": "24",
+                "limit": "50",
+                "page": "1",
+                "per_page": "20",
+            },
+            follow_redirects=True,
+        )
+        db = SessionLocal()
+        try:
+            after_bootstrap_count = db.query(SourceItem).count()
+        finally:
+            db.close()
+        check("Source discovery: POST bootstrap dry-run renders",
+              post_bootstrap_resp.status_code == 200 and "dry-run" in post_bootstrap_resp.text,
+              "bootstrap dry-run should return to today radar")
+        check("Source discovery: POST bootstrap dry-run does not write SourceItem",
+              before_count == after_bootstrap_count,
+              "bootstrap dry-run must not write SourceItem rows")
+
+        db = SessionLocal()
+        try:
+            before_daily_count = db.query(SourceItem).count()
+            result = run_source_discovery(
+                db,
+                SourceDiscoveryRunSettings(
+                    mode=DAILY_INCREMENT_MODE,
+                    max_items_per_source=20,
+                    max_sources=1,
+                    dry_run=True,
+                ),
+            )
+            after_daily_count = db.query(SourceItem).count()
+            due_plan = compute_due_sources(db, max_sources=1)
+        finally:
+            db.close()
+        check("Source discovery: daily_increment dry-run does not write SourceItem",
+              result.dry_run and before_daily_count == after_daily_count,
+              "daily_increment dry-run must be read-only")
+        check("Source discovery: check_due_sources equivalent runs",
+              due_plan.total_configured >= 0,
+              "compute_due_sources should still run")
+
+        radar_route_text = read("app/routes/radar.py")
+        discovery_text = read("app/application/sources/discovery_runs.py")
+        check("Source discovery: route does not call LLM",
+              "def bootstrap_today_sources" in radar_route_text
+              and "CandidateOneLinerService" not in radar_route_text.split("def bootstrap_today_sources", 1)[1].split("@router.post", 1)[0],
+              "bootstrap route must not call LLM")
+        check("Source discovery: discovery service does not call LLM",
+              "CandidateOneLinerService" not in discovery_text
+              and "create_llm_client" not in discovery_text
+              and "generate_json" not in discovery_text,
+              "discovery service must not call LLM")
+
+        # V1.0-beta.6.3: background vs sync apply assertions (static only)
+        radar_route_text = read("app/routes/radar.py")
+        discovery_text = read("app/application/sources/discovery_runs.py")
+        check("Source discovery: bootstrap route has BackgroundTasks parameter",
+              "background_tasks: BackgroundTasks" in radar_route_text,
+              "bootstrap route must inject BackgroundTasks for async apply")
+        check("Source discovery: bootstrap apply passes background_tasks",
+              "background_tasks=background_tasks if not dry_run" in radar_route_text,
+              "apply path must pass BackgroundTasks; dry-run must not")
+        check("Source discovery: run_source_discovery accepts background_tasks",
+              "background_tasks=None" in discovery_text,
+              "run_source_discovery must accept background_tasks kwarg")
+        check("Source discovery: _apply_source_keys forwards background_tasks",
+              "background_tasks=background_tasks" in discovery_text,
+              "_apply_source_keys must forward background_tasks to enqueue_source")
+        check("Source discovery: SourceDiscoveryRunResult has execution_mode",
+              "execution_mode" in discovery_text,
+              "SourceDiscoveryRunResult must carry execution_mode")
+        check("Source discovery: plan doc mentions background apply",
+              "BackgroundTasks" in read("docs/V1_BETA_6_SOURCE_DISCOVERY_BOOTSTRAP_AND_DAILY_INCREMENT_PLAN.md"),
+              "plan doc should document BackgroundTasks / background apply behavior")
+
+        after_columns = [col.name for col in SourceItem.__table__.columns]
+        check("Source discovery: does not change DB schema",
+              before_columns == after_columns,
+              "source_items schema should be unchanged")
 
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")

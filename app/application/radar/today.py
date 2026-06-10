@@ -31,6 +31,10 @@ from app.application.candidates.summary_policy import (
     classify_detail_summary_kind,
     get_detail_summary_label,
 )
+from app.application.radar.today_item_card import (
+    TodayItemCard,
+    build_today_item_card,
+)
 
 
 # ── Panel state ─────────────────────────────────────────────────────────────
@@ -45,6 +49,9 @@ class RadarPanelState:
     insight_note: str | None    # Optional note (e.g. error message for failed)
     selected_insight_card: "InsightCard | None" = None
     insight_preview: "RadarInsightPreview | None" = None
+    content_state: str = "unknown"
+    content_label: str = "正文状态未知"
+    content_note: str | None = None
     # ── Detail summary label for the reading panel ──────────────────────────
     # Human-readable label for the detail_summary block heading.
     # Values: "中文摘要" | "中文概述" | "来源摘要" | "英文来源摘要"
@@ -306,6 +313,7 @@ class RadarTodayView:
     selected_item: object | None
     sections: list  # list[RadarTodaySection]
     display_map: dict  # dict[int, CandidateDisplayCard]
+    today_card_map: dict  # dict[int, TodayItemCard]
     fallback_used: bool
     hours: int
     limit: int
@@ -451,6 +459,7 @@ def _build_panel_state(
         return None
 
     raw = _read_raw_metadata(item)
+    today_card = build_today_item_card(item)
     has_zh_summary = bool(str(raw.get("zh_summary") or "").strip())
     has_zh_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
 
@@ -518,6 +527,9 @@ def _build_panel_state(
         insight_preview=_build_insight_preview(selected_insight_card),
         detail_summary_label=detail_summary_label,
         detail_summary_kind=detail_summary_kind,
+        content_state=today_card.content_state,
+        content_label=today_card.content_label,
+        content_note=today_card.content_note,
     )
 
 
@@ -635,6 +647,10 @@ class RadarTodayService:
         display_map: dict[int, CandidateDisplayCard] = {
             item.id: full_display_map[item.id] for item in page_items
         }
+        today_card_map: dict[int, TodayItemCard] = {
+            item.id: build_today_item_card(item, full_display_map.get(item.id))
+            for item in page_items
+        }
 
         # ── Section grouping (current page only, all categories) ─────────
         # We always build the full SECTION_ORDER list so the sidebar can
@@ -660,6 +676,10 @@ class RadarTodayService:
         )
         if selected_item is not None and selected_item.id in full_display_map:
             display_map[selected_item.id] = full_display_map[selected_item.id]
+            today_card_map[selected_item.id] = build_today_item_card(
+                selected_item,
+                full_display_map.get(selected_item.id),
+            )
 
         panel_state = _build_panel_state(self.db, selected_item)
 
@@ -675,6 +695,7 @@ class RadarTodayService:
             selected_item=selected_item,
             sections=sections,
             display_map=display_map,
+            today_card_map=today_card_map,
             fallback_used=fallback_used,
             hours=hours,
             limit=limit,

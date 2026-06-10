@@ -248,6 +248,43 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="V1.0-beta.2",
         description="自动调度 dry-run、apply 安全路径、isolated apply 验收和操作手册的阶段归档。",
     ),
+
+    # 项目优化路线（P-001 ~ P-004）
+    "optimization-roadmap": DocEntry(
+        key="optimization-roadmap",
+        title="项目优化路线图",
+        path="docs/V1_OPTIMIZATION_ROADMAP.md",
+        category="优化路线",
+        description="P-001~P-004 现状盘点、差距分析、分阶段路线与全局边界。",
+    ),
+    "source-ingestion-strategy": DocEntry(
+        key="source-ingestion-strategy",
+        title="信息来源获取策略阶梯",
+        path="docs/V1_SOURCE_INGESTION_STRATEGY.md",
+        category="优化路线",
+        description="RSS 优先、API/单 URL 居中、爬虫后置的策略阶梯、能力矩阵、回退规则与受控边界。",
+    ),
+    "source-workspace-enhancement": DocEntry(
+        key="source-workspace-enhancement",
+        title="精品来源工作台增强设计",
+        path="docs/V1_SOURCE_WORKSPACE_ENHANCEMENT_PLAN.md",
+        category="优化路线",
+        description="P-002：单来源工作台展示获取方式、抓取状态、文章列表、中文摘要预览与阅读入口。",
+    ),
+    "daily-core-report": DocEntry(
+        key="daily-core-report",
+        title="今日核心报告卡片生成设计",
+        path="docs/V1_DAILY_CORE_REPORT_PLAN.md",
+        category="优化路线",
+        description="P-003-2：今日核心报告生成，默认 dry-run、显式触发、成本闸门、复用 LLM 客户端、不持久化。",
+    ),
+    "custom-source-intake": DocEntry(
+        key="custom-source-intake",
+        title="自定义来源接入设计",
+        path="docs/V1_CUSTOM_SOURCE_INTAKE_PLAN.md",
+        category="优化路线",
+        description="P-004：自定义来源接入，策略白名单 + dry-run 预览 + 与配置同步共存，写库走显式 gate。",
+    ),
 }
 
 

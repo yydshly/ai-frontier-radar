@@ -4550,6 +4550,74 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     line-height: 1.4;
 }
 
+/* P-003 step 1 — daily digest sidebar block (additive, reuses scheduler rows) */
+.radar-digest {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.radar-digest-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #24292f;
+}
+
+.radar-digest-list {
+    margin: 0.3rem 0 0;
+    padding-left: 1rem;
+    list-style: disc;
+}
+
+.radar-digest-item {
+    font-size: 0.76rem;
+    line-height: 1.4;
+    margin-bottom: 0.2rem;
+}
+
+.radar-digest-form {
+    margin-top: 0.4rem;
+}
+
+/* P-003-2 — today's core report result banner (additive, reuses banner area) */
+.radar-daily-report-result {
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d0d7de;
+    border-left: 4px solid #1f6feb;
+    border-radius: 8px;
+    background: #f6f8fa;
+}
+
+.radar-daily-report-title {
+    font-weight: 700;
+    color: #24292f;
+    margin-bottom: 0.35rem;
+}
+
+.radar-daily-report-overview {
+    margin: 0 0 0.4rem;
+    font-size: 0.86rem;
+    color: #3a3f45;
+    line-height: 1.5;
+}
+
+.radar-daily-report-highlights {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.84rem;
+    color: #444;
+}
+
+.radar-daily-report-note {
+    font-size: 0.84rem;
+    color: #57606a;
+    line-height: 1.5;
+}
+
 /* ============================================================
    V1.0-beta — Summary generation per-item diagnostics
    ============================================================ */
@@ -4938,6 +5006,14 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 .source-workspace-muted {
     color: #999;
     font-size: 0.85rem;
+}
+
+/* P-002: Chinese one-liner preview under article title */
+.source-workspace-item-preview {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: #57606a;
+    line-height: 1.4;
 }
 
 .source-workspace-chip {

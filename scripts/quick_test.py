@@ -5356,6 +5356,779 @@ def main():
     except Exception as e:
         check("V1.0-beta.5 final checkpoint docs checks", False, str(e))
 
+    # ── 44. Project optimization roadmap + ingestion strategy (P-001) ────────
+    print("\n[44] Project optimization roadmap + ingestion strategy")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        roadmap = project_root / "docs" / "V1_OPTIMIZATION_ROADMAP.md"
+        strategy = project_root / "docs" / "V1_SOURCE_INGESTION_STRATEGY.md"
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+
+        check("optimization roadmap doc exists",
+              roadmap.exists(),
+              "project optimization roadmap should exist")
+        check("source ingestion strategy doc exists",
+              strategy.exists(),
+              "source ingestion strategy ladder doc should exist")
+
+        roadmap_text = roadmap.read_text(encoding="utf-8") if roadmap.exists() else ""
+        strategy_text = strategy.read_text(encoding="utf-8") if strategy.exists() else ""
+
+        check("roadmap covers P-001 through P-004",
+              all(p in roadmap_text for p in ["P-001", "P-002", "P-003", "P-004"]),
+              "roadmap should map all four problem areas")
+
+        check("ingestion strategy is RSS-first, crawler-last",
+              "RSS" in strategy_text
+              and "html_index" in strategy_text
+              and ("爬虫后置" in strategy_text or "后置" in strategy_text),
+              "strategy should prioritise RSS and defer crawler")
+
+        check("ingestion strategy keeps heavy strategies controlled",
+              ("显式开启" in strategy_text or "默认关闭" in strategy_text)
+              and "SUPPORTED_STRATEGIES" in strategy_text,
+              "heavy/crawler strategies should stay controlled and out of default scheduling")
+
+        check("ingestion strategy enumerates alternative methods",
+              "json_feed" in strategy_text
+              and "sitemap" in strategy_text
+              and "single_url" in strategy_text
+              and "api" in strategy_text,
+              "strategy should enumerate the fuller ladder of ingestion methods")
+
+        check("registry includes optimization docs",
+              "optimization-roadmap" in registry_py
+              and "source-ingestion-strategy" in registry_py
+              and "source-workspace-enhancement" in registry_py,
+              "project docs registry should register the optimization docs")
+
+        workspace_plan = project_root / "docs" / "V1_SOURCE_WORKSPACE_ENHANCEMENT_PLAN.md"
+        check("source workspace enhancement plan exists",
+              workspace_plan.exists(),
+              "P-002 source workspace enhancement plan should exist")
+
+        # Optimization regression: source workspace must not full-scan SourceItems
+        # in Python just to count summarized items.
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+        check("source workspace counts summarized items in SQL",
+              "for item in db.query(SourceItem).filter(SourceItem.source_key == source_key).all():" not in main_py,
+              "summarized-items count should use a SQL count, not a Python full scan")
+
+        # P-002 Phase B landing: strategy label helper + enriched article list.
+        strategy_labels = project_root / "app" / "application" / "sources" / "strategy_labels.py"
+        check("fetch strategy label helper exists",
+              strategy_labels.exists()
+              and "def describe_fetch_strategy" in (strategy_labels.read_text(encoding="utf-8") if strategy_labels.exists() else ""),
+              "describe_fetch_strategy helper should exist for source workspace + intake reuse")
+
+        check("source workspace route enriches article list",
+              "build_candidate_display_card" in main_py
+              and "fetch_strategy_label" in main_py
+              and "zh_preview" in main_py
+              and "summary_state" in main_py,
+              "source workspace should provide zh preview, summary state and strategy label")
+
+        source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        check("source workspace template shows get-method and item preview",
+              "获取方式" in source_detail_html
+              and "首次发现" in source_detail_html
+              and "摘要状态" in source_detail_html
+              and "source-workspace-item-preview" in source_detail_html,
+              "source workspace should display get-method, summary state and Chinese preview")
+    except Exception as e:
+        check("optimization roadmap docs checks", False, str(e))
+
+    # ── 45. P-003 step 1: read-only daily digest aggregation ─────────────────
+    print("\n[45] P-003 daily digest aggregation")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        digest_py = project_root / "app" / "application" / "radar" / "daily_digest.py"
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        check("daily digest aggregation module exists",
+              digest_py.exists(),
+              "read-only daily digest module should exist")
+
+        digest_text = digest_py.read_text(encoding="utf-8") if digest_py.exists() else ""
+
+        check("daily digest is read-only and LLM-free",
+              "build_daily_digest_view" in digest_text
+              and ".commit(" not in digest_text
+              and ".add(" not in digest_text
+              and "CandidateOneLinerService" not in digest_text
+              and "InsightCardGenerator" not in digest_text,
+              "daily digest must only aggregate, never write or call LLM")
+
+        check("daily digest counts in SQL, not full scan",
+              "for item in" not in digest_text
+              and ".count()" in digest_text,
+              "daily digest should count via SQL, not Python full scans")
+
+        check("radar route wires daily_digest",
+              "daily_digest" in radar_route_py
+              and "build_daily_digest_view" in radar_route_py,
+              "radar context should provide a read-only daily_digest")
+
+        check("radar template shows daily digest block",
+              "今日编译概览" in radar_html
+              and "今日新增" in radar_html
+              and "radar-digest" in radar_html,
+              "radar today should show an additive daily digest block")
+
+        # Verify aggregation runs read-only against the DB.
+        from app.db import SessionLocal
+        from app.models import SourceItem, FetchRun
+        from app.application.radar.daily_digest import build_daily_digest_view
+        _db = SessionLocal()
+        try:
+            _before = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            _digest = build_daily_digest_view(_db)
+            _after = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            check("daily digest build is read-only",
+                  _before == _after and _digest.new_items_count >= 0,
+                  "building the digest must not change row counts")
+        finally:
+            _db.close()
+    except Exception as e:
+        check("P-003 daily digest checks", False, str(e))
+
+    # ── 46. P-003-2 daily core report generation (gated, no real LLM) ────────
+    print("\n[46] P-003-2 daily core report generation")
+    try:
+        import subprocess
+
+        project_root = Path(__file__).resolve().parents[1]
+        report_py = project_root / "app" / "application" / "radar" / "daily_report.py"
+        report_cli = project_root / "scripts" / "run_daily_report_once.py"
+
+        check("daily report module exists",
+              report_py.exists(),
+              "daily core report module should exist")
+        check("daily report CLI exists",
+              report_cli.exists(),
+              "daily report CLI should exist")
+
+        report_text = report_py.read_text(encoding="utf-8") if report_py.exists() else ""
+        cli_text = report_cli.read_text(encoding="utf-8") if report_cli.exists() else ""
+
+        check("daily report is gated and dry-run-first",
+              "DAILY_REPORT_ENABLED" in report_text
+              and "dry_run" in report_text
+              and "disabled" in report_text,
+              "report generation must default to dry-run and gate the LLM path")
+
+        check("daily report reuses shared LLM client",
+              "create_llm_client" in report_text
+              and "generate_json" in report_text,
+              "report should reuse the shared LLM client, not new plumbing")
+
+        check("daily report CLI gates apply behind enable flag",
+              "--apply" in cli_text
+              and "requires DAILY_REPORT_ENABLED=true" in cli_text,
+              "CLI --apply must require DAILY_REPORT_ENABLED=true")
+
+        # Functional: dry-run + mock-apply + disabled gate. Never a real LLM.
+        from app.db import SessionLocal
+        from app.models import FetchRun, SourceItem
+        from app.application.radar.daily_report import (
+            generate_daily_report,
+            MockDailyReportProvider,
+        )
+        _db = SessionLocal()
+        try:
+            _before = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            dry = generate_daily_report(_db, apply=False)
+            check("daily report dry-run does not call LLM",
+                  dry.status in ("dry_run", "no_input"),
+                  "default generate must be dry-run / no_input, never generated")
+
+            import os as _os
+            _prev = _os.environ.get("DAILY_REPORT_ENABLED")
+            _os.environ["DAILY_REPORT_ENABLED"] = "true"
+            try:
+                mock = generate_daily_report(_db, provider=MockDailyReportProvider(), apply=True)
+            finally:
+                if _prev is None:
+                    _os.environ.pop("DAILY_REPORT_ENABLED", None)
+                else:
+                    _os.environ["DAILY_REPORT_ENABLED"] = _prev
+            check("daily report mock apply yields structured result",
+                  mock.status in ("generated", "no_input"),
+                  "mock-provider apply should produce a structured (or no_input) result")
+
+            disabled = generate_daily_report(_db, provider=MockDailyReportProvider(), apply=True)
+            check("daily report apply disabled without enable flag",
+                  disabled.status in ("disabled", "no_input"),
+                  "apply without DAILY_REPORT_ENABLED must not generate")
+
+            _after = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            check("daily report generation does not persist rows",
+                  _before == _after,
+                  "report generation must not write FetchRun / SourceItem rows")
+        finally:
+            _db.close()
+
+        # CLI dry-run + gate (subprocess, no real LLM).
+        dry_proc = subprocess.run(
+            [sys.executable, "scripts/run_daily_report_once.py"],
+            cwd=project_root, capture_output=True, text=True, timeout=60,
+        )
+        check("daily report CLI dry-run exits 0 without LLM",
+              dry_proc.returncode == 0 and "DRY-RUN" in dry_proc.stdout,
+              dry_proc.stdout + dry_proc.stderr)
+
+        gate_proc = subprocess.run(
+            [sys.executable, "scripts/run_daily_report_once.py", "--apply"],
+            cwd=project_root,
+            env={k: v for k, v in os.environ.items() if k != "DAILY_REPORT_ENABLED"},
+            capture_output=True, text=True, timeout=60,
+        )
+        check("daily report CLI apply gate rejects without enable flag",
+              gate_proc.returncode == 2,
+              gate_proc.stdout + gate_proc.stderr)
+    except Exception as e:
+        check("P-003-2 daily report checks", False, str(e))
+
+    # ── 47. P-003-2 daily report UI trigger (POST-only, gated, no real LLM) ──
+    print("\n[47] P-003-2 daily report UI trigger")
+    try:
+        import os as _os
+
+        project_root = Path(__file__).resolve().parents[1]
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        check("daily report route is POST-only",
+              '@router.post("/today/daily-report"' in radar_route_py
+              and '@router.get("/today/daily-report"' not in radar_route_py,
+              "daily report trigger must be POST-only")
+
+        check("daily report route reuses gated generate (apply=True)",
+              "generate_daily_report(db, apply=True)" in radar_route_py
+              and "daily_report_result" in radar_route_py,
+              "route should call the gated generator and pass a result to the template")
+
+        check("radar template has explicit report button + result banner",
+              "生成今日核心报告" in radar_html
+              and "/radar/today/daily-report" in radar_html
+              and "radar-daily-report-result" in radar_html,
+              "radar today should expose a POST button and an inline result banner")
+
+        # Functional: GET -> 405; POST without enable -> 200 disabled note, no LLM.
+        from fastapi.testclient import TestClient
+        from app.main import app as _app
+        from app.db import SessionLocal
+        from app.models import FetchRun, SourceItem, InsightCard
+
+        _prev = _os.environ.pop("DAILY_REPORT_ENABLED", None)
+        try:
+            _client = TestClient(_app)
+            _db = SessionLocal()
+            try:
+                _before = (
+                    _db.query(FetchRun).count(),
+                    _db.query(SourceItem).count(),
+                    _db.query(InsightCard).count(),
+                )
+            finally:
+                _db.close()
+
+            _get = _client.get("/radar/today/daily-report")
+            check("daily report GET is not allowed", _get.status_code == 405,
+                  f"GET should be 405, got {_get.status_code}")
+
+            _post = _client.post("/radar/today/daily-report")
+            check("daily report POST (disabled) renders without LLM",
+                  _post.status_code == 200 and "未启用" in _post.text,
+                  f"disabled POST should render 200 with a not-enabled note, got {_post.status_code}")
+
+            _db = SessionLocal()
+            try:
+                _after = (
+                    _db.query(FetchRun).count(),
+                    _db.query(SourceItem).count(),
+                    _db.query(InsightCard).count(),
+                )
+            finally:
+                _db.close()
+            check("daily report POST does not persist rows",
+                  _before == _after,
+                  "disabled report POST must not write FetchRun / SourceItem / InsightCard")
+        finally:
+            if _prev is not None:
+                _os.environ["DAILY_REPORT_ENABLED"] = _prev
+    except Exception as e:
+        check("P-003-2 daily report UI checks", False, str(e))
+
+    # ── 48. P-004 custom source intake: validation + dry-run (read-only) ─────
+    print("\n[48] P-004 custom source intake validation")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        intake_py = project_root / "app" / "application" / "sources" / "custom_intake.py"
+        intake_plan = project_root / "docs" / "V1_CUSTOM_SOURCE_INTAKE_PLAN.md"
+        source_detail_html = project_root / "app" / "templates" / "source_detail.html"
+        sources_html = project_root / "app" / "templates" / "sources.html"
+
+        check("custom source intake module exists",
+              intake_py.exists(),
+              "custom source intake module should exist")
+        check("custom source intake plan exists",
+              intake_plan.exists(),
+              "P-004 intake plan doc should exist")
+
+        intake_text = intake_py.read_text(encoding="utf-8") if intake_py.exists() else ""
+        intake_plan_text = intake_plan.read_text(encoding="utf-8") if intake_plan.exists() else ""
+        source_detail_text = source_detail_html.read_text(encoding="utf-8") if source_detail_html.exists() else ""
+        sources_text = sources_html.read_text(encoding="utf-8") if sources_html.exists() else ""
+        check("custom intake is read-only (no writes)",
+              ".add(" not in intake_text
+              and ".commit(" not in intake_text
+              and "enqueue" not in intake_text
+              and ".fetch(" not in intake_text
+              and "run_source_fetch" not in intake_text,
+              "F-1 intake must validate/preview only, never write or fetch")
+        check("custom intake white-lists strategies",
+              "STRATEGY_SUPPORTED" in intake_text
+              and "STRATEGY_RESTRICTED" in intake_text
+              and "CUSTOM_SOURCE_ALLOW_RESTRICTED" in intake_text,
+              "intake should tier strategies and gate restricted ones")
+        check("custom intake has static SSRF URL guards",
+              "localhost" in intake_text
+              and "127.0.0.1" in intake_text
+              and "169.254.169.254" in intake_text
+              and "ipaddress" in intake_text,
+              "custom intake should block local/private/metadata URLs")
+        check("custom intake checks config sources",
+              "list_sources" in intake_text or "config_loader" in intake_text,
+              "custom intake should dedupe against config sources")
+        check("custom intake preview does not enter scheduling now",
+              "enters_scheduling_now" in intake_text and "enters_scheduling" in intake_text,
+              "preview must expose non-scheduling semantics")
+        check("custom source plan documents F-2方案 A/B",
+              "方案 A" in intake_plan_text and "方案 B" in intake_plan_text,
+              "plan should document both F-2 scheduling choices")
+        check("source detail read-only copy is not misleading",
+              "不会触发探测、摘要或 InsightCard 生成" not in source_detail_text,
+              "source detail should clarify action buttons can trigger side effects")
+        check("sources page exposes dry-run custom source UI",
+              "添加自定义来源" in sources_text or "预览，不写入" in sources_text,
+              "sources page should include preview UI")
+        check("custom preview form is POST dry-run",
+              'action="/sources/custom/preview"' in sources_text,
+              "preview form should post to custom preview endpoint")
+
+        # Functional, read-only.
+        from app.db import SessionLocal
+        from app.models import Source
+        from app.application.sources.custom_intake import (
+            CustomSourceDraft,
+            validate_custom_source_draft,
+            preview_custom_source,
+        )
+        from app.sources.config_loader import list_sources
+        _db = SessionLocal()
+        try:
+            _before = _db.query(Source).count()
+            config_sources = list_sources(include_disabled=True)
+            config_source = config_sources[0] if config_sources else None
+            db_source = _db.query(Source).first()
+
+            ok = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT Sample Feed", fetch_strategy="rss",
+                                       feed_url="https://example.com/qt-rss.xml"))
+            check("valid rss draft passes validation",
+                  ok.ok and ok.normalized_key and ok.strategy_tier == "supported",
+                  "a clean rss draft should validate")
+
+            bad_strategy = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT X", fetch_strategy="telepathy"))
+            check("unknown strategy is rejected",
+                  not bad_strategy.ok,
+                  "unknown fetch strategy must be rejected")
+
+            restricted = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT Crawl", fetch_strategy="crawler",
+                                       homepage_url="https://example.com"))
+            check("restricted strategy rejected without enable flag",
+                  not restricted.ok,
+                  "restricted strategy must be gated by CUSTOM_SOURCE_ALLOW_RESTRICTED")
+
+            bad_scheme = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT Bad", fetch_strategy="rss",
+                                       feed_url="ftp://example.com/x"))
+            check("non-http(s) url is rejected",
+                  not bad_scheme.ok,
+                  "feed/homepage urls must be http/https")
+
+            for label, url in (
+                ("localhost", "http://localhost/feed.xml"),
+                ("127.0.0.1", "http://127.0.0.1/feed.xml"),
+                ("metadata", "http://169.254.169.254/latest/meta-data"),
+            ):
+                unsafe = validate_custom_source_draft(
+                    _db, CustomSourceDraft(name=f"QT {label}", fetch_strategy="rss", feed_url=url))
+                check(f"{label} url is rejected",
+                      not unsafe.ok,
+                      f"{url} must be rejected")
+
+            if config_source is not None:
+                dup_config_key = validate_custom_source_draft(
+                    _db,
+                    CustomSourceDraft(
+                        name="QT Dup Config Key",
+                        source_key=config_source.source_key,
+                        fetch_strategy="rss",
+                        feed_url="https://example.com/qt-dup-config-key.xml",
+                    ),
+                )
+                check("duplicate config source_key is rejected",
+                      not dup_config_key.ok,
+                      "config source_key duplicate must be rejected")
+                config_url = config_source.feed_url or config_source.homepage_url
+                if config_url:
+                    dup_config_url = validate_custom_source_draft(
+                        _db,
+                        CustomSourceDraft(name="QT Dup Config URL", fetch_strategy="rss", feed_url=config_url),
+                    )
+                    check("duplicate config feed/homepage URL is rejected",
+                          not dup_config_url.ok,
+                          "config URL duplicate must be rejected")
+
+            if db_source is not None:
+                dup_db_key = validate_custom_source_draft(
+                    _db,
+                    CustomSourceDraft(
+                        name="QT Dup DB Key",
+                        source_key=db_source.source_key,
+                        fetch_strategy="rss",
+                        feed_url="https://example.com/qt-dup-db-key.xml",
+                    ),
+                )
+                check("duplicate DB source_key is rejected",
+                      not dup_db_key.ok,
+                      "DB source_key duplicate must be rejected")
+                db_url = db_source.feed_url or db_source.homepage_url
+                if db_url:
+                    dup_db_url = validate_custom_source_draft(
+                        _db,
+                        CustomSourceDraft(name="QT Dup DB URL", fetch_strategy="rss", feed_url=db_url),
+                    )
+                    check("duplicate DB feed/homepage URL is rejected",
+                          not dup_db_url.ok,
+                          "DB URL duplicate must be rejected")
+
+            preview = preview_custom_source(
+                _db, CustomSourceDraft(name="QT Blog", fetch_strategy="html_index",
+                                       homepage_url="https://example.com/blog"))
+            check("preview returns would-create plan without writing",
+                  preview["ok"] and preview["would_create"]["source_key"]
+                  and "未写入" in preview["note"],
+                  "preview should describe the would-create source and note no write")
+            check("html preview does not enter scheduling now",
+                  preview["ok"]
+                  and preview["would_create"]["enters_scheduling_now"] is False
+                  and preview["would_create"]["enters_scheduling"] is False,
+                  "custom previews must not promise automatic scheduling")
+
+            rss_preview = preview_custom_source(
+                _db,
+                CustomSourceDraft(
+                    name="QT Unique RSS F11",
+                    source_key="qt_unique_rss_f11",
+                    fetch_strategy="rss",
+                    feed_url="https://example.com/qt-unique-rss-f11.xml",
+                ),
+            )
+            check("rss preview does not enter scheduling now",
+                  rss_preview["ok"]
+                  and rss_preview["would_create"]["enters_scheduling_now"] is False
+                  and rss_preview["would_create"]["enters_scheduling"] is False,
+                  "rss custom preview must not promise automatic scheduling")
+
+            _after = _db.query(Source).count()
+            check("custom intake validation does not write rows",
+                  _before == _after,
+                  "validation/preview must not change Source row count")
+        finally:
+            _db.close()
+    except Exception as e:
+        check("P-004 custom intake checks", False, str(e))
+
+    # V1.0-beta.6 TodayItemCard content chain
+    print("\n[49] V1.0-beta.6 TodayItemCard content chain")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        today_item_card_py = project_root / "app" / "application" / "radar" / "today_item_card.py"
+        radar_today_html = project_root / "app" / "templates" / "radar_today.html"
+        radar_panel_html = project_root / "app" / "templates" / "partials" / "radar_today_panel.html"
+        radar_route_py = project_root / "app" / "routes" / "radar.py"
+        bootstrap_plan = project_root / "docs" / "V1_BETA_6_SOURCE_DISCOVERY_BOOTSTRAP_AND_DAILY_INCREMENT_PLAN.md"
+
+        today_item_card_text = today_item_card_py.read_text(encoding="utf-8") if today_item_card_py.exists() else ""
+        radar_today_text = radar_today_html.read_text(encoding="utf-8") if radar_today_html.exists() else ""
+        radar_panel_text = radar_panel_html.read_text(encoding="utf-8") if radar_panel_html.exists() else ""
+        radar_route_text = radar_route_py.read_text(encoding="utf-8") if radar_route_py.exists() else ""
+        bootstrap_plan_text = bootstrap_plan.read_text(encoding="utf-8") if bootstrap_plan.exists() else ""
+
+        check("today_item_card.py exists",
+              today_item_card_py.exists(),
+              "today item card module should exist")
+        check("TodayItemCard dataclass exists",
+              "class TodayItemCard" in today_item_card_text and "@dataclass" in today_item_card_text,
+              "TodayItemCard should be a dataclass")
+        check("build_today_item_card exists",
+              "def build_today_item_card" in today_item_card_text,
+              "today item card builder should exist")
+        check("TodayItemCard splits zh one-liner and zh summary states",
+              "zh_one_liner_state" in today_item_card_text
+              and "zh_one_liner_label" in today_item_card_text
+              and "zh_summary_state" in today_item_card_text
+              and "zh_summary_label" in today_item_card_text,
+              "TodayItemCard should distinguish Chinese overview and detailed summary")
+        check("radar today no longer only shows coarse summary label",
+              "摘要：{{ today_card.summary_label }}" not in radar_today_text,
+              "today cards should not only show coarse summary state")
+        check("radar today shows Chinese overview state",
+              "中文概述" in radar_today_text,
+              "today cards should show Chinese one-liner state")
+        check("radar today shows Chinese summary state",
+              "中文摘要" in radar_today_text,
+              "today cards should show detailed Chinese summary state")
+        check("radar today shows content state",
+              "正文：" in radar_today_text or "正文状态" in radar_today_text,
+              "today cards should show content state")
+        check("radar today has open original entry",
+              "打开原文" in radar_today_text,
+              "today cards should keep original link")
+        check("radar today has fetch content entry",
+              "标记待获取正文" in radar_today_text and "fetch-content" in radar_today_text,
+              "today cards should expose POST fetch-content intent")
+        check("radar today clarifies content fetch is intent-only",
+              "仅记录获取意图" in radar_today_text or "尚未执行真实抓取" in radar_today_text,
+              "UI should not imply real background fetching")
+        check("fetch-content route is POST-only",
+              '@router.post("/today/items/{item_id}/fetch-content")' in radar_route_text
+              and '@router.get("/today/items/{item_id}/fetch-content")' not in radar_route_text,
+              "fetch-content should only be registered as POST")
+        check("GET /radar/today remains read-only",
+              "def radar_today_page" in radar_route_text
+              and "fetch_today_item_content" not in radar_route_text.split("def radar_today_page", 1)[1].split("@router.post", 1)[0],
+              "GET /radar/today should not trigger content fetching")
+        check("panel shows content and InsightCard states",
+              "正文状态" in radar_panel_text
+              and "InsightCard 状态" in radar_panel_text
+              and "当前处理链路" in radar_panel_text,
+              "reading panel should show the processing chain")
+        check("panel shows Chinese overview and summary states",
+              "中文概述状态" in radar_panel_text and "中文摘要状态" in radar_panel_text,
+              "panel should show both Chinese summary levels")
+        check("panel_state passes content_note",
+              "content_note=today_card.content_note" in radar_route_text
+              or "content_note=today_card.content_note" in (project_root / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8"),
+              "RadarPanelState should receive content note")
+        check("bootstrap daily increment plan exists",
+              bootstrap_plan.exists(),
+              "beta.6 bootstrap/daily increment plan should exist")
+        check("bootstrap plan mentions recent 20/50 items",
+              "最近 20/50 条" in bootstrap_plan_text,
+              "plan should define bootstrap size")
+        check("bootstrap plan mentions first_seen_at",
+              "first_seen_at" in bootstrap_plan_text,
+              "plan should define first seen semantics")
+        check("bootstrap plan mentions published_at",
+              "published_at" in bootstrap_plan_text,
+              "plan should define original publish time semantics")
+        check("bootstrap plan mentions dedupe",
+              "去重" in bootstrap_plan_text,
+              "plan should define dedupe rules")
+
+        if client is not None:
+            resp = client.get("/radar/today")
+            check("GET /radar/today returns 200 for content chain",
+                  resp.status_code == 200,
+                  "today radar page should render")
+            check("GET fetch-content is not allowed",
+                  client.get("/radar/today/items/0/fetch-content").status_code in (404, 405),
+                  "fetch-content must not run on GET")
+        else:
+            check("TestClient available for beta.6 checks", False, "client is not available")
+    except Exception as e:
+        check("V1.0-beta.6 TodayItemCard checks", False, str(e))
+
+    # ── 50. V1.0-beta.6.2 source discovery bootstrap/daily increment ───────
+    print("\n[50] V1.0-beta.6.2 source discovery bootstrap/daily increment")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        discovery_py = project_root / "app" / "application" / "sources" / "discovery_runs.py"
+        discovery_script = project_root / "scripts" / "run_source_discovery_once.py"
+        radar_route = project_root / "app" / "routes" / "radar.py"
+        radar_today = project_root / "app" / "templates" / "radar_today.html"
+        plan_doc = project_root / "docs" / "V1_BETA_6_SOURCE_DISCOVERY_BOOTSTRAP_AND_DAILY_INCREMENT_PLAN.md"
+
+        discovery_text = discovery_py.read_text(encoding="utf-8") if discovery_py.exists() else ""
+        script_text = discovery_script.read_text(encoding="utf-8") if discovery_script.exists() else ""
+        route_text = radar_route.read_text(encoding="utf-8") if radar_route.exists() else ""
+        today_text = radar_today.read_text(encoding="utf-8") if radar_today.exists() else ""
+        doc_text = plan_doc.read_text(encoding="utf-8") if plan_doc.exists() else ""
+
+        check("run_source_discovery_once.py exists",
+              discovery_script.exists(),
+              "source discovery CLI should exist")
+        check("source discovery module exists",
+              discovery_py.exists() and "SourceDiscoveryRunSettings" in discovery_text,
+              "source discovery service should exist")
+        check("script supports bootstrap",
+              "bootstrap" in script_text,
+              "CLI should support bootstrap mode")
+        check("script supports daily_increment",
+              "daily_increment" in script_text,
+              "CLI should support daily_increment mode")
+        check("script supports dry-run",
+              "--dry-run" in script_text and "dry_run" in script_text,
+              "CLI should support dry-run")
+        check("script supports apply gate",
+              "--apply" in script_text and "add_mutually_exclusive_group" in script_text,
+              "CLI should require explicit apply or dry-run")
+        check("GET bootstrap is not registered",
+              '@router.get("/today/bootstrap")' not in route_text,
+              "bootstrap must not be GET-triggered")
+        check("POST bootstrap route exists",
+              '@router.post("/today/bootstrap")' in route_text,
+              "bootstrap should be POST-only")
+        check("radar page shows bootstrap entry",
+              "初始化来源内容" in today_text and "/radar/today/bootstrap" in today_text,
+              "today radar should expose bootstrap entry")
+        check("radar page shows daily increment entry",
+              "更新今日新增" in today_text and "/radar/today/update" in today_text,
+              "today radar should expose daily increment entry")
+        check("plan doc mentions recent 20/50 items",
+              "最近 20/50 条" in doc_text,
+              "plan should keep bootstrap size wording")
+        check("plan doc mentions first_seen_at",
+              "first_seen_at" in doc_text,
+              "plan should mention first_seen_at")
+        check("plan doc mentions published_at",
+              "published_at" in doc_text,
+              "plan should mention published_at")
+        check("plan doc mentions daily_increment",
+              "daily_increment" in doc_text,
+              "plan should mention daily_increment")
+        check("discovery reuses fetch/due-source services",
+              "SourceFetchBackgroundService" in discovery_text
+              and "compute_due_sources" in discovery_text,
+              "discovery should reuse existing fetch and due-source logic")
+        check("discovery does not implement custom source writes",
+              "CustomSourceDraft" not in discovery_text
+              and "custom source" not in discovery_text.lower(),
+              "this task should not continue P-004 F-2")
+        check("discovery does not call LLM",
+              "CandidateOneLinerService" not in discovery_text
+              and "create_llm_client" not in discovery_text
+              and "generate_json" not in discovery_text
+              and "CandidateOneLinerService" not in script_text
+              and "create_llm_client" not in script_text
+              and "generate_json" not in script_text,
+              "source discovery entry should not call LLM")
+
+        try:
+            from app.application.sources.discovery_runs import (
+                DAILY_INCREMENT_MODE,
+                BOOTSTRAP_MODE,
+                SourceDiscoveryRunSettings,
+                run_source_discovery,
+            )
+            from app.db import SessionLocal
+            from app.models import SourceItem
+
+            db = SessionLocal()
+            try:
+                before_items = db.query(SourceItem).count()
+                res = run_source_discovery(
+                    db,
+                    SourceDiscoveryRunSettings(
+                        mode=DAILY_INCREMENT_MODE,
+                        max_items_per_source=20,
+                        max_sources=1,
+                        dry_run=True,
+                    ),
+                )
+                after_items = db.query(SourceItem).count()
+                check("daily_increment dry-run does not write SourceItem",
+                      res.dry_run and before_items == after_items,
+                      "dry-run should be read-only")
+                res_boot = run_source_discovery(
+                    db,
+                    SourceDiscoveryRunSettings(
+                        mode=BOOTSTRAP_MODE,
+                        max_items_per_source=20,
+                        max_sources=1,
+                        dry_run=True,
+                    ),
+                )
+                check("bootstrap dry-run returns result",
+                      res_boot.dry_run and res_boot.mode == BOOTSTRAP_MODE,
+                      "bootstrap dry-run should return structured result")
+            finally:
+                db.close()
+        except Exception as e:
+            check("source discovery dry-run behavior", False, str(e))
+
+        # ── V1.0-beta.6.3 static assertions: background vs sync ────────────
+        check("run_source_discovery accepts background_tasks parameter",
+              "background_tasks=None" in discovery_text
+              or "background_tasks=None," in discovery_text
+              or "*, background_tasks=None" in discovery_text,
+              "run_source_discovery should accept background_tasks kwarg")
+        check("_apply_source_keys passes background_tasks to enqueue_source",
+              "background_tasks=background_tasks" in discovery_text,
+              "_apply_source_keys must forward background_tasks to enqueue_source")
+        check("bootstrap route injects BackgroundTasks",
+              "background_tasks: BackgroundTasks" in route_text,
+              "bootstrap POST route must inject FastAPI BackgroundTasks")
+        check("bootstrap route passes background_tasks for apply",
+              "background_tasks=background_tasks if not dry_run" in route_text,
+              "bootstrap apply should pass BackgroundTasks, dry-run should not")
+        check("SourceDiscoveryRunResult has execution_mode field",
+              "execution_mode" in discovery_text
+              and 'execution_mode: str = "dry_run"' in discovery_text,
+              "SourceDiscoveryRunResult must include execution_mode field")
+        check("CLI prints execution_mode",
+              "execution_mode:" in script_text,
+              "CLI should display execution_mode in output")
+        check("discovery_apply_environment sets AUTO_SUMMARY_MAX_PER_FETCH_RUN=0",
+              'AUTO_SUMMARY_MAX_PER_FETCH_RUN"] = "0"' in discovery_text,
+              "apply path must disable auto-summary to prevent LLM calls")
+        check("discovery does not continue P-004 F-2",
+              "CustomSourceDraft" not in discovery_text
+              and "custom_source" not in script_text.lower(),
+              "this task must not continue P-004 F-2 custom source feature")
+        check("bootstrap result block shows execution_mode in template",
+              "execution_mode" in today_text
+              and ("background" in today_text or "后台" in today_text),
+              "radar_today.html should display execution_mode message")
+        check("plan doc mentions background vs sync distinction",
+              "BackgroundTasks" in doc_text or "background" in doc_text.lower(),
+              "plan doc should document background apply behavior")
+
+        if client is not None:
+            get_bootstrap = client.get("/radar/today/bootstrap")
+            check("GET /radar/today/bootstrap not allowed",
+                  get_bootstrap.status_code in (404, 405),
+                  "bootstrap must not run on GET")
+            resp = client.post(
+                "/radar/today/bootstrap",
+                data={"action": "dry_run", "max_items_per_source": "20", "max_sources": "1"},
+                follow_redirects=True,
+            )
+            check("POST /radar/today/bootstrap dry-run renders",
+                  resp.status_code == 200 and "dry-run" in resp.text,
+                  "bootstrap dry-run should redirect back with result")
+        else:
+            check("TestClient available for source discovery checks", False, "client is not available")
+    except Exception as e:
+        check("V1.0-beta.6.2 source discovery checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

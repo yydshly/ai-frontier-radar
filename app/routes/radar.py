@@ -7,6 +7,8 @@ POST /radar/today/generate-summaries triggers one-liner generation for
 items visible on the current page.
 """
 from collections import Counter
+from datetime import datetime
+import json
 from pathlib import Path
 from urllib.parse import urlencode
 import os
@@ -32,6 +34,12 @@ from app.application.radar.today import (
     ALL_KEY,
 )
 from app.application.sources.background_fetch import SourceFetchBackgroundService
+from app.application.sources.discovery_runs import (
+    BOOTSTRAP_MODE,
+    DAILY_INCREMENT_MODE,
+    SourceDiscoveryRunSettings,
+    run_source_discovery,
+)
 from app.application.sources.due_sources import DueSourcePlan, compute_due_sources
 from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
 from app.models import SourceItem, Source
@@ -89,6 +97,36 @@ def _build_due_source_reason_summary(plan: DueSourcePlan) -> str:
         for decision in bucket:
             counter[decision.reason] += 1
     return ",".join(f"{reason}:{count}" for reason, count in counter.most_common())
+
+
+def _build_bootstrap_result(
+    *,
+    dry_run: int | None,
+    total: int | None,
+    eligible: int | None,
+    started: int | None,
+    skipped: int | None,
+    unsupported: int | None,
+    failed: int | None,
+    message: str | None,
+    execution_mode: str | None = None,
+) -> dict | None:
+    if not any(
+        v is not None
+        for v in (dry_run, total, eligible, started, skipped, unsupported, failed, message, execution_mode)
+    ):
+        return None
+    return {
+        "dry_run": bool(dry_run),
+        "total": total or 0,
+        "eligible": eligible or 0,
+        "started": started or 0,
+        "skipped": skipped or 0,
+        "unsupported": unsupported or 0,
+        "failed": failed or 0,
+        "message": message or "",
+        "execution_mode": execution_mode or "dry_run",
+    }
 
 
 # Mapping from internal reason keys to user-facing Chinese descriptions.
@@ -219,6 +257,15 @@ def radar_today_page(
     update_missing: int | None = Query(None, ge=0),
     update_reason_summary: str | None = Query(None),
     update_plan_source: str | None = Query(None),
+    bootstrap_dry_run: int | None = Query(None, ge=0),
+    bootstrap_total: int | None = Query(None, ge=0),
+    bootstrap_eligible: int | None = Query(None, ge=0),
+    bootstrap_started: int | None = Query(None, ge=0),
+    bootstrap_skipped: int | None = Query(None, ge=0),
+    bootstrap_unsupported: int | None = Query(None, ge=0),
+    bootstrap_failed: int | None = Query(None, ge=0),
+    bootstrap_message: str | None = Query(None),
+    bootstrap_execution_mode: str | None = Query(None),
 ):
     """Render today's AI frontier radar reading view."""
     # Build base context using shared helper
@@ -285,11 +332,71 @@ def radar_today_page(
 
     context["summary_result"] = summary_result
     context["update_result"] = update_result
+    context["bootstrap_result"] = _build_bootstrap_result(
+        dry_run=bootstrap_dry_run,
+        total=bootstrap_total,
+        eligible=bootstrap_eligible,
+        started=bootstrap_started,
+        skipped=bootstrap_skipped,
+        unsupported=bootstrap_unsupported,
+        failed=bootstrap_failed,
+        message=bootstrap_message,
+        execution_mode=bootstrap_execution_mode,
+    )
 
     return _radar_templates.TemplateResponse(
         "radar_today.html",
         context,
     )
+
+
+@router.post("/today/daily-report", response_class=HTMLResponse)
+def generate_daily_core_report(request: Request):
+    """Explicitly generate today's core report (P-003-2).
+
+    POST only — side-effecting (may call the LLM). Gated: the LLM is only
+    reached when ``DAILY_REPORT_ENABLED=true``; otherwise the result is
+    ``status="disabled"`` and no LLM call happens. Result is rendered inline;
+    nothing is persisted.
+    """
+    from app.db import get_db
+    from app.application.radar.daily_report import generate_daily_report
+
+    db = next(get_db())
+    try:
+        try:
+            report = generate_daily_report(db, apply=True)
+            daily_report_result = {
+                "status": report.status,
+                "date_label": report.date_label,
+                "input_item_count": report.input_item_count,
+                "message": report.message,
+                "title": report.title,
+                "overview": report.overview,
+                "highlights": report.highlights,
+            }
+        except Exception:
+            daily_report_result = {
+                "status": "error",
+                "message": "今日核心报告生成失败，请稍后重试。",
+                "highlights": [],
+            }
+
+        context = _build_radar_today_view_context(
+            request=request,
+            item_id=None,
+            hours=DEFAULT_HOURS,
+            limit=DEFAULT_LIMIT,
+            page=1,
+            per_page=DEFAULT_PER_PAGE,
+            section=ALL_KEY,
+        )
+        context["summary_result"] = None
+        context["update_result"] = None
+        context["daily_report_result"] = daily_report_result
+        return _radar_templates.TemplateResponse("radar_today.html", context)
+    finally:
+        db.close()
 
 
 def _build_radar_today_view_context(
@@ -327,6 +434,13 @@ def _build_radar_today_view_context(
         except Exception:
             scheduler_status = None
 
+        # P-003 step 1: read-only daily digest (no LLM). Degrades gracefully.
+        try:
+            from app.application.radar.daily_digest import build_daily_digest_view
+            daily_digest = build_daily_digest_view(db)
+        except Exception:
+            daily_digest = None
+
         sel = view.selected_item
         sel_card = view.display_map.get(sel.id) if sel else None
 
@@ -334,8 +448,10 @@ def _build_radar_today_view_context(
             "request": request,
             "view": view,
             "display_map": view.display_map,
+            "today_card_map": view.today_card_map,
             "safe_external_url": safe_external_url,
             "scheduler_status": scheduler_status,
+            "daily_digest": daily_digest,
             "sel": sel,
             "sel_card": sel_card,
         }
@@ -367,6 +483,49 @@ def radar_today_panel(
         "partials/radar_today_panel.html",
         context,
     )
+
+
+@router.post("/today/items/{item_id}/fetch-content")
+def fetch_today_item_content(
+    item_id: int,
+    section: str = Form(ALL_KEY),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Record a safe content-fetch request placeholder for a radar item.
+
+    First version: no network fetch, no LLM, no schema change. It records a
+    queued status in raw_metadata_json so the UI can show the chain state.
+    """
+    db = next(get_db())
+    try:
+        item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+        if item is not None and item.url:
+            try:
+                raw = json.loads(item.raw_metadata_json or "{}")
+            except (TypeError, json.JSONDecodeError):
+                raw = {}
+            if not isinstance(raw, dict):
+                raw = {}
+            raw["content_fetch_status"] = "queued"
+            raw["content_fetch_requested_at"] = datetime.utcnow().isoformat()
+            raw["content_fetch_note"] = "queued placeholder; no network fetch in V1.0-beta.6"
+            item.raw_metadata_json = json.dumps(raw, ensure_ascii=False)
+            db.commit()
+    finally:
+        db.close()
+
+    params = {
+        "section": section,
+        "item_id": item_id,
+        "hours": hours,
+        "limit": limit,
+        "page": page,
+        "per_page": per_page,
+    }
+    return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 
 
 @router.post("/today/generate-summaries")
@@ -464,6 +623,65 @@ def generate_today_summaries(
         return RedirectResponse(url=redirect_url, status_code=303)
     finally:
         db.close()
+
+
+@router.post("/today/bootstrap")
+def bootstrap_today_sources(
+    background_tasks: BackgroundTasks,
+    section: str = Form(ALL_KEY),
+    item_id: int | None = Form(None),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+    max_items_per_source: int = Form(20),
+    max_sources: int = Form(15),
+    action: str = Form("dry_run"),
+):
+    """Plan or run bootstrap discovery for enabled YAML sources.
+
+    GET is intentionally not defined. Dry-run is the default; apply requires a
+    form value of action=apply. The underlying discovery service disables
+    fetch-run auto summaries during apply, so this route does not call LLMs.
+
+    Apply mode runs in the background via FastAPI BackgroundTasks to avoid
+    blocking the HTTP request. CLI apply uses synchronous execution instead.
+    """
+    dry_run = action != "apply"
+    db = next(get_db())
+    try:
+        result = run_source_discovery(
+            db,
+            SourceDiscoveryRunSettings(
+                mode=BOOTSTRAP_MODE,
+                max_items_per_source=max_items_per_source,
+                max_sources=max_sources,
+                dry_run=dry_run,
+            ),
+            background_tasks=background_tasks if not dry_run else None,
+        )
+    finally:
+        db.close()
+
+    params = {
+        "section": section,
+        "hours": hours,
+        "limit": limit,
+        "page": page,
+        "per_page": per_page,
+        "bootstrap_dry_run": 1 if result.dry_run else 0,
+        "bootstrap_total": result.total_sources,
+        "bootstrap_eligible": result.eligible_sources,
+        "bootstrap_started": result.started,
+        "bootstrap_skipped": result.skipped,
+        "bootstrap_unsupported": result.unsupported,
+        "bootstrap_failed": result.failed,
+        "bootstrap_message": result.message,
+        "bootstrap_execution_mode": result.execution_mode,
+    }
+    if item_id is not None:
+        params["item_id"] = item_id
+    return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 
 
 @router.post("/today/update")
