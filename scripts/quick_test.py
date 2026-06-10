@@ -2534,8 +2534,8 @@ def main():
         radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
         style_css = (static_dir / "style.css").read_text(encoding="utf-8")
 
-        check("radar_today.html contains radar-card-body", "radar-card-body" in radar_html)
-        check("radar_today.html contains radar-card-actions", "radar-card-actions" in radar_html)
+        check("radar_today.html contains radar-card-body or radar-card-main-link",
+              "radar-card-body" in radar_html or "radar-card-main-link" in radar_html)
 
         radar_page_start = style_css.find(".radar-page {")
         radar_page_block = ""
@@ -4364,6 +4364,86 @@ def main():
               "reading panel must be preserved")
     except Exception as e:
         check("V1.0-beta.3 Compact radar list UI checks", False, str(e))
+
+    # ── 41. V1.0-beta.3 Clickable radar cards ─────────────────────────────
+    print("\n[41] V1.0-beta.3 Clickable radar cards")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        # 1. radar_today.html has radar-card-main-link.
+        check("radar_today.html has radar-card-main-link",
+              "radar-card-main-link" in radar_html,
+              "card main link class must exist in template")
+
+        # 2. radar-card-main-link href contains item_id.
+        check("radar-card-main-link href contains item_id",
+              'href="{{ view_url }}' in radar_html or "href=\"{{ view_url" in radar_html,
+              "card main link must use view_url with item_id")
+
+        # 3. radar-card-main-link href contains #radar-item-.
+        check("radar-card-main-link href contains #radar-item-",
+              "#radar-item-" in radar_html,
+              "card main link must anchor to radar-item- id")
+
+        # 4. radar-card-actions still exists.
+        check("radar_today.html still has radar-card-actions",
+              'class="radar-card-actions"' in radar_html,
+              "card actions div must still exist")
+
+        # 5. Standalone "查看" button is removed from card actions.
+        # Find the card actions block and check it doesn't contain a standalone "查看" button.
+        _card_action_start = radar_html.find('class="radar-card-actions"')
+        _card_action_block = ""
+        if _card_action_start >= 0:
+            _next_close = radar_html.find("</div>", _card_action_start)
+            if _next_close >= 0:
+                _card_action_block = radar_html[_card_action_start:_next_close + 6]
+        check("standalone '查看' button removed from card actions",
+              "查看</a>" not in _card_action_block and "查看</button>" not in _card_action_block,
+              "standalone '查看' button must be removed from card actions")
+
+        # 6. InsightCard entry is preserved.
+        check("radar_today.html preserves InsightCard entry",
+              "InsightCard" in radar_html,
+              "InsightCard link must be preserved")
+
+        # 7. "加入生成" entry is preserved.
+        check("radar_today.html preserves '加入生成'",
+              "加入生成" in radar_html,
+              "enqueue action must be preserved")
+
+        # 8. "打开原文" entry is preserved.
+        check("radar_today.html preserves '打开原文'",
+              "打开原文" in radar_html,
+              "external link must be preserved")
+
+        # 9. style.css has .radar-card-main-link.
+        check("style.css has .radar-card-main-link",
+              ".radar-card-main-link {" in style_css,
+              "radar-card-main-link CSS class must exist")
+
+        # 10. .radar-card-main-link does NOT use position:absolute.
+        _main_link_block = style_css.split(".radar-card-main-link {")[1].split("}")[0] if ".radar-card-main-link {" in style_css else ""
+        check(".radar-card-main-link does NOT use position:absolute",
+              "position:absolute" not in _main_link_block and "position: absolute" not in _main_link_block,
+              "card main link must not be absolutely positioned")
+
+        # 11. style.css has card hover styles.
+        check("style.css has .radar-card:hover",
+              ".radar-card:hover" in style_css or ".radar-card:hover{" in style_css,
+              "card hover styles must exist")
+
+        # 12. .radar-layout grid-template-columns is preserved.
+        _layout_block = ""
+        if ".radar-layout {" in style_css:
+            _layout_block = style_css.split(".radar-layout {")[1].split("}")[0]
+        check("style.css preserves .radar-layout grid-template-columns",
+              ".radar-layout {" not in style_css or "grid-template-columns" in _layout_block,
+              "radar-layout grid-template-columns must be preserved")
+    except Exception as e:
+        check("V1.0-beta.3 Clickable radar cards checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

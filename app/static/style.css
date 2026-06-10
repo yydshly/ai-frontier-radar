@@ -4030,6 +4030,18 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     background: #f6fbff;
 }
 
+.radar-card-main-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    min-width: 0;
+}
+
+.radar-card:hover:not(.radar-selected-card) {
+    border-color: #8cafff;
+    background: #f8fbff;
+}
+
 .radar-card-summary {
     font-size: 0.95rem;
     color: #1f2328;

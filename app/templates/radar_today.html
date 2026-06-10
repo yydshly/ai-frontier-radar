@@ -285,8 +285,9 @@
                         {% for item in section.items %}
                         {% set display = display_map.get(item.id) %}
                         {% set is_selected = sel and item.id == sel.id %}
+                        {% set view_url = '/radar/today?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page ~ '#radar-item-' ~ item.id %}
                         <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
-                            <div class="radar-card-body">
+                            <a class="radar-card-main-link" href="{{ view_url }}">
                                 {# Card body: Chinese summary priority, English title demoted #}
                                 {% if display and display.uses_zh_one_liner %}
                                 {# Has Chinese one-liner: line1=Chinese summary, line2=English title #}
@@ -323,10 +324,9 @@
                                     {% endif %}
                                     <small class="muted">#{{ item.id }}</small>
                                 </div>
-                            </div>
+                            </a>
 
                             <div class="radar-card-actions">
-                                <a href="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}" class="btn-sm btn-primary">查看</a>
                                 {% if item.status == 'discovered' %}
                                 <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
                                     <input

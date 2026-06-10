@@ -147,6 +147,19 @@
 
 ---
 
-## 9. 相关文档
+## 9. Task 6：卡片整行可点击
+
+- 卡片主体承担"查看"能力（`<a class="radar-card-main-link">`）
+- 独立"查看"按钮已移除
+- 控件区只保留真正的动作入口（查看 InsightCard / 加入生成 / 打开原文）
+- 减少按钮视觉噪音
+- 卡片 hover 有轻微背景变化反馈
+- 不改变三栏布局
+- 不改变业务逻辑
+- 不改变摘要 / InsightCard / 抓取服务
+
+---
+
+## 10. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划
