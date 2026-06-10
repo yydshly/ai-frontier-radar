@@ -4160,6 +4160,30 @@ def main():
         check("radar_today.html does not expose run_due_sources_once",
               "run_due_sources_once" not in radar_html,
               "UI should not expose script names")
+
+        check("radar_today.html uses reason_summary_label for humanized reasons",
+              "reason_summary_label" in radar_html,
+              "update plan should use humanized reason_summary_label, not raw reason_summary")
+
+        check("radar_today.html does not show not_due_yet technical term",
+              "not_due_yet" not in radar_html.split("跳过原因")[1].split("</div>")[0]
+              if "跳过原因" in radar_html else True,
+              "skip reason should show Chinese, not technical 'not_due_yet'")
+
+        check("radar_today.html does not show max_sources_limit technical term",
+              "max_sources_limit" not in radar_html.split("跳过原因")[1].split("</div>")[0]
+              if "跳过原因" in radar_html else True,
+              "skip reason should show Chinese, not technical 'max_sources_limit'")
+
+        # Check radar.py has humanize helper and passes reason_summary_label
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        check("radar.py contains _humanize_reason_summary helper",
+              "_humanize_reason_summary" in radar_py,
+              "radar.py should have humanize helper")
+
+        check("radar.py passes reason_summary_label in update_result",
+              "reason_summary_label" in radar_py,
+              "update_result should include reason_summary_label")
     except Exception as e:
         check("V1.0-beta.3 Chinese entry UX checks", False, str(e))
 

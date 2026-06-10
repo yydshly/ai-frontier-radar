@@ -41,6 +41,26 @@
 
 ## 3. 中间卡片变化
 
+### 卡片中文入口优先
+
+无 zh_one_liner 时，卡片展示顺序调整为：
+- 第一行：待生成中文摘要
+- 第二行：英文原始标题（降级为辅助信息）
+
+有 zh_one_liner 时：
+- 第一行：中文一句话摘要 + 中文概述 badge
+- 第二行：英文原始标题（如果与摘要不同）
+
+### 本轮更新计划中文化
+
+`not_due_yet:15` 等内部原因不再直接显示在 UI。
+通过 `_humanize_reason_summary()` 映射为中文：
+- `not_due_yet` → "来源仍在冷却中，暂不需要重复检查"
+- `max_sources_limit` → "达到本轮检查上限"
+- `already_running` → "正在运行中"
+- `missing_source_row` → "来源记录缺失"
+- `unsupported_fetch_strategy` → "暂不支持的抓取方式"
+
 ### 现状
 - `display.primary_text` = zh_one_liner（如果有）→ 已是第一优先级
 - `display.secondary_text` = 英文标题（如果有 zh_one_liner）→ 已降级

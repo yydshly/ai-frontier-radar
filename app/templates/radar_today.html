@@ -229,8 +229,8 @@
                         <span>启动失败：{{ update_result.failed }}</span>
                         {% endif %}
                     </div>
-                    {% if update_result.reason_summary %}
-                    <div class="radar-update-reasons">跳过原因：{{ update_result.reason_summary }}</div>
+                    {% if update_result.reason_summary_label %}
+                    <div class="radar-update-reasons">跳过原因：{{ update_result.reason_summary_label }}</div>
                     {% endif %}
                 </div>
                 {% else %}
@@ -290,18 +290,23 @@
                         {% set is_selected = sel and item.id == sel.id %}
                         <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
                             <div class="radar-card-body">
-                                {# Primary: Chinese summary when available, else English title #}
-                                {% if display %}
+                                {# Card body: Chinese summary priority, English title demoted #}
+                                {% if display and display.uses_zh_one_liner %}
+                                {# Has Chinese one-liner: line1=Chinese summary, line2=English title #}
                                 <div class="radar-card-title">
                                     {{ display.primary_text }}
-                                    {% if display.uses_zh_one_liner %}
                                     <span class="radar-card-zh-badge">中文概述</span>
-                                    {% else %}
-                                    <span class="radar-card-summary-placeholder">待生成中文摘要</span>
-                                    {% endif %}
                                 </div>
                                 {% if display.secondary_text %}
                                 <div class="radar-card-original-title">{{ display.secondary_text }}</div>
+                                {% endif %}
+                                {% elif display %}
+                                {# No Chinese one-liner: line1=placeholder, line2=English title #}
+                                <div class="radar-card-title">
+                                    <span class="radar-card-summary-placeholder">待生成中文摘要</span>
+                                </div>
+                                {% if item.title and item.title != display.title %}
+                                <div class="radar-card-original-title">{{ item.title }}</div>
                                 {% endif %}
                                 {% else %}
                                 <div class="radar-card-title">{{ item.title or '无标题' }}</div>

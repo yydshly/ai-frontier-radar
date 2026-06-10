@@ -91,6 +91,47 @@ def _build_due_source_reason_summary(plan: DueSourcePlan) -> str:
     return ",".join(f"{reason}:{count}" for reason, count in counter.most_common())
 
 
+# Mapping from internal reason keys to user-facing Chinese descriptions.
+_REASON_LABEL: dict[str, str] = {
+    "not_due_yet": "来源仍在冷却中",
+    "max_sources_limit": "达到本轮检查上限",
+    "already_running": "正在运行中",
+    "missing_source_row": "来源记录缺失",
+    "unsupported_fetch_strategy": "暂不支持的抓取方式",
+}
+
+
+def _humanize_reason_summary(raw: str | None) -> str | None:
+    """Convert a raw due-source reason summary to user-facing Chinese.
+
+    Examples:
+      "not_due_yet:15"  -> "15 个来源仍在冷却中，暂不需要重复检查。"
+      "not_due_yet:10,already_running:2" -> "10 个来源仍在冷却中，2 个正在运行中。"
+      "" or None -> None
+    """
+    if not raw:
+        return None
+    parts: list[str] = []
+    for segment in raw.split(","):
+        segment = segment.strip()
+        if not segment:
+            continue
+        if ":" in segment:
+            reason, count_str = segment.rsplit(":", 1)
+            try:
+                count = int(count_str)
+            except ValueError:
+                parts.append(segment)
+                continue
+            label = _REASON_LABEL.get(reason, reason)
+            parts.append(f"{count} 个{label}，暂不需要重复检查" if reason == "not_due_yet" else f"{count} 个{label}")
+        else:
+            parts.append(segment)
+    if not parts:
+        return None
+    return "".join(parts) + "。"
+
+
 def _parse_int_query(value: str | None, default: int = 0) -> int:
     """Safely parse an int query param; return default on failure."""
     if value is None:
@@ -221,6 +262,7 @@ def radar_today_page(
                 "skipped": update_skipped or 0,
                 "missing": update_missing or 0,
                 "reason_summary": update_reason_summary or "",
+                "reason_summary_label": _humanize_reason_summary(update_reason_summary) or "",
                 "plan_source": update_plan_source or "",
             }
 
