@@ -298,6 +298,19 @@ python scripts/acceptance_first_usable_loop.py
 python -m scripts.acceptance_first_usable_loop
 ```
 
+## V1.0-beta.4：摘要语义统一与展示规则
+
+V1.0-beta.4 解决"中间卡片显示'待生成中文摘要'，右侧面板却可能显示英文 metadata 摘要"的用户感知混乱。
+
+本阶段已完成：
+- 梳理 `zh_one_liner`、`zh_summary`、RSS/ metadata `summary` 各字段的语义差异
+- 明确"中文摘要"与"英文来源摘要"的用户可理解区分
+- 右侧面板 detail_summary 区块标题改为语义来源标签
+
+详见：
+- [docs/V1_BETA_4_SUMMARY_SEMANTICS_PLAN.md](docs/V1_BETA_4_SUMMARY_SEMANTICS_PLAN.md) — 摘要语义审计文档、展示规则
+- [docs/V1_BETA_4_FINAL_CHECKPOINT.md](docs/V1_BETA_4_FINAL_CHECKPOINT.md) — 最终 checkpoint、merge-ready 判断
+
 ## 项目理解与维护文档
 
 | 文档 | 用途 |

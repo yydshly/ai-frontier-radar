@@ -41,6 +41,13 @@ class RadarPanelState:
     insight_note: str | None    # Optional note (e.g. error message for failed)
     selected_insight_card: "InsightCard | None" = None
     insight_preview: "RadarInsightPreview | None" = None
+    # ── Detail summary label for the reading panel ──────────────────────────
+    # Human-readable label for the detail_summary block heading.
+    # Values: "中文摘要" | "中文概述" | "来源摘要" | "英文来源摘要"
+    detail_summary_label: str = "内容摘要"
+    # Kind of content in detail_summary, for logic/gating if needed.
+    # Values: "zh_summary" | "zh_one_liner" | "metadata_summary" | "english_metadata_summary" | "missing"
+    detail_summary_kind: str = "missing"
 
 
 @dataclass
@@ -490,6 +497,45 @@ def _build_panel_state(
         insight_label = item.status or "状态未知"
         insight_note = None
 
+    # ── Compute detail_summary_kind and detail_summary_label ─────────────────
+    # Mirrors the priority chain in build_candidate_display_card.
+    # We only check field existence here; actual content is not re-extracted.
+    detail_summary_kind: str
+    if has_zh_summary:
+        detail_summary_kind = "zh_summary"
+    elif has_zh_one_liner:
+        detail_summary_kind = "zh_one_liner"
+    else:
+        # Determine if the fallback metadata content is likely English-only.
+        # Check the first available fallback field for CJK characters.
+        is_english_only = True
+        fallback_fields = (
+            "detail_description", "summary", "description", "excerpt",
+            "content_snippet", "og_description", "meta_description",
+            "rss_summary", "rss_description",
+        )
+        for fk in fallback_fields:
+            raw_val = raw.get(fk)
+            if isinstance(raw_val, str) and raw_val.strip():
+                # If any CJK character is found, content is not English-only.
+                for ch in raw_val:
+                    if "一" <= ch <= "鿿":
+                        is_english_only = False
+                        break
+                if not is_english_only:
+                    break
+        detail_summary_kind = "english_metadata_summary" if is_english_only else "metadata_summary"
+
+    # Map kind → human-readable label for the detail_summary block heading.
+    _KIND_TO_LABEL = {
+        "zh_summary": "中文摘要",
+        "zh_one_liner": "中文概述",
+        "english_metadata_summary": "英文来源摘要",
+        "metadata_summary": "来源摘要",
+        "missing": "内容摘要",
+    }
+    detail_summary_label = _KIND_TO_LABEL.get(detail_summary_kind, "内容摘要")
+
     return RadarPanelState(
         summary_state=summary_state,
         summary_label=summary_label,
@@ -499,6 +545,8 @@ def _build_panel_state(
         insight_note=insight_note,
         selected_insight_card=selected_insight_card,
         insight_preview=_build_insight_preview(selected_insight_card),
+        detail_summary_label=detail_summary_label,
+        detail_summary_kind=detail_summary_kind,
     )
 
 

@@ -4921,6 +4921,126 @@ def main():
     except Exception as e:
         check("V1.0-beta.3 final checkpoint docs checks", False, str(e))
 
+    # ── [46] V1.0-beta.4 summary semantics ──────────────────────────────────
+    print("\n[46] V1.0-beta.4 summary semantics")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        # Required semantics plan doc exists
+        check("docs/V1_BETA_4_SUMMARY_SEMANTICS_PLAN.md exists",
+              (project_root / "docs/V1_BETA_4_SUMMARY_SEMANTICS_PLAN.md").exists(),
+              "semantics plan doc must exist")
+
+        # Document contains key field names
+        semantics_plan = (project_root / "docs/V1_BETA_4_SUMMARY_SEMANTICS_PLAN.md").read_text(encoding="utf-8")
+        check("semantics plan contains zh_one_liner",
+              "zh_one_liner" in semantics_plan,
+              "semantics plan must cover zh_one_liner")
+        check("semantics plan contains source metadata",
+              "source metadata" in semantics_plan or "来源元数据" in semantics_plan,
+              "semantics plan must cover source metadata")
+        check("semantics plan contains RSS summary",
+              "rss_summary" in semantics_plan or "RSS" in semantics_plan,
+              "semantics plan must cover RSS summary")
+        check("semantics plan contains InsightCard summary",
+              "InsightCard" in semantics_plan and "summary" in semantics_plan,
+              "semantics plan must cover InsightCard summary")
+        check("semantics plan contains 英文来源摘要",
+              "英文来源摘要" in semantics_plan,
+              "semantics plan must distinguish English metadata summary")
+        check("semantics plan states no database schema change",
+              "暂不改" in semantics_plan or "不改数据库" in semantics_plan or "不改 schema" in semantics_plan,
+              "semantics plan must state schema not changed")
+
+        # radar_today_panel.html does not hardcode "中文摘要" as block heading
+        panel_html = (project_root / "app/templates/partials/radar_today_panel.html").read_text(encoding="utf-8")
+        check("radar_today_panel.html does not hardcode <h3>中文摘要</h3>",
+              "<h3>中文摘要</h3>" not in panel_html,
+              "panel should not hardcode '中文摘要' — use dynamic label")
+        check("radar_today_panel.html uses panel_state.detail_summary_label",
+              "view.panel_state.detail_summary_label" in panel_html,
+              "panel should use dynamic detail_summary_label")
+
+        # RadarPanelState has detail_summary_label field
+        today_py = (project_root / "app/application/radar/today.py").read_text(encoding="utf-8")
+        check("RadarPanelState has detail_summary_label field",
+              "detail_summary_label" in today_py,
+              "RadarPanelState must have detail_summary_label field")
+        check("RadarPanelState has detail_summary_kind field",
+              "detail_summary_kind" in today_py,
+              "RadarPanelState must have detail_summary_kind field")
+
+        # README or NEXT_EXECUTION_PLAN has V1.0-beta.4 entry
+        next_plan_path = project_root / "docs/NEXT_EXECUTION_PLAN.md"
+        has_next = False
+        if next_plan_path.exists():
+            next_plan = next_plan_path.read_text(encoding="utf-8")
+            has_next = "V1.0-beta.4" in next_plan or "beta.4" in next_plan
+        check("V1.0-beta.4 summary semantics has doc or plan entry",
+              "V1.0-beta.4" in readme_md or has_next,
+              "README or NEXT_EXECUTION_PLAN should reference V1.0-beta.4 summary semantics")
+
+        # acceptance_first_usable_loop.py contains the four-label panel acceptance
+        acceptance_loop = (project_root / "scripts/acceptance_first_usable_loop.py").read_text(encoding="utf-8")
+        check("acceptance_first_usable_loop.py contains V1.0-beta.4 summary semantics labels section",
+              "V1.0-beta.4 summary semantics labels" in acceptance_loop,
+              "acceptance script should have [19] summary semantics labels section")
+        check("acceptance_first_usable_loop.py contains '中文摘要' label check",
+              "中文摘要" in acceptance_loop,
+              "acceptance should check 中文摘要 label")
+        check("acceptance_first_usable_loop.py contains '中文概述' label check",
+              "中文概述" in acceptance_loop,
+              "acceptance should check 中文概述 label")
+        check("acceptance_first_usable_loop.py contains '来源摘要' label check",
+              "来源摘要" in acceptance_loop,
+              "acceptance should check 来源摘要 label")
+        check("acceptance_first_usable_loop.py contains '英文来源摘要' label check",
+              "英文来源摘要" in acceptance_loop,
+              "acceptance should check 英文来源摘要 label")
+        check("acceptance_first_usable_loop.py does NOT call real LLM",
+              ".compile(" not in acceptance_loop
+              and ".generate(" not in acceptance_loop
+              and "run_source_fetch" not in acceptance_loop,
+              "acceptance script should not trigger real LLM calls")
+    except Exception as e:
+        check("V1.0-beta.4 summary semantics checks", False, str(e))
+
+    # ── [47] V1.0-beta.4 final checkpoint docs ────────────────────────────
+    print("\n[47] V1.0-beta.4 final checkpoint docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("docs/V1_BETA_4_FINAL_CHECKPOINT.md exists",
+              (project_root / "docs/V1_BETA_4_FINAL_CHECKPOINT.md").exists(),
+              "final checkpoint doc must exist")
+        check("README.md links V1_BETA_4_FINAL_CHECKPOINT.md",
+              "V1_BETA_4_FINAL_CHECKPOINT.md" in readme_md,
+              "README should link final checkpoint")
+
+        final_cp = (project_root / "docs/V1_BETA_4_FINAL_CHECKPOINT.md").read_text(encoding="utf-8")
+        check("final checkpoint contains V1.0-beta.4",
+              "V1.0-beta.4" in final_cp,
+              "final checkpoint should state version")
+        check("final checkpoint mentions 摘要语义统一",
+              "摘要语义统一" in final_cp,
+              "final checkpoint should describe the focus")
+        check("final checkpoint mentions detail_summary_label",
+              "detail_summary_label" in final_cp,
+              "final checkpoint should cover the new field")
+        check("final checkpoint mentions English detection is heuristic",
+              "启发式" in final_cp,
+              "final checkpoint should note the heuristic English detection")
+        check("final checkpoint states merge-ready or 可合并",
+              "merge-ready" in final_cp or "可合并" in final_cp,
+              "final checkpoint should state merge-ready")
+        check("final checkpoint mentions V1.0-beta.5",
+              "V1.0-beta.5" in final_cp or "beta.5" in final_cp,
+              "final checkpoint should suggest next version")
+    except Exception as e:
+        check("V1.0-beta.4 final checkpoint docs checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
