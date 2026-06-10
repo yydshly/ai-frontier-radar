@@ -4404,7 +4404,51 @@ def main():
               "查看</a>" not in _card_action_block and "查看</button>" not in _card_action_block,
               "standalone '查看' button must be removed from card actions")
 
-        # 6. InsightCard entry is preserved.
+        # 6. radar-card-footer exists.
+        check("radar_today.html has radar-card-footer",
+              "class=\"radar-card-footer\"" in radar_html,
+              "card footer div must exist")
+
+        # 7. radar-card-footer appears after radar-card-main-link.
+        _main_link_pos = radar_html.find("radar-card-main-link")
+        _footer_pos = radar_html.find("radar-card-footer")
+        check("radar-card-footer appears after radar-card-main-link",
+              _main_link_pos >= 0 and _footer_pos > _main_link_pos,
+              "footer must appear after main link in template")
+
+        # 8. radar-card-footer contains radar-card-meta (check via position ordering).
+        # radar-card-meta must appear after radar-card-footer opening tag.
+        _meta_pos_in_footer = radar_html.find("radar-card-meta", _footer_pos)
+        check("radar-card-footer contains radar-card-meta",
+              _meta_pos_in_footer > _footer_pos,
+              "footer must contain radar-card-meta")
+
+        # 9. radar-card-footer contains radar-card-actions.
+        # radar-card-actions must appear after radar-card-footer opening tag.
+        _actions_pos_in_footer = radar_html.find('class="radar-card-actions"', _footer_pos)
+        check("radar-card-footer contains radar-card-actions",
+              _actions_pos_in_footer > _footer_pos,
+              "footer must contain radar-card-actions")
+
+        # 10. radar-card-main-link block does NOT contain radar-card-actions.
+        _main_link_start = radar_html.find('class="radar-card-main-link"')
+        _main_link_end = radar_html.find("</a>", _main_link_start) if _main_link_start >= 0 else -1
+        _main_link_block = radar_html[_main_link_start:_main_link_end + 4] if _main_link_start >= 0 else ""
+        check("radar-card-main-link does NOT contain radar-card-actions",
+              "radar-card-actions" not in _main_link_block,
+              "main link must not contain radar-card-actions div")
+
+        # 11. radar-card-main-link block does NOT contain <form>.
+        check("radar-card-main-link does NOT contain <form>",
+              "<form" not in _main_link_block,
+              "main link must not contain nested form")
+
+        # 12. radar-card-main-link block does NOT contain <button>.
+        check("radar-card-main-link does NOT contain <button>",
+              "<button" not in _main_link_block,
+              "main link must not contain nested button")
+
+        # 13. InsightCard entry is preserved.
         check("radar_today.html preserves InsightCard entry",
               "InsightCard" in radar_html,
               "InsightCard link must be preserved")
@@ -4442,6 +4486,32 @@ def main():
         check("style.css preserves .radar-layout grid-template-columns",
               ".radar-layout {" not in style_css or "grid-template-columns" in _layout_block,
               "radar-layout grid-template-columns must be preserved")
+
+        # 13. style.css has .radar-card-footer.
+        check("style.css has .radar-card-footer",
+              ".radar-card-footer {" in style_css,
+              "radar-card-footer CSS class must exist")
+
+        # 14. .radar-card-footer uses display:flex.
+        _footer_block_css = style_css.split(".radar-card-footer {")[1].split("}")[0] if ".radar-card-footer {" in style_css else ""
+        check(".radar-card-footer uses display:flex",
+              "display:flex" in _footer_block_css or "display: flex" in _footer_block_css,
+              "footer must use flex layout")
+
+        # 15. .radar-card-footer does NOT use position:absolute.
+        check(".radar-card-footer does NOT use position:absolute",
+              "position:absolute" not in _footer_block_css and "position: absolute" not in _footer_block_css,
+              "footer must not be absolutely positioned")
+
+        # 16. footer actions margin-top is 0 or has override.
+        _footer_actions_block = ""
+        if ".radar-card-footer .radar-card-actions {" in style_css:
+            _footer_actions_block = style_css.split(".radar-card-footer .radar-card-actions {")[1].split("}")[0]
+        check("footer actions margin-top is overridden to 0 or equivalent",
+              ".radar-card-footer .radar-card-actions {" not in style_css
+              or "margin-top: 0" in _footer_actions_block
+              or "margin-top:0" in _footer_actions_block,
+              "footer actions must not have extra top margin")
     except Exception as e:
         check("V1.0-beta.3 Clickable radar cards checks", False, str(e))
 

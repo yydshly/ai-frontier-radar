@@ -4095,6 +4095,38 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     flex-shrink: 0;
 }
 
+.radar-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.radar-card-footer .radar-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.radar-card-footer .radar-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    flex-shrink: 0;
+    margin-top: 0;
+}
+
+@media (max-width: 1200px) {
+    .radar-card-footer {
+        flex-wrap: wrap;
+    }
+}
+
 .radar-card-actions .btn-sm {
     min-height: 26px;
     padding: 0.22rem 0.5rem;

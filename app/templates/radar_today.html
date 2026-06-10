@@ -307,7 +307,9 @@
                                 {% else %}
                                 <div class="radar-card-title">{{ item.title or '无标题' }}</div>
                                 {% endif %}
+                            </a>
 
+                            <div class="radar-card-footer">
                                 <div class="radar-card-meta">
                                     <code>{{ item.source_key }}</code>
                                     <span>{{ display.time_label if display else '时间未知' }}</span>
@@ -324,25 +326,25 @@
                                     {% endif %}
                                     <small class="muted">#{{ item.id }}</small>
                                 </div>
-                            </a>
 
-                            <div class="radar-card-actions">
-                                {% if item.status == 'discovered' %}
-                                <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
-                                    <input
-                                        type="hidden"
-                                        name="return_to"
-                                        value="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
-                                    >
-                                    <button type="submit" class="btn-sm">加入生成</button>
-                                </form>
-                                {% elif item.insight_card_id %}
-                                <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
-                                {% endif %}
-                                {% set card_url = safe_external_url(display.url if display else item.url) %}
-                                {% if card_url %}
-                                <a href="{{ card_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
-                                {% endif %}
+                                <div class="radar-card-actions">
+                                    {% if item.status == 'discovered' %}
+                                    <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
+                                        <input
+                                            type="hidden"
+                                            name="return_to"
+                                            value="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
+                                        >
+                                        <button type="submit" class="btn-sm">加入生成</button>
+                                    </form>
+                                    {% elif item.insight_card_id %}
+                                    <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                    {% endif %}
+                                    {% set card_url = safe_external_url(display.url if display else item.url) %}
+                                    {% if card_url %}
+                                    <a href="{{ card_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
+                                    {% endif %}
+                                </div>
                             </div>
                         </article>
                         {% endfor %}

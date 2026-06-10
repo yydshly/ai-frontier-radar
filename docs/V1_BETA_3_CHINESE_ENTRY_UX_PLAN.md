@@ -160,6 +160,16 @@
 
 ---
 
-## 10. 相关文档
+## 10. Task 6.1：底部信息与操作按钮同一行
+
+- 修正 Task 6 未完成点
+- meta 信息与 actions 操作按钮合并到 radar-card-footer
+- 卡片主体仍承担查看能力
+- 避免 a 标签嵌套 form/button
+- 不改变业务逻辑
+
+---
+
+## 11. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划
