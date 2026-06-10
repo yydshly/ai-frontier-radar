@@ -306,6 +306,134 @@ def main() -> int:
               resp_empty.status_code == 200,
               f"status={resp_empty.status_code}")
 
+    # ── 19. V1.0-beta.4 summary semantics labels ──────────────────────────
+    print("\n[19] V1.0-beta.4 summary semantics labels")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created — skipping panel tests")
+    else:
+        import json as _json
+        from datetime import datetime, timedelta
+        from app.db import SessionLocal
+        from app.models import SourceItem
+
+        test_source_key = "test_v1_beta_4_summary"
+        # Get a valid source_id from an existing source.
+        db = SessionLocal()
+        try:
+            src_row = db.query(SourceItem.source_id).limit(1).first()
+            if src_row is None:
+                check("source_id available", False, "No sources found in DB — skipping insert tests")
+                src_id = None
+            else:
+                src_id = src_row[0]
+        except Exception:
+            check("source_id lookup", False, "Could not query source_id")
+            src_id = None
+        finally:
+            db.close()
+
+        if src_id is None:
+            pass  # Already reported above.
+        else:
+            # Four test cases: (case_key, raw_metadata_json dict, expected_label, must_not_appear).
+            _now = datetime.utcnow()
+            cases = [
+                (
+                    "zh_summary",
+                    {"zh_summary": "这是一段AI生成的中文详细摘要。",
+                     "zh_one_liner": "这是中文一句话概述。",
+                     "description": "English metadata should not win."},
+                    "中文摘要",
+                    "中文概述",
+                ),
+                (
+                    "zh_one_liner_only",
+                    {"zh_one_liner": "这是AI生成的中文一句话概述。",
+                     "description": "English metadata should not win."},
+                    "中文概述",
+                    "中文摘要",
+                ),
+                (
+                    "chinese_metadata_fallback",
+                    {"description": "这是来源站点提供的中文简介，不是AI生成摘要。"},
+                    "来源摘要",
+                    # Check heading specifically — "中文摘要" appears in banner "中文摘要未生成" which is fine
+                    "<h3>中文摘要</h3>",
+                ),
+                (
+                    "english_metadata_fallback",
+                    {"description": "This is an English source metadata summary."},
+                    "英文来源摘要",
+                    # Check heading specifically — "中文摘要" appears in banner "中文摘要未生成" which is fine
+                    "<h3>中文摘要</h3>",
+                ),
+            ]
+
+            inserted_ids: list[int] = []
+            db = SessionLocal()
+            tx = db.begin()
+            try:
+                for case_key, meta_json, expected_label, must_not_appear in cases:
+                    item = SourceItem(
+                        source_id=src_id,
+                        source_key=f"{test_source_key}_{case_key}",
+                        url=f"http://test-{test_source_key}-{case_key}/item",
+                        title=f"Test item for {case_key}",
+                        status="discovered",
+                        raw_metadata_json=_json.dumps(meta_json),
+                        first_seen_at=_now,
+                        last_seen_at=_now,
+                    )
+                    db.add(item)
+                    db.flush()
+                    inserted_ids.append(item.id)
+                tx.commit()
+            except Exception as e:
+                tx.rollback()
+                check(f"Insert test items", False, str(e))
+                inserted_ids = []
+            else:
+                try:
+                    for (case_key, meta_json, expected_label, must_not_appear), item_id in zip(cases, inserted_ids):
+                        panel_url = (
+                            f"/radar/today/panel?section=all&item_id={item_id}"
+                            f"&hours=24&limit=50&page=1&per_page=20"
+                        )
+                        resp = _client.get(panel_url)
+                        check(
+                            f"Case {case_key}: GET panel returns 200",
+                            resp.status_code == 200,
+                            f"status={resp.status_code}",
+                        )
+                        check(
+                            f"Case {case_key}: panel contains '{expected_label}'",
+                            expected_label in resp.text,
+                            f"expected '{expected_label}' in panel",
+                        )
+                        check(
+                            f"Case {case_key}: panel does NOT contain '{must_not_appear}'",
+                            must_not_appear not in resp.text,
+                            f"'{must_not_appear}' should not appear when {case_key}",
+                        )
+                        check(
+                            f"Case {case_key}: panel is a partial (no <html>)",
+                            "<html" not in resp.text.lower(),
+                        )
+                        check(
+                            f"Case {case_key}: panel is a partial (no <body>)",
+                            "<body" not in resp.text.lower(),
+                        )
+                finally:
+                    try:
+                        db.query(SourceItem).filter(
+                            SourceItem.id.in_(inserted_ids)
+                        ).delete(synchronize_session=False)
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+            finally:
+                db.close()
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

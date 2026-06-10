@@ -4980,6 +4980,29 @@ def main():
         check("V1.0-beta.4 summary semantics has doc or plan entry",
               "V1.0-beta.4" in readme_md or has_next,
               "README or NEXT_EXECUTION_PLAN should reference V1.0-beta.4 summary semantics")
+
+        # acceptance_first_usable_loop.py contains the four-label panel acceptance
+        acceptance_loop = (project_root / "scripts/acceptance_first_usable_loop.py").read_text(encoding="utf-8")
+        check("acceptance_first_usable_loop.py contains V1.0-beta.4 summary semantics labels section",
+              "V1.0-beta.4 summary semantics labels" in acceptance_loop,
+              "acceptance script should have [19] summary semantics labels section")
+        check("acceptance_first_usable_loop.py contains '中文摘要' label check",
+              "中文摘要" in acceptance_loop,
+              "acceptance should check 中文摘要 label")
+        check("acceptance_first_usable_loop.py contains '中文概述' label check",
+              "中文概述" in acceptance_loop,
+              "acceptance should check 中文概述 label")
+        check("acceptance_first_usable_loop.py contains '来源摘要' label check",
+              "来源摘要" in acceptance_loop,
+              "acceptance should check 来源摘要 label")
+        check("acceptance_first_usable_loop.py contains '英文来源摘要' label check",
+              "英文来源摘要" in acceptance_loop,
+              "acceptance should check 英文来源摘要 label")
+        check("acceptance_first_usable_loop.py does NOT call real LLM",
+              ".compile(" not in acceptance_loop
+              and ".generate(" not in acceptance_loop
+              and "run_source_fetch" not in acceptance_loop,
+              "acceptance script should not trigger real LLM calls")
     except Exception as e:
         check("V1.0-beta.4 summary semantics checks", False, str(e))
 

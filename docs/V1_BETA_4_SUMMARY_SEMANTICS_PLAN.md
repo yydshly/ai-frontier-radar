@@ -180,6 +180,25 @@ detail_summary_kind: str     # "zh_summary" | "zh_one_liner" | "metadata_summary
 - 英文 metadata 摘要存在时，面板标题为"英文来源摘要"
 - 无 zh_one_liner / zh_summary 时，面板标题为"来源摘要"
 
+### 8.3 确定性验收（Task 2）
+
+Task 2 在 `acceptance_first_usable_loop.py` 中新增 `[19] V1.0-beta.4 summary semantics labels` section，使用 isolated 测试数据验证四个面板标签：
+
+| 测试 Case | raw_metadata_json | 预期面板标题 |
+|----------|------------------|-------------|
+| `zh_summary` | `{"zh_summary": "...", "zh_one_liner": "...", "description": "English..."}` | `中文摘要` |
+| `zh_one_liner_only` | `{"zh_one_liner": "...", "description": "English..."}` | `中文概述` |
+| `chinese_metadata_fallback` | `{"description": "这是来源站点提供的中文简介..."}` | `来源摘要` |
+| `english_metadata_fallback` | `{"description": "This is an English source metadata summary."}` | `英文来源摘要` |
+
+每个 case 均通过 `/radar/today/panel` fragment 验收，验证：
+- 响应状态码 200
+- 包含预期标签
+- 不包含不应出现的标签（如 zh_summary 存在时不应出现"中文概述"）
+- fragment 为纯 partial，不包含 `<html>` / `<body>`
+
+测试数据使用 `test_v1_beta_4_summary_*` source_key 前缀，验收后立即清理，不污染生产数据。
+
 ---
 
 ## 九、涉及文件
