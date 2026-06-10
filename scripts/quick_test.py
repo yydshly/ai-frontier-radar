@@ -6450,6 +6450,15 @@ def main():
             check("source_detail does not show technical details first",
                   source_detail_text.index("技术详情") > source_detail_text.index("最近报告") if "技术详情" in source_detail_text and "最近报告" in source_detail_text else True,
                   "technical details should come after the reports section")
+            check("source_detail: '最近 FetchRun' not in main view before details",
+                  source_detail_text.index("<details") > source_detail_text.rfind("最近 FetchRun") if "<details" in source_detail_text and "最近 FetchRun" in source_detail_text else True,
+                  "'最近 FetchRun' should not appear before <details> in source_detail")
+            check("source_detail: '最近探测记录' is inside details",
+                  source_detail_text.index("最近探测记录") > source_detail_text.index("<details") if "最近探测记录" in source_detail_text and "<details" in source_detail_text else True,
+                  "'最近探测记录' should appear inside the <details> section")
+            check("source_detail: main view has no 'FetchRun' heading",
+                  source_detail_text.index("<details") > source_detail_text.rfind("<h2>最近 FetchRun") if "<details" in source_detail_text and "<h2>最近 FetchRun" in source_detail_text else True,
+                  "main view should not have 'FetchRun' heading - it should be '最近探测记录' inside details")
 
         # Filter pages already support source_key
         check("candidate_pool.html has source_key filter",

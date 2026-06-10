@@ -1338,6 +1338,13 @@ def main() -> int:
         check("Source workspace: source_detail.html has strategy status banner",
               "当前优先使用 RSS" in source_detail_html or "HTML index" in source_detail_html,
               "source workspace should show strategy status")
+        # FetchRun should be inside details, not in main view
+        check("Source workspace: '最近 FetchRun' not in main view (before <details>)",
+              source_detail_html.index("<details") > source_detail_html.rfind("最近 FetchRun") if "<details" in source_detail_html and "最近 FetchRun" in source_detail_html else True,
+              "'最近 FetchRun' should not appear before <details>")
+        check("Source workspace: '最近探测记录' inside details section",
+              source_detail_html.index("最近探测记录") > source_detail_html.index("<details") if "最近探测记录" in source_detail_html and "<details" in source_detail_html else True,
+              "'最近探测记录' should appear inside the <details> section")
 
         # Not calling LLM, not changing schema
         check("Source strategy: does not call LLM",
