@@ -49,7 +49,7 @@
     <div class="radar-broadcast-audio-status">
         <div class="radar-broadcast-audio-disabled">
             <span class="radar-broadcast-audio-icon">🔇</span>
-            <span>音频播报尚未启用，请配置 TTS 后再生成。</span>
+            <span>音频播报入口已预留，当前未启用真实 TTS。配置 TTS 后，可将这份播报文案生成音频。</span>
         </div>
     </div>
     {% endif %}
@@ -63,6 +63,7 @@
                 <form method="post" action="/radar/daily-report/broadcast/audio" style="display:inline;">
                     <button type="submit" class="btn btn-primary" id="audio-btn">生成音频</button>
                 </form>
+                <span class="radar-broadcast-tts-note">当前版本仅预留音频入口，真实 TTS 尚未启用</span>
             </div>
         </div>
 

@@ -6306,9 +6306,9 @@ def main():
         check("Template has 生成音频",
               "生成音频" in broadcast_html,
               "broadcast template should have audio button")
-        check("Template has 音频播报尚未启用",
-              "音频播报尚未启用" in broadcast_html,
-              "broadcast template should show disabled message")
+        check("Template has 未启用真实 TTS",
+              "未启用真实 TTS" in broadcast_html,
+              "broadcast template should show disabled message with TTS context")
         check("Template has 播报文案",
               "播报文案" in broadcast_html,
               "broadcast template should show script content")
@@ -6336,8 +6336,18 @@ def main():
             # Verify audio result shows disabled
             audio_html = resp_audio.text
             check("Audio endpoint returns disabled message",
-                  "音频播报尚未启用" in audio_html,
+                  "未启用真实 TTS" in audio_html,
                   "broadcast audio should show disabled status when TTS not configured")
+
+            # Verify POST audio preserves broadcast content
+            check("POST audio response contains 播报文案",
+                  "播报文案" in audio_html,
+                  "POST audio should preserve broadcast script display")
+
+            # Verify TTS note is present
+            check("Template has TTS reserve note",
+                  "仅预留音频入口" in broadcast_html or "真实 TTS 尚未启用" in broadcast_html,
+                  "broadcast template should note that TTS is not yet enabled")
         else:
             check("TestClient available for broadcast checks", False, "client is not available")
 
@@ -6345,6 +6355,22 @@ def main():
         check("daily_broadcast.py does not modify schema",
               "db.query" not in broadcast_text or "add_column" not in broadcast_text.lower(),
               "broadcast module should not modify DB schema")
+
+        # Empty broadcast text is natural (no "共发现 0 条")
+        check("Empty broadcast does not say 共发现 0 条",
+              "共发现 0 条" not in broadcast_text,
+              "empty broadcast should not say mechanical '共发现 0 条'")
+
+        # Checkpoint doc exists and says no real TTS
+        checkpoint_path = project_root / "docs" / "V1_BETA_8_DAILY_BROADCAST_CHECKPOINT.md"
+        check("V1_BETA_8 checkpoint doc exists",
+              checkpoint_path.exists(),
+              "checkpoint doc should exist")
+        if checkpoint_path.exists():
+            checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
+            check("Checkpoint doc says no real TTS",
+                  "不调用" in checkpoint_text and "真实 TTS" in checkpoint_text,
+                  "checkpoint should clarify real TTS is not called")
 
     except Exception as e:
         check("V1.0-beta.8 DailyBroadcast checks", False, str(e))

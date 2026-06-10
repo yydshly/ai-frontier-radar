@@ -187,7 +187,10 @@
 - ✅ POST /radar/daily-report/broadcast/audio — 音频生成入口（默认 disabled）
 - ✅ 页面包含 textarea 展示 full_text，含复制按钮
 - ✅ 音频状态 banner（disabled / generated / failed）
+- ✅ 页面初始显示"音频播报入口已预留，当前未启用真实 TTS"
+- ✅ 音频按钮旁提示"当前版本仅预留音频入口，真实 TTS 尚未启用"
 - ✅ `docs/V1_BETA_8_DAILY_BROADCAST_PLAN.md`
+- ✅ `docs/V1_BETA_8_DAILY_BROADCAST_CHECKPOINT.md`
 
 ### V1.0-beta.8 暂不改
 

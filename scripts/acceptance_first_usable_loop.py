@@ -1201,8 +1201,8 @@ def main() -> int:
         check("Daily broadcast: page contains 生成音频",
               "生成音频" in resp.text,
               "broadcast page should show audio button")
-        check("Daily broadcast: page contains 音频播报尚未启用",
-              "音频播报尚未启用" in resp.text,
+        check("Daily broadcast: page contains 未启用真实 TTS",
+              "未启用真实 TTS" in resp.text,
               "broadcast should show disabled TTS message")
 
         # POST audio endpoint
@@ -1211,8 +1211,16 @@ def main() -> int:
               resp_audio.status_code == 200,
               f"got {resp_audio.status_code}")
         check("Daily broadcast: audio endpoint returns disabled message",
-              "音频播报尚未启用" in resp_audio.text,
+              "未启用真实 TTS" in resp_audio.text,
               "audio endpoint should show disabled when TTS not configured")
+
+        # POST audio preserves broadcast script display
+        check("Daily broadcast: POST audio preserves 播报文案",
+              "播报文案" in resp_audio.text,
+              "POST audio should preserve broadcast script display")
+        check("Daily broadcast: POST audio shows disabled banner",
+              "radar-broadcast-audio-disabled" in resp_audio.text or "未启用真实 TTS" in resp_audio.text,
+              "POST audio should show disabled banner")
 
         # Static checks
         broadcast_text = read("app/application/radar/daily_broadcast.py")
@@ -1237,6 +1245,12 @@ def main() -> int:
         check("Daily broadcast: radar_daily_report.html has broadcast link",
               "daily-report/broadcast" in report_html,
               "daily report page should link to broadcast")
+
+        # TTS reserve note in broadcast template
+        broadcast_html = read("app/templates/radar_daily_broadcast.html")
+        check("Daily broadcast: template has TTS reserve note",
+              "仅预留音频入口" in broadcast_html or "真实 TTS 尚未启用" in broadcast_html,
+              "broadcast template should note TTS is reserved but not enabled")
 
         check("Daily broadcast: does not write DB",
               "db.add" not in broadcast_text and "db.commit" not in broadcast_text,

@@ -5437,6 +5437,12 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     gap: 0.5rem;
 }
 
+.radar-broadcast-tts-note {
+    font-size: 0.75rem;
+    color: #888;
+    margin-left: 0.25rem;
+}
+
 .radar-broadcast-audio-icon {
     font-size: 1.1rem;
 }

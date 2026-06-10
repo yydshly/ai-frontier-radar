@@ -51,14 +51,17 @@ def build_daily_broadcast_script(
 
     # Opening
     parts_ov: list[str] = []
-    parts_ov.append(f"今天系统共发现 {total_items} 条 AI 前沿内容")
-    if covered_sources > 0:
-        parts_ov.append(f"覆盖 {covered_sources} 个来源")
-    if with_zh_one_liner > 0:
-        parts_ov.append(f"其中 {with_zh_one_liner} 条已有中文概述")
-    if with_insight_card > 0:
-        parts_ov.append(f"{with_insight_card} 条已有洞察卡")
-    opening = "，".join(parts_ov) + "。"
+    if total_items == 0:
+        opening = "今天暂未发现新的 AI 前沿内容。"
+    else:
+        parts_ov.append(f"今天系统共发现 {total_items} 条 AI 前沿内容")
+        if covered_sources > 0:
+            parts_ov.append(f"覆盖 {covered_sources} 个来源")
+        if with_zh_one_liner > 0:
+            parts_ov.append(f"其中 {with_zh_one_liner} 条已有中文概述")
+        if with_insight_card > 0:
+            parts_ov.append(f"{with_insight_card} 条已有洞察卡")
+        opening = "，".join(parts_ov) + "。"
 
     # Overview
     primary_count = len(primary_items)
@@ -231,12 +234,12 @@ def generate_daily_broadcast_audio(
     if enabled != "true":
         return DailyBroadcastAudioResult(
             status="disabled",
-            message="音频播报尚未启用，请配置 TTS 后再生成。",
+            message="音频播报入口已预留，当前未启用真实 TTS。配置 TTS 后，可将这份播报文案生成音频。",
         )
 
     # Placeholder for future real TTS implementation.
     # The interface is ready; connect MiniMax / OpenAI / local TTS here.
     return DailyBroadcastAudioResult(
         status="disabled",
-        message="音频播报尚未启用，请配置 TTS 后再生成。",
+        message="音频播报入口已预留，当前未启用真实 TTS。配置 TTS 后，可将这份播报文案生成音频。",
     )
