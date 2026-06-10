@@ -213,3 +213,5 @@ python scripts/run_due_sources_once.py --apply
 - [docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md](docs/V1_BETA_3_ACCEPTANCE_CHECKLIST.md) — 验收清单
 - [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) — 已知限制
 - [docs/V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](docs/V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划
+- [docs/V1_BETA_3_FINAL_CHECKPOINT.md](docs/V1_BETA_3_FINAL_CHECKPOINT.md) — 最终 checkpoint、merge-ready 判断
+- [docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md](docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md) — 人工验收记录

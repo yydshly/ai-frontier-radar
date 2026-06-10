@@ -141,3 +141,12 @@ python scripts/check_stale_fetch_runs.py
 | 7 | 单用户本地 MVP | 不支持多用户权限 |
 | 8 | 当前不做全网爬虫 | 只做配置的雷达关注源探测 |
 | 9 | 目录收起后 52px 布局固定 | 不随内容动态调整 |
+
+---
+
+## 相关文档
+
+- [docs/V1_BETA_3_FINAL_CHECKPOINT.md](docs/V1_BETA_3_FINAL_CHECKPOINT.md) — 最终 checkpoint、merge-ready 判断
+- [docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md](docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md) — 人工验收记录
+- [docs/V1_BETA_3_RELEASE_NOTES.md](docs/V1_BETA_3_RELEASE_NOTES.md) — 版本说明
+- [docs/V1_BETA_3_CHINESE_ENTRY_UX_PLAN.md](docs/V1_BETA_3_CHINESE_ENTRY_UX_PLAN.md) — 任务规划

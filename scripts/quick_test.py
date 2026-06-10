@@ -4873,6 +4873,54 @@ def main():
     except Exception as e:
         check("V1.0-beta.3 release candidate docs checks", False, str(e))
 
+    # ── [45] V1.0-beta.3 final checkpoint docs ───────────────────────────
+    print("\n[45] V1.0-beta.3 final checkpoint docs")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        readme_md = (project_root / "README.md").read_text(encoding="utf-8")
+
+        # Required final checkpoint docs exist
+        check("docs/V1_BETA_3_FINAL_CHECKPOINT.md exists",
+              (project_root / "docs/V1_BETA_3_FINAL_CHECKPOINT.md").exists(),
+              "final checkpoint doc must exist")
+        check("docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md exists",
+              (project_root / "docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md").exists(),
+              "manual acceptance record must exist")
+
+        # README links final checkpoint docs
+        check("README.md links V1_BETA_3_FINAL_CHECKPOINT.md",
+              "V1_BETA_3_FINAL_CHECKPOINT.md" in readme_md,
+              "README should link final checkpoint")
+        check("README.md links V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md",
+              "V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md" in readme_md,
+              "README should link manual acceptance record")
+
+        # Final checkpoint content checks
+        final_cp = (project_root / "docs/V1_BETA_3_FINAL_CHECKPOINT.md").read_text(encoding="utf-8")
+        check("final checkpoint mentions merge-ready",
+              "merge-ready" in final_cp or "可合并" in final_cp,
+              "final checkpoint should state merge-ready conclusion")
+        check("final checkpoint mentions V1.0-beta.4",
+              "V1.0-beta.4" in final_cp or "V1_beta_4" in final_cp,
+              "final checkpoint should suggest next version")
+
+        # Manual acceptance record content checks
+        manual_rec = (project_root / "docs/V1_BETA_3_MANUAL_ACCEPTANCE_RECORD.md").read_text(encoding="utf-8")
+        check("manual acceptance record says no obvious issues found",
+              "手动测试暂未发现明显问题" in manual_rec,
+              "manual acceptance record should state no obvious issues")
+        check("manual acceptance record mentions /radar/today",
+              "/radar/today" in manual_rec,
+              "manual acceptance record should cover /radar/today")
+        check("manual acceptance record mentions right panel",
+              "右侧智能阅读面板" in manual_rec or "智能阅读面板" in manual_rec,
+              "manual acceptance record should cover right panel")
+        check("manual acceptance record says no full-site SPA nav tested",
+              "未做全站无刷新导航验收" in manual_rec or "未做全站" in manual_rec,
+              "manual acceptance record should state full-site SPA not covered")
+    except Exception as e:
+        check("V1.0-beta.3 final checkpoint docs checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
