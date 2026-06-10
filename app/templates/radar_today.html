@@ -358,6 +358,21 @@
                     {% endif %}
                 </div>
                 {% endif %}
+                {% if insight_result %}
+                <div class="radar-insight-result">
+                    {% if insight_result.status == 'generated' %}
+                    <div class="radar-insight-success">洞察卡生成成功。</div>
+                    {% elif insight_result.status == 'updated' %}
+                    <div class="radar-insight-success">洞察卡已更新。</div>
+                    {% elif insight_result.status == 'skipped' %}
+                    <div class="radar-insight-info">已有洞察卡，已跳过。</div>
+                    {% elif insight_result.status == 'not_eligible' %}
+                    <div class="radar-insight-error">无法生成洞察卡：{{ insight_result.message or '请先基于正文生成摘要' }}</div>
+                    {% else %}
+                    <div class="radar-insight-error">洞察卡处理失败：{{ insight_result.message }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
                 {% if daily_report_result %}
                 <div class="radar-daily-report-result">
                     {% if daily_report_result.status == 'generated' %}

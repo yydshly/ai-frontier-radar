@@ -6759,6 +6759,133 @@ def main():
     except Exception as e:
         check("V1.0-beta.11 Summary from Snapshot checks", False, str(e))
 
+    # ── 55. V1.0-beta.12 InsightCard from Summary ───────────────────────
+    print("\n[55] V1.0-beta.12 InsightCard from Summary")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+
+        # Module existence checks
+        insight_dir = project_root / "app" / "application" / "insight"
+        check("app/application/insight/ directory exists",
+              insight_dir.is_dir(),
+              "insight directory should exist")
+
+        # insight_models.py
+        models_path = insight_dir / "insight_models.py"
+        check("insight_models.py exists",
+              models_path.exists(),
+              "insight_models.py should exist")
+        models_text = models_path.read_text(encoding="utf-8")
+        check("InsightBuildInput dataclass exists",
+              "class InsightBuildInput" in models_text,
+              "InsightBuildInput should exist")
+        check("InsightBuildResult dataclass exists",
+              "class InsightBuildResult" in models_text,
+              "InsightBuildResult should exist")
+        check("InsightStatus class exists",
+              "class InsightStatus" in models_text,
+              "InsightStatus should exist")
+        check("InsightError class exists",
+              "class InsightError" in models_text,
+              "InsightError should exist")
+
+        # source_item_insight_service.py
+        service_path = insight_dir / "source_item_insight_service.py"
+        check("source_item_insight_service.py exists",
+              service_path.exists(),
+              "source_item_insight_service.py should exist")
+        service_text = service_path.read_text(encoding="utf-8")
+        check("generate_source_item_insight function exists",
+              "def generate_source_item_insight" in service_text,
+              "generate_source_item_insight should exist")
+        check("reads summary_status from raw_metadata_json",
+              "summary_status" in service_text,
+              "should read summary_status from raw_metadata_json")
+        check("reads summary_basis=html_snapshot",
+              "html_snapshot" in service_text,
+              "should check summary_basis=html_snapshot")
+        check("writes insight_status to raw_metadata_json",
+              "insight_status" in service_text,
+              "should write insight_status to raw_metadata_json")
+        check("writes insight_basis=summary_from_snapshot",
+              "summary_from_snapshot" in service_text,
+              "should write insight_basis=summary_from_snapshot")
+        check("writes insight_card_id to raw_metadata_json",
+              "insight_card_id" in service_text,
+              "should write insight_card_id to raw_metadata_json")
+        check("writes SourceItem.insight_card_id",
+              "item.insight_card_id" in service_text,
+              "should write back SourceItem.insight_card_id")
+        check("force=False idempotent skip when card exists",
+              "SKIPPED" in service_text and "insight_card_id" in service_text,
+              "should skip when insight_card_id already exists and force=False")
+        check("force=True updates existing card",
+              '"updated"' in service_text or "updated" in service_text,
+              "should update existing card when force=True")
+        check("no LLM imports in insight service",
+              "from app.llm" not in service_text and "import app.llm" not in service_text,
+              "insight service should not import LLM modules")
+
+        # Route checks
+        radar_route_path = project_root / "app" / "routes" / "radar.py"
+        radar_text = radar_route_path.read_text(encoding="utf-8")
+        check("POST /today/items/{id}/generate-insight route exists",
+              '@router.post("/today/items/{item_id}/generate-insight")' in radar_text,
+              "generate-insight route should be registered as POST")
+        check("No GET for generate-insight",
+              '@router.get("/today/items/{item_id}/generate-insight")' not in radar_text,
+              "generate-insight should not be a GET route")
+
+        # TodayItemCard has can_generate_insight
+        today_card_path = project_root / "app" / "application" / "radar" / "today_item_card.py"
+        today_card_text = today_card_path.read_text(encoding="utf-8")
+        check("TodayItemCard has can_generate_insight field",
+              "can_generate_insight" in today_card_text,
+              "TodayItemCard should have can_generate_insight field")
+
+        # Templates have insight buttons
+        panel_html = (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
+        check("Panel template has 生成洞察卡 button",
+              "生成洞察卡" in panel_html,
+              "panel should have generate insight button")
+        check("Panel form posts to generate-insight",
+              "generate-insight" in panel_html,
+              "panel form should post to generate-insight endpoint")
+        check("Panel shows 查看洞察卡 when card exists",
+              "查看洞察卡" in panel_html,
+              "panel should show view insight card link when exists")
+
+        # DailyReport uses has_insight
+        report_card_path = project_root / "app" / "application" / "radar" / "daily_report_card.py"
+        report_card_text = report_card_path.read_text(encoding="utf-8")
+        check("DailyReport uses insight_card_id for ranking",
+              "insight_card_id" in report_card_text,
+              "DailyReport should use insight_card_id for has_insight check")
+        check("DailyReport suggested_action uses has_insight",
+              "查看洞察卡" in report_card_text,
+              "DailyReport should suggest 查看洞察卡 when has_insight")
+
+        # DailyBroadcast uses has_insight
+        broadcast_path = project_root / "app" / "application" / "radar" / "daily_broadcast.py"
+        broadcast_text = broadcast_path.read_text(encoding="utf-8")
+        check("DailyBroadcast handles has_insight",
+              "has_insight" in broadcast_text,
+              "DailyBroadcast should handle has_insight")
+
+        # docs exist
+        docs_path = project_root / "docs" / "V1_BETA_12_INSIGHTCARD_FROM_SUMMARY_PLAN.md"
+        check("V1_BETA_12_INSIGHTCARD_FROM_SUMMARY_PLAN.md exists",
+              docs_path.exists(),
+              "docs/V1_BETA_12_INSIGHTCARD_FROM_SUMMARY_PLAN.md should exist")
+
+        # No schema change
+        check("insight modules do not modify DB schema",
+              "add_column" not in models_text.lower() and "add_column" not in service_text.lower(),
+              "should not modify DB schema")
+
+    except Exception as e:
+        check("V1.0-beta.12 InsightCard from Summary checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

@@ -291,6 +291,48 @@
 
 ---
 
+## V1.0-beta.12：基于正文摘要生成 InsightCard（进行中）
+
+> 分支：`feature/v1-beta-12-insightcard-from-summary`
+
+### V1.0-beta.12 目标
+
+从 `SourceItem.raw_metadata_json.summary_json` 生成 InsightCard，打通"来源发现 → 摘要生成 → 洞察卡"完整链路。
+
+### V1.0-beta.12 完成项
+
+- ✅ `app/application/insight/` 目录（insight_models / source_item_insight_service）
+- ✅ `InsightBuildInput` + `InsightBuildResult` + `InsightStatus` + `InsightError` dataclass
+- ✅ 规则映射 summary_json → InsightCard 字段
+- ✅ 规则计算 relevance_score（来源权重+方向+建议数量）
+- ✅ `generate_source_item_insight()` 服务函数
+- ✅ 写入 `SourceItem.insight_card_id` + `raw_metadata_json.insight_status` + `insight_basis=summary_from_snapshot`
+- ✅ 支持 `force=false` 幂等跳过已有卡，`force=true` 更新
+- ✅ `POST /radar/today/items/{id}/generate-insight` 路由
+- ✅ 今日雷达"生成洞察卡"/"查看洞察卡"按钮
+- ✅ `TodayItemCard.can_generate_insight` 字段
+- ✅ `DailyReport` / `DailyBroadcast` 识别已有洞察卡
+- ✅ 不调用 LLM（复用摘要已有内容）
+- ✅ 不改 DB schema
+
+### V1.0-beta.12 暂不改
+
+- ❌ LLM 调用
+- ❌ PDF 处理
+- ❌ TTS
+- ❌ 批量自动生成
+- ❌ 多 Agent
+- ❌ 复杂 RAG
+- ❌ DB schema 变更
+
+### 后续接入方向
+
+- InsightCard 质量增强（可选 LLM 二次加工）
+- InsightCard 导出 PDF
+- InsightCard 分享功能
+
+---
+
 ## 验收标准
 
 - README 准确反映当前能力

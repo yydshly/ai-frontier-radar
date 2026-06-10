@@ -1572,6 +1572,88 @@ def main() -> int:
     except Exception as e:
         check("Summary from Snapshot: checks", False, str(e))
 
+    # ── 30. V1.0-beta.12 InsightCard from Summary ─────────────────────
+    print("\n[30] V1.0-beta.12 InsightCard from Summary")
+    try:
+        insight_dir = Path("app/application/insight")
+        check("insight directory exists",
+              insight_dir.is_dir(),
+              "app/application/insight should exist")
+        check("insight_models.py exists",
+              (insight_dir / "insight_models.py").exists(),
+              "insight_models.py should exist")
+        check("source_item_insight_service.py exists",
+              (insight_dir / "source_item_insight_service.py").exists(),
+              "source_item_insight_service.py should exist")
+
+        models_text = read("app/application/insight/insight_models.py")
+        check("InsightBuildInput dataclass exists",
+              "class InsightBuildInput" in models_text,
+              "InsightBuildInput should exist")
+        check("InsightBuildResult dataclass exists",
+              "class InsightBuildResult" in models_text,
+              "InsightBuildResult should exist")
+        check("InsightStatus class exists",
+              "class InsightStatus" in models_text,
+              "InsightStatus should exist")
+
+        svc_text = read("app/application/insight/source_item_insight_service.py")
+        check("generate_source_item_insight exists",
+              "def generate_source_item_insight" in svc_text,
+              "generate_source_item_insight should exist")
+        check("writes insight_status=generated",
+              "insight_status" in svc_text and "GENERATED" in svc_text,
+              "should write insight_status=generated")
+        check("writes insight_basis=summary_from_snapshot",
+              "summary_from_snapshot" in svc_text,
+              "should write insight_basis=summary_from_snapshot")
+        check("reads summary_status for eligibility",
+              "summary_status" in svc_text,
+              "should check summary_status for eligibility")
+        check("no LLM imports in insight service",
+              "from app.llm" not in svc_text and "import app.llm" not in svc_text,
+              "insight service should not import LLM")
+
+        # Template checks
+        panel_html = read("app/templates/partials/radar_today_panel.html")
+        check("Panel has 生成洞察卡 button",
+              "生成洞察卡" in panel_html,
+              "panel should have generate insight button")
+        check("Panel posts to generate-insight",
+              "generate-insight" in panel_html,
+              "panel should post to generate-insight")
+        check("Panel shows 查看洞察卡 when card exists",
+              "查看洞察卡" in panel_html,
+              "panel should show view insight card link")
+
+        # DailyReport
+        report_text = read("app/application/radar/daily_report_card.py")
+        check("DailyReport uses insight_card_id",
+              "insight_card_id" in report_text,
+              "DailyReport should use insight_card_id")
+        check("DailyReport suggested_action 查看洞察卡",
+              "查看洞察卡" in report_text,
+              "DailyReport should suggest 查看洞察卡")
+
+        # DailyBroadcast
+        broadcast_text = read("app/application/radar/daily_broadcast.py")
+        check("DailyBroadcast handles has_insight",
+              "has_insight" in broadcast_text,
+              "DailyBroadcast should handle has_insight")
+
+        # Docs
+        check("V1_BETA_12 doc exists",
+              Path("docs/V1_BETA_12_INSIGHTCARD_FROM_SUMMARY_PLAN.md").exists(),
+              "V1_BETA_12 doc should exist")
+
+        # No schema change
+        check("no schema change in insight modules",
+              "add_column" not in svc_text.lower(),
+              "insight module should not modify DB schema")
+
+    except Exception as e:
+        check("InsightCard from Summary: checks", False, str(e))
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

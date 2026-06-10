@@ -241,6 +241,8 @@ def radar_today_page(
     summary_skipped: int | None = Query(None, ge=0),
     summary_failed: int | None = Query(None, ge=0),
     summary_details: str | None = Query(None),
+    insight_status: str | None = Query(None),
+    insight_message: str | None = Query(None),
     update_started: int | None = Query(None, ge=0),
     update_running: int | None = Query(None, ge=0),
     update_unsupported: int | None = Query(None, ge=0),
@@ -292,6 +294,13 @@ def radar_today_page(
             "details": _parse_summary_details(summary_details),
         }
 
+    insight_result = None
+    if insight_status is not None:
+        insight_result = {
+            "status": insight_status,
+            "message": insight_message or "",
+        }
+
     update_result = None
     if any(v is not None for v in [
         update_started,
@@ -331,6 +340,7 @@ def radar_today_page(
         }
 
     context["summary_result"] = summary_result
+    context["insight_result"] = insight_result
     context["update_result"] = update_result
     context["bootstrap_result"] = _build_bootstrap_result(
         dry_run=bootstrap_dry_run,
@@ -627,6 +637,54 @@ def generate_today_item_summary(
             "per_page": per_page,
             "summary_status": result.status,
             "summary_message": msg,
+        }
+        return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
+    finally:
+        db.close()
+
+
+@router.post("/today/items/{item_id}/generate-insight")
+def generate_today_item_insight(
+    item_id: int,
+    section: str = Form(ALL_KEY),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Generate an InsightCard from content summary for a radar item.
+
+    This route generates an InsightCard from the existing summary_json.
+    It does NOT call any LLM. Returns redirect to the radar page.
+    """
+    from app.application.insight.source_item_insight_service import generate_source_item_insight
+    from app.application.insight.insight_models import InsightStatus
+
+    db = next(get_db())
+    try:
+        result = generate_source_item_insight(db, item_id, force=False)
+
+        # Build status message for redirect
+        if result.status == InsightStatus.GENERATED:
+            msg = "insight_generated"
+        elif result.status == "updated":
+            msg = "insight_updated"
+        elif result.status == InsightStatus.SKIPPED:
+            msg = "insight_skipped:already_exists"
+        elif result.status == InsightStatus.NOT_ELIGIBLE:
+            msg = f"insight_not_eligible:{result.error or 'no_summary'}"
+        else:
+            msg = f"insight_{result.status}"
+
+        params = {
+            "section": section,
+            "item_id": item_id,
+            "hours": hours,
+            "limit": limit,
+            "page": page,
+            "per_page": per_page,
+            "insight_status": result.status,
+            "insight_message": msg,
         }
         return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
     finally:
