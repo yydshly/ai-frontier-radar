@@ -78,8 +78,7 @@
         <!-- ── Featured sources ────────────────────────────────── -->
         <div class="sidebar-sources">
             <div class="sidebar-section-label">精选来源</div>
-            {% set featured_sources = [] %}
-            {% for src in sources_nav %}
+            {% for src in sources_nav[:5] %}
                 <a href="/sources#src-{{ src.source_key }}" class="sidebar-source-item" title="{{ src.name }}">
                     <span class="sidebar-source-name">{{ src.name }}</span>
                 </a>

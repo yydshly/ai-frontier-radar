@@ -5429,12 +5429,12 @@ def main():
               "source workspace should provide zh preview, summary state and strategy label")
 
         source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
-        check("source workspace template shows get-method and item preview",
-              "获取方式" in source_detail_html
+        check("source workspace template shows strategy and item preview",
+              ("推荐探测方式" in source_detail_html or "获取方式" in source_detail_html)
               and "首次发现" in source_detail_html
               and "摘要状态" in source_detail_html
               and "source-workspace-item-preview" in source_detail_html,
-              "source workspace should display get-method, summary state and Chinese preview")
+              "source workspace should display strategy, summary state and Chinese preview")
     except Exception as e:
         check("optimization roadmap docs checks", False, str(e))
 
@@ -6445,8 +6445,9 @@ def main():
                   "<details" in source_detail_text and "技术详情" in source_detail_text,
                   "source_detail should collapse technical details in <details>")
             check("source_detail has strategy status banner",
-                  "当前优先使用 RSS" in source_detail_text or "HTML index" in source_detail_text,
-                  "source_detail should show strategy status")
+                  ("RSS 优先" in source_detail_text or "HTML 页面探测" in source_detail_text)
+                  and "strategy-chip" in source_detail_text,
+                  "source_detail should show strategy status banner")
             check("source_detail does not show technical details first",
                   source_detail_text.index("技术详情") > source_detail_text.index("最近报告") if "技术详情" in source_detail_text and "最近报告" in source_detail_text else True,
                   "technical details should come after the reports section")
@@ -6885,6 +6886,77 @@ def main():
 
     except Exception as e:
         check("V1.0-beta.12 InsightCard from Summary checks", False, str(e))
+
+    # ── 56. V1.0-beta.13 Source Experience Polish ─────────────────
+    print("\n[56] V1.0-beta.13 Source Experience Polish")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+
+        # sources.html: no duplicate strategy tags
+        sources_html = (project_root / "app" / "templates" / "sources.html").read_text(encoding="utf-8")
+        check("sources.html does not show fetch_strategy twice",
+              sources_html.count("strategy-tag") <= sources_html.count("effective_strategy_label"),
+              "should not display both fetch_strategy and source_type as duplicate tags")
+
+        # effective_strategy_label in sources data
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+        check("effective_strategy_label added to sources data",
+              "effective_strategy_label" in main_py and "_humanize_fetch_error" in main_py,
+              "main.py should provide effective_strategy_label and humanized errors")
+
+        # source cards have simplified buttons
+        check("sources.html has 进入工作台 button",
+              "进入工作台" in sources_html,
+              "source card should have 进入工作台 as primary button")
+        check("sources.html has 运行探测 button",
+              "运行探测" in sources_html,
+              "source card should have 运行探测 button")
+        check("sources.html has 技术详情折叠",
+              "技术详情" in sources_html,
+              "secondary links should be in 技术详情 collapsed section")
+
+        # sidebar limits to 5 featured sources
+        base_html = (project_root / "app" / "templates" / "base.html").read_text(encoding="utf-8")
+        check("sidebar featured sources limited to 5",
+              "sources_nav[:5]" in base_html or "limit(5)" in base_html,
+              "sidebar should limit featured sources to 5 items")
+        check("sidebar has 全部来源 link",
+              "全部来源" in base_html,
+              "sidebar should have 全部来源 link")
+
+        # source_detail.html improvements
+        detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        check("source_detail shows RSS 优先 label",
+              "RSS 优先" in detail_html,
+              "workspace should show RSS 优先 when feed_url exists")
+        check("source_detail shows readable error",
+              "readable_error" in detail_html or "error-msg" in detail_html,
+              "workspace should show humanized error messages")
+        check("source_detail distinguishes 0 discovery from failure",
+              "无新增" in detail_html or "items_found == 0" in detail_html,
+              "workspace should distinguish 0 discovery from failure")
+        check("source_detail shows 推荐探测方式",
+              "推荐探测方式" in detail_html,
+              "workspace should show recommended strategy")
+        check("source_detail shows 实际探测方式",
+              "实际探测方式" in detail_html,
+              "workspace should show actual strategy in use")
+
+        # humanize error helper exists
+        check("_humanize_fetch_error function exists",
+              "def _humanize_fetch_error" in main_py,
+              "should have _humanize_fetch_error helper")
+
+        # no schema changes
+        check("no schema change in beta13",
+              "add_column" not in main_py.lower(),
+              "beta13 should not modify DB schema")
+        check("no ViewModel refactor",
+              "class SourceWorkspaceViewModel" not in main_py,
+              "should not do ViewModel refactor")
+
+    except Exception as e:
+        check("V1.0-beta.13 Source Experience checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

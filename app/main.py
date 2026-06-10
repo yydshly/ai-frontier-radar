@@ -1139,6 +1139,38 @@ def list_sources_page(request: Request, include_test: int = Query(0, ge=0, le=1)
     return _render_sources_page(request, include_test=include_test)
 
 
+# V1.0-beta.13: Human-readable error messages for fetch failures
+_FETCH_ERROR_KEYWORDS: tuple[tuple[list[str], str], ...] = (
+    (["timeout", "timed out"], "请求超时"),
+    (["connection", "connect"], "连接失败"),
+    (["404", "not found", "不存在"], "页面不存在（404）"),
+    (["403", "forbidden", "拒绝访问"], "页面拒绝访问（403）"),
+    (["500", "server error", "服务器错误"], "服务器错误"),
+    (["no candidates", "未发现候选", "没有发现链接"], "未发现任何候选链接"),
+    (["empty", "no content", "内容为空"], "页面内容为空"),
+    (["parse", "解析失败", "structure"], "页面结构解析失败"),
+    (["selector", "css", "xpath"], "页面选择器匹配失败"),
+    (["rss", "feed"], "RSS/Feed 获取失败"),
+    (["encoding", "编码"], "页面编码解析失败"),
+    (["ssl", "certificate", "证书"], "SSL 证书错误"),
+    (["redirect", "重定向"], "页面重定向次数过多"),
+    (["size", "too large", "太大"], "页面体积过大已截断"),
+    (["content-type", "content type", "类型不支持"], "页面内容类型不支持"),
+)
+
+
+def _humanize_fetch_error(error: str | None, strategy: str) -> str | None:
+    """Convert a raw fetch error message to a short Chinese description."""
+    if not error:
+        return None
+    error_lower = error.lower()
+    for keywords, label in _FETCH_ERROR_KEYWORDS:
+        if any(kw.lower() in error_lower for kw in keywords):
+            return f"{label}：{error[:60]}"
+    # No keyword match — return truncated original
+    return error[:80] if len(error) > 80 else error
+
+
 def _render_sources_page(
     request: Request,
     *,
@@ -1168,9 +1200,16 @@ def _render_sources_page(
         health_map = service.get_source_health_map(source_keys)
 
         # Convert to plain dicts for template
+        from app.application.sources.strategy_labels import describe_fetch_strategy
         sources_data = []
         for s in sources_orm:
             health = health_map.get(s.source_key)
+            # V1.0-beta.13: effective strategy label (RSS when feed_url exists)
+            effective_strategy = "rss" if s.feed_url else s.fetch_strategy
+            effective_label = describe_fetch_strategy(effective_strategy)
+            # V1.0-beta.13: readable error message
+            raw_error = (health.latest_error_message if health else None) or s.last_error_message
+            readable_error = _humanize_fetch_error(raw_error, effective_strategy)
             sources_data.append({
                 "source_key": s.source_key,
                 "name": s.name,
@@ -1191,6 +1230,11 @@ def _render_sources_page(
                 "fetch_run_items_found": health.latest_items_found if health else 0,
                 "fetch_run_items_new": health.latest_items_new if health else 0,
                 "fetch_run_error_message": health.latest_error_message if health else None,
+                # V1.0-beta.13: effective strategy label
+                "effective_strategy": effective_strategy,
+                "effective_strategy_label": effective_label,
+                # V1.0-beta.13: readable error
+                "readable_error": readable_error,
             })
 
         return templates.TemplateResponse(
@@ -1335,6 +1379,9 @@ def source_workspace_page(request: Request, source_key: str):
         latest_success_run = next((r for r in recent_runs if r.status == "success"), None)
         latest_failed_run = next((r for r in recent_runs if r.status == "failed"), None)
 
+        # V1.0-beta.13: effective strategy for this source
+        effective_strategy = "rss" if source.feed_url else source.fetch_strategy
+
         # 4b. Stale running FetchRun diagnostics (read-only) for this source.
         from app.application.sources.stale_runs import build_stale_fetch_run_report
 
@@ -1422,6 +1469,8 @@ def source_workspace_page(request: Request, source_key: str):
                 "items_updated": r.items_updated,
                 "items_failed": r.items_failed,
                 "error_message": r.error_message,
+                # V1.0-beta.13: readable error
+                "readable_error": _humanize_fetch_error(r.error_message, effective_strategy),
             }
             for r in recent_runs
         ]
@@ -1447,6 +1496,8 @@ def source_workspace_page(request: Request, source_key: str):
                 "is_radar_source": is_radar_source,
                 "strategy_supported": strategy_supported,
                 "fetch_strategy_label": describe_fetch_strategy(source.fetch_strategy),
+                "effective_strategy": effective_strategy,
+                "effective_strategy_label": describe_fetch_strategy(effective_strategy),
                 "stale_runs": source_stale_runs,
                 "stale_threshold_minutes": stale_report.threshold_minutes,
                 "decision": decision,

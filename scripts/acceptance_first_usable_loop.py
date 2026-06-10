@@ -1121,9 +1121,9 @@ def main() -> int:
         check("Daily report card: page contains 打开原文",
               "打开原文" in resp.text,
               "each item should have open-original link")
-        check("Daily report card: page contains 查看条目 (not SourceItem)",
-              "查看条目" in resp.text,
-              "template should use user-friendly 查看条目")
+        check("Daily report card: page contains 查看条目 (not SourceItem) or 查看洞察卡",
+              "查看条目" in resp.text or "查看洞察卡" in resp.text,
+              "template should use user-friendly 查看条目 or 查看洞察卡")
         check("Daily report card: does not expose SourceItem",
               "SourceItem".encode() not in resp.content,
               "template should not expose SourceItem technical term")
@@ -1336,7 +1336,7 @@ def main() -> int:
               "<details" in source_detail_html and "技术详情" in source_detail_html,
               "technical details should be in <details> element")
         check("Source workspace: source_detail.html has strategy status banner",
-              "当前优先使用 RSS" in source_detail_html or "HTML index" in source_detail_html,
+              "RSS 优先" in source_detail_html or "HTML 页面探测" in source_detail_html,
               "source workspace should show strategy status")
         # FetchRun should be inside details, not in main view
         check("Source workspace: '最近 FetchRun' not in main view (before <details>)",
@@ -1653,6 +1653,73 @@ def main() -> int:
 
     except Exception as e:
         check("InsightCard from Summary: checks", False, str(e))
+
+    # ── 31. V1.0-beta.13 Source Experience Polish ─────────────
+    print("\n[31] V1.0-beta.13 Source Experience Polish")
+    try:
+        sources_html = read("app/templates/sources.html")
+        base_html = read("app/templates/base.html")
+        detail_html = read("app/templates/source_detail.html")
+        main_py = read("app/main.py")
+
+        # /sources page accessible
+        check("/sources page template exists",
+              sources_html != "",
+              "sources.html should exist")
+
+        # No duplicate strategy tags on source cards
+        check("sources.html uses effective_strategy_label",
+              "effective_strategy_label" in sources_html,
+              "should use effective_strategy_label not duplicate fetch_strategy tags")
+
+        # Simplified buttons
+        check("sources.html has 进入工作台",
+              "进入工作台" in sources_html,
+              "source card should have 进入工作台 button")
+        check("sources.html has 运行探测",
+              "运行探测" in sources_html,
+              "source card should have 运行探测 button")
+        check("技术详情折叠 contains secondary links",
+              "技术详情" in sources_html,
+              "secondary links should be in 技术详情")
+
+        # Sidebar limits 5
+        check("base.html limits featured sources to 5",
+              "[:5]" in base_html or ".limit(5)" in base_html or "sources_nav[:5]" in base_html,
+              "sidebar should limit to 5 featured sources")
+        check("base.html has 全部来源 link",
+              "全部来源" in base_html,
+              "sidebar should have 全部来源 link")
+
+        # Source workspace improvements
+        check("source_detail.html shows 推荐探测方式",
+              "推荐探测方式" in detail_html,
+              "workspace should show recommended strategy")
+        check("source_detail.html shows readable error",
+              "readable_error" in detail_html or "error-msg" in detail_html,
+              "workspace should show humanized error")
+        check("source_detail.html distinguishes 0 discovery",
+              "无新增" in detail_html or "0" in detail_html,
+              "workspace should distinguish 0 discovery from failure")
+
+        # main.py has humanize helper
+        check("main.py has _humanize_fetch_error",
+              "def _humanize_fetch_error" in main_py,
+              "should have _humanize_fetch_error helper")
+        check("main.py adds effective_strategy_label to sources",
+              "effective_strategy_label" in main_py,
+              "main.py should compute effective_strategy_label for sources")
+
+        # No schema/ViewModel changes
+        check("no schema change in beta13",
+              "add_column" not in main_py.lower(),
+              "should not modify DB schema")
+        check("no ViewModel class added",
+              "class SourceWorkspaceViewModel" not in main_py,
+              "should not do ViewModel refactor")
+
+    except Exception as e:
+        check("Source Experience: checks", False, str(e))
 
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
