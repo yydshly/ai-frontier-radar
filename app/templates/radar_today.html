@@ -109,7 +109,35 @@
                         <div class="radar-fetch-summary-empty">暂无探测记录</div>
                         {% endif %}
 
+                        {% if scheduler_status %}
+                        <div class="radar-scheduler-status">
+                            <div class="radar-scheduler-title">调度状态</div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">待检查来源</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.due_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">冷却中</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.not_due_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">疑似卡住</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.stale_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">来源缺失</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.missing_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-hint">自动调度：{{ scheduler_status.scheduler_mode_label }}</div>
+                        </div>
+                        {% else %}
+                        <div class="radar-scheduler-hint">调度状态暂不可用</div>
+                        {% endif %}
+
                         <a href="/fetch-runs" class="btn-sm">查看运行记录</a>
+                        {% if scheduler_status %}
+                        <a href="/project-docs/v1-beta-2-scheduler-operations" class="btn-sm">自动调度说明</a>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>

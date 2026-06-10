@@ -4053,6 +4053,57 @@ def main():
     except Exception as e:
         check("V1.0-beta.2 scheduler checkpoint checks", False, str(e))
 
+    # ── 37. V1.0-beta.3 radar scheduler status UI ────────────────────────────
+    print("\n[37] V1.0-beta.3 radar scheduler status UI")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        status_view_py = project_root / "app" / "application" / "radar" / "status_view.py"
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("radar scheduler status view model exists",
+              status_view_py.exists(),
+              "read-only scheduler status view model should exist")
+
+        status_view_text = status_view_py.read_text(encoding="utf-8") if status_view_py.exists() else ""
+
+        check("scheduler status view model is read-only",
+              "compute_due_sources" in status_view_text
+              and "build_stale_fetch_run_report" in status_view_text
+              and "SourceFetchBackgroundService" not in status_view_text
+              and "enqueue_source" not in status_view_text,
+              "scheduler status view should only read due-source + stale data")
+
+        check("radar route wires scheduler_status",
+              "scheduler_status" in radar_route_py
+              and "build_radar_scheduler_status_view" in radar_route_py,
+              "radar route should compute and pass scheduler_status")
+
+        check("radar template shows scheduling status block",
+              "调度状态" in radar_html
+              and "待检查来源" in radar_html
+              and "冷却中" in radar_html
+              and "疑似卡住" in radar_html,
+              "radar today should show a scheduling status sub-block")
+
+        check("radar template exposes auto scheduling doc entry",
+              "自动调度说明" in radar_html
+              and "v1-beta-2-scheduler-operations" in radar_html,
+              "radar today should link to the scheduler operations doc")
+
+        check("radar template does not leak script/env technicals",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN" not in radar_html
+              and "RADAR_SCHEDULER_ENABLED" not in radar_html
+              and "run_due_sources_once.py" not in radar_html,
+              "main radar UI must not surface script names or env vars")
+
+        check("radar scheduler status styles exist",
+              ".radar-scheduler-status" in style_css,
+              "scheduler status sub-block should have dedicated styles")
+    except Exception as e:
+        check("V1.0-beta.3 radar scheduler status checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

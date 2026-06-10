@@ -4388,6 +4388,40 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     line-height: 1.45;
 }
 
+/* V1.0-beta.3 — scheduler status sub-block (read-only, additive) */
+.radar-scheduler-status {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.radar-scheduler-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #24292f;
+}
+
+.radar-scheduler-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: #57606a;
+}
+
+.radar-scheduler-value {
+    color: #24292f;
+    font-weight: 600;
+}
+
+.radar-scheduler-hint {
+    font-size: 0.74rem;
+    color: #57606a;
+    line-height: 1.4;
+}
+
 /* ============================================================
    V1.0-beta — Summary generation per-item diagnostics
    ============================================================ */

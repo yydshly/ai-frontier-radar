@@ -224,6 +224,16 @@ def radar_today_page(
                 "plan_source": update_plan_source or "",
             }
 
+        # V1.0-beta.3: read-only scheduler status for the sidebar block.
+        # Degrades gracefully — never blocks the main reading view.
+        try:
+            from app.application.radar.status_view import (
+                build_radar_scheduler_status_view,
+            )
+            scheduler_status = build_radar_scheduler_status_view(db)
+        except Exception:
+            scheduler_status = None
+
         return _radar_templates.TemplateResponse(
             "radar_today.html",
             {
@@ -233,6 +243,7 @@ def radar_today_page(
                 "safe_external_url": safe_external_url,
                 "summary_result": summary_result,
                 "update_result": update_result,
+                "scheduler_status": scheduler_status,
             },
         )
     finally:
