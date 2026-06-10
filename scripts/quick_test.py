@@ -5413,6 +5413,28 @@ def main():
         check("source workspace counts summarized items in SQL",
               "for item in db.query(SourceItem).filter(SourceItem.source_key == source_key).all():" not in main_py,
               "summarized-items count should use a SQL count, not a Python full scan")
+
+        # P-002 Phase B landing: strategy label helper + enriched article list.
+        strategy_labels = project_root / "app" / "application" / "sources" / "strategy_labels.py"
+        check("fetch strategy label helper exists",
+              strategy_labels.exists()
+              and "def describe_fetch_strategy" in (strategy_labels.read_text(encoding="utf-8") if strategy_labels.exists() else ""),
+              "describe_fetch_strategy helper should exist for source workspace + intake reuse")
+
+        check("source workspace route enriches article list",
+              "build_candidate_display_card" in main_py
+              and "fetch_strategy_label" in main_py
+              and "zh_preview" in main_py
+              and "summary_state" in main_py,
+              "source workspace should provide zh preview, summary state and strategy label")
+
+        source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        check("source workspace template shows get-method and item preview",
+              "获取方式" in source_detail_html
+              and "首次发现" in source_detail_html
+              and "摘要状态" in source_detail_html
+              and "source-workspace-item-preview" in source_detail_html,
+              "source workspace should display get-method, summary state and Chinese preview")
     except Exception as e:
         check("optimization roadmap docs checks", False, str(e))
 

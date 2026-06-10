@@ -191,6 +191,7 @@
                         <a href="{{ source.feed_url }}" target="_blank" rel="noopener">{{ source.feed_url }}</a>
                         {% else %}<span class="source-workspace-muted">未配置</span>{% endif %}
                     </td></tr>
+                    <tr><th>获取方式</th><td>{{ fetch_strategy_label }}</td></tr>
                     <tr><th>抓取策略</th><td>{{ source.fetch_strategy or '未配置' }}</td></tr>
                     <tr><th>来源类型</th><td>{{ source.source_type or '未配置' }}</td></tr>
                     <tr><th>分类</th><td>{{ source.category or '未配置' }}</td></tr>
@@ -261,10 +262,11 @@
                 <table class="source-workspace-table">
                     <thead>
                         <tr>
-                            <th>标题</th>
-                            <th>中文摘要</th>
+                            <th>标题 / 中文摘要</th>
+                            <th>摘要状态</th>
                             <th>InsightCard</th>
-                            <th>最后发现</th>
+                            <th>首次发现</th>
+                            <th>最近发现</th>
                             <th>入口</th>
                         </tr>
                     </thead>
@@ -275,12 +277,17 @@
                                 {% if it.url %}
                                 <a href="{{ it.url }}" target="_blank" rel="noopener">{{ (it.title or it.url)[:70] }}</a>
                                 {% else %}{{ (it.title or '')[:70] }}{% endif %}
+                                {% if it.zh_preview %}
+                                <div class="source-workspace-item-preview">{{ it.zh_preview[:90] }}</div>
+                                {% endif %}
                             </td>
                             <td>
-                                {% if it.has_summary %}
-                                <span class="source-workspace-chip chip-ok">已有</span>
+                                {% if it.summary_state == '已生成中文摘要' %}
+                                <span class="source-workspace-chip chip-ok">{{ it.summary_state }}</span>
+                                {% elif it.summary_state == '仅元数据摘要' %}
+                                <span class="source-workspace-chip chip-warn">{{ it.summary_state }}</span>
                                 {% else %}
-                                <span class="source-workspace-chip chip-off">未生成</span>
+                                <span class="source-workspace-chip chip-off">{{ it.summary_state }}</span>
                                 {% endif %}
                             </td>
                             <td>
@@ -290,7 +297,8 @@
                                 <span class="source-workspace-muted">未生成</span>
                                 {% endif %}
                             </td>
-                            <td>{% if it.last_seen_at %}{{ it.last_seen_at.strftime('%m-%d %H:%M') }}{% else %}-{% endif %}</td>
+                            <td>{% if it.first_seen_at %}{{ it.first_seen_at.strftime('%Y-%m-%d') }}{% else %}-{% endif %}</td>
+                            <td>{% if it.last_seen_at %}{{ it.last_seen_at.strftime('%Y-%m-%d') }}{% else %}-{% endif %}</td>
                             <td><a href="/source-items/{{ it.id }}" class="btn-link">查看</a></td>
                         </tr>
                         {% endfor %}

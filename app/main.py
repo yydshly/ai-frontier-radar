@@ -1237,6 +1237,7 @@ def source_workspace_page(request: Request, source_key: str):
             SUPPORTED_FETCH_STRATEGIES,
             compute_due_sources,
         )
+        from app.application.sources.strategy_labels import describe_fetch_strategy
 
         all_configured = list_sources(include_disabled=True)
         config_by_key = {s.source_key: s for s in all_configured}
@@ -1316,19 +1317,34 @@ def source_workspace_page(request: Request, source_key: str):
             raw = item.raw_metadata_json or ""
             return '"zh_one_liner"' in raw or '"summary_zh"' in raw or '"auto_summary"' in raw
 
-        recent_items_view = [
-            {
+        # P-002: reuse the canonical candidate display helper for the Chinese
+        # one-liner preview — never re-parse summaries here. Only the 20 recent
+        # items are processed (no full-table scan).
+        from app.application.candidates.display import build_candidate_display_card
+
+        def _summary_state(item: SourceItem, uses_zh_one_liner: bool) -> str:
+            if uses_zh_one_liner:
+                return "已生成中文摘要"
+            if _has_summary(item):
+                return "仅元数据摘要"
+            return "未生成"
+
+        recent_items_view = []
+        for it in recent_items:
+            card = build_candidate_display_card(it)
+            recent_items_view.append({
                 "id": it.id,
                 "title": it.title,
                 "url": it.url,
                 "status": it.status,
+                "first_seen_at": it.first_seen_at,
                 "last_seen_at": it.last_seen_at,
                 "published_at": it.published_at,
                 "insight_card_id": it.insight_card_id,
                 "has_summary": _has_summary(it),
-            }
-            for it in recent_items
-        ]
+                "zh_preview": card.primary_text if card.uses_zh_one_liner else None,
+                "summary_state": _summary_state(it, card.uses_zh_one_liner),
+            })
 
         recent_runs_view = [
             {
@@ -1365,6 +1381,7 @@ def source_workspace_page(request: Request, source_key: str):
                 "config_source": config_source,
                 "is_radar_source": is_radar_source,
                 "strategy_supported": strategy_supported,
+                "fetch_strategy_label": describe_fetch_strategy(source.fetch_strategy),
                 "stale_runs": source_stale_runs,
                 "stale_threshold_minutes": stale_report.threshold_minutes,
                 "decision": decision,

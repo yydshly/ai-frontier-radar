@@ -4940,6 +4940,14 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     font-size: 0.85rem;
 }
 
+/* P-002: Chinese one-liner preview under article title */
+.source-workspace-item-preview {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: #57606a;
+    line-height: 1.4;
+}
+
 .source-workspace-chip {
     display: inline-block;
     padding: 0.15rem 0.6rem;

@@ -80,11 +80,19 @@ InsightCard：已生成（链接）/ 未生成
 - 只读：访问前后 FetchRun / SourceItem 数量不变
 - quick_test 增强断言 + acceptance 通过
 
-## 8. 本阶段（设计）不做
+## 8. 落地状态 ✅
 
-- 不实现 helper / 模板改动（留到 Phase B 落地任务）
-- 不实现新抓取策略（属 P-001 后续）
-- 不做来源接入表单（属 P-004）
+Phase B 已落地（只读，无新抓取策略、无来源接入表单）：
+
+- 新增 `app/application/sources/strategy_labels.py: describe_fetch_strategy()`
+  （获取方式中文文案，复用策略词表，供 P-002 与未来 P-004 共用）。
+- `/sources/{source_key}` 路由用 `build_candidate_display_card` 为最近 20 条
+  SourceItem 生成中文一句话预览与摘要状态（不新写摘要解析、不全表扫描）。
+- `source_detail.html`：基础信息新增"获取方式"行；文章列表新增中文摘要预览、
+  摘要状态（已生成中文摘要 / 仅元数据摘要 / 未生成）、首次发现 + 最近发现双时间。
+- 实测：`/sources/{key}` 200、不存在来源 404、访问前后 FetchRun/SourceItem 不变。
+
+后续仍不做：新抓取策略（P-001 实现期）、来源接入表单（P-004）。
 
 参考：[V1_OPTIMIZATION_ROADMAP.md](V1_OPTIMIZATION_ROADMAP.md)、
 [V1_SOURCE_INGESTION_STRATEGY.md](V1_SOURCE_INGESTION_STRATEGY.md)
