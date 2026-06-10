@@ -38,21 +38,26 @@
 
 ---
 
-### Task 2：run_due_sources_once.py dry-run 设计与脚本骨架
+### Task 2：run_due_sources_once.py dry-run 设计与脚本骨架 ✅ 已实现
 
 **目标**：实现 CLI 单轮调度器骨架，**默认 dry-run**，只打印本轮计划，不写库。
 
-**改动范围**：
-- 新增 `scripts/run_due_sources_once.py`
-- 复用 `compute_due_sources()`，只读取 `plan.due`
-- 支持 `--max-sources N`
-- 新增 quick_test 静态断言（默认 dry-run、不含 enqueue 写路径）
+**实现产物**：
+- `scripts/run_due_sources_once.py`
+- 默认 dry-run（无 `--apply`，Task 3 才实现真实执行）
+- 复用 `compute_due_sources()`，只读取计划
+- 支持 `--max-sources N`（校验 N >= 1，非法 exit 2）
+- 支持 `--show-skipped / --show-running / --show-unsupported / --show-missing` 明细
+- 不创建 FetchRun、不触发真实抓取、不调用 LLM
+- 不导入 `SourceFetchBackgroundService`，不调用 `enqueue_source`
+- `scripts/quick_test.py` 新增第 32 节断言（静态 + 轻量运行：dry-run exit 0、非法 max-sources exit 2）
 
 **禁止事项**：默认不得创建 FetchRun、不得调用 LLM、不得改 due-source 逻辑。
 
-**验收标准**：dry-run 打印计划且不创建 FetchRun；`check_stale_fetch_runs.py` stale_count 不变。
+**验收标准**：dry-run 打印计划且不创建 FetchRun（实测 FetchRun count 947→947 不变）；
+`check_stale_fetch_runs.py` stale_count 仍为 0。
 
-**风险**：误把 dry-run 写成真实执行——缓解：apply 必须显式 flag，默认 dry-run。
+**风险**：误把 dry-run 写成真实执行——缓解：本任务不实现 `--apply`，默认 dry-run。
 
 ---
 

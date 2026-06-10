@@ -379,6 +379,9 @@ python scripts/check_card_encoding.py
 
 # 卡片详情页 HTML 编码检查
 python scripts/check_card_page.py
+
+# due-source 单轮调度计划（dry-run，只读，不创建 FetchRun）
+python scripts/run_due_sources_once.py
 ```
 
 ---

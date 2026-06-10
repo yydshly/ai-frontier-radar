@@ -85,8 +85,12 @@ V1.0-beta.2 自动调度必须遵守：
 
 ```bash
 python scripts/run_due_sources_once.py            # dry-run（默认）
-python scripts/run_due_sources_once.py --apply    # 真实创建 FetchRun
+python scripts/run_due_sources_once.py --apply    # 真实创建 FetchRun（Task 3 才实现）
 ```
+
+> **当前进度（Task 2）**：CLI dry-run 骨架已实现。当前脚本只打印本轮 due-source
+> 计划（due / skipped / running / unsupported / missing + would_start + reason_summary），
+> **不创建 FetchRun**。`--apply` 尚未实现，将在 Task 3 中另行加入。
 
 行为：
 

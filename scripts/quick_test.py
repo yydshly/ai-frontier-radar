@@ -3719,6 +3719,76 @@ def main():
     except Exception as e:
         check("V1.0-beta.2 scheduling docs checks", False, str(e))
 
+    # ── 32. V1.0-beta.2 run_due_sources_once dry-run CLI ─────────────────────
+    print("\n[32] V1.0-beta.2 run_due_sources_once dry-run CLI")
+    try:
+        import subprocess
+
+        project_root = Path(__file__).resolve().parents[1]
+        scheduler_script = project_root / "scripts" / "run_due_sources_once.py"
+
+        check("run_due_sources_once script exists",
+              scheduler_script.exists(),
+              "dry-run scheduler CLI should exist")
+
+        scheduler_text = scheduler_script.read_text(encoding="utf-8") if scheduler_script.exists() else ""
+
+        check("run_due_sources_once uses compute_due_sources",
+              "compute_due_sources" in scheduler_text,
+              "dry-run scheduler should reuse due-source plan")
+
+        check("run_due_sources_once is dry-run only",
+              "DRY-RUN" in scheduler_text
+              and "No FetchRun created" in scheduler_text,
+              "Task 2 scheduler should clearly be dry-run only")
+
+        check("run_due_sources_once does not enqueue background fetch",
+              "SourceFetchBackgroundService" not in scheduler_text
+              and "enqueue_source" not in scheduler_text
+              and "BackgroundTasks" not in scheduler_text,
+              "Task 2 scheduler must not trigger real fetches")
+
+        check("run_due_sources_once validates max sources",
+              "--max-sources" in scheduler_text
+              and "must be >= 1" in scheduler_text,
+              "scheduler CLI should validate --max-sources")
+
+        check("run_due_sources_once exposes detail flags",
+              "--show-skipped" in scheduler_text
+              and "--show-running" in scheduler_text
+              and "--show-unsupported" in scheduler_text
+              and "--show-missing" in scheduler_text,
+              "scheduler CLI should expose optional detail flags")
+
+        result = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once dry-run exits 0",
+              result.returncode == 0,
+              result.stdout + result.stderr)
+        check("run_due_sources_once dry-run prints plan summary",
+              "DRY-RUN" in result.stdout
+              and "would_start:" in result.stdout
+              and "No FetchRun created" in result.stdout,
+              "dry-run output should include plan summary and dry-run notice")
+
+        bad = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py", "--max-sources", "0"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once rejects invalid max-sources with exit 2",
+              bad.returncode == 2,
+              bad.stdout + bad.stderr)
+    except Exception as e:
+        check("V1.0-beta.2 scheduler CLI checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
