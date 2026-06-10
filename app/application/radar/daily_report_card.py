@@ -57,14 +57,33 @@ _SOURCE_WEIGHTS: dict[str, float] = {
     "berkeley_bair_blog": 1.3,
 }
 
+# Source key → user-friendly display name.
+_SOURCE_DISPLAY_NAMES: dict[str, str] = {
+    "openai_news": "OpenAI",
+    "anthropic_news": "Anthropic",
+    "deepmind_blog": "Google DeepMind",
+    "huggingface_blog": "Hugging Face",
+    "meta_ai_blog": "Meta AI",
+    "nvidia_ai_blog": "NVIDIA AI",
+    "microsoft_ai_source": "Microsoft AI",
+    "stanford_hai": "Stanford HAI",
+    "mit_news_ai": "MIT AI",
+    "arxiv_cs_ai": "arXiv CS.AI",
+    "arxiv_cs_cl": "arXiv CS.CL",
+    "arxiv_cs_lg": "arXiv CS.LG",
+    "mistral_ai_news": "Mistral AI",
+    "cohere_blog": "Cohere",
+    "berkeley_bair_blog": "Berkeley BAIR",
+}
+
 # Keyword → Chinese label mapping for display.
 _DIRECTION_LABELS: dict[str, str] = {
     # Agent / workflow
-    "agent": "多 Agent / Agent 工作流",
-    "multi-agent": "多 Agent / Agent 工作流",
+    "agent": "Agent 工作流",
+    "multi-agent": "多 Agent",
     # Knowledge
     "rag": "RAG / 知识库",
-    "knowledge base": "RAG / 知识库",
+    "knowledge base": "知识库",
     "document understanding": "文档理解",
     "embedding": "向量 Embedding",
     "vector": "向量检索",
@@ -84,8 +103,8 @@ _DIRECTION_LABELS: dict[str, str] = {
     # Model releases
     "model": "模型发布",
     "release": "模型发布",
-    "benchmark": "评测 / Benchmark",
-    "evaluation": "评测 / Benchmark",
+    "benchmark": "评测基准",
+    "evaluation": "评测基准",
     "research": "研究报告",
     "roadmap": "路线图",
     "paper": "论文",
@@ -100,9 +119,8 @@ _DIRECTION_LABELS: dict[str, str] = {
     "synthetic data": "合成数据",
     "data engineering": "数据工程",
     "pipeline": "流程编排",
-    "finetuning": "微调",
     "multimodal": "多模态",
-    "policy": "政策与治理",
+    "policy": "政策 / 产业",
     "law": "政策法规",
     "regulation": "政策法规",
     "government": "政府动态",
@@ -113,11 +131,11 @@ _DIRECTION_LABELS: dict[str, str] = {
     "acquisition": "收购并购",
     "generation": "内容生成",
     "LangChain": "LangChain",
-    # Companies
+    # Companies (not direction labels — for source display)
     "openai": "OpenAI",
-    "anthropic": "Anthropic / Claude",
-    "claude": "Anthropic / Claude",
-    "deepmind": "Google DeepMind",
+    "anthropic": "Anthropic",
+    "claude": "Claude",
+    "deepmind": "DeepMind",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "google": "Google",
@@ -134,8 +152,8 @@ _DIRECTION_LABELS: dict[str, str] = {
 
 
 # Primary card limits.
-_PRIMARY_MIN = 3   # minimum primary items when content is sufficient
-_PRIMARY_MAX = 5   # maximum primary items
+_PRIMARY_MIN = 3
+_PRIMARY_MAX = 5
 
 
 @dataclass(frozen=True)
@@ -145,6 +163,7 @@ class DailyReportPrimaryItem:
     insight_card_id: int | None
     title: str
     source_key: str
+    source_label: str
     url: str | None
     zh_one_liner: str | None
     reason: str
@@ -158,6 +177,7 @@ class DailyReportSecondaryItem:
     item_id: int
     title: str
     source_key: str
+    source_label: str
     url: str | None
     brief: str | None
     tags: list[str] = field(default_factory=list)
@@ -180,6 +200,7 @@ class DailyReportCard:
     overview: DailyReportOverview
     primary_items: list[DailyReportPrimaryItem] = field(default_factory=list)
     secondary_items: list[DailyReportSecondaryItem] = field(default_factory=list)
+    secondary_all_shown: bool = True
 
 
 def _read_raw_metadata(item: SourceItem) -> dict[str, Any]:
@@ -211,31 +232,26 @@ def _score_item(item: SourceItem, now: datetime) -> float:
     """Score a SourceItem for ranking. Higher = more important."""
     raw = _read_raw_metadata(item)
 
-    # 1. Source weight (most significant factor).
     source_weight = _SOURCE_WEIGHTS.get(item.source_key, 1.0)
-
-    # 2. Strong-signal keyword match.
     title_lower = (item.title or "").lower()
+
     signal_matches = sum(
         1 for kw in _STRONG_SIGNAL_KEYWORDS
         if kw in title_lower
     )
 
-    # 3. User interest keyword match.
     interest_matches = sum(
         1 for kw in _INTEREST_KEYWORDS
         if kw in title_lower
     )
 
-    # 4. Content availability bonuses.
     has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
     has_summary = bool(str(raw.get("zh_summary") or "").strip())
     has_insight = item.status == "compiled" and item.insight_card_id
     content_bonus = (has_one_liner * 0.5) + (has_summary * 0.3) + (has_insight * 1.0)
 
-    # 5. Freshness: prefer newer items.
     hours_old_val = _hours_old(item.published_at or item.first_seen_at, now)
-    freshness = math.exp(-hours_old_val / 48)  # decay half-life ~48h
+    freshness = math.exp(-hours_old_val / 48)
 
     return (
         source_weight * 3.0
@@ -257,32 +273,39 @@ def _extract_directions(text: str) -> list[str]:
             if label not in seen:
                 matched.append(label)
                 seen.add(label)
-    return matched[:5]  # cap at 5
+    return matched[:5]
 
 
 def _build_reason(source_key: str, directions: list[str], has_insight: bool) -> str:
     """Build a natural Chinese reason sentence for a primary item."""
     source_weight = _SOURCE_WEIGHTS.get(source_key, 1.0)
     is_high_weight = source_weight >= 1.8
+    source_label = _SOURCE_DISPLAY_NAMES.get(source_key, source_key)
 
-    # Build parts
     parts: list[str] = []
 
-    if is_high_weight and directions:
-        parts.append("高权重来源")
-    elif is_high_weight:
-        parts.append("重要来源")
+    # High-weight source gets mentioned by name
+    if is_high_weight:
+        parts.append(f"来自 {source_label} 官方来源")
     elif directions:
-        parts.append("值得关注")
+        parts.append(f"来自 {source_label}")
 
+    # Add direction context
     if directions:
-        direction_str = "、".join(directions[:2])
-        parts.append(f"涉及{direction_str}")
+        # Pick the most meaningful direction for the reason
+        primary_dir = directions[0]
+        parts.append(f"涉及 {primary_dir}")
 
     if has_insight:
         parts.append("已有洞察卡片")
 
-    return "，".join(parts) if parts else "今日重要更新"
+    result = "，".join(parts)
+    return result if result else "今日重要更新"
+
+
+def _source_label(source_key: str) -> str:
+    """Return user-friendly source name."""
+    return _SOURCE_DISPLAY_NAMES.get(source_key, source_key)
 
 
 def build_daily_report_card(
@@ -301,7 +324,6 @@ def build_daily_report_card(
         now = datetime.utcnow()
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Query today's items.
     rows = (
         db.query(SourceItem)
         .filter(SourceItem.first_seen_at >= day_start)
@@ -321,11 +343,9 @@ def build_daily_report_card(
             ),
         )
 
-    # Score and sort.
     scored = [(_score_item(r, now), r) for r in rows]
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # Build overview.
     source_keys: set[str] = set()
     with_one_liner = 0
     with_summary = 0
@@ -348,14 +368,12 @@ def build_daily_report_card(
         covered_sources=len(source_keys),
     )
 
-    # Determine primary count: 3-5 when enough items exist.
     total = len(rows)
     if total >= primary_min:
         primary_count = min(primary_max, max(primary_min, total))
     else:
         primary_count = total
 
-    # Top items = primary.
     primary_rows = [r for _, r in scored[:primary_count]]
     primary_items: list[DailyReportPrimaryItem] = []
     for item in primary_rows:
@@ -366,9 +384,8 @@ def build_daily_report_card(
         reason = _build_reason(item.source_key, directions, has_insight)
         zh_one_liner = str(raw.get("zh_one_liner") or "").strip() or None
 
-        # Suggested action based on state.
         if has_insight:
-            suggested = "查看 InsightCard"
+            suggested = "查看洞察卡"
         elif zh_one_liner:
             suggested = "阅读中文概述"
         else:
@@ -379,6 +396,7 @@ def build_daily_report_card(
             insight_card_id=item.insight_card_id if has_insight else None,
             title=title,
             source_key=item.source_key,
+            source_label=_source_label(item.source_key),
             url=item.url,
             zh_one_liner=zh_one_liner,
             reason=reason,
@@ -386,7 +404,6 @@ def build_daily_report_card(
             suggested_action=suggested,
         ))
 
-    # Remaining = secondary.
     secondary_rows = [r for _, r in scored[primary_count:primary_count + secondary_limit]]
     secondary_items: list[DailyReportSecondaryItem] = []
     for item in secondary_rows:
@@ -399,14 +416,19 @@ def build_daily_report_card(
             item_id=item.id,
             title=title,
             source_key=item.source_key,
+            source_label=_source_label(item.source_key),
             url=item.url,
             brief=brief,
             tags=directions[:3],
         ))
+
+    # secondary_all_shown = True means all remaining items are shown (no truncation)
+    secondary_all_shown = len(scored) <= primary_count + secondary_limit
 
     return DailyReportCard(
         date_label=day_start.strftime("%Y-%m-%d"),
         overview=overview,
         primary_items=primary_items,
         secondary_items=secondary_items,
+        secondary_all_shown=secondary_all_shown,
     )

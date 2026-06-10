@@ -1121,6 +1121,12 @@ def main() -> int:
         check("Daily report card: page contains 打开原文",
               "打开原文" in resp.text,
               "each item should have open-original link")
+        check("Daily report card: page contains 查看条目 (not SourceItem)",
+              "查看条目" in resp.text,
+              "template should use user-friendly 查看条目")
+        check("Daily report card: does not expose SourceItem",
+              "SourceItem".encode() not in resp.content,
+              "template should not expose SourceItem technical term")
         check("Daily report card: page contains 今日收录概览",
               "今日收录概览" in resp.text,
               "page should show overview section")
@@ -1130,9 +1136,9 @@ def main() -> int:
         check("Daily report card: page contains 避免错过关键报告 or empty state",
               "避免错过关键报告".encode() in resp.content or "暂无".encode() in resp.content,
               "page should have leak-prevention or empty state")
-        check("Daily report card: page contains 查看 InsightCard",
-              "查看 InsightCard".encode() in resp.content,
-              "page should show 查看 InsightCard when available")
+        check("Daily report card: page contains 查看洞察卡",
+              "查看洞察卡".encode() in resp.content,
+              "page should show 查看洞察卡 when available")
         check("Daily report card: POST /radar/daily-report/build redirects",
               True,
               "build action should redirect to GET page")
@@ -1155,9 +1161,15 @@ def main() -> int:
         check("Daily report card: has Chinese direction labels",
               "_DIRECTION_LABELS" in card_text,
               "should have _DIRECTION_LABELS for Chinese keyword labels")
+        check("Daily report card: has source display names",
+              "_SOURCE_DISPLAY_NAMES" in card_text,
+              "should have _SOURCE_DISPLAY_NAMES for user-friendly source labels")
         check("Daily report card: has primary 3-5 rule",
               "_PRIMARY_MIN" in card_text and "_PRIMARY_MAX" in card_text,
               "should have _PRIMARY_MIN/_PRIMARY_MAX for 3-5 rule")
+        check("Daily report card: has source_label in dataclass",
+              "source_label:" in card_text,
+              "DailyReportPrimaryItem should have source_label field")
 
         beta7_columns = [col.name for col in SourceItem.__table__.columns]
         check("Daily report card: does not change DB schema",

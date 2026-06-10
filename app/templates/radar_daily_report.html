@@ -69,13 +69,20 @@
             {% for item in primary_items %}
             <div class="radar-report-primary-item">
                 <div class="radar-report-primary-header">
-                    <span class="radar-report-source-tag">{{ item.source_key }}</span>
+                    <span class="radar-report-source-tag">{{ item.source_label }}</span>
                     <span class="radar-report-reason">{{ item.reason }}</span>
                 </div>
-                <h3 class="radar-report-primary-title">{{ item.title }}</h3>
+
+                {# ── Primary text: Chinese overview as main, English as subtitle ── #}
                 {% if item.zh_one_liner %}
-                <p class="radar-report-primary-summary">{{ item.zh_one_liner }}</p>
+                <h3 class="radar-report-primary-summary">{{ item.zh_one_liner }}</h3>
+                <p class="radar-report-original-title">英文原题：{{ item.title }}</p>
+                {% else %}
+                <h3 class="radar-report-primary-summary">待生成中文概述</h3>
+                <p class="radar-report-original-title">{{ item.title }}</p>
                 {% endif %}
+
+                {# ── Direction tags ── #}
                 {% if item.related_directions %}
                 <div class="radar-report-tags">
                     {% for tag in item.related_directions %}
@@ -83,16 +90,18 @@
                     {% endfor %}
                 </div>
                 {% endif %}
+
+                {# ── Actions ── #}
                 <div class="radar-report-primary-actions">
                     {% if item.url %}
                     <a href="{{ item.url }}" target="_blank" rel="noopener" class="radar-report-action-link">打开原文</a>
                     {% endif %}
                     {% if item.insight_card_id %}
-                    <a href="/cards/{{ item.insight_card_id }}" class="radar-report-action-link">查看 InsightCard</a>
+                    <a href="/cards/{{ item.insight_card_id }}" class="radar-report-action-link">查看洞察卡</a>
                     {% else %}
-                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看详情</a>
+                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看条目</a>
                     {% endif %}
-                    {% if item.suggested_action and not item.insight_card_id %}
+                    {% if item.suggested_action %}
                     <span class="radar-report-action-hint">{{ item.suggested_action }}</span>
                     {% endif %}
                 </div>
@@ -108,13 +117,14 @@
             <h2 class="radar-report-section-title">其他值得扫一眼</h2>
             <span class="radar-report-section-count">{{ secondary_items|length }} 条</span>
         </div>
+
         {% if secondary_items %}
         <p class="radar-report-secondary-hint">以下内容未进入今日必看，但仍建议扫一眼，避免错过关键报告。</p>
         <div class="radar-report-secondary-list">
             {% for item in secondary_items %}
             <div class="radar-report-secondary-item">
                 <div class="radar-report-secondary-header">
-                    <span class="radar-report-source-tag">{{ item.source_key }}</span>
+                    <span class="radar-report-source-tag">{{ item.source_label }}</span>
                     {% if item.tags %}
                     {% for tag in item.tags %}
                     <span class="radar-report-tag">{{ tag }}</span>
@@ -122,20 +132,29 @@
                     {% endif %}
                 </div>
                 <div class="radar-report-secondary-content">
-                    <h4 class="radar-report-secondary-title">{{ item.title }}</h4>
+                    {# ── Brief as main, title as subtitle ── #}
                     {% if item.brief %}
-                    <p class="radar-report-secondary-brief">{{ item.brief }}</p>
+                    <h4 class="radar-report-secondary-title">{{ item.brief }}</h4>
+                    <p class="radar-report-secondary-original">{{ item.title }}</p>
+                    {% else %}
+                    <h4 class="radar-report-secondary-title">待生成中文概述</h4>
+                    <p class="radar-report-secondary-original">{{ item.title }}</p>
                     {% endif %}
                 </div>
                 <div class="radar-report-secondary-actions">
                     {% if item.url %}
                     <a href="{{ item.url }}" target="_blank" rel="noopener" class="radar-report-action-link">打开原文</a>
                     {% endif %}
-                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看详情</a>
+                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看条目</a>
                 </div>
             </div>
             {% endfor %}
         </div>
+
+        {% elif overview.total_items > 0 and secondary_all_shown %}
+        {# Secondary is empty because all content made it to primary #}
+        <p class="radar-report-secondary-hint">今日发现内容较少，暂无次要条目；所有内容已进入今日必看。</p>
+
         {% else %}
         <p class="radar-report-secondary-hint">暂无其他内容。</p>
         {% endif %}
@@ -143,7 +162,7 @@
 
     {% endif %}
 
-    {# ── Back link ─────────────────────────────────────── #}
+    {# ── Footer ─────────────────────────────────────── #}
     <div class="radar-report-footer">
         <a href="/radar/today" class="btn btn-secondary">返回今日雷达</a>
     </div>

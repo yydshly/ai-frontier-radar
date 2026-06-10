@@ -5379,3 +5379,27 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     padding-top: 1rem;
     border-top: 1px solid #e0e0e0;
 }
+
+.radar-report-primary-summary {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #212121;
+    margin: 0 0 0.3rem;
+    line-height: 1.5;
+}
+
+.radar-report-original-title {
+    font-size: 0.8rem;
+    color: #888;
+    margin: 0 0 0.5rem;
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.radar-report-secondary-original {
+    font-size: 0.75rem;
+    color: #888;
+    margin: 0.1rem 0 0;
+    font-style: italic;
+    line-height: 1.3;
+}

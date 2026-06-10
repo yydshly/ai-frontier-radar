@@ -6207,6 +6207,14 @@ def main():
               "打开原文" in radar_html,
               "each item should have 打开原文 link")
 
+        check("Template has 查看条目 (not SourceItem)",
+              "查看条目" in radar_html,
+              "template should use user-friendly 查看条目 not SourceItem")
+
+        check("Template does not expose SourceItem",
+              "SourceItem" not in radar_html,
+              "template should not expose SourceItem technical term")
+
         check("Template has 今日收录概览",
               "今日收录概览" in radar_html,
               "template should have overview section")
@@ -6219,9 +6227,9 @@ def main():
               "避免错过关键报告" in radar_html,
               "template should have leak-prevention message for secondary items")
 
-        check("Template has 查看 InsightCard link",
-              "查看 InsightCard" in radar_html,
-              "template should show 查看 InsightCard link when available")
+        check("Template has 查看洞察卡 link",
+              "查看洞察卡" in radar_html,
+              "template should show 查看洞察卡 link when available")
 
         check("Template has empty state",
               "今日暂无内容" in radar_html or "暂无" in radar_html,
