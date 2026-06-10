@@ -548,14 +548,14 @@
             // Restore saved state
             if (localStorage.getItem(STORAGE_KEY) === "1") {
               shell.classList.add("radar-directory-collapsed");
-              toggle.textContent = "展开目录";
+              toggle.textContent = "展开";
               toggle.title = "展开目录";
             }
             // Toggle handler
             toggle.addEventListener("click", function () {
               var collapsed = shell.classList.toggle("radar-directory-collapsed");
               localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
-              toggle.textContent = collapsed ? "展开目录" : "收起目录";
+              toggle.textContent = collapsed ? "展开" : "收起目录";
               toggle.title = collapsed ? "展开目录" : "收起目录";
             });
           }

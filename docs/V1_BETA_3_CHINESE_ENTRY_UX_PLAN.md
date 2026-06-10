@@ -188,6 +188,22 @@
 
 ---
 
+## 11.1 Task 7.1：目录栏收起后真正释放空间
+
+- 修正 Task 7 中只隐藏内容但不释放宽度的问题
+- 收起后目录列从 220px 缩小到约 52px
+- 主列表获得更多横向空间
+- 最左侧深色全局导航保持不变
+- 收起态按钮使用短文案「展开」，提升窄条使用体感
+
+具体改动：
+- `.radar-workbench-shell.radar-directory-collapsed .radar-layout` 的 `grid-template-columns` 第一列从 220px 改为 52px
+- 收起后 sidebar 使用 `overflow: hidden` 防止内容溢出
+- 收起后只显示 header 和 toggle button，隐藏「目录」文字
+- 收起后按钮文案为「展开」，title 为「展开目录」
+
+---
+
 ## 12. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划

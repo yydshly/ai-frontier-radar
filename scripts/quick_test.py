@@ -4574,6 +4574,70 @@ def main():
         check("radar_today.html still contains 智能阅读面板",
               "智能阅读面板" in radar_html,
               "reading panel must be preserved")
+
+        # 11. style.css has .radar-directory-collapsed .radar-layout (or equivalent).
+        check("style.css has collapsed .radar-layout selector",
+              "radar-directory-collapsed" in style_css
+              and ".radar-layout" in style_css,
+              "collapsed radar-layout rule must exist")
+
+        # 12. collapsed layout defines grid-template-columns.
+        _collapsed_layout_pos = style_css.find("radar-directory-collapsed")
+        if _collapsed_layout_pos >= 0:
+            _collapsed_snippet = style_css[_collapsed_layout_pos:_collapsed_layout_pos + 500]
+            _has_grid_in_collapsed = "grid-template-columns" in _collapsed_snippet
+        else:
+            _has_grid_in_collapsed = False
+        check("style.css collapsed layout defines grid-template-columns",
+              _has_grid_in_collapsed,
+              "collapsed layout must override grid-template-columns")
+
+        # 13. collapsed layout first column uses 48px/52px/56px.
+        _collapsed_layout_pos = style_css.find("radar-directory-collapsed")
+        if _collapsed_layout_pos >= 0:
+            _collapsed_snippet = style_css[_collapsed_layout_pos:_collapsed_layout_pos + 500]
+            _has_small_first_col = (
+                "48px" in _collapsed_snippet
+                or "52px" in _collapsed_snippet
+                or "56px" in _collapsed_snippet
+            )
+        else:
+            _has_small_first_col = False
+        check("style.css collapsed first column is 48px/52px/56px",
+              _has_small_first_col,
+              "collapsed first column must be 48-56px to free main list space")
+
+        # 14. collapsed state hides .radar-directory-content via display:none.
+        _collapsed_dir_content = style_css.find("radar-directory-collapsed")
+        if _collapsed_dir_content >= 0:
+            _dir_content_snippet = style_css[_collapsed_dir_content:_collapsed_dir_content + 500]
+            _has_display_none = "display: none" in _dir_content_snippet or "display:none" in _dir_content_snippet
+        else:
+            _has_display_none = False
+        check("style.css collapsed hides directory-content via display:none",
+              _has_display_none,
+              "collapsed state must hide directory content with display:none")
+
+        # 15. collapsed state does NOT use overflow:visible on sidebar.
+        _collapsed_sidebar_pos = style_css.find("radar-directory-collapsed .radar-sidebar")
+        if _collapsed_sidebar_pos >= 0:
+            _sidebar_snippet = style_css[_collapsed_sidebar_pos:_collapsed_sidebar_pos + 200]
+            _no_overflow_visible = "overflow: visible" not in _sidebar_snippet and "overflow:visible" not in _sidebar_snippet
+        else:
+            _no_overflow_visible = True  # If not found, it's fine (not overridden)
+        check("style.css collapsed sidebar does NOT use overflow:visible",
+              _no_overflow_visible,
+              "collapsed sidebar must not use overflow:visible")
+
+        # 16. radar_today.html has short "展开" text for collapsed state.
+        check("radar_today.html has short '展开' text for collapsed state",
+              '"展开"' in radar_html or "'展开'" in radar_html,
+              "collapsed button must show short '展开' text")
+
+        # 17. radar_today.html has title with "展开目录".
+        check("radar_today.html title contains '展开目录'",
+              "展开目录" in radar_html,
+              "toggle button must have title with '展开目录'")
     except Exception as e:
         check("V1.0-beta.3 Collapsible radar directory checks", False, str(e))
 

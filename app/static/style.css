@@ -3947,9 +3947,13 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     overflow-y: auto;
 }
 
-/* Collapsed state */
+/* Collapsed state — shrink the first column to free up main list space */
+.radar-workbench-shell.radar-directory-collapsed .radar-layout {
+    grid-template-columns: 52px minmax(0, 1fr) 360px;
+}
+
 .radar-workbench-shell.radar-directory-collapsed .radar-sidebar {
-    overflow: visible;
+    overflow: hidden;
 }
 
 .radar-workbench-shell.radar-directory-collapsed .radar-directory-content {
@@ -3957,19 +3961,25 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 }
 
 .radar-workbench-shell.radar-directory-collapsed .radar-directory-header {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
     flex-direction: column;
+    align-items: center;
     justify-content: flex-start;
+    gap: 0.35rem;
     margin-bottom: 0;
     padding: 0.25rem 0;
-    gap: 0.5rem;
+}
+
+.radar-workbench-shell.radar-directory-collapsed .radar-sidebar-label {
+    display: none;
 }
 
 .radar-workbench-shell.radar-directory-collapsed .radar-directory-toggle {
-    writing-mode: horizontal-tb;
-    text-orientation: mixed;
-    font-size: 0.75rem;
+    width: 40px;
+    padding: 0.3rem 0.2rem;
+    font-size: 0.7rem;
+    white-space: normal;
+    line-height: 1.2;
+    text-align: center;
 }
 
 .radar-main {
