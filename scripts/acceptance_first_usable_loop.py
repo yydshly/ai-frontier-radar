@@ -978,6 +978,106 @@ def main() -> int:
               before_columns == after_columns,
               "source_items columns must be unchanged")
 
+    print("\n[24] Source discovery bootstrap and daily increment")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created - skipping source discovery tests")
+    else:
+        from app.db import SessionLocal
+        from app.models import SourceItem
+        from app.application.sources.discovery_runs import (
+            DAILY_INCREMENT_MODE,
+            SourceDiscoveryRunSettings,
+            run_source_discovery,
+        )
+        from app.application.sources.due_sources import compute_due_sources
+
+        before_columns = [col.name for col in SourceItem.__table__.columns]
+
+        today_resp = _client.get("/radar/today")
+        check("Source discovery: today radar opens",
+              today_resp.status_code == 200,
+              "GET /radar/today should render")
+        check("Source discovery: page contains bootstrap/update entries",
+              "初始化来源内容" in today_resp.text and "更新今日新增" in today_resp.text,
+              "today radar should expose initialization and daily increment entries")
+
+        get_bootstrap_resp = _client.get("/radar/today/bootstrap")
+        check("Source discovery: GET bootstrap not allowed",
+              get_bootstrap_resp.status_code in (404, 405),
+              "GET bootstrap must not trigger side effects")
+
+        db = SessionLocal()
+        try:
+            before_count = db.query(SourceItem).count()
+        finally:
+            db.close()
+
+        post_bootstrap_resp = _client.post(
+            "/radar/today/bootstrap",
+            data={
+                "action": "dry_run",
+                "max_items_per_source": "20",
+                "max_sources": "1",
+                "section": "all",
+                "hours": "24",
+                "limit": "50",
+                "page": "1",
+                "per_page": "20",
+            },
+            follow_redirects=True,
+        )
+        db = SessionLocal()
+        try:
+            after_bootstrap_count = db.query(SourceItem).count()
+        finally:
+            db.close()
+        check("Source discovery: POST bootstrap dry-run renders",
+              post_bootstrap_resp.status_code == 200 and "dry-run" in post_bootstrap_resp.text,
+              "bootstrap dry-run should return to today radar")
+        check("Source discovery: POST bootstrap dry-run does not write SourceItem",
+              before_count == after_bootstrap_count,
+              "bootstrap dry-run must not write SourceItem rows")
+
+        db = SessionLocal()
+        try:
+            before_daily_count = db.query(SourceItem).count()
+            result = run_source_discovery(
+                db,
+                SourceDiscoveryRunSettings(
+                    mode=DAILY_INCREMENT_MODE,
+                    max_items_per_source=20,
+                    max_sources=1,
+                    dry_run=True,
+                ),
+            )
+            after_daily_count = db.query(SourceItem).count()
+            due_plan = compute_due_sources(db, max_sources=1)
+        finally:
+            db.close()
+        check("Source discovery: daily_increment dry-run does not write SourceItem",
+              result.dry_run and before_daily_count == after_daily_count,
+              "daily_increment dry-run must be read-only")
+        check("Source discovery: check_due_sources equivalent runs",
+              due_plan.total_configured >= 0,
+              "compute_due_sources should still run")
+
+        radar_route_text = read("app/routes/radar.py")
+        discovery_text = read("app/application/sources/discovery_runs.py")
+        check("Source discovery: route does not call LLM",
+              "def bootstrap_today_sources" in radar_route_text
+              and "CandidateOneLinerService" not in radar_route_text.split("def bootstrap_today_sources", 1)[1].split("@router.post", 1)[0],
+              "bootstrap route must not call LLM")
+        check("Source discovery: discovery service does not call LLM",
+              "CandidateOneLinerService" not in discovery_text
+              and "create_llm_client" not in discovery_text
+              and "generate_json" not in discovery_text,
+              "discovery service must not call LLM")
+
+        after_columns = [col.name for col in SourceItem.__table__.columns]
+        check("Source discovery: does not change DB schema",
+              before_columns == after_columns,
+              "source_items schema should be unchanged")
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

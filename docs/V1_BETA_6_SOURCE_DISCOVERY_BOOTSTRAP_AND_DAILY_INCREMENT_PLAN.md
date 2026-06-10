@@ -51,6 +51,39 @@
 - 正文状态：`content_fetch_status` 或已有正文快照线索
 - InsightCard：`SourceItem.status` / `insight_card_id`
 
+## V1.0-beta.6.2 实际入口
+
+本轮实现的是已有 YAML 来源的最小发现入口，不实现新抓取器。
+
+- UI：`POST /radar/today/bootstrap`
+  - 今日雷达左侧显示“初始化来源内容”。
+  - 默认执行 dry-run，只展示会检查多少来源，不写 `FetchRun` / `SourceItem`。
+  - apply 需要显式表单参数 `action=apply`，个人手动确认后才会执行。
+- UI：`POST /radar/today/update`
+  - 文案调整为“更新今日新增”。
+  - 继续复用 due-source 逻辑，只处理到期来源。
+- CLI：`scripts/run_source_discovery_once.py`
+  - `--mode bootstrap --dry-run`：预览初始化最近 20/50 条。
+  - `--mode bootstrap --apply`：显式执行 bootstrap。
+  - `--mode daily_increment --dry-run`：预览每日增量到期来源。
+  - `--mode daily_increment --apply`：显式执行每日增量。
+
+## dry-run / apply 语义
+
+- dry-run：只计算来源计划，不写库、不 enqueue、不创建 `FetchRun`，不触发网络抓取。
+- apply：复用 `SourceFetchBackgroundService`，由现有 `FetchRun` / `SourceItem` / 去重逻辑处理写入。
+- apply 时设置单来源数量上限，bootstrap 默认最近 20 条，最大 50 条。
+- apply 时禁用 fetch 后自动摘要，避免本入口调用 LLM。
+
+## bootstrap 和 daily_increment 差异
+
+- `bootstrap`：用于第一次建立本地候选池基线，读取 enabled YAML 来源，忽略 due-source 冷却时间，只跳过 unsupported / missing / already_running。
+- `daily_increment`：用于后续日常更新，复用 `compute_due_sources()`，只处理到期来源，不重复启动 already_running 来源。
+
+## 后续 DailyReportCard 接入
+
+下一步可以在每日增量完成后读取 `first_seen_at` 属于当天的 `SourceItem`，先生成中文概述和中文摘要，再聚合为 DailyReportCard。DailyReportCard 仍应保持显式触发，不在本轮 bootstrap / daily_increment 中自动生成。
+
 ## 本阶段不做
 
 - 不新增来源 UI

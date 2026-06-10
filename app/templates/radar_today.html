@@ -77,6 +77,18 @@
                     </ul>
 
                     <div class="radar-sidebar-actions">
+                        <form method="post" action="/radar/today/bootstrap" class="radar-update-form">
+                            <input type="hidden" name="section" value="{{ view.active_section }}">
+                            <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                            <input type="hidden" name="hours" value="{{ view.hours }}">
+                            <input type="hidden" name="limit" value="{{ view.limit }}">
+                            <input type="hidden" name="page" value="{{ view.page }}">
+                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                            <input type="hidden" name="max_items_per_source" value="20">
+                            <input type="hidden" name="max_sources" value="15">
+                            <input type="hidden" name="action" value="dry_run">
+                            <button type="submit" class="btn-sm" title="初始化来源内容：预览已有 YAML 来源最近 20 条，不写库">初始化来源内容</button>
+                        </form>
                         <form method="post" action="/radar/today/update" class="radar-update-form">
                             <input type="hidden" name="section" value="{{ view.active_section }}">
                             <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
@@ -84,7 +96,7 @@
                             <input type="hidden" name="limit" value="{{ view.limit }}">
                             <input type="hidden" name="page" value="{{ view.page }}">
                             <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                            <button type="submit" class="btn-sm btn-primary">更新今日雷达</button>
+                            <button type="submit" class="btn-sm btn-primary" title="更新今日雷达：只检查到期来源">更新今日新增</button>
                         </form>
                     </div>
 
@@ -252,6 +264,27 @@
                     {% endif %}
                 </nav>
                 </div>{# <!-- /.radar-main-toolbar --> #}
+                {% if bootstrap_result %}
+                <div class="radar-update-result">
+                    <div class="radar-update-result-title">初始化来源内容{% if bootstrap_result.dry_run %} · dry-run{% endif %}</div>
+                    <div class="radar-update-result-grid">
+                        <span>配置来源：{{ bootstrap_result.total }}</span>
+                        <span>可初始化：{{ bootstrap_result.eligible }}</span>
+                        <span>已启动：{{ bootstrap_result.started }}</span>
+                        <span>跳过：{{ bootstrap_result.skipped }}</span>
+                        <span>不支持：{{ bootstrap_result.unsupported }}</span>
+                        {% if bootstrap_result.failed %}
+                        <span>失败：{{ bootstrap_result.failed }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="radar-update-reasons">
+                        {% if bootstrap_result.dry_run %}
+                        dry-run 未写入数据库；确认后可用脚本 apply 初始化最近 20 条。
+                        {% endif %}
+                        {{ bootstrap_result.message }}
+                    </div>
+                </div>
+                {% endif %}
                 {% if update_result %}
                 {% if update_result.plan_source == "due_sources_v1" %}
                 {# ── V1.0-beta.1 due-source plan summary ──────────────────────── #}

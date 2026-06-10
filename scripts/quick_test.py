@@ -5956,6 +5956,142 @@ def main():
     except Exception as e:
         check("V1.0-beta.6 TodayItemCard checks", False, str(e))
 
+    # ── 50. V1.0-beta.6.2 source discovery bootstrap/daily increment ───────
+    print("\n[50] V1.0-beta.6.2 source discovery bootstrap/daily increment")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        discovery_py = project_root / "app" / "application" / "sources" / "discovery_runs.py"
+        discovery_script = project_root / "scripts" / "run_source_discovery_once.py"
+        radar_route = project_root / "app" / "routes" / "radar.py"
+        radar_today = project_root / "app" / "templates" / "radar_today.html"
+        plan_doc = project_root / "docs" / "V1_BETA_6_SOURCE_DISCOVERY_BOOTSTRAP_AND_DAILY_INCREMENT_PLAN.md"
+
+        discovery_text = discovery_py.read_text(encoding="utf-8") if discovery_py.exists() else ""
+        script_text = discovery_script.read_text(encoding="utf-8") if discovery_script.exists() else ""
+        route_text = radar_route.read_text(encoding="utf-8") if radar_route.exists() else ""
+        today_text = radar_today.read_text(encoding="utf-8") if radar_today.exists() else ""
+        doc_text = plan_doc.read_text(encoding="utf-8") if plan_doc.exists() else ""
+
+        check("run_source_discovery_once.py exists",
+              discovery_script.exists(),
+              "source discovery CLI should exist")
+        check("source discovery module exists",
+              discovery_py.exists() and "SourceDiscoveryRunSettings" in discovery_text,
+              "source discovery service should exist")
+        check("script supports bootstrap",
+              "bootstrap" in script_text,
+              "CLI should support bootstrap mode")
+        check("script supports daily_increment",
+              "daily_increment" in script_text,
+              "CLI should support daily_increment mode")
+        check("script supports dry-run",
+              "--dry-run" in script_text and "dry_run" in script_text,
+              "CLI should support dry-run")
+        check("script supports apply gate",
+              "--apply" in script_text and "add_mutually_exclusive_group" in script_text,
+              "CLI should require explicit apply or dry-run")
+        check("GET bootstrap is not registered",
+              '@router.get("/today/bootstrap")' not in route_text,
+              "bootstrap must not be GET-triggered")
+        check("POST bootstrap route exists",
+              '@router.post("/today/bootstrap")' in route_text,
+              "bootstrap should be POST-only")
+        check("radar page shows bootstrap entry",
+              "初始化来源内容" in today_text and "/radar/today/bootstrap" in today_text,
+              "today radar should expose bootstrap entry")
+        check("radar page shows daily increment entry",
+              "更新今日新增" in today_text and "/radar/today/update" in today_text,
+              "today radar should expose daily increment entry")
+        check("plan doc mentions recent 20/50 items",
+              "最近 20/50 条" in doc_text,
+              "plan should keep bootstrap size wording")
+        check("plan doc mentions first_seen_at",
+              "first_seen_at" in doc_text,
+              "plan should mention first_seen_at")
+        check("plan doc mentions published_at",
+              "published_at" in doc_text,
+              "plan should mention published_at")
+        check("plan doc mentions daily_increment",
+              "daily_increment" in doc_text,
+              "plan should mention daily_increment")
+        check("discovery reuses fetch/due-source services",
+              "SourceFetchBackgroundService" in discovery_text
+              and "compute_due_sources" in discovery_text,
+              "discovery should reuse existing fetch and due-source logic")
+        check("discovery does not implement custom source writes",
+              "CustomSourceDraft" not in discovery_text
+              and "custom source" not in discovery_text.lower(),
+              "this task should not continue P-004 F-2")
+        check("discovery does not call LLM",
+              "CandidateOneLinerService" not in discovery_text
+              and "create_llm_client" not in discovery_text
+              and "generate_json" not in discovery_text
+              and "CandidateOneLinerService" not in script_text
+              and "create_llm_client" not in script_text
+              and "generate_json" not in script_text,
+              "source discovery entry should not call LLM")
+
+        try:
+            from app.application.sources.discovery_runs import (
+                DAILY_INCREMENT_MODE,
+                BOOTSTRAP_MODE,
+                SourceDiscoveryRunSettings,
+                run_source_discovery,
+            )
+            from app.db import SessionLocal
+            from app.models import SourceItem
+
+            db = SessionLocal()
+            try:
+                before_items = db.query(SourceItem).count()
+                res = run_source_discovery(
+                    db,
+                    SourceDiscoveryRunSettings(
+                        mode=DAILY_INCREMENT_MODE,
+                        max_items_per_source=20,
+                        max_sources=1,
+                        dry_run=True,
+                    ),
+                )
+                after_items = db.query(SourceItem).count()
+                check("daily_increment dry-run does not write SourceItem",
+                      res.dry_run and before_items == after_items,
+                      "dry-run should be read-only")
+                res_boot = run_source_discovery(
+                    db,
+                    SourceDiscoveryRunSettings(
+                        mode=BOOTSTRAP_MODE,
+                        max_items_per_source=20,
+                        max_sources=1,
+                        dry_run=True,
+                    ),
+                )
+                check("bootstrap dry-run returns result",
+                      res_boot.dry_run and res_boot.mode == BOOTSTRAP_MODE,
+                      "bootstrap dry-run should return structured result")
+            finally:
+                db.close()
+        except Exception as e:
+            check("source discovery dry-run behavior", False, str(e))
+
+        if client is not None:
+            get_bootstrap = client.get("/radar/today/bootstrap")
+            check("GET /radar/today/bootstrap not allowed",
+                  get_bootstrap.status_code in (404, 405),
+                  "bootstrap must not run on GET")
+            resp = client.post(
+                "/radar/today/bootstrap",
+                data={"action": "dry_run", "max_items_per_source": "20", "max_sources": "1"},
+                follow_redirects=True,
+            )
+            check("POST /radar/today/bootstrap dry-run renders",
+                  resp.status_code == 200 and "dry-run" in resp.text,
+                  "bootstrap dry-run should redirect back with result")
+        else:
+            check("TestClient available for source discovery checks", False, "client is not available")
+    except Exception as e:
+        check("V1.0-beta.6.2 source discovery checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

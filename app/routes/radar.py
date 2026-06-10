@@ -34,6 +34,12 @@ from app.application.radar.today import (
     ALL_KEY,
 )
 from app.application.sources.background_fetch import SourceFetchBackgroundService
+from app.application.sources.discovery_runs import (
+    BOOTSTRAP_MODE,
+    DAILY_INCREMENT_MODE,
+    SourceDiscoveryRunSettings,
+    run_source_discovery,
+)
 from app.application.sources.due_sources import DueSourcePlan, compute_due_sources
 from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
 from app.models import SourceItem, Source
@@ -91,6 +97,34 @@ def _build_due_source_reason_summary(plan: DueSourcePlan) -> str:
         for decision in bucket:
             counter[decision.reason] += 1
     return ",".join(f"{reason}:{count}" for reason, count in counter.most_common())
+
+
+def _build_bootstrap_result(
+    *,
+    dry_run: int | None,
+    total: int | None,
+    eligible: int | None,
+    started: int | None,
+    skipped: int | None,
+    unsupported: int | None,
+    failed: int | None,
+    message: str | None,
+) -> dict | None:
+    if not any(
+        v is not None
+        for v in (dry_run, total, eligible, started, skipped, unsupported, failed, message)
+    ):
+        return None
+    return {
+        "dry_run": bool(dry_run),
+        "total": total or 0,
+        "eligible": eligible or 0,
+        "started": started or 0,
+        "skipped": skipped or 0,
+        "unsupported": unsupported or 0,
+        "failed": failed or 0,
+        "message": message or "",
+    }
 
 
 # Mapping from internal reason keys to user-facing Chinese descriptions.
@@ -221,6 +255,14 @@ def radar_today_page(
     update_missing: int | None = Query(None, ge=0),
     update_reason_summary: str | None = Query(None),
     update_plan_source: str | None = Query(None),
+    bootstrap_dry_run: int | None = Query(None, ge=0),
+    bootstrap_total: int | None = Query(None, ge=0),
+    bootstrap_eligible: int | None = Query(None, ge=0),
+    bootstrap_started: int | None = Query(None, ge=0),
+    bootstrap_skipped: int | None = Query(None, ge=0),
+    bootstrap_unsupported: int | None = Query(None, ge=0),
+    bootstrap_failed: int | None = Query(None, ge=0),
+    bootstrap_message: str | None = Query(None),
 ):
     """Render today's AI frontier radar reading view."""
     # Build base context using shared helper
@@ -287,6 +329,16 @@ def radar_today_page(
 
     context["summary_result"] = summary_result
     context["update_result"] = update_result
+    context["bootstrap_result"] = _build_bootstrap_result(
+        dry_run=bootstrap_dry_run,
+        total=bootstrap_total,
+        eligible=bootstrap_eligible,
+        started=bootstrap_started,
+        skipped=bootstrap_skipped,
+        unsupported=bootstrap_unsupported,
+        failed=bootstrap_failed,
+        message=bootstrap_message,
+    )
 
     return _radar_templates.TemplateResponse(
         "radar_today.html",
@@ -567,6 +619,59 @@ def generate_today_summaries(
         return RedirectResponse(url=redirect_url, status_code=303)
     finally:
         db.close()
+
+
+@router.post("/today/bootstrap")
+def bootstrap_today_sources(
+    section: str = Form(ALL_KEY),
+    item_id: int | None = Form(None),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+    max_items_per_source: int = Form(20),
+    max_sources: int = Form(15),
+    action: str = Form("dry_run"),
+):
+    """Plan or run bootstrap discovery for enabled YAML sources.
+
+    GET is intentionally not defined. Dry-run is the default; apply requires a
+    form value of action=apply. The underlying discovery service disables
+    fetch-run auto summaries during apply, so this route does not call LLMs.
+    """
+    dry_run = action != "apply"
+    db = next(get_db())
+    try:
+        result = run_source_discovery(
+            db,
+            SourceDiscoveryRunSettings(
+                mode=BOOTSTRAP_MODE,
+                max_items_per_source=max_items_per_source,
+                max_sources=max_sources,
+                dry_run=dry_run,
+            ),
+        )
+    finally:
+        db.close()
+
+    params = {
+        "section": section,
+        "hours": hours,
+        "limit": limit,
+        "page": page,
+        "per_page": per_page,
+        "bootstrap_dry_run": 1 if result.dry_run else 0,
+        "bootstrap_total": result.total_sources,
+        "bootstrap_eligible": result.eligible_sources,
+        "bootstrap_started": result.started,
+        "bootstrap_skipped": result.skipped,
+        "bootstrap_unsupported": result.unsupported,
+        "bootstrap_failed": result.failed,
+        "bootstrap_message": result.message,
+    }
+    if item_id is not None:
+        params["item_id"] = item_id
+    return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 
 
 @router.post("/today/update")
