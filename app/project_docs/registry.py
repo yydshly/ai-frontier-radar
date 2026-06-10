@@ -278,6 +278,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="P-003-2：今日核心报告生成，默认 dry-run、显式触发、成本闸门、复用 LLM 客户端、不持久化。",
     ),
+    "custom-source-intake": DocEntry(
+        key="custom-source-intake",
+        title="自定义来源接入设计",
+        path="docs/V1_CUSTOM_SOURCE_INTAKE_PLAN.md",
+        category="优化路线",
+        description="P-004：自定义来源接入，策略白名单 + dry-run 预览 + 与配置同步共存，写库走显式 gate。",
+    ),
 }
 
 

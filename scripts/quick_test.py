@@ -5661,6 +5661,88 @@ def main():
     except Exception as e:
         check("P-003-2 daily report UI checks", False, str(e))
 
+    # ── 48. P-004 custom source intake: validation + dry-run (read-only) ─────
+    print("\n[48] P-004 custom source intake validation")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        intake_py = project_root / "app" / "application" / "sources" / "custom_intake.py"
+        intake_plan = project_root / "docs" / "V1_CUSTOM_SOURCE_INTAKE_PLAN.md"
+
+        check("custom source intake module exists",
+              intake_py.exists(),
+              "custom source intake module should exist")
+        check("custom source intake plan exists",
+              intake_plan.exists(),
+              "P-004 intake plan doc should exist")
+
+        intake_text = intake_py.read_text(encoding="utf-8") if intake_py.exists() else ""
+        check("custom intake is read-only (no writes)",
+              ".add(" not in intake_text
+              and ".commit(" not in intake_text
+              and "enqueue" not in intake_text,
+              "F-1 intake must validate/preview only, never write or fetch")
+        check("custom intake white-lists strategies",
+              "STRATEGY_SUPPORTED" in intake_text
+              and "STRATEGY_RESTRICTED" in intake_text
+              and "CUSTOM_SOURCE_ALLOW_RESTRICTED" in intake_text,
+              "intake should tier strategies and gate restricted ones")
+
+        # Functional, read-only.
+        from app.db import SessionLocal
+        from app.models import Source
+        from app.application.sources.custom_intake import (
+            CustomSourceDraft,
+            validate_custom_source_draft,
+            preview_custom_source,
+        )
+        _db = SessionLocal()
+        try:
+            _before = _db.query(Source).count()
+
+            ok = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT Sample Feed", fetch_strategy="rss",
+                                       feed_url="https://example.com/qt-rss.xml"))
+            check("valid rss draft passes validation",
+                  ok.ok and ok.normalized_key and ok.strategy_tier == "supported",
+                  "a clean rss draft should validate")
+
+            bad_strategy = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT X", fetch_strategy="telepathy"))
+            check("unknown strategy is rejected",
+                  not bad_strategy.ok,
+                  "unknown fetch strategy must be rejected")
+
+            restricted = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT Crawl", fetch_strategy="crawler",
+                                       homepage_url="https://example.com"))
+            check("restricted strategy rejected without enable flag",
+                  not restricted.ok,
+                  "restricted strategy must be gated by CUSTOM_SOURCE_ALLOW_RESTRICTED")
+
+            bad_scheme = validate_custom_source_draft(
+                _db, CustomSourceDraft(name="QT Bad", fetch_strategy="rss",
+                                       feed_url="ftp://example.com/x"))
+            check("non-http(s) url is rejected",
+                  not bad_scheme.ok,
+                  "feed/homepage urls must be http/https")
+
+            preview = preview_custom_source(
+                _db, CustomSourceDraft(name="QT Blog", fetch_strategy="html_index",
+                                       homepage_url="https://example.com/blog"))
+            check("preview returns would-create plan without writing",
+                  preview["ok"] and preview["would_create"]["source_key"]
+                  and "未写入" in preview["note"],
+                  "preview should describe the would-create source and note no write")
+
+            _after = _db.query(Source).count()
+            check("custom intake validation does not write rows",
+                  _before == _after,
+                  "validation/preview must not change Source row count")
+        finally:
+            _db.close()
+    except Exception as e:
+        check("P-004 custom intake checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
