@@ -5590,6 +5590,77 @@ def main():
     except Exception as e:
         check("P-003-2 daily report checks", False, str(e))
 
+    # ── 47. P-003-2 daily report UI trigger (POST-only, gated, no real LLM) ──
+    print("\n[47] P-003-2 daily report UI trigger")
+    try:
+        import os as _os
+
+        project_root = Path(__file__).resolve().parents[1]
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        check("daily report route is POST-only",
+              '@router.post("/today/daily-report"' in radar_route_py
+              and '@router.get("/today/daily-report"' not in radar_route_py,
+              "daily report trigger must be POST-only")
+
+        check("daily report route reuses gated generate (apply=True)",
+              "generate_daily_report(db, apply=True)" in radar_route_py
+              and "daily_report_result" in radar_route_py,
+              "route should call the gated generator and pass a result to the template")
+
+        check("radar template has explicit report button + result banner",
+              "生成今日核心报告" in radar_html
+              and "/radar/today/daily-report" in radar_html
+              and "radar-daily-report-result" in radar_html,
+              "radar today should expose a POST button and an inline result banner")
+
+        # Functional: GET -> 405; POST without enable -> 200 disabled note, no LLM.
+        from fastapi.testclient import TestClient
+        from app.main import app as _app
+        from app.db import SessionLocal
+        from app.models import FetchRun, SourceItem, InsightCard
+
+        _prev = _os.environ.pop("DAILY_REPORT_ENABLED", None)
+        try:
+            _client = TestClient(_app)
+            _db = SessionLocal()
+            try:
+                _before = (
+                    _db.query(FetchRun).count(),
+                    _db.query(SourceItem).count(),
+                    _db.query(InsightCard).count(),
+                )
+            finally:
+                _db.close()
+
+            _get = _client.get("/radar/today/daily-report")
+            check("daily report GET is not allowed", _get.status_code == 405,
+                  f"GET should be 405, got {_get.status_code}")
+
+            _post = _client.post("/radar/today/daily-report")
+            check("daily report POST (disabled) renders without LLM",
+                  _post.status_code == 200 and "未启用" in _post.text,
+                  f"disabled POST should render 200 with a not-enabled note, got {_post.status_code}")
+
+            _db = SessionLocal()
+            try:
+                _after = (
+                    _db.query(FetchRun).count(),
+                    _db.query(SourceItem).count(),
+                    _db.query(InsightCard).count(),
+                )
+            finally:
+                _db.close()
+            check("daily report POST does not persist rows",
+                  _before == _after,
+                  "disabled report POST must not write FetchRun / SourceItem / InsightCard")
+        finally:
+            if _prev is not None:
+                _os.environ["DAILY_REPORT_ENABLED"] = _prev
+    except Exception as e:
+        check("P-003-2 daily report UI checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

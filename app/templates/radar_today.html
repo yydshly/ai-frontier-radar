@@ -175,6 +175,9 @@
                         {% else %}
                         <div class="radar-scheduler-hint">今日暂无已摘要的新内容</div>
                         {% endif %}
+                        <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
+                            <button type="submit" class="btn-sm" title="基于今日已摘要内容生成中文核心报告（需显式启用）">生成今日核心报告</button>
+                        </form>
                     </div>
                     {% endif %}
                 </div>
@@ -310,6 +313,29 @@
                         </li>
                         {% endfor %}
                     </ul>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if daily_report_result %}
+                <div class="radar-daily-report-result">
+                    {% if daily_report_result.status == 'generated' %}
+                    <div class="radar-daily-report-title">{{ daily_report_result.title or '今日核心报告' }} · {{ daily_report_result.date_label }}</div>
+                    {% if daily_report_result.overview %}
+                    <p class="radar-daily-report-overview">{{ daily_report_result.overview }}</p>
+                    {% endif %}
+                    {% if daily_report_result.highlights %}
+                    <ul class="radar-daily-report-highlights">
+                        {% for h in daily_report_result.highlights %}
+                        <li>{{ h }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% elif daily_report_result.status == 'disabled' %}
+                    <div class="radar-daily-report-note">今日核心报告未启用：需设置 DAILY_REPORT_ENABLED=true 后再生成（避免误触 LLM 调用）。</div>
+                    {% elif daily_report_result.status == 'no_input' %}
+                    <div class="radar-daily-report-note">今日暂无可编译的中文摘要内容，无法生成核心报告。</div>
+                    {% else %}
+                    <div class="radar-daily-report-note">{{ daily_report_result.message }}</div>
                     {% endif %}
                 </div>
                 {% endif %}

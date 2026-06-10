@@ -292,6 +292,55 @@ def radar_today_page(
     )
 
 
+@router.post("/today/daily-report", response_class=HTMLResponse)
+def generate_daily_core_report(request: Request):
+    """Explicitly generate today's core report (P-003-2).
+
+    POST only — side-effecting (may call the LLM). Gated: the LLM is only
+    reached when ``DAILY_REPORT_ENABLED=true``; otherwise the result is
+    ``status="disabled"`` and no LLM call happens. Result is rendered inline;
+    nothing is persisted.
+    """
+    from app.db import get_db
+    from app.application.radar.daily_report import generate_daily_report
+
+    db = next(get_db())
+    try:
+        try:
+            report = generate_daily_report(db, apply=True)
+            daily_report_result = {
+                "status": report.status,
+                "date_label": report.date_label,
+                "input_item_count": report.input_item_count,
+                "message": report.message,
+                "title": report.title,
+                "overview": report.overview,
+                "highlights": report.highlights,
+            }
+        except Exception:
+            daily_report_result = {
+                "status": "error",
+                "message": "今日核心报告生成失败，请稍后重试。",
+                "highlights": [],
+            }
+
+        context = _build_radar_today_view_context(
+            request=request,
+            item_id=None,
+            hours=DEFAULT_HOURS,
+            limit=DEFAULT_LIMIT,
+            page=1,
+            per_page=DEFAULT_PER_PAGE,
+            section=ALL_KEY,
+        )
+        context["summary_result"] = None
+        context["update_result"] = None
+        context["daily_report_result"] = daily_report_result
+        return _radar_templates.TemplateResponse("radar_today.html", context)
+    finally:
+        db.close()
+
+
 def _build_radar_today_view_context(
     request: Request,
     item_id: int | None,
