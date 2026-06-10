@@ -528,6 +528,56 @@ def fetch_today_item_content(
     return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 
 
+@router.post("/today/items/{item_id}/fetch-html")
+def fetch_today_item_html(
+    item_id: int,
+    section: str = Form(ALL_KEY),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Fetch HTML content for a radar item and save a snapshot.
+
+    This route performs a synchronous HTML fetch and saves a text snapshot.
+    It does NOT call any LLM. Network failures are handled gracefully.
+    """
+    from app.application.content.source_item_content_service import (
+        fetch_source_item_content,
+        ContentFetchStatus,
+    )
+
+    db = next(get_db())
+    try:
+        result = fetch_source_item_content(db, item_id, force=True)
+
+        # Build status message for redirect
+        if result.status == ContentFetchStatus.FETCHED:
+            msg = "html_fetch_success"
+        elif result.status == ContentFetchStatus.FAILED:
+            msg = f"html_fetch_failed:{result.error or 'unknown'}"
+        elif result.status == ContentFetchStatus.SKIPPED:
+            msg = f"html_fetch_skipped:{result.error or 'unknown'}"
+        elif result.status == "not_found":
+            msg = "html_fetch_not_found"
+        else:
+            msg = f"html_fetch_{result.status}"
+
+        params = {
+            "section": section,
+            "item_id": item_id,
+            "hours": hours,
+            "limit": limit,
+            "page": page,
+            "per_page": per_page,
+            "html_fetch_status": result.status,
+            "html_fetch_message": msg,
+        }
+        return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
+    finally:
+        db.close()
+
+
 @router.post("/today/generate-summaries")
 def generate_today_summaries(
     section: str = Form(ALL_KEY),
