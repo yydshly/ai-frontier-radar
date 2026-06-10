@@ -239,12 +239,15 @@ class CandidateOneLinerService:
         self.settings = settings or get_one_liner_settings()
         self.provider = provider if provider is not None else self._build_provider()
 
-    def should_generate(self, item: SourceItem, *, fill_missing_summary: bool = False) -> bool:
+    def should_generate(
+        self, item: SourceItem, *, fill_missing_summary: bool = False, force: bool = False
+    ) -> bool:
         raw = _parse_metadata(item.raw_metadata_json)
         has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
         has_summary = bool(str(raw.get("zh_summary") or "").strip())
 
-        if has_one_liner and (has_summary or not fill_missing_summary):
+        # force=True bypasses the existing zh_one_liner check
+        if not force and has_one_liner and (has_summary or not fill_missing_summary):
             return False
 
         if item.status not in ELIGIBLE_STATUSES:
@@ -253,8 +256,10 @@ class CandidateOneLinerService:
             return False
         return True
 
-    def generate_for_item(self, item: SourceItem, *, fill_missing_summary: bool = False) -> OneLinerResult:
-        if not self.should_generate(item, fill_missing_summary=fill_missing_summary):
+    def generate_for_item(
+        self, item: SourceItem, *, fill_missing_summary: bool = False, force: bool = False
+    ) -> OneLinerResult:
+        if not self.should_generate(item, fill_missing_summary=fill_missing_summary, force=force):
             return OneLinerResult(
                 success=False,
                 text=None,
@@ -282,7 +287,7 @@ class CandidateOneLinerService:
             result = self.provider.generate(payload)
             if not result.one_liner.strip():
                 return self._write_result(item, "failed", None, "empty provider response")
-            return self._write_result(item, "success", result.one_liner, None, result.summary)
+            return self._write_result(item, "success", result.one_liner, None)
         except Exception as exc:
             return self._write_result(item, "failed", None, str(exc))
 
@@ -292,6 +297,7 @@ class CandidateOneLinerService:
         limit: int | None = None,
         *,
         fill_missing_summary: bool = False,
+        force: bool = False,
     ) -> list[OneLinerResult]:
         effective_limit = limit if limit is not None else self.settings.max_per_run
         effective_limit = min(effective_limit, self.settings.max_per_run, self.settings.max_per_day)
@@ -300,9 +306,9 @@ class CandidateOneLinerService:
         for item in items:
             if processed >= effective_limit:
                 break
-            if not self.should_generate(item, fill_missing_summary=fill_missing_summary):
+            if not self.should_generate(item, fill_missing_summary=fill_missing_summary, force=force):
                 continue
-            results.append(self.generate_for_item(item, fill_missing_summary=fill_missing_summary))
+            results.append(self.generate_for_item(item, fill_missing_summary=fill_missing_summary, force=force))
             processed += 1
         return results
 
@@ -338,7 +344,6 @@ class CandidateOneLinerService:
         status: str,
         text: str | None,
         error: str | None,
-        summary: str | None = None,
     ) -> OneLinerResult:
         raw = _parse_metadata(item.raw_metadata_json)
         raw["zh_one_liner_status"] = status
@@ -347,8 +352,6 @@ class CandidateOneLinerService:
         if text:
             raw["zh_one_liner"] = text
             raw.pop("zh_one_liner_error", None)
-        if summary:
-            raw["zh_summary"] = summary
         if error:
             raw["zh_one_liner_error"] = error
         item.raw_metadata_json = _dump_metadata(raw)

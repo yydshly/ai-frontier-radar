@@ -5162,6 +5162,49 @@ def main():
               "get_detail_summary_label(" in today_py,
               "today.py must call get_detail_summary_label")
 
+        # ── one_liner.py zh_one_liner write policy ─────────────────────
+        one_liner_py = (project_root / "app/application/candidates/one_liner.py").read_text(encoding="utf-8")
+
+        # force parameter present in public methods
+        check("one_liner.py has force parameter in should_generate",
+              "force: bool = False" in one_liner_py,
+              "should_generate must accept force parameter")
+        check("one_liner.py has force parameter in generate_for_item",
+              "force: bool = False" in one_liner_py,
+              "generate_for_item must accept force parameter")
+        check("one_liner.py has force parameter in generate_for_items",
+              "force: bool = False" in one_liner_py,
+              "generate_for_items must accept force parameter")
+
+        # Default-no-overwrite guard in should_generate
+        check("one_liner.py has force bypass guard",
+              "not force and has_one_liner" in one_liner_py or "force" in one_liner_py,
+              "should_generate must check force before skipping")
+
+        # _write_result does NOT write zh_summary (that is a separate service's field)
+        check("one_liner.py _write_result does NOT write zh_summary",
+              'raw["zh_summary"]' not in one_liner_py,
+              "_write_result must not write zh_summary — belongs to a separate service")
+
+        # CandidateOneLinerService does not touch L0 source fields
+        check("one_liner.py does not clear description",
+              'del raw["description"]' not in one_liner_py and 'raw.pop("description")' not in one_liner_py,
+              "one_liner.py must not delete description field")
+        check("one_liner.py does not clear summary",
+              'del raw["summary"]' not in one_liner_py and 'raw.pop("summary")' not in one_liner_py,
+              "one_liner.py must not delete summary field")
+        check("one_liner.py does not clear rss_summary",
+              'del raw["rss_summary"]' not in one_liner_py and 'raw.pop("rss_summary")' not in one_liner_py,
+              "one_liner.py must not delete rss_summary field")
+
+        # Failure recording present
+        check("one_liner.py writes zh_one_liner_error on failure",
+              'zh_one_liner_error' in one_liner_py,
+              "_write_result must write zh_one_liner_error on failure")
+        check("one_liner.py writes zh_one_liner_status",
+              'zh_one_liner_status' in one_liner_py,
+              "_write_result must write zh_one_liner_status")
+
         # ── Direct import + unit tests of pure functions ─────────────────
         # These do NOT access DB or call LLM.
         try:

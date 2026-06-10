@@ -446,3 +446,70 @@ LLM 调用逻辑               — 不改
   - `{"description": "这是中文来源摘要"}` → `"metadata_summary"` / `"来源摘要"`
   - `{"description": "This is English metadata."}` → `"english_metadata_summary"` / `"英文来源摘要"`
   - `{}` → `"missing"` / `"内容摘要"`
+
+---
+
+## 十五、Task 3：zh_one_liner 写入行为验证
+
+> V1.0-beta.5 Task 3 验证并修复 `CandidateOneLinerService` 的 `zh_one_liner` 写入行为。
+
+### 15.1 审计结果
+
+`CandidateOneLinerService` 审计发现以下问题：
+
+| 检查项 | 原状态 | 修复后 |
+|--------|--------|--------|
+| `force=False` 时跳过已有 zh_one_liner | ✅ 已有逻辑 | ✅ |
+| `force=True` 才覆盖已有 zh_one_liner | ❌ 缺少 `force` 参数 | ✅ 已新增 |
+| 失败时记录 `zh_one_liner_error` | ✅ 已有逻辑 | ✅ |
+| 不写入 `zh_summary` | ❌ 错误写入 | ✅ 已移除 |
+| 不删除 L0 来源摘要字段 | ✅ 从不删除 | ✅ |
+
+### 15.2 修复内容
+
+**1. 新增 `force` 参数**
+
+`should_generate()` / `generate_for_item()` / `generate_for_items()` 均新增 `force: bool = False` 参数。
+
+`should_generate()` 逻辑：
+
+```python
+if not force and has_one_liner and (has_summary or not fill_missing_summary):
+    return False
+```
+
+**2. 移除 `_write_result()` 对 `zh_summary` 的写入**
+
+历史原因：`CandidateOneLinerService` 的 LLM 系统提示同时返回 `zh_one_liner` 和 `zh_summary`，`_write_result()` 曾经把后者写入数据库。
+
+这违反了写入规范——`zh_summary` 应由独立的中文详细摘要服务写入，不应由 one-liner 服务写入。
+
+修复：`_write_result()` 签名中移除 `summary` 参数，不再写入 `zh_summary`。
+
+### 15.3 通过的验收用例
+
+| Case | 输入 | 操作 | 预期结果 |
+|------|------|------|---------|
+| A | 已有 `zh_one_liner` | `force=False` | 跳过，`zh_one_liner` 不变，`description` 不变，`zh_summary` 不写入 |
+| B | 已有 `zh_one_liner` | `force=True` | 覆盖为新值，`description` 不变，`zh_summary` 不写入 |
+| C | 无 `zh_one_liner` | `force=False` | 写入新 `zh_one_liner`，`description` 不变，`zh_summary` 不写入 |
+| D | 任意状态 | provider 抛错 | `zh_one_liner_status=failed`，`zh_one_liner_error` 记录错误，`description` 不变 |
+
+### 15.4 涉及文件
+
+| 文件 | 修改类型 |
+|------|---------|
+| `app/application/candidates/one_liner.py` | 修复：新增 `force` 参数，移除 `zh_summary` 写入 |
+| `scripts/quick_test.py` | 更新 [48]：增加 one_liner.py 写入行为检查 |
+| `scripts/acceptance_first_usable_loop.py` | 新增 [21]：mock provider 隔离测试 |
+
+### 15.5 禁止修改范围
+
+```
+app/models.py              — 不改
+app/db.py                  — 不改
+数据库 schema              — 不改
+抓取逻辑                   — 不改
+app/services/insight_compiler.py  — 不改
+真实 LLM 调用逻辑           — 不改
+```
