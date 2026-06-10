@@ -248,6 +248,49 @@
 
 ---
 
+## V1.0-beta.11：基于正文快照的中文摘要（进行中）
+
+> 分支：`feature/v1-beta-11-summary-from-snapshot`
+
+### V1.0-beta.11 目标
+
+从 `runtime/content_snapshots/source_item_<id>.json` 读取正文快照，生成高质量中文摘要。
+
+### V1.0-beta.11 完成项
+
+- ✅ `app/application/summary/` 目录（summary_models / summary_prompt / summary_llm_client / source_item_summary_service）
+- ✅ `SummaryInput` + `SummaryResult` + `LLMResponse` + `SummarySettings` dataclass
+- ✅ `LLM_SUMMARY_ENABLED` 默认 false，未启用时返回 disabled
+- ✅ API Key 从环境变量读取，不硬编码
+- ✅ `UNTRUSTED_CONTENT_NOTE` prompt injection 防护
+- ✅ 严格 JSON 输出要求
+- ✅ JSON parse failure 处理
+- ✅ `generate_source_item_summary()` 服务函数
+- ✅ 写入 `raw_metadata_json.summary_status` + `summary_basis=html_snapshot`
+- ✅ 支持 `force=false` 幂等跳过，`force=true` 重新生成
+- ✅ `POST /radar/today/items/{id}/generate-summary` 路由
+- ✅ 今日雷达卡片和面板的"基于正文生成摘要"按钮
+- ✅ `TodayItemCard.can_generate_summary` 字段
+- ✅ `DailyReportPrimaryItem.zh_summary` 字段
+- ✅ `DailyBroadcast` 优先使用 `zh_summary`（截断 120 字）
+
+### V1.0-beta.11 暂不改
+
+- ❌ PDF 处理
+- ❌ 批量自动生成
+- ❌ 复杂 RAG
+- ❌ 多 Agent
+- ❌ TTS
+- ❌ DB schema 变更
+
+### 后续接入方向
+
+- 批量正文摘要（用户触发）
+- PDF 支持
+- InsightCard 质量增强
+
+---
+
 ## 验收标准
 
 - README 准确反映当前能力

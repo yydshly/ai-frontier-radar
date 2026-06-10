@@ -6615,6 +6615,150 @@ def main():
     except Exception as e:
         check("V1.0-beta.10 HTML Content Fetch checks", False, str(e))
 
+    # ── 54. V1.0-beta.11 Summary from Snapshot ────────────────────────────
+    print("\n[54] V1.0-beta.11 Summary from Snapshot")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+
+        # Module existence checks
+        summary_dir = project_root / "app" / "application" / "summary"
+        check("app/application/summary/ directory exists",
+              summary_dir.is_dir(),
+              "summary directory should exist")
+
+        # summary_models.py
+        models_path = summary_dir / "summary_models.py"
+        check("summary_models.py exists",
+              models_path.exists(),
+              "summary_models.py should exist")
+        models_text = models_path.read_text(encoding="utf-8")
+        check("SummaryInput dataclass exists",
+              "class SummaryInput" in models_text,
+              "SummaryInput should exist")
+        check("SummaryResult dataclass exists",
+              "class SummaryResult" in models_text,
+              "SummaryResult should exist")
+        check("LLMResponse dataclass exists",
+              "class LLMResponse" in models_text,
+              "LLMResponse should exist")
+        check("SummarySettings dataclass exists",
+              "class SummarySettings" in models_text,
+              "SummarySettings should exist")
+        check("LLM_SUMMARY_ENABLED default false",
+              "enabled: bool = False" in models_text or "enabled=_env_bool" in models_text,
+              "LLM_SUMMARY_ENABLED should default to False")
+
+        # summary_prompt.py
+        prompt_path = summary_dir / "summary_prompt.py"
+        check("summary_prompt.py exists",
+              prompt_path.exists(),
+              "summary_prompt.py should exist")
+        prompt_text = prompt_path.read_text(encoding="utf-8")
+        check("prompt has UNTRUSTED_CONTENT_NOTE",
+              "UNTRUSTED_CONTENT_NOTE" in prompt_text or "untrusted" in prompt_text.lower(),
+              "prompt should have untrusted content warning")
+        check("prompt requires strict JSON output",
+              "JSON" in prompt_text,
+              "prompt should require JSON output")
+
+        # summary_llm_client.py
+        llm_client_path = summary_dir / "summary_llm_client.py"
+        check("summary_llm_client.py exists",
+              llm_client_path.exists(),
+              "summary_llm_client.py should exist")
+        llm_text = llm_client_path.read_text(encoding="utf-8")
+        check("LLM client references LLM_API_KEY in docstring/comment",
+              "LLM_API_KEY" in llm_text,
+              "LLM client should document LLM_API_KEY env var")
+        # Config reading is in summary_models.py via SummarySettings.from_env()
+        check("SummarySettings.from_env reads from os.getenv",
+              "os.getenv" in models_text and "LLM_API_KEY" in models_text,
+              "SummarySettings should read LLM_API_KEY from env vars")
+        check("JSON parse failure handling exists",
+              "parse_summary_json" in llm_text or "json.loads" in llm_text,
+              "should handle JSON parse failures")
+
+        # source_item_summary_service.py
+        service_path = summary_dir / "source_item_summary_service.py"
+        check("source_item_summary_service.py exists",
+              service_path.exists(),
+              "source_item_summary_service.py should exist")
+        service_text = service_path.read_text(encoding="utf-8")
+        check("generate_source_item_summary function exists",
+              "def generate_source_item_summary" in service_text,
+              "generate_source_item_summary should exist")
+        check("writes summary_status to raw_metadata_json",
+              "summary_status" in service_text,
+              "should write summary_status to raw_metadata_json")
+        check("writes summary_basis=html_snapshot",
+              'summary_basis' in service_text and 'html_snapshot' in service_text,
+              "should write summary_basis=html_snapshot")
+        check("supports force=False idempotent skip",
+              "force" in service_text,
+              "should support force parameter for re-generation")
+        check("no LLM imports in service",
+              "from app.llm" not in service_text and "import app.llm" not in service_text,
+              "service should not directly import LLM modules")
+
+        # Route checks
+        radar_route_path = project_root / "app" / "routes" / "radar.py"
+        radar_text = radar_route_path.read_text(encoding="utf-8")
+        check("POST /today/items/{id}/generate-summary route exists",
+              '@router.post("/today/items/{item_id}/generate-summary")' in radar_text,
+              "generate-summary route should be registered as POST")
+        check("No GET for generate-summary",
+              '@router.get("/today/items/{item_id}/generate-summary")' not in radar_text,
+              "generate-summary should not be a GET route")
+
+        # TodayItemCard has can_generate_summary
+        today_card_path = project_root / "app" / "application" / "radar" / "today_item_card.py"
+        today_card_text = today_card_path.read_text(encoding="utf-8")
+        check("TodayItemCard has can_generate_summary field",
+              "can_generate_summary" in today_card_text,
+              "TodayItemCard should have can_generate_summary field")
+
+        # Templates have summary button
+        panel_html = (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
+        check("Panel template has 基于正文生成摘要 button",
+              "基于正文生成摘要" in panel_html,
+              "panel should have generate summary button")
+        check("Panel form posts to generate-summary",
+              "generate-summary" in panel_html,
+              "panel form should post to generate-summary endpoint")
+
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        check("Radar template has 基于正文生成摘要 button",
+              "基于正文生成摘要" in radar_html,
+              "radar template should have generate summary button")
+
+        # DailyReportCard uses zh_summary
+        report_card_path = project_root / "app" / "application" / "radar" / "daily_report_card.py"
+        report_card_text = report_card_path.read_text(encoding="utf-8")
+        check("DailyReportPrimaryItem has zh_summary field",
+              "zh_summary" in report_card_text,
+              "DailyReportPrimaryItem should have zh_summary field")
+
+        # DailyBroadcast uses zh_summary
+        broadcast_path = project_root / "app" / "application" / "radar" / "daily_broadcast.py"
+        broadcast_text = broadcast_path.read_text(encoding="utf-8")
+        check("DailyBroadcast prefers zh_summary",
+              "zh_summary" in broadcast_text,
+              "DailyBroadcast should use zh_summary")
+
+        # docs exist
+        docs_path = project_root / "docs" / "V1_BETA_11_SUMMARY_FROM_SNAPSHOT_PLAN.md"
+        check("V1_BETA_11_SUMMARY_FROM_SNAPSHOT_PLAN.md exists",
+              docs_path.exists(),
+              "docs/V1_BETA_11_SUMMARY_FROM_SNAPSHOT_PLAN.md should exist")
+
+        # No schema change
+        check("summary modules do not modify DB schema",
+              "add_column" not in models_text.lower() and "add_column" not in service_text.lower(),
+              "should not modify DB schema")
+
+    except Exception as e:
+        check("V1.0-beta.11 Summary from Snapshot checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

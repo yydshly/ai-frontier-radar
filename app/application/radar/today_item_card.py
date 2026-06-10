@@ -42,6 +42,7 @@ class TodayItemCard:
     primary_text: str | None
     can_open_original: bool
     can_fetch_content: bool
+    can_generate_summary: bool
     can_generate_insight: bool
     fetch_method_label: str = "来源探测"
     summary_label: str = "待生成"
@@ -161,6 +162,11 @@ def build_today_item_card(
         or None
     )
 
+    # can_generate_summary: True when content is fetched but no summary yet
+    content_fetched = content.state == "fetched"
+    summary_generated = raw.get("summary_status") == "generated"
+    can_generate_summary = bool(item.url) and content_fetched and not summary_generated
+
     return TodayItemCard(
         item_id=item.id,
         title=title,
@@ -182,6 +188,7 @@ def build_today_item_card(
         primary_text=primary_text,
         can_open_original=bool(item.url),
         can_fetch_content=bool(item.url) and content.state in {"not_fetched", "fetch_failed"},
+        can_generate_summary=can_generate_summary,
         can_generate_insight=item.status == "discovered",
         fetch_method_label=_fetch_method_label(raw),
         summary_label=summary_label,
