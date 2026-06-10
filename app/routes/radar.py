@@ -821,3 +821,123 @@ def build_daily_report_card_action(request: Request):
     to GET /radar/daily-report. No LLM is called.
     """
     return RedirectResponse(url="/radar/daily-report", status_code=303)
+
+
+@router.get("/daily-report/broadcast", response_class=HTMLResponse)
+def get_daily_broadcast(request: Request):
+    """Render the DailyBroadcastScript for today.
+
+    Read-only page. Builds the broadcast script from the DailyReportCard without LLM.
+    """
+    from app.application.radar.daily_report_card import build_daily_report_card
+    from app.application.radar.daily_broadcast import build_daily_broadcast_script
+
+    db = next(get_db())
+    try:
+        card = build_daily_report_card(db)
+    finally:
+        db.close()
+
+    # Convert card items to dicts for the broadcast builder
+    primary_items: list[dict] = [
+        {
+            "item_id": item.item_id,
+            "source_label": item.source_label,
+            "zh_one_liner": item.zh_one_liner,
+            "title": item.title,
+            "url": item.url,
+            "related_directions": item.related_directions,
+            "insight_card_id": item.insight_card_id,
+        }
+        for item in card.primary_items
+    ]
+    secondary_items: list[dict] = [
+        {
+            "item_id": item.item_id,
+            "source_label": item.source_label,
+            "title": item.title,
+            "url": item.url,
+        }
+        for item in card.secondary_items
+    ]
+
+    script = build_daily_broadcast_script(
+        date_label=card.date_label,
+        total_items=card.overview.total_items,
+        covered_sources=card.overview.covered_sources,
+        with_zh_one_liner=card.overview.with_zh_one_liner,
+        with_insight_card=card.overview.with_insight_card,
+        primary_items=primary_items,
+        secondary_items=secondary_items,
+    )
+
+    return _radar_templates.TemplateResponse(
+        "radar_daily_broadcast.html",
+        {
+            "request": request,
+            "script": script,
+        },
+    )
+
+
+@router.post("/daily-report/broadcast/audio")
+def generate_daily_broadcast_audio(request: Request):
+    """Generate TTS audio for today's broadcast script.
+
+    Returns a disabled result if DAILY_BROADCAST_TTS_ENABLED is not set.
+    This route does NOT call any external TTS API in V1.0-beta.8.
+    """
+    from app.application.radar.daily_report_card import build_daily_report_card
+    from app.application.radar.daily_broadcast import (
+        build_daily_broadcast_script,
+        generate_daily_broadcast_audio as _generate_audio,
+    )
+
+    db = next(get_db())
+    try:
+        card = build_daily_report_card(db)
+    finally:
+        db.close()
+
+    primary_items: list[dict] = [
+        {
+            "item_id": item.item_id,
+            "source_label": item.source_label,
+            "zh_one_liner": item.zh_one_liner,
+            "title": item.title,
+            "url": item.url,
+            "related_directions": item.related_directions,
+            "insight_card_id": item.insight_card_id,
+        }
+        for item in card.primary_items
+    ]
+    secondary_items: list[dict] = [
+        {
+            "item_id": item.item_id,
+            "source_label": item.source_label,
+            "title": item.title,
+            "url": item.url,
+        }
+        for item in card.secondary_items
+    ]
+
+    script = build_daily_broadcast_script(
+        date_label=card.date_label,
+        total_items=card.overview.total_items,
+        covered_sources=card.overview.covered_sources,
+        with_zh_one_liner=card.overview.with_zh_one_liner,
+        with_insight_card=card.overview.with_insight_card,
+        primary_items=primary_items,
+        secondary_items=secondary_items,
+    )
+
+    audio_result = _generate_audio(script)
+
+    return _radar_templates.TemplateResponse(
+        "radar_daily_broadcast.html",
+        {
+            "request": request,
+            "script": script,
+            "audio_result": audio_result,
+        },
+    )

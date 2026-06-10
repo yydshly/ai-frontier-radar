@@ -6263,6 +6263,118 @@ def main():
     except Exception as e:
         check("V1.0-beta.7 DailyReportCard checks", False, str(e))
 
+    # ── 52. V1.0-beta.8 DailyBroadcast ───────────────────────────────────
+    print("\n[52] V1.0-beta.8 DailyBroadcast")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+
+        # Module existence checks
+        broadcast_module_path = project_root / "app" / "application" / "radar" / "daily_broadcast.py"
+        check("daily_broadcast.py exists",
+              broadcast_module_path.exists(),
+              "daily_broadcast.py module should exist")
+
+        broadcast_text = broadcast_module_path.read_text(encoding="utf-8")
+        check("DailyBroadcastScript exists",
+              "class DailyBroadcastScript" in broadcast_text,
+              "DailyBroadcastScript dataclass should exist")
+        check("DailyBroadcastAudioResult exists",
+              "class DailyBroadcastAudioResult" in broadcast_text,
+              "DailyBroadcastAudioResult dataclass should exist")
+        check("build_daily_broadcast_script exists",
+              "def build_daily_broadcast_script" in broadcast_text,
+              "build_daily_broadcast_script function should exist")
+        check("generate_daily_broadcast_audio exists",
+              "def generate_daily_broadcast_audio" in broadcast_text,
+              "generate_daily_broadcast_audio function should exist")
+        check("DAILY_BROADCAST_TTS_ENABLED gate exists",
+              "DAILY_BROADCAST_TTS_ENABLED" in broadcast_text,
+              "TTS gate env var should be checked")
+        check("No LLM imports in daily_broadcast.py",
+              "from app.llm" not in broadcast_text and "import app.llm" not in broadcast_text,
+              "daily_broadcast.py should not import LLM modules")
+
+        # Template checks
+        broadcast_template_path = project_root / "app" / "templates" / "radar_daily_broadcast.html"
+        check("radar_daily_broadcast.html exists",
+              broadcast_template_path.exists(),
+              "broadcast template should exist")
+        broadcast_html = broadcast_template_path.read_text(encoding="utf-8")
+        check("Template has 今日 AI 前沿播报",
+              "今日 AI 前沿播报" in broadcast_html,
+              "broadcast template should have title")
+        check("Template has 生成音频",
+              "生成音频" in broadcast_html,
+              "broadcast template should have audio button")
+        check("Template has 未启用真实 TTS",
+              "未启用真实 TTS" in broadcast_html,
+              "broadcast template should show disabled message with TTS context")
+        check("Template has 播报文案",
+              "播报文案" in broadcast_html,
+              "broadcast template should show script content")
+        check("Template has 返回今日报告",
+              "返回今日报告" in broadcast_html,
+              "broadcast template should have back link")
+
+        # No external TTS API call in the audio generation function
+        check("generate_daily_broadcast_audio does not call external API",
+              "requests." not in broadcast_text and "httpx" not in broadcast_text,
+              "audio function should not call external HTTP APIs")
+
+        # TestClient verification
+        if client:
+            resp = client.get("/radar/daily-report/broadcast")
+            check("GET /radar/daily-report/broadcast returns 200",
+                  resp.status_code == 200,
+                  f"broadcast page should return 200, got {resp.status_code}")
+
+            resp_audio = client.post("/radar/daily-report/broadcast/audio")
+            check("POST /radar/daily-report/broadcast/audio returns 200",
+                  resp_audio.status_code == 200,
+                  f"broadcast audio endpoint should return 200, got {resp_audio.status_code}")
+
+            # Verify audio result shows disabled
+            audio_html = resp_audio.text
+            check("Audio endpoint returns disabled message",
+                  "未启用真实 TTS" in audio_html,
+                  "broadcast audio should show disabled status when TTS not configured")
+
+            # Verify POST audio preserves broadcast content
+            check("POST audio response contains 播报文案",
+                  "播报文案" in audio_html,
+                  "POST audio should preserve broadcast script display")
+
+            # Verify TTS note is present
+            check("Template has TTS reserve note",
+                  "仅预留音频入口" in broadcast_html or "真实 TTS 尚未启用" in broadcast_html,
+                  "broadcast template should note that TTS is not yet enabled")
+        else:
+            check("TestClient available for broadcast checks", False, "client is not available")
+
+        # No schema change in daily_broadcast module
+        check("daily_broadcast.py does not modify schema",
+              "db.query" not in broadcast_text or "add_column" not in broadcast_text.lower(),
+              "broadcast module should not modify DB schema")
+
+        # Empty broadcast text is natural (no "共发现 0 条")
+        check("Empty broadcast does not say 共发现 0 条",
+              "共发现 0 条" not in broadcast_text,
+              "empty broadcast should not say mechanical '共发现 0 条'")
+
+        # Checkpoint doc exists and says no real TTS
+        checkpoint_path = project_root / "docs" / "V1_BETA_8_DAILY_BROADCAST_CHECKPOINT.md"
+        check("V1_BETA_8 checkpoint doc exists",
+              checkpoint_path.exists(),
+              "checkpoint doc should exist")
+        if checkpoint_path.exists():
+            checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
+            check("Checkpoint doc says no real TTS",
+                  "不调用" in checkpoint_text and "真实 TTS" in checkpoint_text,
+                  "checkpoint should clarify real TTS is not called")
+
+    except Exception as e:
+        check("V1.0-beta.8 DailyBroadcast checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

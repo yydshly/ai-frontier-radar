@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}今日 AI 前沿播报 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page radar-workbench-page{% endblock %}
+
+{% block body_class %}radar-workbench-shell{% endblock %}
+
+{% block content %}
+<div class="radar-page">
+    {# ── Header ─────────────────────────────────────────── #}
+    <div class="radar-header">
+        <div class="radar-header-top">
+            <h1 class="radar-header-title">今日 AI 前沿播报</h1>
+            <span class="radar-header-meta">{{ script.date_label }}</span>
+            <div class="radar-quick-links">
+                <a href="/radar/daily-report" class="radar-quick-link">返回今日报告</a>
+                <a href="/radar/today" class="radar-quick-link">返回今日雷达</a>
+                <a href="/sources" class="radar-quick-link">信息来源</a>
+            </div>
+        </div>
+    </div>
+
+    {# ── Audio status banner ─────────────────────────────── #}
+    {% if audio_result %}
+    <div class="radar-broadcast-audio-status">
+        {% if audio_result.status == "disabled" %}
+        <div class="radar-broadcast-audio-disabled">
+            <span class="radar-broadcast-audio-icon">🔇</span>
+            <span>{{ audio_result.message }}</span>
+        </div>
+        {% elif audio_result.status == "generated" %}
+        <div class="radar-broadcast-audio-ready">
+            <span class="radar-broadcast-audio-icon">🔊</span>
+            <span>音频已生成：{{ audio_result.message }}</span>
+            {% if audio_result.audio_url %}
+            <a href="{{ audio_result.audio_url }}" target="_blank" class="radar-report-action-link">播放音频</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="radar-broadcast-audio-failed">
+            <span class="radar-broadcast-audio-icon">⚠️</span>
+            <span>音频生成失败：{{ audio_result.message }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    {# Initial GET: show default disabled state #}
+    <div class="radar-broadcast-audio-status">
+        <div class="radar-broadcast-audio-disabled">
+            <span class="radar-broadcast-audio-icon">🔇</span>
+            <span>音频播报入口已预留，当前未启用真实 TTS。配置 TTS 后，可将这份播报文案生成音频。</span>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Broadcast script ─────────────────────────────────── #}
+    <div class="radar-broadcast-section">
+        <div class="radar-broadcast-section-header">
+            <h2 class="radar-broadcast-section-title">播报文案</h2>
+            <div class="radar-broadcast-toolbar">
+                <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').value).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">复制文案</button>
+                <form method="post" action="/radar/daily-report/broadcast/audio" style="display:inline;">
+                    <button type="submit" class="btn btn-primary" id="audio-btn">生成音频</button>
+                </form>
+                <span class="radar-broadcast-tts-note">当前版本仅预留音频入口，真实 TTS 尚未启用</span>
+            </div>
+        </div>
+
+        {% if script.full_text %}
+        <textarea id="broadcast-script" class="radar-broadcast-script" readonly>{{ script.full_text }}</textarea>
+        {% else %}
+        <div class="radar-broadcast-empty">
+            <p>暂无播报内容。</p>
+            <p>请先在<a href="/radar/daily-report">今日报告</a>中查看今日内容后，再生成播报文案。</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── Footer ─────────────────────────────────────────── #}
+    <div class="radar-report-footer">
+        <a href="/radar/daily-report" class="btn btn-secondary">返回今日报告</a>
+        <a href="/radar/today" class="btn btn-secondary">返回今日雷达</a>
+    </div>
+</div>
+{% endblock %}
