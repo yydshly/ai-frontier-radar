@@ -4856,3 +4856,36 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 .source-fetch-secondary-button {
     opacity: 0.9;
 }
+
+/* ── Source workspace stale running warning (read-only diagnostic) ─── */
+.source-workspace-warning {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-left: 4px solid #f9a825;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.source-workspace-warning-title {
+    font-weight: 600;
+    color: #e65100;
+    margin-bottom: 0.5rem;
+}
+
+.source-workspace-warning p {
+    margin: 0.4rem 0;
+    font-size: 0.9rem;
+    color: #5d4037;
+}
+
+.source-workspace-warning-list {
+    margin: 0.5rem 0;
+    padding-left: 1.2rem;
+    font-size: 0.88rem;
+}
+
+.source-workspace-warning-list li {
+    margin: 0.3rem 0;
+    word-break: break-word;
+}

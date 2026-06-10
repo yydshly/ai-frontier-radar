@@ -3392,6 +3392,68 @@ def main():
     except Exception as e:
         check("source workspace checks", False, str(e))
 
+    # ── 27. Stale running FetchRun diagnostics ───────────────────────────────
+    print("\n[27] Stale running FetchRun diagnostics")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        stale_runs_path = project_root / "app" / "application" / "sources" / "stale_runs.py"
+        check_stale_path = project_root / "scripts" / "check_stale_fetch_runs.py"
+
+        check("stale fetch run check script exists",
+              check_stale_path.exists(),
+              "stale fetch run diagnostic script should exist")
+
+        stale_runs_py = stale_runs_path.read_text(encoding="utf-8") if stale_runs_path.exists() else ""
+        check_stale_py = check_stale_path.read_text(encoding="utf-8") if check_stale_path.exists() else ""
+        source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("stale fetch run diagnostic service exists",
+              "class StaleFetchRunDecision" in stale_runs_py
+              and "class StaleFetchRunReport" in stale_runs_py
+              and "def build_stale_fetch_run_report" in stale_runs_py,
+              "stale running diagnostic service should exist")
+
+        check("stale fetch run service supports threshold env override",
+              "RADAR_STALE_RUNNING_MINUTES" in stale_runs_py
+              and "def get_stale_running_threshold_minutes" in stale_runs_py
+              and "running_too_long" in stale_runs_py
+              and "missing_started_at" in stale_runs_py,
+              "stale diagnostic should support configurable threshold and reason codes")
+
+        check("stale fetch run diagnostic is read-only",
+              ".commit(" not in stale_runs_py
+              and ".add(" not in stale_runs_py
+              and ".delete(" not in stale_runs_py
+              and "enqueue" not in stale_runs_py,
+              "stale diagnostic must not modify DB or enqueue fetches")
+
+        check("stale fetch run check script is read-only",
+              ".commit(" not in check_stale_py
+              and ".add(" not in check_stale_py
+              and ".delete(" not in check_stale_py
+              and "enqueue" not in check_stale_py
+              and "CandidateOneLinerService" not in check_stale_py,
+              "check_stale_fetch_runs.py must be read-only")
+
+        check("source workspace renders stale running warning",
+              "stale running" in source_detail_html.lower()
+              or ("stale" in source_detail_html.lower()
+                  and "running" in source_detail_html.lower()),
+              "source workspace should show stale running risk")
+
+        check("source workspace receives stale run context",
+              "stale_runs" in main_py
+              and "build_stale_fetch_run_report" in main_py,
+              "source workspace route should compute stale running diagnostics")
+
+        check("stale running warning styles exist",
+              ".source-workspace-warning" in style_css,
+              "stale running warning should have dedicated styles")
+    except Exception as e:
+        check("stale running diagnostic checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

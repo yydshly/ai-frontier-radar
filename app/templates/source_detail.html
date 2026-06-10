@@ -95,6 +95,27 @@
             </div>
         </div>
 
+        <!-- Stale running FetchRun warning (read-only diagnostic) -->
+        {% if stale_runs %}
+        <div class="source-workspace-warning">
+            <div class="source-workspace-warning-title">⚠️ 检测到 stale running 风险</div>
+            <p>检测到该来源存在运行时间超过 {{ stale_threshold_minutes }} 分钟的 running FetchRun。
+               这可能导致 due-source 持续判定 already_running，从而跳过该来源，
+               使其在"更新今日雷达"时一直不被处理。</p>
+            <ul class="source-workspace-warning-list">
+                {% for r in stale_runs %}
+                <li>
+                    <a href="/fetch-runs/{{ r.run_id }}" class="btn-link">run_id={{ r.run_id }}</a>
+                    · 原因：{{ r.reason }}
+                    {% if r.age_minutes is not none %}· 已运行 {{ r.age_minutes }} 分钟{% endif %}
+                    {% if r.started_at %}· 启动 {{ r.started_at.strftime('%Y-%m-%d %H:%M') }} UTC{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            <p class="source-workspace-muted">本页面仅诊断，不会自动修改运行状态、不会重试、不会重新探测。</p>
+        </div>
+        {% endif %}
+
         <!-- Coverage stats -->
         <div class="source-workspace-card">
             <h2>内容覆盖</h2>

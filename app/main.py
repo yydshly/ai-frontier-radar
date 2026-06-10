@@ -1269,6 +1269,14 @@ def source_workspace_page(request: Request, source_key: str):
         latest_success_run = next((r for r in recent_runs if r.status == "success"), None)
         latest_failed_run = next((r for r in recent_runs if r.status == "failed"), None)
 
+        # 4b. Stale running FetchRun diagnostics (read-only) for this source.
+        from app.application.sources.stale_runs import build_stale_fetch_run_report
+
+        stale_report = build_stale_fetch_run_report(db)
+        source_stale_runs = [
+            r for r in stale_report.stale_runs if r.source_key == source_key
+        ]
+
         # 5. Recent SourceItems and coverage stats.
         recent_items = (
             db.query(SourceItem)
@@ -1350,6 +1358,8 @@ def source_workspace_page(request: Request, source_key: str):
                 "config_source": config_source,
                 "is_radar_source": is_radar_source,
                 "strategy_supported": strategy_supported,
+                "stale_runs": source_stale_runs,
+                "stale_threshold_minutes": stale_report.threshold_minutes,
                 "decision": decision,
                 "recent_runs": recent_runs_view,
                 "recent_items": recent_items_view,

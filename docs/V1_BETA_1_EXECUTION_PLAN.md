@@ -139,6 +139,36 @@ class DueSourcePlan:
 
 ---
 
+### Task 3B：stale running FetchRun 诊断只读版 ✅ 已实现
+
+**背景**：
+`check_due_sources.py` 中 `running=8` 表示有一批来源被判为 `already_running`。
+若这些 running FetchRun 是历史卡住状态，due-source 会持续跳过这些来源，导致它们
+永远不被今日雷达更新处理。本任务先做"诊断"，不做自动修复。
+
+**实现产物**：
+- `app/application/sources/stale_runs.py`：
+  - `StaleFetchRunDecision` / `StaleFetchRunReport` 数据结构
+  - `get_stale_running_threshold_minutes()`（env `RADAR_STALE_RUNNING_MINUTES`，默认 120，合法范围 10–10080，越界回退 120）
+  - `build_stale_fetch_run_report()`（只读查询所有 `status=running`，按阈值判定 stale）
+  - 原因码：`running_too_long` / `missing_started_at`
+- `scripts/check_stale_fetch_runs.py`：只读诊断脚本，支持 `--threshold-minutes`
+- 来源工作台（`source_detail.html`）在有 stale running 时显示风险提示
+- `app/static/style.css`：新增 `.source-workspace-warning*` 样式
+
+**不做**：
+- 不自动把 running 改成 failed
+- 不自动重试 / 重新 enqueue
+- 不新增修复按钮 / 定时任务
+- 不改 due-source 计算逻辑、不改 FetchRun 状态写入
+
+**验收**：
+- `python scripts/check_stale_fetch_runs.py` 输出 total_running / stale_count / affected_sources
+- 工作台对有 stale running 的来源显示风险提示，无 stale 时不报错
+- 全程只读，不新增 FetchRun，不改状态，不调用 LLM
+
+---
+
 ### Task 4：单来源手动探测
 
 **范围**：

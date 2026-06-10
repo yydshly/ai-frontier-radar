@@ -270,6 +270,25 @@ def compute_due_sources(configured_sources, db_session) -> DueSourceResult:
 - 不做复杂优先级
 ```
 
+### 5.6 stale running FetchRun 诊断（V1.0-beta.1 Task 3B）
+
+due-source 会把存在 running FetchRun 的来源判定为 `already_running` 并跳过。
+如果某条 FetchRun 长期停留在 `running`（进程崩溃、异常退出等历史卡死），那么
+该来源会被持续跳过，用户点击"更新今日雷达"也不会为它产生新抓取。
+
+为此 V1.0-beta.1 先提供**只读诊断**，不自动修改状态：
+
+- `app/application/sources/stale_runs.py` 的 `build_stale_fetch_run_report()`
+  查询所有 `status=running` 的 FetchRun，按阈值判定 stale：
+  - `started_at` 为空 → reason `missing_started_at`
+  - `now - started_at` 超过阈值 → reason `running_too_long`
+- 阈值由 `RADAR_STALE_RUNNING_MINUTES` 控制，默认 120 分钟，合法范围 10–10080。
+- `scripts/check_stale_fetch_runs.py` 可在命令行查看受影响来源。
+- 单来源工作台在检测到 stale running 时显示风险提示。
+
+本阶段**不自动**把 running 改为 failed、不重试、不重新 enqueue。
+后续可设计人工确认后的 stale recovery（例如标记为 `failed_timeout`）。
+
 ---
 
 ## 6. 单来源工作台设计
