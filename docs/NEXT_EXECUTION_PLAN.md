@@ -145,13 +145,9 @@
 
 ---
 
-## V1.0-beta.7：日报卡片（进行中）
+## V1.0-beta.7：日报卡片
 
-> 分支：`feature/v1-beta-7-daily-report-card`
-
-### V1.0-beta.7 目标
-
-规则打分分层日报卡片：今日必看 3-5 条 + 其他值得扫一眼，不调用 LLM。
+> 分支：`feature/v1-beta-7-daily-report-card` → 已合并到 main
 
 ### V1.0-beta.7 完成项
 
@@ -167,9 +163,45 @@
 ### V1.0-beta.7 暂不改
 
 - ❌ LLM 日报总结
-- ❌ 音频播报
+- ❌ 音频播报（由 V1.0-beta.8 承接）
 - ❌ 真实正文抓取
 - ❌ DB schema
+
+---
+
+## V1.0-beta.8：播报文案（进行中）
+
+> 分支：`feature/v1-beta-8-daily-broadcast`
+
+### V1.0-beta.8 目标
+
+在 DailyReportCard 基础上生成口播友好的中文播报稿，预留 TTS 音频生成接口。
+
+### V1.0-beta.8 完成项
+
+- ✅ DailyBroadcastScript dataclass（title/opening/overview/primary_sections/secondary_section/closing/full_text）
+- ✅ build_daily_broadcast_script() — 不调用 LLM，基于 DailyReportCard 规则生成
+- ✅ DailyBroadcastAudioResult dataclass（status/message/audio_url/audio_path）
+- ✅ generate_daily_broadcast_audio() — TTS gate，默认返回 disabled
+- ✅ GET /radar/daily-report/broadcast — 展示播报文案页面
+- ✅ POST /radar/daily-report/broadcast/audio — 音频生成入口（默认 disabled）
+- ✅ 页面包含 textarea 展示 full_text，含复制按钮
+- ✅ 音频状态 banner（disabled / generated / failed）
+- ✅ `docs/V1_BETA_8_DAILY_BROADCAST_PLAN.md`
+
+### V1.0-beta.8 暂不改
+
+- ❌ 真实 TTS API 调用（MiniMax / OpenAI / 本地 TTS）
+- ❌ 多 Provider 支持（接口预留，单一 Provider）
+- ❌ 音频文件生成
+- ❌ LLM
+- ❌ DB schema
+
+### 后续接入方向
+
+- MiniMax TTS（`MINIMAX_API_KEY`）
+- OpenAI TTS（`OPENAI_API_KEY`）
+- 本地 TTS（Coqui / piper）
 
 ---
 

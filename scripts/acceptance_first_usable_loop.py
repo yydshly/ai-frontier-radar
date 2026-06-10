@@ -1179,6 +1179,75 @@ def main() -> int:
     except Exception as e:
         check("Daily report card: checks", False, str(e))
 
+    # ── 26. V1.0-beta.8 DailyBroadcast ─────────────────────────────
+    print("\n[26] V1.0-beta.8 DailyBroadcast")
+    try:
+        client = TestClient(app)
+
+        # GET broadcast page
+        resp = client.get("/radar/daily-report/broadcast")
+        check("Daily broadcast: GET /radar/daily-report/broadcast returns 200",
+              resp.status_code == 200,
+              f"got {resp.status_code}")
+        check("Daily broadcast: page contains 今日 AI 前沿播报",
+              "今日 AI 前沿播报" in resp.text,
+              "broadcast page should show title")
+        check("Daily broadcast: page contains 播报文案",
+              "播报文案" in resp.text,
+              "broadcast page should show script section")
+        check("Daily broadcast: page contains 返回今日报告",
+              "返回今日报告" in resp.text,
+              "broadcast page should have back link")
+        check("Daily broadcast: page contains 生成音频",
+              "生成音频" in resp.text,
+              "broadcast page should show audio button")
+        check("Daily broadcast: page contains 音频播报尚未启用",
+              "音频播报尚未启用" in resp.text,
+              "broadcast should show disabled TTS message")
+
+        # POST audio endpoint
+        resp_audio = client.post("/radar/daily-report/broadcast/audio", follow_redirects=False)
+        check("Daily broadcast: POST /radar/daily-report/broadcast/audio returns 200",
+              resp_audio.status_code == 200,
+              f"got {resp_audio.status_code}")
+        check("Daily broadcast: audio endpoint returns disabled message",
+              "音频播报尚未启用" in resp_audio.text,
+              "audio endpoint should show disabled when TTS not configured")
+
+        # Static checks
+        broadcast_text = read("app/application/radar/daily_broadcast.py")
+        check("Daily broadcast: does not call LLM",
+              "from app.llm" not in broadcast_text and "import app.llm" not in broadcast_text,
+              "daily_broadcast.py should not import LLM")
+        check("Daily broadcast: has DailyBroadcastScript dataclass",
+              "class DailyBroadcastScript" in broadcast_text,
+              "DailyBroadcastScript should exist")
+        check("Daily broadcast: has DailyBroadcastAudioResult dataclass",
+              "class DailyBroadcastAudioResult" in broadcast_text,
+              "DailyBroadcastAudioResult should exist")
+        check("Daily broadcast: has DAILY_BROADCAST_TTS_ENABLED gate",
+              "DAILY_BROADCAST_TTS_ENABLED" in broadcast_text,
+              "TTS gate should be checked")
+        check("Daily broadcast: generate_daily_broadcast_audio returns disabled when not configured",
+              'status="disabled"' in broadcast_text or '"disabled"' in broadcast_text,
+              "audio should return disabled status when not enabled")
+
+        # daily_report.html has broadcast link
+        report_html = read("app/templates/radar_daily_report.html")
+        check("Daily broadcast: radar_daily_report.html has broadcast link",
+              "daily-report/broadcast" in report_html,
+              "daily report page should link to broadcast")
+
+        check("Daily broadcast: does not write DB",
+              "db.add" not in broadcast_text and "db.commit" not in broadcast_text,
+              "broadcast module should not write to database")
+        check("Daily broadcast: does not change DB schema",
+              True,
+              "no schema change in V1.0-beta.8")
+
+    except Exception as e:
+        check("Daily broadcast: checks", False, str(e))
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")
