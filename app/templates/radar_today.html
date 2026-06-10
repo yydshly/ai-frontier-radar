@@ -290,16 +290,18 @@
                         {% set is_selected = sel and item.id == sel.id %}
                         <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
                             <div class="radar-card-body">
-                                {# Primary text: zh_one_liner when available, else title #}
+                                {# Primary: Chinese summary when available, else English title #}
                                 {% if display %}
                                 <div class="radar-card-title">
                                     {{ display.primary_text }}
                                     {% if display.uses_zh_one_liner %}
                                     <span class="radar-card-zh-badge">中文概述</span>
+                                    {% else %}
+                                    <span class="radar-card-summary-placeholder">待生成中文摘要</span>
                                     {% endif %}
                                 </div>
                                 {% if display.secondary_text %}
-                                <div class="radar-card-summary">{{ display.secondary_text }}</div>
+                                <div class="radar-card-original-title">{{ display.secondary_text }}</div>
                                 {% endif %}
                                 {% else %}
                                 <div class="radar-card-title">{{ item.title or '无标题' }}</div>
@@ -381,7 +383,7 @@
 
                 {% if sel_card and sel_card.detail_summary %}
                 <section class="radar-panel-section">
-                    <h3>内容摘要</h3>
+                    <h3>中文摘要</h3>
                     <div class="radar-panel-summary">{{ sel_card.detail_summary }}</div>
                 </section>
                 {% endif %}
@@ -390,7 +392,7 @@
                 {% set preview = view.panel_state.insight_preview %}
                 {% set insight = view.panel_state.selected_insight_card %}
                 <section class="radar-panel-section radar-panel-insight-preview">
-                    <h3>InsightCard 预览</h3>
+                    <h3>宏观洞察</h3>
 
                     {% if preview.relevance_score is not none %}
                     <p class="radar-panel-score">相关性分数：{{ preview.relevance_score }}</p>

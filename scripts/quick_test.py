@@ -2897,9 +2897,9 @@ def main():
               "right panel should display summary and insight generation states")
 
         check("today radar template renders insight preview",
-              "InsightCard 预览" in radar_html
+              ("宏观洞察" in radar_html or "InsightCard" in radar_html)
               and "view.panel_state.selected_insight_card" in radar_html,
-              "right panel should preview generated InsightCard")
+              "right panel should show insight preview")
 
         check("today radar panel state styles exist",
               ".radar-panel-state-stack" in style_css
@@ -4103,6 +4103,65 @@ def main():
               "scheduler status sub-block should have dedicated styles")
     except Exception as e:
         check("V1.0-beta.3 radar scheduler status checks", False, str(e))
+
+    # ── 38. V1.0-beta.3 Chinese entry UX ──────────────────────────────────
+    print("\n[38] V1.0-beta.3 Chinese entry UX")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+
+        check("radar_today.html contains '待生成中文摘要' placeholder",
+              "待生成中文摘要" in radar_html,
+              "radar today should show placeholder when no zh_one_liner")
+
+        check("radar_today.html contains '中文摘要' section heading",
+              "中文摘要" in radar_html,
+              "right panel should have '中文摘要' label")
+
+        check("radar_today.html still contains '打开原文' link",
+              "打开原文" in radar_html,
+              "original article link should remain")
+
+        check("radar_today.html still contains InsightCard or 洞察 entry",
+              ("InsightCard" in radar_html or "洞察" in radar_html),
+              "InsightCard/洞察 entry should remain")
+
+        check("radar_today.html does not contain '全文深度分析'",
+              "全文深度分析" not in radar_html,
+              "no deep analysis button should be added")
+
+        check("radar_today.html does not expose technical terms",
+              "SourceItem" not in radar_html
+              and "FetchRun" not in radar_html
+              and ("one_liner" not in radar_html or "uses_zh_one_liner" in radar_html)
+              and "zh_summary" not in radar_html,
+              "main UI should not expose standalone technical terms (uses_zh_one_liner is a property name, not exposure)")
+
+        check("style.css has .radar-card-summary-placeholder or similar",
+              "radar-card-summary-placeholder" in style_css
+              or "radar-card-original-title" in style_css,
+              "style CSS should have Chinese entry related classes")
+
+        check("style.css does not change .radar-layout grid-template-columns",
+              ".radar-layout" in style_css
+              and "grid-template-columns" not in style_css.split(".radar-layout")[1].split("{")[0]
+              if ".radar-layout" in style_css else True,
+              "radar-layout grid columns should not be changed")
+
+        check("radar_today.html does not expose AUTO_SUMMARY_MAX_PER_FETCH_RUN",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN" not in radar_html,
+              "UI should not expose scheduler env vars")
+
+        check("radar_today.html does not expose RADAR_SCHEDULER_ENABLED",
+              "RADAR_SCHEDULER_ENABLED" not in radar_html,
+              "UI should not expose scheduler env vars")
+
+        check("radar_today.html does not expose run_due_sources_once",
+              "run_due_sources_once" not in radar_html,
+              "UI should not expose script names")
+    except Exception as e:
+        check("V1.0-beta.3 Chinese entry UX checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

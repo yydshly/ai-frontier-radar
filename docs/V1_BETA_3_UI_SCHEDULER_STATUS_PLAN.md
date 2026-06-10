@@ -77,3 +77,18 @@ InsightCard。
 - `compileall` / `quick_test`（新增第 37 节）/ `acceptance_first_usable_loop` 通过
 - `check_due_sources` 正常，`check_stale_fetch_runs` stale_count=0
 - 手动打开 `/radar/today` 确认三栏与导航无变化，仅多出"调度状态"小块与"自动调度说明"入口
+
+## 10. 后续 UI 方向：中文理解入口优先
+
+V1.0-beta.3 后续 UI 方向：**今日雷达中文理解入口优先**。
+
+目标：给用户提供宏观理解 AI 前沿信息的中文入口。
+
+核心原则：
+- 中间列表优先展示一句话中文摘要，英文标题降级为辅助信息
+- 右侧面板继续展示中文摘要和 InsightCard 入口
+- 原文链接作为辅助入口，不作为普通资讯的默认深度分析路径
+- 不做超细节全文分析
+- 不新增每日汇总 / 播报能力（另起任务）
+
+参考文档：[V1_BETA_3_CHINESE_ENTRY_UX_PLAN.md](V1_BETA_3_CHINESE_ENTRY_UX_PLAN.md)

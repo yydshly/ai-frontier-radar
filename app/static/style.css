@@ -4037,6 +4037,19 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     line-height: 1.5;
 }
 
+.radar-card-summary-placeholder {
+    font-size: 0.78rem;
+    color: #9a6700;
+    font-style: italic;
+}
+
+.radar-card-original-title {
+    font-size: 0.8rem;
+    color: #57606a;
+    margin-bottom: 0.4rem;
+    line-height: 1.4;
+}
+
 .radar-card-title {
     font-size: 0.85rem;
     color: #57606a;
