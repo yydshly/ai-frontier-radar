@@ -128,9 +128,12 @@ V1.0-beta.2 进入轻量自动调度设计阶段，规划重点：
 - CLI dry-run scheduler skeleton（Task 2）
 - `--apply` safety path（Task 3A：`RADAR_SCHEDULER_ENABLED` + `AUTO_SUMMARY_MAX_PER_FETCH_RUN=0` 双闸门）
 - isolated DB + local mock RSS apply acceptance（Task 3B：FetchRun success / SourceItem 入库 / 主库未污染）
+- Windows Task Scheduler / cron operations manual（Task 5）
+- scheduler operations manual covers: Windows Task Scheduler、cron、环境变量、日志、常见问题
 
 参考：
 
 - `docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md`
 - `docs/V1_BETA_2_EXECUTION_PLAN.md`
 - `docs/V1_BETA_2_DECISION_RECORD.md`
+- `docs/V1_BETA_2_SCHEDULER_OPERATIONS.md`

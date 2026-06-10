@@ -128,6 +128,9 @@ python scripts/run_due_sources_once.py --apply    # 真实创建 FetchRun（Task
 
 定时器只负责"按间隔调用一次 CLI"，调度逻辑和状态全部留在应用内可解释组件中。
 
+**Task 5 已补充 [Windows Task Scheduler / cron 操作手册](V1_BETA_2_SCHEDULER_OPERATIONS.md)**：
+当前推荐方式是外部定时器调用 run_due_sources_once.py，而不是在 Web 进程内常驻调度。
+
 ### Phase C：应用内轻量 scheduler（本阶段不实现）
 
 后续再评估是否引入，候选：

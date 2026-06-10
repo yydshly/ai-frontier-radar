@@ -3895,6 +3895,79 @@ def main():
     except Exception as e:
         check("V1.0-beta.2 isolated acceptance checks", False, str(e))
 
+    # ── 35. V1.0-beta.2 scheduler operations manual ────────────────────────────
+    print("\n[35] V1.0-beta.2 scheduler operations manual")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        ops_doc = project_root / "docs" / "V1_BETA_2_SCHEDULER_OPERATIONS.md"
+        ops_text = ops_doc.read_text(encoding="utf-8") if ops_doc.exists() else ""
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+        readme = (project_root / "README.md").read_text(encoding="utf-8")
+
+        check("scheduler operations manual exists",
+              ops_doc.exists(),
+              "V1_BETA_2_SCHEDULER_OPERATIONS.md should exist")
+
+        check("scheduler operations manual covers Windows and cron",
+              "Windows Task Scheduler" in ops_text and "cron" in ops_text,
+              "manual should cover Windows Task Scheduler and cron")
+
+        check("scheduler operations manual covers dry-run",
+              "dry-run" in ops_text.lower(),
+              "manual should explain dry-run mode")
+
+        check("scheduler operations manual covers --apply",
+              "--apply" in ops_text,
+              "manual should explain --apply flag")
+
+        check("scheduler operations manual documents RADAR_SCHEDULER_ENABLED",
+              "RADAR_SCHEDULER_ENABLED=true" in ops_text,
+              "manual should document RADAR_SCHEDULER_ENABLED=true requirement")
+
+        check("scheduler operations manual documents AUTO_SUMMARY_MAX_PER_FETCH_RUN=0",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in ops_text,
+              "manual should document auto summary disabled")
+
+        check("scheduler operations manual covers max-sources",
+              "--max-sources" in ops_text,
+              "manual should document --max-sources limit")
+
+        check("scheduler operations manual covers logs",
+              "scheduler.log" in ops_text or "logs/" in ops_text,
+              "manual should recommend log output")
+
+        check("scheduler operations manual covers stale check",
+              "check_stale_fetch_runs.py" in ops_text,
+              "manual should reference stale check script")
+
+        check("scheduler operations manual covers stale recovery with confirmation",
+              "mark_stale_fetch_runs_failed.py" in ops_text
+              and ("--apply" in ops_text)
+              and ("人工确认" in ops_text or "人工" in ops_text),
+              "manual should cover stale recovery requires manual confirmation")
+
+        check("scheduler operations manual explains due=0 is cooldown",
+              "冷却期" in ops_text or "not_due_yet" in ops_text,
+              "manual should clarify due=0 is normal cooldown, not failure")
+
+        check("scheduler operations manual explains LLM disabled by default",
+              "不默认触发 LLM" in ops_text or "LLM" in ops_text,
+              "manual should explain LLM is not triggered by default in scheduler")
+
+        check("README links scheduler operations manual",
+              "V1_BETA_2_SCHEDULER_OPERATIONS.md" in readme,
+              "README should link the operations manual")
+
+        check("registry contains v1-beta-2-scheduler-operations",
+              "v1-beta-2-scheduler-operations" in registry_py,
+              "project docs registry should include scheduler operations entry")
+
+        check("registry operations entry has correct path",
+              "V1_BETA_2_SCHEDULER_OPERATIONS.md" in registry_py,
+              "registry should reference the operations manual path")
+    except Exception as e:
+        check("V1.0-beta.2 scheduler operations manual checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
