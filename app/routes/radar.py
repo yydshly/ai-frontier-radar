@@ -779,3 +779,45 @@ def update_today_radar(
         f"&update_truncated={max(0, plan.due_count - started)}"
     )
     return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@router.get("/daily-report", response_class=HTMLResponse)
+def get_daily_report_card(request: Request):
+    """Render the DailyReportCard for today.
+
+    Read-only page. Builds the card using rule-based ranking without LLM.
+    Accessible via GET; build via POST /radar/daily-report/build.
+    """
+    from app.application.radar.daily_report_card import build_daily_report_card
+
+    db = next(get_db())
+    try:
+        card = build_daily_report_card(db)
+    finally:
+        db.close()
+
+    overview = card.overview
+    primary_items = card.primary_items
+    secondary_items = card.secondary_items
+    date_label = card.date_label
+
+    return _radar_templates.TemplateResponse(
+        "radar_daily_report.html",
+        {
+            "request": request,
+            "date_label": date_label,
+            "overview": overview,
+            "primary_items": primary_items,
+            "secondary_items": secondary_items,
+        },
+    )
+
+
+@router.post("/daily-report/build")
+def build_daily_report_card_action(request: Request):
+    """Build today's DailyReportCard and redirect to the report page.
+
+    This is a no-op action that builds the card server-side and redirects
+    to GET /radar/daily-report. No LLM is called.
+    """
+    return RedirectResponse(url="/radar/daily-report", status_code=303)
