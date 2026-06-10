@@ -114,6 +114,37 @@
 
 ---
 
+## V1.0-beta.6：今日雷达主链路
+
+> 分支：`feature/v1-beta-6-today-item-content-chain`
+
+### V1.0-beta.6 目标
+
+打通今日雷达主链路：TodayItemCard 中文概述状态 → 内容获取 intent-only → bootstrap/daily_increment 来源发现入口。
+
+### V1.0-beta.6 完成项
+
+- ✅ TodayItemCard 中文概述状态（zh_preview / summary_state）
+- ✅ 右侧面板展示中文概述 / 中文摘要 / 待生成状态
+- ✅ 内容获取 intent-only 链路（POST fetch-content）
+- ✅ bootstrap / daily_increment 入口设计
+- ✅ bootstrap dry-run / apply 语义
+- ✅ Web apply background（FastAPI BackgroundTasks）
+- ✅ CLI apply sync
+- ✅ `SourceDiscoveryRunResult.execution_mode`
+- ✅ `docs/V1_BETA_6_TODAY_RADAR_MAIN_CHAIN_CHECKPOINT.md`
+- ✅ `docs/V1_BETA_6_SOURCE_DISCOVERY_BOOTSTRAP_AND_DAILY_INCREMENT_PLAN.md`
+
+### V1.0-beta.6 暂不改
+
+- ❌ 自定义来源 F-2
+- ❌ 真实正文抓取
+- ❌ 自动日报
+- ❌ 音频播报
+- ❌ DB schema
+
+---
+
 ## 验收标准
 
 - README 准确反映当前能力

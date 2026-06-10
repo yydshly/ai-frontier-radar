@@ -285,7 +285,7 @@
                         {% if bootstrap_result.dry_run %}
                         dry-run 未写入数据库；确认后可用脚本 apply 初始化最近 20 条。
                         {% elif bootstrap_result.execution_mode == "background" %}
-                        后台已启动，稍后刷新今日雷达或查看 FetchRun 获取新增内容。
+                        后台已启动，稍后刷新今日雷达或查看来源抓取记录获取新增内容。
                         {% elif bootstrap_result.execution_mode == "sync" %}
                         同步执行完成，已启动 {{ bootstrap_result.started }} 个来源抓取。
                         {% endif %}
