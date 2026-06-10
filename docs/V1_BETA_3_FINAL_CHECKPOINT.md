@@ -12,7 +12,8 @@
 |------|------|
 | 版本 | V1.0-beta.3 |
 | 分支 | `feature/v1-beta-3-radar-status-ui` |
-| 最终 commit | `c0602b2`（含 final checkpoint docs） |
+| 最终 checkpoint 基准 commit | `6ffe383` |
+| 文档修正 commit | 见下方本次最新提交 |
 | 阶段定位 | 今日雷达（`/radar/today`）阅读体验闭环 |
 
 ---
@@ -82,7 +83,7 @@
 | 测试 | 命令 | 结果 |
 |------|------|------|
 | compileall | `python -m compileall app scripts` | ✅ 通过 |
-| quick_test | `python scripts/quick_test.py` | ✅ 727 passed, 0 failed |
+| quick_test | `python scripts/quick_test.py` | ✅ 737 passed, 0 failed |
 | direct acceptance | `python scripts/acceptance_first_usable_loop.py` | ✅ 47 passed, 0 failed |
 | module acceptance | `python -m scripts.acceptance_first_usable_loop` | ✅ 47 passed, 0 failed |
 | check_due_sources | `python scripts/check_due_sources.py` | ✅ 正常（0 个到期来源） |
