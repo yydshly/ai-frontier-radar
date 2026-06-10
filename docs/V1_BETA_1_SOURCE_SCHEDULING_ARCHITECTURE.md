@@ -274,6 +274,12 @@ def compute_due_sources(configured_sources, db_session) -> DueSourceResult:
 
 ## 6. 单来源工作台设计
 
+> 实现状态（V1.0-beta.1 Task 3）：单来源工作台先以只读方式实现（模板
+> `source_detail.html`），用于排查来源状态和内容覆盖（基础信息、雷达关注源
+> 状态、due-source 判断、最近 FetchRun、最近 SourceItem、中文摘要覆盖、
+> InsightCard 覆盖）。手动触发单来源探测留到后续任务（Task 4），当前页面
+> 不提供"运行探测"按钮。
+
 ### 6.1 路由
 
 ```

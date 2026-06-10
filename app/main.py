@@ -1196,6 +1196,177 @@ def list_sources_page(request: Request, include_test: int = Query(0, ge=0, le=1)
         db.close()
 
 
+@app.get("/sources/{source_key}", response_class=HTMLResponse)
+def source_workspace_page(request: Request, source_key: str):
+    """Single source workspace (read-only).
+
+    Shows:
+    - Basic info
+    - Radar-source / due-source decision
+    - Recent FetchRuns
+    - Recent SourceItems
+    - Coverage stats
+
+    This page is read-only — does NOT trigger fetches, summaries, or
+    InsightCard generation.
+    """
+    db: Session = next(get_db())
+    try:
+        # 1. Find the DB Source row.
+        source: Source | None = (
+            db.query(Source)
+            .filter(Source.source_key == source_key)
+            .order_by(Source.id.desc())
+            .first()
+        )
+        if source is None:
+            return templates.TemplateResponse(
+                "source_detail.html",
+                {
+                    "request": request,
+                    "source_key": source_key,
+                    "source": None,
+                    "not_found": True,
+                },
+                status_code=404,
+            )
+
+        # 2. Find the corresponding config (for radar-scope and interval info).
+        from app.sources.config_loader import get_enabled_sources, list_sources
+        from app.application.sources.due_sources import (
+            SUPPORTED_FETCH_STRATEGIES,
+            compute_due_sources,
+        )
+
+        all_configured = list_sources(include_disabled=True)
+        config_by_key = {s.source_key: s for s in all_configured}
+        config_enabled_keys = {s.source_key for s in get_enabled_sources()}
+        config_source = config_by_key.get(source_key)
+        is_radar_source = config_source is not None and source_key in config_enabled_keys
+        strategy_supported = (source.fetch_strategy or "") in SUPPORTED_FETCH_STRATEGIES
+
+        # 3. Get this source's due-source decision (if any).
+        decision = None
+        if is_radar_source:
+            plan = compute_due_sources(db)
+            for bucket in (plan.due, plan.skipped, plan.running, plan.unsupported, plan.missing):
+                for d in bucket:
+                    if d.source_key == source_key:
+                        decision = d
+                        break
+                if decision is not None:
+                    break
+
+        # 4. Recent FetchRuns.
+        recent_runs = (
+            db.query(FetchRun)
+            .filter(FetchRun.source_key == source_key)
+            .order_by(FetchRun.started_at.desc().nullslast(), FetchRun.id.desc())
+            .limit(10)
+            .all()
+        )
+
+        latest_success_run = next((r for r in recent_runs if r.status == "success"), None)
+        latest_failed_run = next((r for r in recent_runs if r.status == "failed"), None)
+
+        # 5. Recent SourceItems and coverage stats.
+        recent_items = (
+            db.query(SourceItem)
+            .filter(SourceItem.source_key == source_key)
+            .order_by(SourceItem.last_seen_at.desc(), SourceItem.id.desc())
+            .limit(20)
+            .all()
+        )
+
+        total_items = (
+            db.query(SourceItem).filter(SourceItem.source_key == source_key).count()
+        )
+
+        # Summarized items: SourceItem.raw_metadata_json contains zh_one_liner or summary_zh.
+        summarized_items = 0
+        for item in db.query(SourceItem).filter(SourceItem.source_key == source_key).all():
+            raw = item.raw_metadata_json or ""
+            if '"zh_one_liner"' in raw or '"summary_zh"' in raw or '"auto_summary"' in raw:
+                summarized_items += 1
+
+        # InsightCard linkage: insight_card_id is set.
+        insightcard_items = (
+            db.query(SourceItem)
+            .filter(SourceItem.source_key == source_key)
+            .filter(SourceItem.insight_card_id.isnot(None))
+            .count()
+        )
+
+        def _has_summary(item: SourceItem) -> bool:
+            raw = item.raw_metadata_json or ""
+            return '"zh_one_liner"' in raw or '"summary_zh"' in raw or '"auto_summary"' in raw
+
+        recent_items_view = [
+            {
+                "id": it.id,
+                "title": it.title,
+                "url": it.url,
+                "status": it.status,
+                "last_seen_at": it.last_seen_at,
+                "published_at": it.published_at,
+                "insight_card_id": it.insight_card_id,
+                "has_summary": _has_summary(it),
+            }
+            for it in recent_items
+        ]
+
+        recent_runs_view = [
+            {
+                "id": r.id,
+                "status": r.status,
+                "started_at": r.started_at,
+                "finished_at": r.finished_at,
+                "items_found": r.items_found,
+                "items_new": r.items_new,
+                "items_updated": r.items_updated,
+                "items_failed": r.items_failed,
+                "error_message": r.error_message,
+            }
+            for r in recent_runs
+        ]
+
+        summary_coverage = (
+            f"{summarized_items}/{total_items}"
+            if total_items > 0
+            else "暂无数据"
+        )
+        insightcard_coverage = (
+            f"{insightcard_items}/{total_items}"
+            if total_items > 0
+            else "暂无数据"
+        )
+
+        return templates.TemplateResponse(
+            "source_detail.html",
+            {
+                "request": request,
+                "source_key": source_key,
+                "source": source,
+                "config_source": config_source,
+                "is_radar_source": is_radar_source,
+                "strategy_supported": strategy_supported,
+                "decision": decision,
+                "recent_runs": recent_runs_view,
+                "recent_items": recent_items_view,
+                "total_items": total_items,
+                "summarized_items": summarized_items,
+                "insightcard_items": insightcard_items,
+                "summary_coverage": summary_coverage,
+                "insightcard_coverage": insightcard_coverage,
+                "latest_success_run": latest_success_run,
+                "latest_failed_run": latest_failed_run,
+                "not_found": False,
+            },
+        )
+    finally:
+        db.close()
+
+
 @app.post("/sources/{source_key}/fetch")
 def trigger_source_fetch(source_key: str, background_tasks: BackgroundTasks):
     """Manually trigger a background fetch for the specified source.

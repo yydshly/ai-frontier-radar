@@ -3299,6 +3299,65 @@ def main():
     except Exception as e:
         check("due source service checks", False, str(e))
 
+    # ── 26. Source workspace (read-only single source page) ──────────────────
+    print("\n[26] Source workspace (read-only)")
+    try:
+        import inspect
+
+        project_root = Path(__file__).resolve().parents[1]
+        source_detail_path = project_root / "app" / "templates" / "source_detail.html"
+        check("source workspace template exists",
+              source_detail_path.exists(),
+              "single source workspace template should exist")
+
+        source_detail_html = source_detail_path.read_text(encoding="utf-8")
+        sources_html = (project_root / "app" / "templates" / "sources.html").read_text(encoding="utf-8")
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+
+        check("source workspace page uses Chinese product wording",
+              "来源工作台" in source_detail_html
+              and "当前调度状态" in source_detail_html
+              and "中文摘要覆盖" in source_detail_html
+              and "InsightCard 覆盖" in source_detail_html,
+              "source workspace should explain source health and coverage")
+
+        check("sources list links to source workspace",
+              "/sources/{{" in sources_html
+              and "工作台" in sources_html,
+              "sources page should link to /sources/{source_key}")
+
+        check("source workspace route exists",
+              '"/sources/{source_key}"' in main_py
+              and "def source_workspace_page" in main_py,
+              "single source workspace route should exist")
+
+        source_workspace_py = inspect.getsource(app_module.source_workspace_page)
+        check("source workspace is read-only",
+              "enqueue_source" not in source_workspace_py
+              and "CandidateOneLinerService" not in source_workspace_py
+              and "InsightCardGenerator" not in source_workspace_py
+              and ".commit(" not in source_workspace_py
+              and ".add(" not in source_workspace_py
+              and ".delete(" not in source_workspace_py,
+              "source workspace must not trigger fetches, summaries, or DB writes")
+
+        check("source workspace styles exist",
+              ".source-workspace" in style_css,
+              "source workspace should have dedicated styles")
+
+        resp = client.get("/sources/openai_news")
+        check("GET /sources/openai_news returns 200 or 404",
+              resp.status_code in (200, 404),
+              f"source workspace route should be mounted without server error, got {resp.status_code}")
+
+        resp = client.get("/sources/not_exists_demo_source_key")
+        check("GET /sources/<unknown> returns 404, not 500",
+              resp.status_code == 404,
+              f"unknown source_key should return 404, got {resp.status_code}")
+    except Exception as e:
+        check("source workspace checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

@@ -93,7 +93,16 @@ class DueSourcePlan:
 
 ---
 
-### Task 3：单来源工作台 `/sources/{source_key}` 只读版
+### Task 3：单来源工作台 `/sources/{source_key}` 只读版 ✅ 已实现
+
+**实现产物**：
+- `GET /sources/{source_key}`（实现于 `app/main.py`，模板为 `app/templates/source_detail.html`）
+- `/sources` 页面每个来源卡片新增"工作台"入口
+- 展示 Source 基础信息 / 雷达关注源状态 / due-source 当前判断 / 最近 FetchRun /
+  最近 SourceItem / 中文摘要覆盖 / InsightCard 覆盖
+- 页面只读，不触发探测、摘要或 InsightCard 生成
+- source_key 不存在时返回 404 友好页面，不会 500
+- 单来源手动探测按钮不在本任务范围（见 Task 4）
 
 **范围**：
 - 新增路由 `GET /sources/{source_key}`

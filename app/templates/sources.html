@@ -104,6 +104,7 @@
                     <form method="POST" action="/sources/{{ s.source_key }}/fetch" style="display:inline;">
                         <button type="submit" class="btn-fetch">运行探测</button>
                     </form>
+                    <a href="/sources/{{ s.source_key }}" class="btn-link">工作台</a>
                     <a href="/fetch-runs?source_key={{ s.source_key }}" class="btn-link">运行记录</a>
                     <a href="/candidate-pool?source_key={{ s.source_key }}" class="btn-link">候选池</a>
                     <a href="/source-items?source_key={{ s.source_key }}" class="btn-link">原始资料</a>
