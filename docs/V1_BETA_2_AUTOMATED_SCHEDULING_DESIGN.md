@@ -98,7 +98,11 @@ python scripts/run_due_sources_once.py --apply    # 真实创建 FetchRun（Task
 >   因为 `enqueue_source(..., background_tasks=None)` 会同步抓取，必须先禁用自动摘要避免触发 LLM。
 >
 > `--apply` 只处理 `plan.due`；`due=0` 时安全 no-op 不创建 FetchRun。
-> 真实 due source 抓取验收进入 Task 3B。
+>
+> **Task 3B 已用 isolated DB + local mock RSS 验证 `--apply` 可真实创建 FetchRun
+> 并完成 SourceItem 入库**（FetchRun success，items_found=2，SourceItem=2，
+> auto_summary 关闭，InsightCard=0，stale_count=0，主库未污染）。
+> 见 [V1_BETA_2_SCHEDULING_APPLY_ACCEPTANCE.md](V1_BETA_2_SCHEDULING_APPLY_ACCEPTANCE.md)。
 
 行为：
 

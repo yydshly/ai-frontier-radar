@@ -123,6 +123,12 @@ V1.0-beta.2 进入轻量自动调度设计阶段，规划重点：
 - no default LLM automation（默认不触发 LLM 摘要 / InsightCard）
 - no Celery / Redis yet（不直接引入重型队列）
 
+已完成记录：
+
+- CLI dry-run scheduler skeleton（Task 2）
+- `--apply` safety path（Task 3A：`RADAR_SCHEDULER_ENABLED` + `AUTO_SUMMARY_MAX_PER_FETCH_RUN=0` 双闸门）
+- isolated DB + local mock RSS apply acceptance（Task 3B：FetchRun success / SourceItem 入库 / 主库未污染）
+
 参考：
 
 - `docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md`

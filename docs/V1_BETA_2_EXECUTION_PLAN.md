@@ -91,17 +91,30 @@
 
 ---
 
-### Task 3B：真实 due source apply 验收（待执行）
+### Task 3B：isolated DB + local mock RSS 真实 apply 验收 ✅ 已实现
 
-**目标**：当存在 due 来源时，执行安全 apply 真实创建 FetchRun 并归档验收。
+**目标**：在隔离环境中执行真实 `--apply`，证明可创建 FetchRun 并完成 SourceItem 入库。
 
-**改动范围**：新增验收记录文档；不改脚本逻辑（沿用 Task 3A 安全路径）。
+**实现产物**：
+- `scripts/acceptance_run_due_sources_once_apply.py`：
+  - 临时目录 + isolated SQLite（import `app.*` 前设 `DATABASE_URL`）
+  - 标准库 `ThreadingHTTPServer` 提供 local mock RSS（无外网）
+  - seed `openai_news`（never_fetched → due），其余 14 源进 missing
+  - 子进程执行 `run_due_sources_once.py --apply --max-sources 1 --show-missing`
+  - 验证 FetchRun / SourceItem / auto_summary / InsightCard / stale
+  - 默认清理临时目录，`--keep-temp` 保留
+- `docs/V1_BETA_2_SCHEDULING_APPLY_ACCEPTANCE.md` 验收记录
+- `scripts/quick_test.py` 第 34 节静态断言（不在 quick_test 跑真实 apply）
 
-**禁止事项**：不默认 LLM、不自动 stale recovery、不绕过安全闸门。
+**实测结果**：scheduler exit 0；due=1 / started=1；FetchRun=1 success，items_found=2
+items_new=2；SourceItem=2；auto_summary.enabled=false；InsightCard=0；
+running=0；stale_count=0；主库未污染（FetchRun/SourceItem 数量不变）。
 
-**验收标准**：记录 created run_id / source_key / final_status / items_*，stale_count=0。
+**禁止事项**：不默认 LLM、不自动 stale recovery、不绕过安全闸门、不访问外网。
 
-**风险**：真实抓取受网络 / 源站影响——缓解：每轮来源上限 + 失败记录。
+**验收标准**：`ACCEPTANCE_OK`，全部检查通过，主 DB 不变。
+
+**风险**：真实抓取受网络 / 源站影响——缓解：本验收使用 local mock RSS，仅回环访问。
 
 ---
 

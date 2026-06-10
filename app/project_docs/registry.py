@@ -227,6 +227,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="V1.0-beta.2",
         description="V1.0-beta.2 七条关键决策：不引入 Celery / Redis、优先 CLI 单轮调度、默认不触发 LLM 等。",
     ),
+    "v1-beta-2-scheduling-apply-acceptance": DocEntry(
+        key="v1-beta-2-scheduling-apply-acceptance",
+        title="V1.0-beta.2 调度 apply 验收",
+        path="docs/V1_BETA_2_SCHEDULING_APPLY_ACCEPTANCE.md",
+        category="V1.0-beta.2",
+        description="isolated DB 与本地 mock RSS 下的 run_due_sources_once.py --apply 真实执行验收记录。",
+    ),
 }
 
 

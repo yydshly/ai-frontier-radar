@@ -257,6 +257,8 @@ V1.0-beta.2 将从人工触发进入轻量自动调度设计阶段。
 
 核心约束：自动调度默认关闭、默认不触发 LLM、stale recovery 不自动执行、优先复用 FetchRun。
 
+已完成 isolated DB + local mock RSS 的真实 `--apply` 验收，不污染主数据库（FetchRun success、SourceItem 入库、auto_summary 关闭、InsightCard=0、stale_count=0）。
+
 规划文档：
 
 - [docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md](docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md) — 自动调度与轻量任务队列设计

@@ -3850,6 +3850,51 @@ def main():
     except Exception as e:
         check("V1.0-beta.2 apply safety checks", False, str(e))
 
+    # ── 34. V1.0-beta.2 isolated scheduler apply acceptance (static) ─────────
+    print("\n[34] V1.0-beta.2 isolated scheduler apply acceptance")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        acceptance_script = project_root / "scripts" / "acceptance_run_due_sources_once_apply.py"
+
+        check("isolated scheduler apply acceptance script exists",
+              acceptance_script.exists(),
+              "acceptance_run_due_sources_once_apply.py should exist")
+
+        acceptance_text = acceptance_script.read_text(encoding="utf-8") if acceptance_script.exists() else ""
+
+        check("isolated acceptance uses isolated sqlite database",
+              "DATABASE_URL" in acceptance_text
+              and "sqlite" in acceptance_text,
+              "acceptance should point DATABASE_URL at an isolated sqlite DB")
+
+        check("isolated acceptance serves a local mock RSS feed",
+              ("ThreadingHTTPServer" in acceptance_text or "HTTPServer" in acceptance_text)
+              and "rss" in acceptance_text.lower(),
+              "acceptance should serve a local mock RSS feed (no external network)")
+
+        check("isolated acceptance enforces scheduler + no-LLM env",
+              "RADAR_SCHEDULER_ENABLED" in acceptance_text
+              and "AUTO_SUMMARY_MAX_PER_FETCH_RUN" in acceptance_text,
+              "acceptance should run apply behind scheduler gate with auto summary disabled")
+
+        check("isolated acceptance drives run_due_sources_once apply",
+              "run_due_sources_once.py" in acceptance_text
+              and "--apply" in acceptance_text,
+              "acceptance should drive the real --apply path")
+
+        check("isolated acceptance verifies fetch and ingestion artifacts",
+              "FetchRun" in acceptance_text
+              and "SourceItem" in acceptance_text
+              and "InsightCard" in acceptance_text
+              and "auto_summary" in acceptance_text,
+              "acceptance should verify FetchRun / SourceItem / InsightCard / auto_summary")
+
+        check("isolated acceptance prints success sentinel",
+              "ACCEPTANCE_OK" in acceptance_text,
+              "acceptance should print ACCEPTANCE_OK on success")
+    except Exception as e:
+        check("V1.0-beta.2 isolated acceptance checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
