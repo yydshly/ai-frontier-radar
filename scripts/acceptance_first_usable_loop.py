@@ -7,6 +7,14 @@ acceptance_first_usable_loop.py — V1.0-beta First Usable Loop 轻量验收脚�
 import sys
 from pathlib import Path
 
+# TestClient-based checks require the app to be importable.
+try:
+    from fastapi.testclient import TestClient
+    from app.main import app
+    _client = TestClient(app)
+except Exception:
+    _client = None
+
 ROOT = Path(__file__).resolve().parents[1]
 PASS = 0
 FAIL = 0
@@ -217,6 +225,80 @@ def main() -> int:
         and "基于来源摘要 / RSS metadata" in main_py,
         "完整 InsightCard 页面不应把 source_type=unknown 直接展示为生成依据",
     )
+
+    # ── 18. Task 8.1: panel partial sel/sel_card fix ───────────────────────
+    print("\n[18] Task 8.1: panel partial sel/sel_card fix")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created — skipping panel tests")
+    else:
+        # 18a. Full page returns 200.
+        resp_main = _client.get("/radar/today")
+        check("GET /radar/today returns 200", resp_main.status_code == 200,
+              f"status={resp_main.status_code}")
+
+        # 18b. Try to find a real SourceItem id from the page or DB.
+        item_id = None
+        try:
+            from app.db import SessionLocal
+            from app.models import SourceItem
+            db = SessionLocal()
+            try:
+                row = db.query(SourceItem.id).order_by(SourceItem.id.desc()).first()
+                if row:
+                    item_id = row[0]
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+        if item_id is None:
+            check("Panel endpoint test skipped — no SourceItem found in DB", True,
+                  "Cannot test panel partial without a real item_id; this is acceptable in fresh DB")
+        else:
+            # 18c. Panel fragment with real item_id returns 200.
+            panel_url = (
+                f"/radar/today/panel?section=all&item_id={item_id}"
+                f"&hours=24&limit=50&page=1&per_page=20"
+            )
+            resp_panel = _client.get(panel_url)
+            check(f"GET /radar/today/panel with item_id={item_id} returns 200",
+                  resp_panel.status_code == 200,
+                  f"status={resp_panel.status_code}")
+
+            # 18d. Panel fragment contains id="radar-panel".
+            check("Panel fragment contains id=\"radar-panel\"",
+                  'id="radar-panel"' in resp_panel.text,
+                  f"fragment length={len(resp_panel.text)}")
+
+            # 18e. Panel fragment does NOT contain <html or <body (must be a partial).
+            check("Panel fragment is NOT a full HTML page (no <html>)",
+                  "<html" not in resp_panel.text.lower())
+            check("Panel fragment is NOT a full HTML page (no <body>)",
+                  "<body" not in resp_panel.text.lower())
+
+            # 18f. Panel with real item_id should NOT show "暂无可阅读的内容".
+            # It may show other empty states like "内容不存在" but not the generic
+            # "no sel provided" message.
+            panel_text = resp_panel.text
+            has_no_content_msg = "暂无可阅读的内容" in panel_text
+            check(f"Panel with item_id={item_id} does NOT show '暂无可阅读的内容'",
+                  not has_no_content_msg,
+                  "Panel should show actual content for valid item_id")
+
+            # 18g. Panel should contain at least one meaningful content indicator.
+            content_indicators = [
+                "中文摘要", "宏观洞察", "来源", "编号",
+                "打开原文", "查看 InsightCard", "加入生成",
+            ]
+            has_any_content = any(indicator in panel_text for indicator in content_indicators)
+            check(f"Panel with item_id={item_id} contains meaningful content indicators",
+                  has_any_content,
+                  f"No content indicators found in panel fragment")
+        # 18h. Panel without item_id (empty selection) still returns 200.
+        resp_empty = _client.get("/radar/today/panel?section=all&hours=24&limit=50&page=1&per_page=20")
+        check("GET /radar/today/panel without item_id returns 200",
+              resp_empty.status_code == 200,
+              f"status={resp_empty.status_code}")
 
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")

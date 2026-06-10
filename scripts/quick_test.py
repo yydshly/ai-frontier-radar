@@ -2323,6 +2323,34 @@ def main():
     except Exception as e:
         check("Today Radar no-Chinese-summary branch checks", False, str(e))
 
+    # ── 16h. Task 8.1: panel partial sel/sel_card context ───────────────────
+    print("\n[16h] Task 8.1: panel partial sel/sel_card context")
+    try:
+        radar_route_py = (Path(__file__).resolve().parents[1] / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+
+        # _build_radar_today_view_context must return sel in its context dict.
+        check("_build_radar_today_view_context returns 'sel' in context",
+              '"sel": sel' in radar_route_py or '"sel": view.selected_item' in radar_route_py,
+              "context must include 'sel' key")
+
+        # _build_radar_today_view_context must return sel_card in its context dict.
+        check("_build_radar_today_view_context returns 'sel_card' in context",
+              '"sel_card": sel_card' in radar_route_py or '"sel_card": view.display_map.get(sel.id)' in radar_route_py,
+              "context must include 'sel_card' key")
+
+        # sel must be derived from view.selected_item.
+        check("sel is derived from view.selected_item",
+              ("sel = view.selected_item" in radar_route_py or "view.selected_item" in radar_route_py)
+              and "sel" in radar_route_py,
+              "sel should be set from view.selected_item")
+
+        # sel_card must be derived from view.display_map.
+        check("sel_card is derived from view.display_map.get",
+              "view.display_map.get(sel.id)" in radar_route_py,
+              "sel_card should be fetched from display_map using sel.id")
+    except Exception as e:
+        check("Task 8.1 panel partial sel/sel_card context checks", False, str(e))
+
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
     try:

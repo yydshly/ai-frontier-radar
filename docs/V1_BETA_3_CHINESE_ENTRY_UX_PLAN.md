@@ -223,6 +223,21 @@
 
 ---
 
+## 12.1. Task 8.1：修复局部刷新面板空白
+
+- 原因：partial endpoint 渲染时未传入 sel / sel_card
+- 修复：统一在 `_build_radar_today_view_context()` 中提供 `sel` 和 `sel_card`
+- 增强 TestClient 验收，确保真实 item_id 的 panel fragment 不为空
+- 不扩大到全站无刷新导航
+
+具体改动：
+- `_build_radar_today_view_context()` 返回 context 中增加 `sel = view.selected_item`
+- `_build_radar_today_view_context()` 返回 context 中增加 `sel_card = view.display_map.get(sel.id) if sel else None`
+- `quick_test.py` 增加静态断言检查 context 包含 sel / sel_card
+- `acceptance_first_usable_loop.py` 增加 TestClient 实际渲染检查 panel fragment
+
+---
+
 ## 13. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划

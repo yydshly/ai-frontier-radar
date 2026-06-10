@@ -327,12 +327,17 @@ def _build_radar_today_view_context(
         except Exception:
             scheduler_status = None
 
+        sel = view.selected_item
+        sel_card = view.display_map.get(sel.id) if sel else None
+
         return {
             "request": request,
             "view": view,
             "display_map": view.display_map,
             "safe_external_url": safe_external_url,
             "scheduler_status": scheduler_status,
+            "sel": sel,
+            "sel_card": sel_card,
         }
     finally:
         db.close()
