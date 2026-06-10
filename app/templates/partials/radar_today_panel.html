@@ -42,10 +42,10 @@
                         <li>正文状态：{{ panel_today_card.content_label }}</li>
                         <li>InsightCard 状态：{{ panel_today_card.insight_label }}</li>
                     </ol>
-                    <p class="radar-panel-note">
+                    <p class=”radar-panel-note”>
                         下一步建议：
                         {% if panel_today_card.can_fetch_content %}
-                        先点击“标记待获取正文”，再生成摘要或 InsightCard。当前版本仅记录获取意图，尚未执行真实抓取。
+                        可点击”获取 HTML 正文”抓取页面文本。
                         {% elif panel_today_card.can_generate_insight %}
                         可加入生成 InsightCard。
                         {% else %}
@@ -190,15 +190,14 @@
                     <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
                     {% endif %}
                     {% if panel_today_card and panel_today_card.can_fetch_content %}
-                    <form method="post" action="/radar/today/items/{{ sel.id }}/fetch-content" class="radar-panel-action-form">
+                    <form method="post" action="/radar/today/items/{{ sel.id }}/fetch-html" class="radar-panel-action-form">
                         <input type="hidden" name="section" value="{{ view.active_section }}">
                         <input type="hidden" name="hours" value="{{ view.hours }}">
                         <input type="hidden" name="limit" value="{{ view.limit }}">
                         <input type="hidden" name="page" value="{{ view.page }}">
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                        <button type="submit" class="btn-sm" title="当前版本仅记录获取意图，尚未执行真实抓取。">标记待获取正文</button>
+                        <button type="submit" class="btn-sm" title="获取 HTML 正文并保存文本快照。">获取 HTML 正文</button>
                     </form>
-                    <span class="muted">仅记录获取意图</span>
                     {% endif %}
                     <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
                 </div>

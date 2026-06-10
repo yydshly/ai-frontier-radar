@@ -208,6 +208,44 @@
 
 ---
 
+## V1.0-beta.9：HTML 正文获取（进行中）
+
+> 分支：`feature/v1-beta-9-html-content-fetch`
+
+### V1.0-beta.9 目标
+
+实现 HTML 正文抓取 MVP：从 SourceItem.url 获取 HTML 页面，提取干净正文文本，保存快照到 runtime 目录。
+
+### V1.0-beta.9 完成项
+
+- ✅ `app/application/content/` 目录（html_fetcher / content_snapshot / source_item_content_service）
+- ✅ `HtmlFetchSettings` + `HtmlFetchResult` dataclass
+- ✅ URL 安全校验复用 `is_safe_external_url`
+- ✅ timeout / max_bytes / content-type 检查
+- ✅ BeautifulSoup 正文清洗（去 nav/header/footer/script/style，最小 300 字符）
+- ✅ `runtime/content_snapshots/source_item_<id>.json` 快照保存
+- ✅ `SourceItemContentFetchResult` + `ContentFetchStatus`
+- ✅ `POST /radar/today/items/{id}/fetch-html` 同步抓取路由
+- ✅ 页面按钮从"标记待获取正文"改为"获取 HTML 正文"
+- ✅ `UNTRUSTED_CONTENT_NOTE` prompt injection 边界声明
+- ✅ `runtime/` 加入 `.gitignore`
+
+### V1.0-beta.9 暂不改
+
+- ❌ LLM 摘要生成（由下一版本承接）
+- ❌ PDF 处理
+- ❌ 浏览器渲染
+- ❌ DB schema 变更
+- ❌ 音频相关
+
+### 后续接入方向
+
+- LLM `zh_summary` 生成（使用抓取到的正文）
+- PDF 支持（pypdf / pdfplumber）
+- 更高质量正文抽取（Trafilatura）
+
+---
+
 ## 验收标准
 
 - README 准确反映当前能力
