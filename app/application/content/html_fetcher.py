@@ -72,6 +72,7 @@ class FetchError:
     INVALID_URL = "invalid_url"
     UNSUPPORTED_CONTENT_TYPE = "unsupported_content_type"
     HTTP_ERROR = "http_error"
+    CONTENT_TOO_LARGE = "content_too_large"
     CONTENT_TOO_SHORT = "content_too_short"
     TIMEOUT = "timeout"
     NETWORK_ERROR = "network_error"
@@ -184,15 +185,51 @@ def fetch_html(url: str, settings: Optional[HtmlFetchSettings] = None) -> HtmlFe
     timeout = httpx.Timeout(timeout=settings.timeout_seconds, connect=5.0)
 
     try:
-        response = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
-        http_status = response.status_code
-        final_url = str(response.url)
+        # Use streaming to avoid loading large content into memory at once
+        with httpx.stream("GET", url, headers=headers, timeout=timeout, follow_redirects=True) as response:
+            http_status = response.status_code
+            final_url = str(response.url)
 
-        # Check status code
-        if response.status_code >= 400:
-            return _build_error_result(
-                url, FetchError.HTTP_ERROR, f"status={response.status_code}"
-            )
+            # Check status code
+            if response.status_code >= 400:
+                return _build_error_result(
+                    url, FetchError.HTTP_ERROR, f"status={response.status_code}"
+                )
+
+            # Step 3: Content-type check (can check from headers without reading body)
+            content_type_raw = response.headers.get("content-type", "")
+            content_type = content_type_raw.split(";")[0].strip().lower() if content_type_raw else None
+            if not content_type or not any(ct in content_type for ct in settings.allowed_content_types):
+                return _build_error_result(
+                    url, FetchError.UNSUPPORTED_CONTENT_TYPE, f"type={content_type or 'unknown'}"
+                )
+
+            # Step 4: Content-Length check BEFORE reading body
+            content_length = response.headers.get("content-length")
+            if content_length is not None:
+                try:
+                    cl = int(content_length)
+                    if cl > settings.max_bytes:
+                        return _build_error_result(
+                            url, FetchError.CONTENT_TOO_LARGE,
+                            f"Content-Length={cl} exceeds max_bytes={settings.max_bytes}"
+                        )
+                except ValueError:
+                    pass  # Invalid Content-Length, will check during streaming
+
+            # Step 5: Stream content with max_bytes guard
+            raw_chunks: list[bytes] = []
+            total_bytes = 0
+            for chunk in response.iter_bytes():
+                total_bytes += len(chunk)
+                if total_bytes > settings.max_bytes:
+                    return _build_error_result(
+                        url, FetchError.CONTENT_TOO_LARGE,
+                        f"content_too_large={total_bytes} exceeds max_bytes={settings.max_bytes}"
+                    )
+                raw_chunks.append(chunk)
+
+            raw_content = b"".join(raw_chunks)
 
     except httpx.TimeoutException:
         return _build_error_result(url, FetchError.TIMEOUT)
@@ -201,31 +238,16 @@ def fetch_html(url: str, settings: Optional[HtmlFetchSettings] = None) -> HtmlFe
     except Exception:
         return _build_error_result(url, FetchError.NETWORK_ERROR)
 
-    # Step 3: Content-type check
-    content_type_raw = response.headers.get("content-type", "")
-    content_type = content_type_raw.split(";")[0].strip().lower() if content_type_raw else None
-    if not content_type or not any(ct in content_type for ct in settings.allowed_content_types):
-        return _build_error_result(
-            url, FetchError.UNSUPPORTED_CONTENT_TYPE, f"type={content_type or 'unknown'}"
-        )
-
-    # Step 4: Max bytes check
-    raw_content = response.content
-    if len(raw_content) > settings.max_bytes:
-        return _build_error_result(
-            url, FetchError.HTTP_ERROR, f"content_too_large={len(raw_content)}"
-        )
-
-    # Step 5: Decode
+    # Step 6: Decode
     try:
-        html = response.text
+        html = raw_content.decode("utf-8", errors="replace")
     except Exception:
         return _build_error_result(url, FetchError.NETWORK_ERROR, "decode_error")
 
-    # Step 6: Extract text
+    # Step 7: Extract text
     title, text, meta_desc = _extract_text(html, settings)
 
-    # Step 7: Text length check
+    # Step 8: Text length check
     if not text or len(text) < settings.min_text_length:
         return _build_error_result(
             url, FetchError.CONTENT_TOO_SHORT,

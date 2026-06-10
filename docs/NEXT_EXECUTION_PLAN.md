@@ -208,29 +208,31 @@
 
 ---
 
-## V1.0-beta.9：HTML 正文获取（进行中）
+## V1.0-beta.10：HTML 正文读取与快照备份（进行中）
 
-> 分支：`feature/v1-beta-9-html-content-fetch`
+> 分支：`feature/v1-beta-10-html-content-fetch`
 
-### V1.0-beta.9 目标
+### V1.0-beta.10 目标
 
 实现 HTML 正文抓取 MVP：从 SourceItem.url 获取 HTML 页面，提取干净正文文本，保存快照到 runtime 目录。
 
-### V1.0-beta.9 完成项
+### V1.0-beta.10 完成项
 
 - ✅ `app/application/content/` 目录（html_fetcher / content_snapshot / source_item_content_service）
 - ✅ `HtmlFetchSettings` + `HtmlFetchResult` dataclass
 - ✅ URL 安全校验复用 `is_safe_external_url`
 - ✅ timeout / max_bytes / content-type 检查
 - ✅ BeautifulSoup 正文清洗（去 nav/header/footer/script/style，最小 300 字符）
-- ✅ `runtime/content_snapshots/source_item_<id>.json` 快照保存
+- ✅ `runtime/content_snapshots/source_item_<id>.json` 快照保存（项目根目录）
 - ✅ `SourceItemContentFetchResult` + `ContentFetchStatus`
 - ✅ `POST /radar/today/items/{id}/fetch-html` 同步抓取路由
 - ✅ 页面按钮从"标记待获取正文"改为"获取 HTML 正文"
 - ✅ `UNTRUSTED_CONTENT_NOTE` prompt injection 边界声明
 - ✅ `runtime/` 加入 `.gitignore`
+- ✅ Content-Length 前置检查（避免加载大页面到内存）
+- ✅ `content_too_large` 专用错误码
 
-### V1.0-beta.9 暂不改
+### V1.0-beta.10 暂不改
 
 - ❌ LLM 摘要生成（由下一版本承接）
 - ❌ PDF 处理

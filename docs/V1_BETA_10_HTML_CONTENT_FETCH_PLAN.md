@@ -1,8 +1,8 @@
-# V1.0-beta.9 Plan — HTML 正文获取与中文摘要质量增强 MVP
+# V1.0-beta.10 Plan — HTML 正文读取与快照备份
 
-> 版本：V1.0-beta.9
-> 分支：`feature/v1-beta-9-html-content-fetch`
-> main 基准 commit：`8891ad6`（v1.0-beta.8 merge）
+> 版本：V1.0-beta.10
+> 分支：`feature/v1-beta-10-html-content-fetch`
+> main 基准 commit：`a619f63`（v1.0-beta.9 merge）
 > 规划日期：2026-06-10
 
 ---

@@ -17,8 +17,8 @@ from app.application.content.html_fetcher import HtmlFetchResult
 
 def get_runtime_content_dir() -> Path:
     """Return the runtime content snapshots directory, creating it if needed."""
-    # Resolve relative to project root (parent of app/)
-    project_root = Path(__file__).resolve().parent.parent.parent
+    # Resolve relative to project root (parent of app/ is app/, parent of that is project root)
+    project_root = Path(__file__).resolve().parents[3]
     content_dir = project_root / "runtime" / "content_snapshots"
     content_dir.mkdir(parents=True, exist_ok=True)
     return content_dir

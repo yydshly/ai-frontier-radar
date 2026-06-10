@@ -1262,7 +1262,6 @@ def main() -> int:
     except Exception as e:
         check("Daily broadcast: checks", False, str(e))
 
-<<<<<<< HEAD
     # ── 27. V1.0-beta.9 Source Strategy & Workspace ──────────────────────
     print("\n[27] V1.0-beta.9 Source Strategy & Workspace")
     try:

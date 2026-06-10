@@ -6375,7 +6375,6 @@ def main():
     except Exception as e:
         check("V1.0-beta.8 DailyBroadcast checks", False, str(e))
 
-<<<<<<< HEAD
     # ── 53. V1.0-beta.9 Source Strategy & Workspace ─────────────────────────
     print("\n[53] V1.0-beta.9 Source Strategy & Workspace")
     try:
