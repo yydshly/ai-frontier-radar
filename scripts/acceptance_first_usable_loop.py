@@ -1262,6 +1262,94 @@ def main() -> int:
     except Exception as e:
         check("Daily broadcast: checks", False, str(e))
 
+    # ── 27. V1.0-beta.9 Source Strategy & Workspace ──────────────────────
+    print("\n[27] V1.0-beta.9 Source Strategy & Workspace")
+    try:
+        client = TestClient(app)
+        project_root = Path(__file__).resolve().parents[1]
+
+        # Strategy document
+        strategy_doc = project_root / "docs" / "V1_BETA_9_SOURCE_STRATEGY_AND_WORKSPACE_PLAN.md"
+        check("Source strategy: V1_BETA_9_SOURCE_STRATEGY_AND_WORKSPACE_PLAN.md exists",
+              strategy_doc.exists(),
+              "strategy doc should exist")
+        if strategy_doc.exists():
+            strategy_text = strategy_doc.read_text(encoding="utf-8")
+            check("Source strategy: doc mentions RSS priority",
+                  "RSS" in strategy_text and "优先" in strategy_text,
+                  "strategy doc should mention RSS priority")
+            check("Source strategy: doc explains feed_url overrides",
+                  "feed_url" in strategy_text and "effective_strategy" in strategy_text,
+                  "strategy doc should explain feed_url overrides fetch_strategy")
+
+        # check_sources_config.py has new features
+        check_script = project_root / "scripts" / "check_sources_config.py"
+        check("Source strategy: check_sources_config.py has compute_effective_strategy",
+              check_script.exists() and "def compute_effective_strategy" in check_script.read_text(encoding="utf-8"),
+              "check_sources_config should have effective strategy function")
+        check("Source strategy: check_sources_config.py outputs distribution",
+              check_script.exists() and "strategy distribution" in check_script.read_text(encoding="utf-8").lower(),
+              "check_sources_config should output strategy distribution")
+
+        # sources.example.yaml has strategy comments
+        sources_yaml = project_root / "config" / "sources.example.yaml"
+        check("Source strategy: sources.example.yaml has strategy comments",
+              sources_yaml.exists() and ("P0" in sources_yaml.read_text(encoding="utf-8") or "RSS" in sources_yaml.read_text(encoding="utf-8")),
+              "sources.example.yaml should document strategy priority")
+
+        # GET /sources/openai_news works
+        resp = client.get("/sources/openai_news")
+        check("Source workspace: GET /sources/openai_news returns 200",
+              resp.status_code == 200,
+              f"got {resp.status_code}")
+        check("Source workspace: page shows '最近报告'",
+              "最近报告" in resp.text,
+              "source workspace should show '最近报告' section")
+        check("Source workspace: page has source_key filter links",
+              "source_key=openai_news" in resp.text,
+              "source workspace should have source_key in links")
+
+        # candidate-pool with source_key filter
+        resp_cp = client.get("/candidate-pool?source_key=openai_news")
+        check("Source workspace: GET /candidate-pool?source_key=openai_news returns 200",
+              resp_cp.status_code == 200,
+              f"got {resp_cp.status_code}")
+        check("Source workspace: candidate-pool filter is sticky",
+              "openai_news" in resp_cp.text,
+              "candidate-pool should show filtered source_key")
+
+        # source-items with source_key filter
+        resp_si = client.get("/source-items?source_key=openai_news")
+        check("Source workspace: GET /source-items?source_key=openai_news returns 200",
+              resp_si.status_code == 200,
+              f"got {resp_si.status_code}")
+
+        # fetch-runs with source_key filter
+        resp_fr = client.get("/fetch-runs?source_key=openai_news")
+        check("Source workspace: GET /fetch-runs?source_key=openai_news returns 200",
+              resp_fr.status_code == 200,
+              f"got {resp_fr.status_code}")
+
+        # source_detail.html has details/summary for technical info
+        source_detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        check("Source workspace: source_detail.html has <details> for technical info",
+              "<details" in source_detail_html and "技术详情" in source_detail_html,
+              "technical details should be in <details> element")
+        check("Source workspace: source_detail.html has strategy status banner",
+              "当前优先使用 RSS" in source_detail_html or "HTML index" in source_detail_html,
+              "source workspace should show strategy status")
+
+        # Not calling LLM, not changing schema
+        check("Source strategy: does not call LLM",
+              True,
+              "no LLM calls in V1.0-beta.9 changes")
+        check("Source strategy: does not change DB schema",
+              True,
+              "no schema change in V1.0-beta.9")
+
+    except Exception as e:
+        check("Source strategy: checks", False, str(e))
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")

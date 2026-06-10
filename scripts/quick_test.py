@@ -6375,6 +6375,96 @@ def main():
     except Exception as e:
         check("V1.0-beta.8 DailyBroadcast checks", False, str(e))
 
+    # ── 53. V1.0-beta.9 Source Strategy & Workspace ─────────────────────────
+    print("\n[53] V1.0-beta.9 Source Strategy & Workspace")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+
+        # Strategy document exists
+        strategy_doc_path = project_root / "docs" / "V1_BETA_9_SOURCE_STRATEGY_AND_WORKSPACE_PLAN.md"
+        check("V1_BETA_9_SOURCE_STRATEGY_AND_WORKSPACE_PLAN.md exists",
+              strategy_doc_path.exists(),
+              "source strategy doc should exist")
+        if strategy_doc_path.exists():
+            strategy_text = strategy_doc_path.read_text(encoding="utf-8")
+            check("Strategy doc contains RSS priority principle",
+                  "RSS" in strategy_text and "优先" in strategy_text,
+                  "strategy doc should mention RSS priority")
+            check("Strategy doc mentions effective strategy rule",
+                  "effective_strategy" in strategy_text or "feed_url" in strategy_text,
+                  "strategy doc should explain feed_url overrides fetch_strategy")
+
+        # check_sources_config.py has strategy distribution
+        check_script_path = project_root / "scripts" / "check_sources_config.py"
+        check("check_sources_config.py exists",
+              check_script_path.exists(),
+              "check_sources_config.py should exist")
+        if check_script_path.exists():
+            check_script_text = check_script_path.read_text(encoding="utf-8")
+            check("check_sources_config has effective_strategy function",
+                  "def compute_effective_strategy" in check_script_text,
+                  "check_sources_config should compute effective strategy")
+            check("check_sources_config outputs strategy distribution",
+                  "effective_strategy" in check_script_text or "strategy distribution" in check_script_text.lower(),
+                  "check_sources_config should output strategy distribution")
+            check("check_sources_config warns on feed_url without rss",
+                  "feed_url" in check_script_text and "rss" in check_script_text,
+                  "check_sources_config should warn when feed_url exists but strategy is not rss")
+            check("check_sources_config tracks needs_review",
+                  "needs_review" in check_script_text,
+                  "check_sources_config should track sources needing RSS verification")
+
+        # sources.example.yaml has strategy comments
+        sources_yaml_path = project_root / "config" / "sources.example.yaml"
+        check("sources.example.yaml exists",
+              sources_yaml_path.exists(),
+              "sources.example.yaml should exist")
+        if sources_yaml_path.exists():
+            sources_yaml_text = sources_yaml_path.read_text(encoding="utf-8")
+            check("sources.example.yaml has strategy priority comments",
+                  "P0" in sources_yaml_text or "RSS" in sources_yaml_text,
+                  "sources.example.yaml should document strategy priority")
+            check("sources.example.yaml has needs_review markers",
+                  "needs_review" in sources_yaml_text,
+                  "sources.example.yaml should mark sources needing RSS verification")
+
+        # source_detail.html changes
+        source_detail_path = project_root / "app" / "templates" / "source_detail.html"
+        check("source_detail.html exists",
+              source_detail_path.exists(),
+              "source_detail.html should exist")
+        if source_detail_path.exists():
+            source_detail_text = source_detail_path.read_text(encoding="utf-8")
+            check("source_detail has '最近报告' section",
+                  "最近报告" in source_detail_text,
+                  "source_detail should have '最近报告' section instead of '最近发现内容'")
+            check("source_detail has source_key filter links",
+                  "source_key={{" in source_detail_text,
+                  "source_detail should include source_key in links")
+            check("source_detail has details/summary for technical info",
+                  "<details" in source_detail_text and "技术详情" in source_detail_text,
+                  "source_detail should collapse technical details in <details>")
+            check("source_detail has strategy status banner",
+                  "当前优先使用 RSS" in source_detail_text or "HTML index" in source_detail_text,
+                  "source_detail should show strategy status")
+            check("source_detail does not show technical details first",
+                  source_detail_text.index("技术详情") > source_detail_text.index("最近报告") if "技术详情" in source_detail_text and "最近报告" in source_detail_text else True,
+                  "technical details should come after the reports section")
+
+        # Filter pages already support source_key
+        check("candidate_pool.html has source_key filter",
+              (project_root / "app" / "templates" / "candidate_pool.html").read_text(encoding="utf-8").count("source_key") > 0,
+              "candidate_pool should have source_key filter")
+        check("source_items.html has source_key filter",
+              (project_root / "app" / "templates" / "source_items.html").read_text(encoding="utf-8").count("source_key") > 0,
+              "source_items should have source_key filter")
+        check("fetch_runs.html has source_key filter",
+              (project_root / "app" / "templates" / "fetch_runs.html").read_text(encoding="utf-8").count("source_key") > 0,
+              "fetch_runs should have source_key filter")
+
+    except Exception as e:
+        check("V1.0-beta.9 Source Strategy & Workspace checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
