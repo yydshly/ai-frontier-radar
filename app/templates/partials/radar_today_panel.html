@@ -17,7 +17,7 @@
                     </div>
 
                     <div class="radar-panel-state radar-panel-state-insight radar-panel-state-{{ view.panel_state.insight_state }}">
-                        <strong>{{ view.panel_state.insight_label }}</strong>
+                        <strong>洞察：{{ view.panel_state.insight_label }}</strong>
                         {% if view.panel_state.insight_note %}
                         <p>{{ view.panel_state.insight_note }}</p>
                         {% endif %}
@@ -46,8 +46,12 @@
                         下一步建议：
                         {% if panel_today_card.can_fetch_content %}
                         可点击”获取 HTML 正文”抓取页面文本。
+                        {% elif panel_today_card.can_generate_summary %}
+                        可基于正文生成摘要。
                         {% elif panel_today_card.can_generate_insight %}
-                        可加入生成 InsightCard。
+                        可基于摘要生成洞察卡。
+                        {% elif sel.insight_card_id %}
+                        可查看已有洞察卡。
                         {% else %}
                         查看已有内容或打开原文继续阅读。
                         {% endif %}
@@ -208,6 +212,18 @@
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
                         <button type="submit" class="btn-sm" title="基于 HTML 正文生成中文摘要。">基于正文生成摘要</button>
                     </form>
+                    {% endif %}
+                    {% if panel_today_card and panel_today_card.can_generate_insight %}
+                    <form method="post" action="/radar/today/items/{{ sel.id }}/generate-insight" class="radar-panel-action-form">
+                        <input type="hidden" name="section" value="{{ view.active_section }}">
+                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                        <input type="hidden" name="page" value="{{ view.page }}">
+                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                        <button type="submit" class="btn-sm" title="基于正文摘要生成洞察卡。">生成洞察卡</button>
+                    </form>
+                    {% elif sel.insight_card_id %}
+                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看洞察卡</a>
                     {% endif %}
                     <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
                 </div>

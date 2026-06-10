@@ -248,7 +248,7 @@ def _score_item(item: SourceItem, now: datetime) -> float:
 
     has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
     has_summary = bool(str(raw.get("zh_summary") or "").strip())
-    has_insight = item.status == "compiled" and item.insight_card_id
+    has_insight = bool(item.insight_card_id)
     content_bonus = (has_one_liner * 0.5) + (has_summary * 0.3) + (has_insight * 1.0)
 
     hours_old_val = _hours_old(item.published_at or item.first_seen_at, now)
@@ -298,7 +298,7 @@ def _build_reason(source_key: str, directions: list[str], has_insight: bool) -> 
         parts.append(f"涉及 {primary_dir}")
 
     if has_insight:
-        parts.append("已有洞察卡片")
+        parts.append("已有洞察卡")
 
     result = "，".join(parts)
     return result if result else "今日重要更新"
@@ -358,7 +358,7 @@ def build_daily_report_card(
             with_one_liner += 1
         if str(raw.get("zh_summary") or "").strip():
             with_summary += 1
-        if item.status == "compiled" and item.insight_card_id:
+        if item.insight_card_id:
             with_insight += 1
 
     overview = DailyReportOverview(
@@ -381,7 +381,7 @@ def build_daily_report_card(
         raw = _read_raw_metadata(item)
         title = item.title or "无标题"
         directions = _extract_directions(title)
-        has_insight = item.status == "compiled" and item.insight_card_id
+        has_insight = bool(item.insight_card_id)
         reason = _build_reason(item.source_key, directions, has_insight)
         zh_one_liner = str(raw.get("zh_one_liner") or "").strip() or None
         # Prefer snapshot-generated zh_summary over one-liner

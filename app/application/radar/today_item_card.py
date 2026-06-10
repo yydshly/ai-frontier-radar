@@ -114,12 +114,16 @@ def _summary_state(raw: dict[str, Any]) -> tuple[str, str]:
 
 
 def _insight_state(item: SourceItem) -> tuple[str, str]:
-    if item.status == "compiled" and item.insight_card_id:
-        return "generated", "已生成"
-    if item.status == "compiling":
-        return "compiling", "生成中"
-    if item.status == "failed":
-        return "failed", "生成失败"
+    raw = _read_raw_metadata(item)
+    if item.insight_card_id:
+        insight_status = raw.get("insight_status", "")
+        if insight_status == "generated":
+            return "generated", "已生成"
+        return "has_card", "已有洞察卡"
+    if raw.get("summary_status") == "generated" and raw.get("summary_basis") == "html_snapshot":
+        return "eligible", "可生成"
+    if raw.get("summary_status") == "generated":
+        return "has_summary", "已有摘要"
     return "missing", "未生成"
 
 
@@ -167,6 +171,13 @@ def build_today_item_card(
     summary_generated = raw.get("summary_status") == "generated"
     can_generate_summary = bool(item.url) and content_fetched and not summary_generated
 
+    # can_generate_insight: True when summary exists but no insight card yet
+    can_generate_insight = (
+        not item.insight_card_id
+        and summary_generated
+        and raw.get("summary_basis") == "html_snapshot"
+    )
+
     return TodayItemCard(
         item_id=item.id,
         title=title,
@@ -189,7 +200,7 @@ def build_today_item_card(
         can_open_original=bool(item.url),
         can_fetch_content=bool(item.url) and content.state in {"not_fetched", "fetch_failed"},
         can_generate_summary=can_generate_summary,
-        can_generate_insight=item.status == "discovered",
+        can_generate_insight=can_generate_insight,
         fetch_method_label=_fetch_method_label(raw),
         summary_label=summary_label,
         content_label=content.label,
