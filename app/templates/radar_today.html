@@ -34,8 +34,12 @@
             {# ── Left: catalog ─────────────────────────────────────────── #}
             <nav class="radar-sidebar" aria-label="目录分类">
                 <div class="radar-sidebar-inner">
-                    <div class="radar-sidebar-label">目录</div>
-                    <ul class="radar-section-links">
+                    <div class="radar-directory-header">
+                        <span class="radar-sidebar-label">目录</span>
+                        <button type="button" class="radar-directory-toggle" id="radar-directory-toggle" title="收起目录">收起目录</button>
+                    </div>
+                    <div class="radar-directory-content">
+                        <ul class="radar-section-links">
                         {# 全部 — always shown #}
                         <li>
                             <a href="/radar/today?section=all&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'all' %}is-active{% endif %}">
@@ -534,6 +538,26 @@
           var main = document.querySelector(".radar-main");
           if (selected && main) {
             selected.scrollIntoView({ block: "center" });
+          }
+
+          // Collapsible radar directory
+          var toggle = document.getElementById("radar-directory-toggle");
+          var shell = document.querySelector(".radar-workbench-shell");
+          if (toggle && shell) {
+            var STORAGE_KEY = "ai-frontier-radar:today-directory-collapsed";
+            // Restore saved state
+            if (localStorage.getItem(STORAGE_KEY) === "1") {
+              shell.classList.add("radar-directory-collapsed");
+              toggle.textContent = "展开目录";
+              toggle.title = "展开目录";
+            }
+            // Toggle handler
+            toggle.addEventListener("click", function () {
+              var collapsed = shell.classList.toggle("radar-directory-collapsed");
+              localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
+              toggle.textContent = collapsed ? "展开目录" : "收起目录";
+              toggle.title = collapsed ? "展开目录" : "收起目录";
+            });
           }
         });
         </script>

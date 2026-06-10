@@ -4515,6 +4515,68 @@ def main():
     except Exception as e:
         check("V1.0-beta.3 Clickable radar cards checks", False, str(e))
 
+    # ── 42. V1.0-beta.3 Collapsible radar directory ──────────────────────────
+    print("\n[42] V1.0-beta.3 Collapsible radar directory")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        style_css = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        # 1. radar_today.html has radar-directory-toggle.
+        check("radar_today.html has radar-directory-toggle",
+              "radar-directory-toggle" in radar_html,
+              "toggle button class must exist in template")
+
+        # 2. radar_today.html has radar-directory-collapsed.
+        check("radar_today.html has radar-directory-collapsed",
+              "radar-directory-collapsed" in radar_html,
+              "collapsed state class must be in template")
+
+        # 3. radar_today.html uses localStorage.
+        check("radar_today.html uses localStorage",
+              "localStorage" in radar_html,
+              "localStorage must be used for state persistence")
+
+        # 4. radar_today.html uses the correct localStorage key.
+        check("radar_today.html uses ai-frontier-radar:today-directory-collapsed key",
+              "ai-frontier-radar:today-directory-collapsed" in radar_html,
+              "correct localStorage key must be used")
+
+        # 5. radar_today.html has toggle text (收起目录 or 展开目录).
+        check("radar_today.html has toggle text (收起目录 or 展开目录)",
+              "收起目录" in radar_html or "展开目录" in radar_html,
+              "toggle button must have proper text")
+
+        # 6. style.css has radar-directory-collapsed.
+        check("style.css has radar-directory-collapsed",
+              "radar-directory-collapsed" in style_css,
+              "collapsed CSS class must exist")
+
+        # 7. style.css has radar-sidebar-header or equivalent.
+        check("style.css has radar-sidebar-header or radar-directory-content",
+              "radar-sidebar-header" in style_css or "radar-directory-content" in style_css,
+              "directory header/content CSS class must exist")
+
+        # 8. style.css does NOT remove .radar-layout grid-template-columns.
+        _layout_block = ""
+        if ".radar-layout {" in style_css:
+            _layout_block = style_css.split(".radar-layout {")[1].split("}")[0]
+        check("style.css does NOT remove .radar-layout grid-template-columns",
+              ".radar-layout {" not in style_css or "grid-template-columns" in _layout_block,
+              "radar-layout grid-template-columns must be preserved")
+
+        # 9. radar_today.html still contains 全部, 今日重点, and 最近探测状态.
+        check("radar_today.html still contains 全部 / 今日重点 / 最近探测状态",
+              ("全部" in radar_html and "今日重点" in radar_html and "最近探测状态" in radar_html),
+              "existing sidebar content must be preserved")
+
+        # 10. radar_today.html still contains 智能阅读面板.
+        check("radar_today.html still contains 智能阅读面板",
+              "智能阅读面板" in radar_html,
+              "reading panel must be preserved")
+    except Exception as e:
+        check("V1.0-beta.3 Collapsible radar directory checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

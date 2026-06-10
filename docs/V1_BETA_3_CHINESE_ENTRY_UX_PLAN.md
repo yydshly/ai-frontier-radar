@@ -170,6 +170,24 @@
 
 ---
 
-## 11. 相关文档
+## 11. Task 7：今日雷达目录栏可收缩
+
+- 目标：释放主列表与右侧阅读面板空间
+- 收缩对象：今日雷达页面内的二级目录栏
+- 不收缩对象：最左侧全局深色导航
+- 状态通过 localStorage 保留
+- 不改变摘要 / InsightCard / 抓取服务
+
+具体改动：
+- 在目录栏顶部标题右侧增加「收起目录」/「展开目录」切换按钮
+- 收起时目录内容隐藏，目录栏缩窄为竖条（仅保留旋转后的标题和按钮）
+- 状态通过 `localStorage` key: `ai-frontier-radar:today-directory-collapsed` 持久化
+- 不影响最左侧深色全局导航
+- 不影响右侧智能阅读面板
+- 不改业务逻辑
+
+---
+
+## 12. 相关文档
 
 - [V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md](V1_BETA_3_UI_SCHEDULER_STATUS_PLAN.md) — V1.0-beta.3 整体规划
