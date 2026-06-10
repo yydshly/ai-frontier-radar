@@ -144,6 +144,39 @@
                         {% endif %}
                     </div>
                     {% endif %}
+
+                    {% if daily_digest %}
+                    <div class="radar-digest">
+                        <div class="radar-digest-title">今日编译概览 · {{ daily_digest.date_label }}</div>
+                        <div class="radar-scheduler-row">
+                            <span class="radar-scheduler-label">今日新增</span>
+                            <span class="radar-scheduler-value">{{ daily_digest.new_items_count }}</span>
+                        </div>
+                        <div class="radar-scheduler-row">
+                            <span class="radar-scheduler-label">已有中文摘要</span>
+                            <span class="radar-scheduler-value">{{ daily_digest.summarized_count }}</span>
+                        </div>
+                        <div class="radar-scheduler-row">
+                            <span class="radar-scheduler-label">已生成卡片</span>
+                            <span class="radar-scheduler-value">{{ daily_digest.card_count }}</span>
+                        </div>
+                        <div class="radar-scheduler-row">
+                            <span class="radar-scheduler-label">覆盖来源</span>
+                            <span class="radar-scheduler-value">{{ daily_digest.source_count }}</span>
+                        </div>
+                        {% if daily_digest.top_items %}
+                        <ul class="radar-digest-list">
+                            {% for d in daily_digest.top_items %}
+                            <li class="radar-digest-item">
+                                <a href="/source-items/{{ d.item_id }}">{{ (d.zh_preview or d.title)[:48] }}</a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <div class="radar-scheduler-hint">今日暂无已摘要的新内容</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </nav>
 

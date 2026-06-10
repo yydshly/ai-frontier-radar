@@ -5438,6 +5438,61 @@ def main():
     except Exception as e:
         check("optimization roadmap docs checks", False, str(e))
 
+    # ── 45. P-003 step 1: read-only daily digest aggregation ─────────────────
+    print("\n[45] P-003 daily digest aggregation")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        digest_py = project_root / "app" / "application" / "radar" / "daily_digest.py"
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+
+        check("daily digest aggregation module exists",
+              digest_py.exists(),
+              "read-only daily digest module should exist")
+
+        digest_text = digest_py.read_text(encoding="utf-8") if digest_py.exists() else ""
+
+        check("daily digest is read-only and LLM-free",
+              "build_daily_digest_view" in digest_text
+              and ".commit(" not in digest_text
+              and ".add(" not in digest_text
+              and "CandidateOneLinerService" not in digest_text
+              and "InsightCardGenerator" not in digest_text,
+              "daily digest must only aggregate, never write or call LLM")
+
+        check("daily digest counts in SQL, not full scan",
+              "for item in" not in digest_text
+              and ".count()" in digest_text,
+              "daily digest should count via SQL, not Python full scans")
+
+        check("radar route wires daily_digest",
+              "daily_digest" in radar_route_py
+              and "build_daily_digest_view" in radar_route_py,
+              "radar context should provide a read-only daily_digest")
+
+        check("radar template shows daily digest block",
+              "今日编译概览" in radar_html
+              and "今日新增" in radar_html
+              and "radar-digest" in radar_html,
+              "radar today should show an additive daily digest block")
+
+        # Verify aggregation runs read-only against the DB.
+        from app.db import SessionLocal
+        from app.models import SourceItem, FetchRun
+        from app.application.radar.daily_digest import build_daily_digest_view
+        _db = SessionLocal()
+        try:
+            _before = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            _digest = build_daily_digest_view(_db)
+            _after = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
+            check("daily digest build is read-only",
+                  _before == _after and _digest.new_items_count >= 0,
+                  "building the digest must not change row counts")
+        finally:
+            _db.close()
+    except Exception as e:
+        check("P-003 daily digest checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

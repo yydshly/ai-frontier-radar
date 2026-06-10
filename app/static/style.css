@@ -4550,6 +4550,34 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     line-height: 1.4;
 }
 
+/* P-003 step 1 — daily digest sidebar block (additive, reuses scheduler rows) */
+.radar-digest {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.radar-digest-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #24292f;
+}
+
+.radar-digest-list {
+    margin: 0.3rem 0 0;
+    padding-left: 1rem;
+    list-style: disc;
+}
+
+.radar-digest-item {
+    font-size: 0.76rem;
+    line-height: 1.4;
+    margin-bottom: 0.2rem;
+}
+
 /* ============================================================
    V1.0-beta — Summary generation per-item diagnostics
    ============================================================ */
