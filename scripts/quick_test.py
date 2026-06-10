@@ -5356,6 +5356,53 @@ def main():
     except Exception as e:
         check("V1.0-beta.5 final checkpoint docs checks", False, str(e))
 
+    # ── 44. Project optimization roadmap + ingestion strategy (P-001) ────────
+    print("\n[44] Project optimization roadmap + ingestion strategy")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        roadmap = project_root / "docs" / "V1_OPTIMIZATION_ROADMAP.md"
+        strategy = project_root / "docs" / "V1_SOURCE_INGESTION_STRATEGY.md"
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+
+        check("optimization roadmap doc exists",
+              roadmap.exists(),
+              "project optimization roadmap should exist")
+        check("source ingestion strategy doc exists",
+              strategy.exists(),
+              "source ingestion strategy ladder doc should exist")
+
+        roadmap_text = roadmap.read_text(encoding="utf-8") if roadmap.exists() else ""
+        strategy_text = strategy.read_text(encoding="utf-8") if strategy.exists() else ""
+
+        check("roadmap covers P-001 through P-004",
+              all(p in roadmap_text for p in ["P-001", "P-002", "P-003", "P-004"]),
+              "roadmap should map all four problem areas")
+
+        check("ingestion strategy is RSS-first, crawler-last",
+              "RSS" in strategy_text
+              and "html_index" in strategy_text
+              and ("爬虫后置" in strategy_text or "后置" in strategy_text),
+              "strategy should prioritise RSS and defer crawler")
+
+        check("ingestion strategy keeps heavy strategies controlled",
+              ("显式开启" in strategy_text or "默认关闭" in strategy_text)
+              and "SUPPORTED_STRATEGIES" in strategy_text,
+              "heavy/crawler strategies should stay controlled and out of default scheduling")
+
+        check("ingestion strategy enumerates alternative methods",
+              "json_feed" in strategy_text
+              and "sitemap" in strategy_text
+              and "single_url" in strategy_text
+              and "api" in strategy_text,
+              "strategy should enumerate the fuller ladder of ingestion methods")
+
+        check("registry includes optimization docs",
+              "optimization-roadmap" in registry_py
+              and "source-ingestion-strategy" in registry_py,
+              "project docs registry should register the optimization docs")
+    except Exception as e:
+        check("optimization roadmap docs checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

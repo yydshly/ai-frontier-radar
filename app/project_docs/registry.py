@@ -248,6 +248,22 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="V1.0-beta.2",
         description="自动调度 dry-run、apply 安全路径、isolated apply 验收和操作手册的阶段归档。",
     ),
+
+    # 项目优化路线（P-001 ~ P-004）
+    "optimization-roadmap": DocEntry(
+        key="optimization-roadmap",
+        title="项目优化路线图",
+        path="docs/V1_OPTIMIZATION_ROADMAP.md",
+        category="优化路线",
+        description="P-001~P-004 现状盘点、差距分析、分阶段路线与全局边界。",
+    ),
+    "source-ingestion-strategy": DocEntry(
+        key="source-ingestion-strategy",
+        title="信息来源获取策略阶梯",
+        path="docs/V1_SOURCE_INGESTION_STRATEGY.md",
+        category="优化路线",
+        description="RSS 优先、API/单 URL 居中、爬虫后置的策略阶梯、能力矩阵、回退规则与受控边界。",
+    ),
 }
 
 
