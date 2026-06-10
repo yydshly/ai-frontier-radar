@@ -7,6 +7,8 @@ POST /radar/today/generate-summaries triggers one-liner generation for
 items visible on the current page.
 """
 from collections import Counter
+from datetime import datetime
+import json
 from pathlib import Path
 from urllib.parse import urlencode
 import os
@@ -390,6 +392,7 @@ def _build_radar_today_view_context(
             "request": request,
             "view": view,
             "display_map": view.display_map,
+            "today_card_map": view.today_card_map,
             "safe_external_url": safe_external_url,
             "scheduler_status": scheduler_status,
             "daily_digest": daily_digest,
@@ -424,6 +427,49 @@ def radar_today_panel(
         "partials/radar_today_panel.html",
         context,
     )
+
+
+@router.post("/today/items/{item_id}/fetch-content")
+def fetch_today_item_content(
+    item_id: int,
+    section: str = Form(ALL_KEY),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Record a safe content-fetch request placeholder for a radar item.
+
+    First version: no network fetch, no LLM, no schema change. It records a
+    queued status in raw_metadata_json so the UI can show the chain state.
+    """
+    db = next(get_db())
+    try:
+        item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
+        if item is not None and item.url:
+            try:
+                raw = json.loads(item.raw_metadata_json or "{}")
+            except (TypeError, json.JSONDecodeError):
+                raw = {}
+            if not isinstance(raw, dict):
+                raw = {}
+            raw["content_fetch_status"] = "queued"
+            raw["content_fetch_requested_at"] = datetime.utcnow().isoformat()
+            raw["content_fetch_note"] = "queued placeholder; no network fetch in V1.0-beta.6"
+            item.raw_metadata_json = json.dumps(raw, ensure_ascii=False)
+            db.commit()
+    finally:
+        db.close()
+
+    params = {
+        "section": section,
+        "item_id": item_id,
+        "hours": hours,
+        "limit": limit,
+        "page": page,
+        "per_page": per_page,
+    }
+    return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 
 
 @router.post("/today/generate-summaries")

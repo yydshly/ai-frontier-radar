@@ -347,6 +347,7 @@
                     <div class="radar-card-list">
                         {% for item in section.items %}
                         {% set display = display_map.get(item.id) %}
+                        {% set today_card = today_card_map.get(item.id) %}
                         {% set is_selected = sel and item.id == sel.id %}
                         {% set view_url = '/radar/today?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page ~ '#radar-item-' ~ item.id %}
                         {% set panel_url = '/radar/today/panel?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page %}
@@ -376,6 +377,14 @@
                             <div class="radar-card-footer">
                                 <div class="radar-card-meta">
                                     <code>{{ item.source_key }}</code>
+                                    {% if today_card %}
+                                    <span>发现：{{ today_card.first_seen_label }}</span>
+                                    <span>发布：{{ today_card.published_label or '未提供' }}</span>
+                                    <span>获取方式：{{ today_card.fetch_method_label }}</span>
+                                    <span>摘要：{{ today_card.summary_label }}</span>
+                                    <span>正文：{{ today_card.content_label }}</span>
+                                    <span>InsightCard：{{ today_card.insight_label }}</span>
+                                    {% endif %}
                                     <span>{{ display.time_label if display else '时间未知' }}</span>
                                     {% if item.status == 'discovered' %}
                                         <span class="status-badge status-pending">待生成洞察</span>
@@ -407,6 +416,16 @@
                                     {% set card_url = safe_external_url(display.url if display else item.url) %}
                                     {% if card_url %}
                                     <a href="{{ card_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
+                                    {% endif %}
+                                    {% if today_card and today_card.can_fetch_content %}
+                                    <form method="post" action="/radar/today/items/{{ item.id }}/fetch-content" class="radar-card-action-form">
+                                        <input type="hidden" name="section" value="{{ view.active_section }}">
+                                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                                        <input type="hidden" name="page" value="{{ view.page }}">
+                                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                                        <button type="submit" class="btn-sm">获取正文</button>
+                                    </form>
                                     {% endif %}
                                 </div>
                             </div>

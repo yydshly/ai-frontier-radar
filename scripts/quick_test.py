@@ -5855,6 +5855,65 @@ def main():
     except Exception as e:
         check("P-004 custom intake checks", False, str(e))
 
+    # V1.0-beta.6 TodayItemCard content chain
+    print("\n[49] V1.0-beta.6 TodayItemCard content chain")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        today_item_card_py = project_root / "app" / "application" / "radar" / "today_item_card.py"
+        radar_today_html = project_root / "app" / "templates" / "radar_today.html"
+        radar_panel_html = project_root / "app" / "templates" / "partials" / "radar_today_panel.html"
+        radar_route_py = project_root / "app" / "routes" / "radar.py"
+
+        today_item_card_text = today_item_card_py.read_text(encoding="utf-8") if today_item_card_py.exists() else ""
+        radar_today_text = radar_today_html.read_text(encoding="utf-8") if radar_today_html.exists() else ""
+        radar_panel_text = radar_panel_html.read_text(encoding="utf-8") if radar_panel_html.exists() else ""
+        radar_route_text = radar_route_py.read_text(encoding="utf-8") if radar_route_py.exists() else ""
+
+        check("today_item_card.py exists",
+              today_item_card_py.exists(),
+              "today item card module should exist")
+        check("TodayItemCard dataclass exists",
+              "class TodayItemCard" in today_item_card_text and "@dataclass" in today_item_card_text,
+              "TodayItemCard should be a dataclass")
+        check("build_today_item_card exists",
+              "def build_today_item_card" in today_item_card_text,
+              "today item card builder should exist")
+        check("radar today shows content state",
+              "正文：" in radar_today_text or "正文状态" in radar_today_text,
+              "today cards should show content state")
+        check("radar today has open original entry",
+              "打开原文" in radar_today_text,
+              "today cards should keep original link")
+        check("radar today has fetch content entry",
+              "获取正文" in radar_today_text and "fetch-content" in radar_today_text,
+              "today cards should expose POST fetch-content")
+        check("fetch-content route is POST-only",
+              '@router.post("/today/items/{item_id}/fetch-content")' in radar_route_text
+              and '@router.get("/today/items/{item_id}/fetch-content")' not in radar_route_text,
+              "fetch-content should only be registered as POST")
+        check("GET /radar/today remains read-only",
+              "def radar_today_page" in radar_route_text
+              and "fetch_today_item_content" not in radar_route_text.split("def radar_today_page", 1)[1].split("@router.post", 1)[0],
+              "GET /radar/today should not trigger content fetching")
+        check("panel shows content and InsightCard states",
+              "正文状态" in radar_panel_text
+              and "InsightCard 状态" in radar_panel_text
+              and "当前处理链路" in radar_panel_text,
+              "reading panel should show the processing chain")
+
+        if client is not None:
+            resp = client.get("/radar/today")
+            check("GET /radar/today returns 200 for content chain",
+                  resp.status_code == 200,
+                  "today radar page should render")
+            check("GET fetch-content is not allowed",
+                  client.get("/radar/today/items/0/fetch-content").status_code in (404, 405),
+                  "fetch-content must not run on GET")
+        else:
+            check("TestClient available for beta.6 checks", False, "client is not available")
+    except Exception as e:
+        check("V1.0-beta.6 TodayItemCard checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

@@ -870,6 +870,60 @@ def main() -> int:
               before_count == after_count,
               "preview endpoint must not write Source rows")
 
+    print("\n[23] TodayItemCard content chain")
+    if _client is None:
+        check("TestClient available", False, "TestClient could not be created - skipping TodayItemCard tests")
+    else:
+        from app.db import SessionLocal
+        from app.models import SourceItem
+
+        before_columns = [col.name for col in SourceItem.__table__.columns]
+
+        today_resp = _client.get("/radar/today")
+        check("Today radar page opens",
+              today_resp.status_code == 200,
+              "GET /radar/today should render")
+        check("Today radar page contains content state",
+              "正文" in today_resp.text,
+              "page should show content state")
+        check("Today radar page contains open original entry",
+              "打开原文" in today_resp.text,
+              "page should keep original link")
+        check("Today radar page contains fetch content entry",
+              "获取正文" in today_resp.text and "fetch-content" in today_resp.text,
+              "page should expose fetch-content POST")
+
+        get_fetch_resp = _client.get("/radar/today/items/0/fetch-content")
+        check("GET fetch-content is not allowed",
+              get_fetch_resp.status_code in (404, 405),
+              "GET must not trigger content fetch")
+
+        post_missing_resp = _client.post(
+            "/radar/today/items/999999999/fetch-content",
+            data={
+                "section": "all",
+                "hours": "24",
+                "limit": "50",
+                "page": "1",
+                "per_page": "20",
+            },
+            follow_redirects=False,
+        )
+        check("POST missing item safely redirects",
+              post_missing_resp.status_code in (303, 307),
+              "missing item should safely return to today radar")
+
+        radar_route_text = read("app/routes/radar.py")
+        check("fetch-content route does not call LLM",
+              "fetch_today_item_content" in radar_route_text
+              and "CandidateOneLinerService" not in radar_route_text.split("def fetch_today_item_content", 1)[1].split("@router.post", 1)[0],
+              "fetch-content must not call LLM")
+
+        after_columns = [col.name for col in SourceItem.__table__.columns]
+        check("fetch-content does not change DB schema",
+              before_columns == after_columns,
+              "source_items columns must be unchanged")
+
     print("\n" + "=" * 60)
     print(f"First usable loop acceptance: {PASS} passed, {FAIL} failed")
     print("=" * 60 + "\n")
