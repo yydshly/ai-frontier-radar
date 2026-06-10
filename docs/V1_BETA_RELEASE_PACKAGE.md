@@ -130,6 +130,8 @@ V1.0-beta.2 进入轻量自动调度设计阶段，规划重点：
 - isolated DB + local mock RSS apply acceptance（Task 3B：FetchRun success / SourceItem 入库 / 主库未污染）
 - Windows Task Scheduler / cron operations manual（Task 5）
 - scheduler operations manual covers: Windows Task Scheduler、cron、环境变量、日志、常见问题
+- scheduler checkpoint / acceptance archive（Task 4）
+- operations manual precision fix（RADAR_SCHEDULER_AUTO_SUMMARY 误导性表述已修正）
 
 参考：
 
@@ -137,3 +139,4 @@ V1.0-beta.2 进入轻量自动调度设计阶段，规划重点：
 - `docs/V1_BETA_2_EXECUTION_PLAN.md`
 - `docs/V1_BETA_2_DECISION_RECORD.md`
 - `docs/V1_BETA_2_SCHEDULER_OPERATIONS.md`
+- `docs/V1_BETA_2_SCHEDULER_CHECKPOINT.md`

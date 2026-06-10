@@ -259,12 +259,15 @@ V1.0-beta.2 将从人工触发进入轻量自动调度设计阶段。
 
 已完成 isolated DB + local mock RSS 的真实 `--apply` 验收，不污染主数据库（FetchRun success、SourceItem 入库、auto_summary 关闭、InsightCard=0、stale_count=0）。
 
+V1.0-beta.2 已完成 dry-run、--apply 安全路径、isolated apply 验收和外部定时器操作手册。
+
 规划文档：
 
 - [docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md](docs/V1_BETA_2_AUTOMATED_SCHEDULING_DESIGN.md) — 自动调度与轻量任务队列设计
 - [docs/V1_BETA_2_EXECUTION_PLAN.md](docs/V1_BETA_2_EXECUTION_PLAN.md) — Task 1–6 任务拆分与验收
 - [docs/V1_BETA_2_DECISION_RECORD.md](docs/V1_BETA_2_DECISION_RECORD.md) — 7 条关键决策（不引入 Celery / Redis 等）
 - [docs/V1_BETA_2_SCHEDULER_OPERATIONS.md](docs/V1_BETA_2_SCHEDULER_OPERATIONS.md) — Windows Task Scheduler / cron 操作手册
+- [docs/V1_BETA_2_SCHEDULER_CHECKPOINT.md](docs/V1_BETA_2_SCHEDULER_CHECKPOINT.md) — 自动调度阶段验收与稳定点
 
 **当前建议通过外部定时器调用 CLI，不在 Web 进程内运行常驻 scheduler。**
 

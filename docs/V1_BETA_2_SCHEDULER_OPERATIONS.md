@@ -271,7 +271,10 @@ echo $RADAR_SCHEDULER_ENABLED   (Linux/macOS)
 ```text
 LLM 成本和 prompt injection 风险敏感。
 调度阶段默认只抓取 SourceItem，不自动生成 InsightCard。
-如需开启，需显式设置 AUTO_SUMMARY_MAX_PER_FETCH_RUN>0 或 RADAR_SCHEDULER_AUTO_SUMMARY=true。
+当前真实生效的自动摘要控制项是 AUTO_SUMMARY_MAX_PER_FETCH_RUN。
+V1.0-beta.2 阶段 --apply 要求 AUTO_SUMMARY_MAX_PER_FETCH_RUN=0。
+RADAR_SCHEDULER_AUTO_SUMMARY 目前只是设计中的未来开关，尚未作为真实可用配置实现。
+如未来需要自动摘要调度，应另行实现并验收。
 ```
 
 ### Q4：出现 running 卡住怎么办？

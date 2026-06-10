@@ -3968,6 +3968,91 @@ def main():
     except Exception as e:
         check("V1.0-beta.2 scheduler operations manual checks", False, str(e))
 
+    # ── 36. V1.0-beta.2 scheduler checkpoint ────────────────────────────────
+    print("\n[36] V1.0-beta.2 scheduler checkpoint")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        checkpoint_doc = project_root / "docs" / "V1_BETA_2_SCHEDULER_CHECKPOINT.md"
+        checkpoint_text = checkpoint_doc.read_text(encoding="utf-8") if checkpoint_doc.exists() else ""
+        ops_text = (project_root / "docs" / "V1_BETA_2_SCHEDULER_OPERATIONS.md").read_text(encoding="utf-8")
+        readme = (project_root / "README.md").read_text(encoding="utf-8")
+        registry_py = (project_root / "app" / "project_docs" / "registry.py").read_text(encoding="utf-8")
+
+        check("v1 beta 2 scheduler checkpoint exists",
+              checkpoint_doc.exists(),
+              "V1_BETA_2_SCHEDULER_CHECKPOINT.md should exist")
+
+        check("v1 beta 2 checkpoint covers Task 1",
+              "Task 1" in checkpoint_text,
+              "checkpoint should cover Task 1")
+
+        check("v1 beta 2 checkpoint covers Task 2",
+              "Task 2" in checkpoint_text,
+              "checkpoint should cover Task 2")
+
+        check("v1 beta 2 checkpoint covers Task 3A",
+              "Task 3A" in checkpoint_text,
+              "checkpoint should cover Task 3A")
+
+        check("v1 beta 2 checkpoint covers Task 3B",
+              "Task 3B" in checkpoint_text,
+              "checkpoint should cover Task 3B")
+
+        check("v1 beta 2 checkpoint covers Task 5",
+              "Task 5" in checkpoint_text,
+              "checkpoint should cover Task 5")
+
+        check("v1 beta 2 checkpoint mentions run_due_sources_once.py",
+              "run_due_sources_once.py" in checkpoint_text,
+              "checkpoint should reference the scheduler script")
+
+        check("v1 beta 2 checkpoint mentions compute_due_sources",
+              "compute_due_sources" in checkpoint_text,
+              "checkpoint should reference compute_due_sources function")
+
+        check("v1 beta 2 checkpoint mentions SourceFetchBackgroundService",
+              "SourceFetchBackgroundService" in checkpoint_text,
+              "checkpoint should reference SourceFetchBackgroundService")
+
+        check("v1 beta 2 checkpoint mentions FetchRun",
+              "FetchRun" in checkpoint_text,
+              "checkpoint should reference FetchRun")
+
+        check("v1 beta 2 checkpoint mentions SourceItem",
+              "SourceItem" in checkpoint_text,
+              "checkpoint should reference SourceItem")
+
+        check("v1 beta 2 checkpoint mentions AUTO_SUMMARY_MAX_PER_FETCH_RUN=0",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in checkpoint_text,
+              "checkpoint should document auto summary is disabled")
+
+        check("v1 beta 2 checkpoint mentions stale_count=0",
+              "stale_count=0" in checkpoint_text,
+              "checkpoint should document stale_count=0 from acceptance")
+
+        check("v1 beta 2 checkpoint mentions 主 DB 未污染",
+              "主 DB 未污染" in checkpoint_text,
+              "checkpoint should confirm main DB was not polluted")
+
+        check("operations manual does not claim RADAR_SCHEDULER_AUTO_SUMMARY is implemented",
+              "尚未作为真实可用配置实现" in ops_text
+              or "未来开关" in ops_text,
+              "operations manual should clarify RADAR_SCHEDULER_AUTO_SUMMARY is not yet implemented")
+
+        check("README links v1 beta 2 scheduler checkpoint",
+              "V1_BETA_2_SCHEDULER_CHECKPOINT.md" in readme,
+              "README should link the scheduler checkpoint document")
+
+        check("registry contains v1-beta-2-scheduler-checkpoint",
+              "v1-beta-2-scheduler-checkpoint" in registry_py,
+              "project docs registry should include scheduler checkpoint entry")
+
+        check("registry checkpoint entry has correct path",
+              "V1_BETA_2_SCHEDULER_CHECKPOINT.md" in registry_py,
+              "registry should reference the checkpoint path")
+    except Exception as e:
+        check("V1.0-beta.2 scheduler checkpoint checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

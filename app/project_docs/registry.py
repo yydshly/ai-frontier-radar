@@ -241,6 +241,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="V1.0-beta.2",
         description="Windows Task Scheduler、cron、环境变量、日志与排查手册。",
     ),
+    "v1-beta-2-scheduler-checkpoint": DocEntry(
+        key="v1-beta-2-scheduler-checkpoint",
+        title="V1.0-beta.2 调度阶段稳定点",
+        path="docs/V1_BETA_2_SCHEDULER_CHECKPOINT.md",
+        category="V1.0-beta.2",
+        description="自动调度 dry-run、apply 安全路径、isolated apply 验收和操作手册的阶段归档。",
+    ),
 }
 
 
