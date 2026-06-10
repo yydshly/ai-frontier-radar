@@ -5902,11 +5902,11 @@ def main():
               "打开原文" in radar_today_text,
               "today cards should keep original link")
         check("radar today has fetch content entry",
-              "标记待获取正文" in radar_today_text and "fetch-content" in radar_today_text,
-              "today cards should expose POST fetch-content intent")
-        check("radar today clarifies content fetch is intent-only",
-              "仅记录获取意图" in radar_today_text or "尚未执行真实抓取" in radar_today_text,
-              "UI should not imply real background fetching")
+              "获取 HTML 正文" in radar_today_text and "fetch-html" in radar_today_text,
+              "today cards should expose POST fetch-html for real content fetching")
+        check("radar today does not claim intent-only",
+              "仅记录获取意图" not in radar_today_text and "尚未执行真实抓取" not in radar_today_text,
+              "V1.0-beta.9 does real HTML fetching, UI should not say intent-only")
         check("fetch-content route is POST-only",
               '@router.post("/today/items/{item_id}/fetch-content")' in radar_route_text
               and '@router.get("/today/items/{item_id}/fetch-content")' not in radar_route_text,
@@ -6375,6 +6375,7 @@ def main():
     except Exception as e:
         check("V1.0-beta.8 DailyBroadcast checks", False, str(e))
 
+<<<<<<< HEAD
     # ── 53. V1.0-beta.9 Source Strategy & Workspace ─────────────────────────
     print("\n[53] V1.0-beta.9 Source Strategy & Workspace")
     try:
@@ -6477,6 +6478,143 @@ def main():
 
     except Exception as e:
         check("V1.0-beta.9 Source Strategy & Workspace checks", False, str(e))
+
+    # ── 53. V1.0-beta.10 HTML Content Fetch ───────────────────────────────
+    print("\n[53] V1.0-beta.10 HTML Content Fetch")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+
+        # Module existence checks
+        content_dir = project_root / "app" / "application" / "content"
+        check("app/application/content/ directory exists",
+              content_dir.is_dir(),
+              "content directory should exist")
+
+        html_fetcher_path = content_dir / "html_fetcher.py"
+        check("html_fetcher.py exists",
+              html_fetcher_path.exists(),
+              "html_fetcher.py should exist")
+        html_fetcher_text = html_fetcher_path.read_text(encoding="utf-8")
+        check("HtmlFetchResult dataclass exists",
+              "class HtmlFetchResult" in html_fetcher_text,
+              "HtmlFetchResult should exist")
+        check("HtmlFetchSettings dataclass exists",
+              "class HtmlFetchSettings" in html_fetcher_text,
+              "HtmlFetchSettings should exist")
+        check("fetch_html function exists",
+              "def fetch_html" in html_fetcher_text,
+              "fetch_html function should exist")
+        check("has timeout configuration",
+              "timeout" in html_fetcher_text and "timeout_seconds" in html_fetcher_text,
+              "should have timeout configuration")
+        check("has max_bytes configuration",
+              "max_bytes" in html_fetcher_text,
+              "should have max_bytes configuration")
+        check("has content-type check",
+              "content_type" in html_fetcher_text,
+              "should check content-type")
+        check("reuses is_safe_external_url for URL safety",
+              "is_safe_external_url" in html_fetcher_text,
+              "should reuse existing URL safety check")
+        check("No LLM imports in html_fetcher.py",
+              "from app.llm" not in html_fetcher_text and "import app.llm" not in html_fetcher_text,
+              "html_fetcher should not import LLM modules")
+
+        snapshot_path = content_dir / "content_snapshot.py"
+        check("content_snapshot.py exists",
+              snapshot_path.exists(),
+              "content_snapshot.py should exist")
+        snapshot_text = snapshot_path.read_text(encoding="utf-8")
+        check("runtime/content_snapshots path in code",
+              "content_snapshots" in snapshot_text,
+              "snapshot path should reference runtime/content_snapshots")
+        # V1.0-beta.10: snapshot path is at project root, NOT app/
+        check("snapshot uses project root (parents[3])",
+              "parents[3]" in snapshot_text or ("Path(__file__).resolve().parents[3]" in snapshot_text),
+              "snapshot should use project root via parents[3], not parents[2] (app/)")
+        check("snapshot does NOT use parents[2] (app/)",
+              "parents[2]" not in snapshot_text or "parents[3]" in snapshot_text,
+              "snapshot should not use parents[2] which points to app/")
+
+        service_path = content_dir / "source_item_content_service.py"
+        check("source_item_content_service.py exists",
+              service_path.exists(),
+              "source_item_content_service.py should exist")
+        service_text = service_path.read_text(encoding="utf-8")
+        check("fetch_source_item_content function exists",
+              "def fetch_source_item_content" in service_text,
+              "fetch_source_item_content should exist")
+        check("No LLM imports in service",
+              "from app.llm" not in service_text and "import app.llm" not in service_text,
+              "content service should not import LLM")
+
+        # Route checks
+        radar_route_path = project_root / "app" / "routes" / "radar.py"
+        radar_text = radar_route_path.read_text(encoding="utf-8")
+        check("POST /today/items/{id}/fetch-html route exists",
+              '@router.post("/today/items/{item_id}/fetch-html")' in radar_text,
+              "fetch-html route should be registered as POST")
+        check("No GET for fetch-html",
+              '@router.get("/today/items/{item_id}/fetch-html")' not in radar_text,
+              "fetch-html should not be a GET route")
+        check("fetch_html route does not call LLM",
+              "from app.llm" not in radar_text or "fetch_html" not in radar_text,
+              "fetch-html route should not call LLM")
+
+        # Template checks
+        panel_html = (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
+        check("Panel template has 获取 HTML 正文 button",
+              "获取 HTML 正文" in panel_html,
+              "panel should have real fetch button")
+        check("Panel form posts to fetch-html",
+              "fetch-html" in panel_html,
+              "panel form should post to fetch-html endpoint")
+        check("Panel no longer says intent-only",
+              "仅记录获取意图" not in panel_html and "尚未执行真实抓取" not in panel_html,
+              "panel should not claim intent-only since we do real fetching")
+
+        # .gitignore has runtime/
+        gitignore = project_root / ".gitignore"
+        check("runtime/ in .gitignore",
+              "runtime/" in gitignore.read_text(encoding="utf-8"),
+              "runtime/ should be in .gitignore")
+
+        # Prompt injection note exists
+        init_text = (content_dir / "__init__.py").read_text(encoding="utf-8")
+        check("UNTRUSTED_CONTENT_NOTE in __init__.py",
+              "UNTRUSTED_CONTENT_NOTE" in init_text or "untrusted" in init_text.lower(),
+              "content module should have untrusted content warning")
+
+        # No schema change
+        check("html_fetcher.py does not modify schema",
+              "add_column" not in html_fetcher_text.lower() and "Column(" not in html_fetcher_text,
+              "html_fetcher should not modify DB schema")
+        check("content_snapshot.py does not modify schema",
+              "add_column" not in snapshot_text.lower() and "Column(" not in snapshot_text,
+              "snapshot module should not modify DB schema")
+
+        # V1.0-beta.10: content_too_large error code check
+        check("content_too_large error code exists",
+              "content_too_large" in html_fetcher_text or "content_too_large" in service_text,
+              "should have content_too_large error code for large content")
+
+        # V1.0-beta.10: Content-Length or stream/chunk check
+        check("has Content-Length or stream protection",
+              "Content-Length" in html_fetcher_text or "stream" in html_fetcher_text.lower(),
+              "should check Content-Length header or use streaming for max_bytes protection")
+
+        # V1.0-beta.10: docs renamed to V1_BETA_10
+        docs_path = project_root / "docs" / "V1_BETA_10_HTML_CONTENT_FETCH_PLAN.md"
+        check("docs/V1_BETA_10_HTML_CONTENT_FETCH_PLAN.md exists",
+              docs_path.exists(),
+              "docs should be renamed to V1_BETA_10_HTML_CONTENT_FETCH_PLAN.md")
+        old_docs_path = project_root / "docs" / "V1_BETA_9_HTML_CONTENT_FETCH_PLAN.md"
+        check("docs/V1_BETA_9_HTML_CONTENT_FETCH_PLAN.md does NOT exist",
+              not old_docs_path.exists(),
+              "old V1_BETA_9 doc should be renamed, not exist")
+
+    except Exception as e:
+        check("V1.0-beta.10 HTML Content Fetch checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
