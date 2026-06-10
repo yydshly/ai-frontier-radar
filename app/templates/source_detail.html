@@ -99,8 +99,8 @@
         <div class="source-workspace-card source-manual-fetch-panel">
             <h2>手动探测</h2>
             <p class="source-manual-fetch-note">
-                这是<strong>有副作用</strong>的操作：会为该来源创建或复用一个 FetchRun，并在后台抓取最新内容。
-                如果该来源已有运行中的 FetchRun，系统不会重复启动，会跳转到现有运行记录。
+                这是<strong>有副作用</strong>的操作：会为该来源创建或复用一个探测任务，并在后台抓取最新内容。
+                如果该来源已有运行中的探测任务，系统不会重复启动，会跳转到现有运行记录。
             </p>
             {% if stale_runs %}
             <p class="source-manual-fetch-note source-workspace-muted">
@@ -108,7 +108,7 @@
             </p>
             {% elif decision and decision.status == 'running' %}
             <p class="source-manual-fetch-note source-workspace-muted">
-                该来源已有运行中的 FetchRun，点击运行探测会跳转到现有运行记录，不会重复创建。
+                该来源已有运行中的探测任务，点击运行探测会跳转到现有运行记录，不会重复创建。
             </p>
             {% elif decision and decision.reason == 'not_due_yet' %}
             <p class="source-manual-fetch-note source-workspace-muted">

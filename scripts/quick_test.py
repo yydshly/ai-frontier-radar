@@ -6460,6 +6460,10 @@ def main():
                   source_detail_text.index("<details") > source_detail_text.rfind("<h2>最近 FetchRun") if "<details" in source_detail_text and "<h2>最近 FetchRun" in source_detail_text else True,
                   "main view should not have 'FetchRun' heading - it should be '最近探测记录' inside details")
 
+            check("source_detail: main view has no 'FetchRun' in manual fetch section",
+                  "FetchRun" not in source_detail_text[:source_detail_text.index("<details")] if "<details" in source_detail_text else True,
+                  "main view manual fetch section should not contain 'FetchRun' - use '探测任务' instead")
+
         # Filter pages already support source_key
         check("candidate_pool.html has source_key filter",
               (project_root / "app" / "templates" / "candidate_pool.html").read_text(encoding="utf-8").count("source_key") > 0,

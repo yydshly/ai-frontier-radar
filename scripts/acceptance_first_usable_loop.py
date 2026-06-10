@@ -1345,6 +1345,10 @@ def main() -> int:
         check("Source workspace: '最近探测记录' inside details section",
               source_detail_html.index("最近探测记录") > source_detail_html.index("<details") if "最近探测记录" in source_detail_html and "<details" in source_detail_html else True,
               "'最近探测记录' should appear inside the <details> section")
+        # Main view should not expose FetchRun wording
+        check("Source workspace: main view does not expose 'FetchRun'",
+              "FetchRun" not in source_detail_html[:source_detail_html.index("<details")] if "<details" in source_detail_html else True,
+              "main view manual fetch section should use '探测任务' not 'FetchRun'")
 
         # Not calling LLM, not changing schema
         check("Source strategy: does not call LLM",
