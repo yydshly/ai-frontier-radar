@@ -382,6 +382,8 @@ python scripts/check_card_page.py
 
 # due-source 单轮调度计划（dry-run，只读，不创建 FetchRun）
 python scripts/run_due_sources_once.py
+# --apply 需要 RADAR_SCHEDULER_ENABLED=true 且 AUTO_SUMMARY_MAX_PER_FETCH_RUN=0
+RADAR_SCHEDULER_ENABLED=true AUTO_SUMMARY_MAX_PER_FETCH_RUN=0 python scripts/run_due_sources_once.py --apply
 ```
 
 ---

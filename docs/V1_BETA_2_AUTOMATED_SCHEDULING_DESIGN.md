@@ -88,9 +88,17 @@ python scripts/run_due_sources_once.py            # dry-run（默认）
 python scripts/run_due_sources_once.py --apply    # 真实创建 FetchRun（Task 3 才实现）
 ```
 
-> **当前进度（Task 2）**：CLI dry-run 骨架已实现。当前脚本只打印本轮 due-source
-> 计划（due / skipped / running / unsupported / missing + would_start + reason_summary），
-> **不创建 FetchRun**。`--apply` 尚未实现，将在 Task 3 中另行加入。
+> **当前进度（Task 2 + Task 3A）**：CLI dry-run 骨架 + `--apply` 安全路径已实现。
+> 默认仍 dry-run，只打印本轮 due-source 计划（due / skipped / running /
+> unsupported / missing + would_start + reason_summary），**不创建 FetchRun**。
+>
+> `--apply` 已实现安全路径，但有两道闸门：
+> - 需要 `RADAR_SCHEDULER_ENABLED=true`（防误触，否则 exit 2）。
+> - 要求 `AUTO_SUMMARY_MAX_PER_FETCH_RUN=0`（未设置则脚本默认设为 0；非 0 则 exit 2），
+>   因为 `enqueue_source(..., background_tasks=None)` 会同步抓取，必须先禁用自动摘要避免触发 LLM。
+>
+> `--apply` 只处理 `plan.due`；`due=0` 时安全 no-op 不创建 FetchRun。
+> 真实 due source 抓取验收进入 Task 3B。
 
 行为：
 

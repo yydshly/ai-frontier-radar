@@ -6,27 +6,35 @@ Computes this cycle's due-source plan and prints a readable summary of which
 sources are due / skipped / running / unsupported / missing, plus which sources
 *would* be started if this were applied.
 
-This script is strictly read-only in Task 2:
+Default mode is DRY-RUN — strictly read-only:
 - It only calls the read-only ``compute_due_sources()`` service.
 - It does NOT create FetchRun rows.
 - It does NOT schedule any background work or dispatch the fetch service.
 - It does NOT trigger real fetches, LLM calls, summaries, or InsightCard generation.
 - It does NOT write to the database.
 
-``--apply`` is intentionally NOT implemented here. Real single-shot execution
-(creating FetchRun rows) is Task 3.
+``--apply`` (Task 3A) executes ONLY ``plan.due`` sources, and only behind two
+explicit safety gates:
+- ``RADAR_SCHEDULER_ENABLED=true`` must be set (anti-misfire gate).
+- ``AUTO_SUMMARY_MAX_PER_FETCH_RUN`` must be unset or ``0`` (no LLM summary).
+  The fetch service runs synchronously (``background_tasks=None``), so disabling
+  auto summary up front is what keeps ``--apply`` from triggering LLM work.
+When ``plan.due`` is empty, ``--apply`` is a safe no-op (no FetchRun created).
+It never processes skipped / running / unsupported / missing, and never performs
+stale recovery.
 
 Usage:
     python scripts/run_due_sources_once.py
     python scripts/run_due_sources_once.py --max-sources 3
     python scripts/run_due_sources_once.py --show-skipped
-    python scripts/run_due_sources_once.py --show-running
-    python scripts/run_due_sources_once.py --show-unsupported
-    python scripts/run_due_sources_once.py --show-missing
+    python scripts/run_due_sources_once.py --apply
+    RADAR_SCHEDULER_ENABLED=true AUTO_SUMMARY_MAX_PER_FETCH_RUN=0 \
+        python scripts/run_due_sources_once.py --apply
 """
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -38,7 +46,16 @@ if str(PROJECT_ROOT) not in sys.path:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="CLI single-shot due-source scheduler (dry-run only, Task 2)"
+        description="CLI single-shot due-source scheduler (dry-run by default)"
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help=(
+            "Execute due sources by creating FetchRun rows. Requires "
+            "RADAR_SCHEDULER_ENABLED=true and AUTO_SUMMARY_MAX_PER_FETCH_RUN=0. "
+            "Without this flag the script is dry-run."
+        ),
     )
     parser.add_argument(
         "--max-sources",
@@ -87,8 +104,39 @@ def _print_bucket(title: str, decisions) -> None:
         print(f"  - {d.source_key} (reason={d.reason})")
 
 
-def _print_plan(plan, args: argparse.Namespace) -> None:
-    print("[run_due_sources_once] DRY-RUN")
+def _scheduler_enabled_for_apply() -> bool:
+    return os.getenv("RADAR_SCHEDULER_ENABLED", "").lower() == "true"
+
+
+def _ensure_apply_safety(args: argparse.Namespace) -> int | None:
+    """Enforce the two explicit safety gates for --apply. Returns exit code or None.
+
+    Gate 1: RADAR_SCHEDULER_ENABLED=true (anti-misfire).
+    Gate 2: AUTO_SUMMARY_MAX_PER_FETCH_RUN must be unset or "0" (no LLM summary).
+            If unset, default it to "0" so the synchronous fetch won't summarize.
+    """
+    if not args.apply:
+        return None
+
+    if not _scheduler_enabled_for_apply():
+        print("[ERROR] --apply requires RADAR_SCHEDULER_ENABLED=true.")
+        return 2
+
+    raw = os.getenv("AUTO_SUMMARY_MAX_PER_FETCH_RUN")
+    if raw is None:
+        os.environ["AUTO_SUMMARY_MAX_PER_FETCH_RUN"] = "0"
+    elif raw != "0":
+        print("[ERROR] --apply requires AUTO_SUMMARY_MAX_PER_FETCH_RUN=0 in Task 3A.")
+        return 2
+
+    return None
+
+
+def _print_plan_summary(plan, args: argparse.Namespace, header: str) -> None:
+    print(f"[run_due_sources_once] {header}")
+    if header == "APPLY":
+        print("RADAR_SCHEDULER_ENABLED=true")
+        print(f"AUTO_SUMMARY_MAX_PER_FETCH_RUN={os.getenv('AUTO_SUMMARY_MAX_PER_FETCH_RUN')}")
     print(f"total_configured={plan.total_configured}")
     print(f"due={plan.due_count}")
     print(f"skipped={plan.skipped_count}")
@@ -127,8 +175,82 @@ def _print_plan(plan, args: argparse.Namespace) -> None:
         print()
         _print_bucket("missing_detail", plan.missing)
 
+
+def _run_dry_run(plan, args: argparse.Namespace) -> int:
+    _print_plan_summary(plan, args, "DRY-RUN")
     print()
-    print("No FetchRun created. This script is dry-run only in V1.0-beta.2 Task 2.")
+    print(
+        "No FetchRun created. Use --apply with RADAR_SCHEDULER_ENABLED=true "
+        "to execute due sources."
+    )
+    return 0
+
+
+def _run_apply(plan, args: argparse.Namespace, db) -> int:
+    _print_plan_summary(plan, args, "APPLY")
+    print()
+
+    if not plan.due:
+        print("apply_result:")
+        print("  started=0")
+        print("  already_running=0")
+        print("  failed_to_start=0")
+        print()
+        print("No due sources to start.")
+        return 0
+
+    # Only processes plan.due. Never touches skipped / running / unsupported /
+    # missing. background_tasks=None runs the fetch synchronously.
+    from app.application.sources.background_fetch import SourceFetchBackgroundService
+    from app.models import FetchRun
+
+    service = SourceFetchBackgroundService()
+    started = []
+    already_running = []
+    failed_to_start = []
+
+    for decision in plan.due:
+        result = service.enqueue_source(decision.source_key, background_tasks=None)
+        if result.status == "running" and result.accepted:
+            started.append((decision.source_key, result.run_id))
+        elif result.status == "already_running":
+            already_running.append((decision.source_key, result.run_id))
+        else:
+            failed_to_start.append((decision.source_key, result.message))
+
+    print("apply_result:")
+    print(f"  started={len(started)}")
+    print(f"  already_running={len(already_running)}")
+    print(f"  failed_to_start={len(failed_to_start)}")
+
+    if started:
+        print()
+        print("started_runs:")
+        for source_key, run_id in started:
+            run = db.query(FetchRun).filter(FetchRun.id == run_id).first()
+            final_status = run.status if run else "unknown"
+            if run is not None:
+                print(
+                    f"  - {source_key} run_id={run_id} final_status={final_status} "
+                    f"items_found={run.items_found} items_new={run.items_new} "
+                    f"items_updated={run.items_updated} items_failed={run.items_failed}"
+                )
+            else:
+                print(f"  - {source_key} run_id={run_id} final_status={final_status}")
+
+    if already_running:
+        print()
+        print("already_running_runs:")
+        for source_key, run_id in already_running:
+            print(f"  - {source_key} run_id={run_id}")
+
+    if failed_to_start:
+        print()
+        print("failed_to_start_runs:")
+        for source_key, message in failed_to_start:
+            print(f"  - {source_key} message={message}")
+
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -136,6 +258,10 @@ def main(argv: list[str] | None = None) -> int:
     invalid = _validate_args(args)
     if invalid is not None:
         return invalid
+
+    gate = _ensure_apply_safety(args)
+    if gate is not None:
+        return gate
 
     try:
         from app.db import SessionLocal
@@ -147,8 +273,9 @@ def main(argv: list[str] | None = None) -> int:
     db = SessionLocal()
     try:
         plan = compute_due_sources(db, max_sources=args.max_sources)
-        _print_plan(plan, args)
-        return 0
+        if args.apply:
+            return _run_apply(plan, args, db)
+        return _run_dry_run(plan, args)
     finally:
         db.close()
 

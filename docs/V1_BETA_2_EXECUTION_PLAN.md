@@ -61,20 +61,47 @@
 
 ---
 
-### Task 3：run_due_sources_once.py 真实执行单轮 due sources
+### Task 3A：run_due_sources_once.py --apply 安全执行路径 ✅ 已实现
 
-**目标**：在 `--apply` 下真实创建 FetchRun，只处理 `plan.due`。
+**目标**：为脚本增加 **显式 `--apply`** 安全执行路径，只处理 `plan.due`。
 
-**改动范围**：
-- `scripts/run_due_sources_once.py` 增加 `--apply` 写路径
-- 通过 `SourceFetchBackgroundService.enqueue_source()` 投递
-- `--apply` **不默认触发 LLM**（除非显式开启）
+**实现产物**：
+- `scripts/run_due_sources_once.py` 增加 `--apply`（默认仍 dry-run）
+- 两道安全闸门：
+  - `RADAR_SCHEDULER_ENABLED=true` 必须显式设置，否则 `[ERROR]` + exit 2
+  - `AUTO_SUMMARY_MAX_PER_FETCH_RUN` 必须为 `0`（未设置则脚本默认设为 `0`）；
+    非 0 则 `[ERROR]` + exit 2，避免同步抓取触发 LLM 摘要
+- `--apply` 仅遍历 `plan.due`，逐个调用
+  `SourceFetchBackgroundService.enqueue_source(source_key, background_tasks=None)`（同步执行）
+- 不处理 skipped / running / unsupported / missing，不自动 stale recovery
+- 输出 `apply_result`（started / already_running / failed_to_start），并对 started 二次查询最终状态
+- `due=0` 时安全 no-op，不创建 FetchRun
+- `scripts/quick_test.py` 新增第 33 节断言（只测安全失败路径，不跑真实成功 apply）
 
-**禁止事项**：不批量重抓全部来源、不绕过 running 去重、不默认 LLM。
+**说明**：
+- Task 3A 只实现安全 apply 路径。如果当前 `due=0`，`--apply` no-op 不创建 FetchRun。
+- 真实创建 FetchRun 的验收放到 Task 3B。
 
-**验收标准**：`--apply` 后只对 due 来源创建 FetchRun，不产生 stale running，due-source 可解释。
+**禁止事项**：不批量重抓全部来源、不绕过 running 去重、不默认 LLM、不改 due-source 逻辑。
+
+**验收标准**：无 env 的 `--apply` exit 2；`AUTO_SUMMARY_MAX_PER_FETCH_RUN!=0` 的 `--apply` exit 2；
+安全 apply 在 `due=0` 时 FetchRun count 不变（实测 963→963），stale_count 仍为 0。
 
 **风险**：重复抓取 / 卡住——缓解：running 窗口去重 + 每轮来源上限。
+
+---
+
+### Task 3B：真实 due source apply 验收（待执行）
+
+**目标**：当存在 due 来源时，执行安全 apply 真实创建 FetchRun 并归档验收。
+
+**改动范围**：新增验收记录文档；不改脚本逻辑（沿用 Task 3A 安全路径）。
+
+**禁止事项**：不默认 LLM、不自动 stale recovery、不绕过安全闸门。
+
+**验收标准**：记录 created run_id / source_key / final_status / items_*，stale_count=0。
+
+**风险**：真实抓取受网络 / 源站影响——缓解：每轮来源上限 + 失败记录。
 
 ---
 

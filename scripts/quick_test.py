@@ -3742,11 +3742,13 @@ def main():
               and "No FetchRun created" in scheduler_text,
               "Task 2 scheduler should clearly be dry-run only")
 
-        check("run_due_sources_once does not enqueue background fetch",
-              "SourceFetchBackgroundService" not in scheduler_text
-              and "enqueue_source" not in scheduler_text
-              and "BackgroundTasks" not in scheduler_text,
-              "Task 2 scheduler must not trigger real fetches")
+        check("run_due_sources_once never uses FastAPI BackgroundTasks",
+              "BackgroundTasks" not in scheduler_text,
+              "scheduler CLI must run synchronously (background_tasks=None), never FastAPI BackgroundTasks")
+
+        check("run_due_sources_once dry-run footer requires apply gate",
+              "Use --apply with RADAR_SCHEDULER_ENABLED=true" in scheduler_text,
+              "dry-run footer should point to the gated --apply path")
 
         check("run_due_sources_once validates max sources",
               "--max-sources" in scheduler_text
@@ -3788,6 +3790,65 @@ def main():
               bad.stdout + bad.stderr)
     except Exception as e:
         check("V1.0-beta.2 scheduler CLI checks", False, str(e))
+
+    # ── 33. V1.0-beta.2 run_due_sources_once apply safety ────────────────────
+    print("\n[33] V1.0-beta.2 run_due_sources_once apply safety")
+    try:
+        import subprocess
+
+        project_root = Path(__file__).resolve().parents[1]
+        scheduler_script = project_root / "scripts" / "run_due_sources_once.py"
+        scheduler_text = scheduler_script.read_text(encoding="utf-8") if scheduler_script.exists() else ""
+
+        check("run_due_sources_once supports explicit apply flag",
+              "--apply" in scheduler_text,
+              "scheduler CLI should expose explicit --apply flag")
+
+        check("run_due_sources_once requires scheduler enabled for apply",
+              "RADAR_SCHEDULER_ENABLED" in scheduler_text
+              and "requires RADAR_SCHEDULER_ENABLED=true" in scheduler_text,
+              "apply mode should require explicit scheduler enable env var")
+
+        check("run_due_sources_once disables auto summary for apply",
+              "AUTO_SUMMARY_MAX_PER_FETCH_RUN" in scheduler_text
+              and "AUTO_SUMMARY_MAX_PER_FETCH_RUN=0" in scheduler_text,
+              "apply mode should require auto summary disabled in Task 3A")
+
+        check("run_due_sources_once imports fetch service only for apply",
+              "SourceFetchBackgroundService" in scheduler_text
+              and "background_tasks=None" in scheduler_text,
+              "apply mode should use SourceFetchBackgroundService synchronously")
+
+        check("run_due_sources_once apply only processes plan.due",
+              "plan.due" in scheduler_text,
+              "apply should only process plan.due sources")
+
+        # Safety failure paths only — never run a real successful apply here.
+        bad_apply = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py", "--apply"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once apply requires env gate",
+              bad_apply.returncode == 2
+              and "RADAR_SCHEDULER_ENABLED=true" in (bad_apply.stdout + bad_apply.stderr),
+              "apply should fail without explicit env gate")
+
+        bad_summary = subprocess.run(
+            [sys.executable, "scripts/run_due_sources_once.py", "--apply"],
+            cwd=project_root,
+            env={**os.environ, "RADAR_SCHEDULER_ENABLED": "true", "AUTO_SUMMARY_MAX_PER_FETCH_RUN": "1"},
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("run_due_sources_once apply rejects auto summary enabled",
+              bad_summary.returncode == 2,
+              "apply should reject non-zero AUTO_SUMMARY_MAX_PER_FETCH_RUN in Task 3A")
+    except Exception as e:
+        check("V1.0-beta.2 apply safety checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
