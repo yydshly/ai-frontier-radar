@@ -305,9 +305,7 @@
                                 <div class="radar-card-title">
                                     <span class="radar-card-summary-placeholder">待生成中文摘要</span>
                                 </div>
-                                {% if item.title and item.title != display.title %}
-                                <div class="radar-card-original-title">{{ item.title }}</div>
-                                {% endif %}
+                                <div class="radar-card-original-title">{{ display.primary_text or item.title or '无标题' }}</div>
                                 {% else %}
                                 <div class="radar-card-title">{{ item.title or '无标题' }}</div>
                                 {% endif %}

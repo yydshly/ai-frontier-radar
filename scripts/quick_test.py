@@ -2275,6 +2275,50 @@ def main():
     except Exception as e:
         check("Today Radar summary diagnostics checks", False, str(e))
 
+    # ── 16g. Today Radar: no-Chinese-summary branch shows English title ─────────
+    print("\n[16g] Today Radar no-Chinese-summary branch shows English title")
+    try:
+        radar_html = (templates_dir / "radar_today.html").read_text(encoding="utf-8")
+
+        # Find the no-Chinese-summary branch ({% elif display %} followed by
+        # radar-card-summary-placeholder "待生成中文摘要").
+        has_placeholder = 'radar-card-summary-placeholder">待生成中文摘要</span>' in radar_html
+        check("No-Chinese-summary branch has placeholder text",
+              has_placeholder)
+
+        # The original title div must be present in the no-Chinese-summary branch.
+        # We check the template contains radar-card-original-title in the right context.
+        # The branch is identified by: {% elif display %} ... 待生成中文摘要 ...
+        # and should always show radar-card-original-title (not behind an item.title != display.title condition).
+        check("No-Chinese-summary branch contains radar-card-original-title",
+              "radar-card-original-title" in radar_html,
+              "English title div must be present for no-summary cards")
+
+        # The no-Chinese-summary branch must use display.primary_text or item.title.
+        # Check that the original-title div uses display.primary_text or item.title fallback.
+        check("No-Chinese-summary original title uses display.primary_text or item.title",
+              "display.primary_text or item.title" in radar_html
+              or "display.primary_text" in radar_html,
+              "English title should fall back to display.primary_text or item.title")
+
+        # The old buggy condition item.title != display.title must NOT appear.
+        # We check that after the placeholder, we do NOT have that comparison.
+        placeholder_pos = radar_html.find('radar-card-summary-placeholder">待生成中文摘要')
+        if placeholder_pos >= 0:
+            # Look ahead in the same {% elif display %} block for the old condition.
+            # The block ends at the next {% else %} or {% endif %}.
+            block_end = radar_html.find("{% else %}", placeholder_pos)
+            if block_end < 0:
+                block_end = radar_html.find("{% endif %}", placeholder_pos)
+            elif block_end < 0:
+                block_end = len(radar_html)
+            block_slice = radar_html[placeholder_pos:block_end]
+            check("No-Chinese-summary branch does NOT use item.title != display.title condition",
+                  "item.title != display.title" not in block_slice,
+                  "The buggy item.title != display.title condition must be removed")
+    except Exception as e:
+        check("Today Radar no-Chinese-summary branch checks", False, str(e))
+
     # ── 17. Today Radar reading experience (URL bar gate, pagination, scroll) ─
     print("\n[17] Today Radar reading experience")
     try:
