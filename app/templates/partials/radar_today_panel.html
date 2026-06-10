@@ -199,6 +199,16 @@
                         <button type="submit" class="btn-sm" title="获取 HTML 正文并保存文本快照。">获取 HTML 正文</button>
                     </form>
                     {% endif %}
+                    {% if panel_today_card and panel_today_card.can_generate_summary %}
+                    <form method="post" action="/radar/today/items/{{ sel.id }}/generate-summary" class="radar-panel-action-form">
+                        <input type="hidden" name="section" value="{{ view.active_section }}">
+                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                        <input type="hidden" name="page" value="{{ view.page }}">
+                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                        <button type="submit" class="btn-sm" title="基于 HTML 正文生成中文摘要。">基于正文生成摘要</button>
+                    </form>
+                    {% endif %}
                     <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
                 </div>
                 {% endif %}

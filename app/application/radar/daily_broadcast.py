@@ -77,6 +77,7 @@ def build_daily_broadcast_script(
     for idx, item in enumerate(primary_items, start=1):
         source_label = item.get("source_label", "")
         zh_one_liner = item.get("zh_one_liner")
+        zh_summary = item.get("zh_summary")  # Prefer snapshot summary
         title_text = item.get("title", "无标题")
         related_directions = item.get("related_directions", [])
         url = item.get("url")
@@ -87,6 +88,7 @@ def build_daily_broadcast_script(
             index=idx,
             source_label=source_label,
             zh_one_liner=zh_one_liner,
+            zh_summary=zh_summary,
             title=title_text,
             directions=related_directions,
             has_insight=bool(insight_card_id),
@@ -140,6 +142,7 @@ def _format_primary_item(
     index: int,
     source_label: str,
     zh_one_liner: str | None,
+    zh_summary: str | None,
     title: str,
     directions: list[str],
     has_insight: bool,
@@ -152,11 +155,15 @@ def _format_primary_item(
     # Header
     lines.append(f"第{_cn_number(index)}条，来自 {source_label}。")
 
-    # Main content
-    if zh_one_liner:
-        lines.append(f"{zh_one_liner}")
+    # Main content — prefer zh_summary (from snapshot) over zh_one_liner
+    display_text = zh_summary if zh_summary else zh_one_liner
+    if display_text:
+        # Truncate to 120 chars for broadcast
+        if len(display_text) > 120:
+            display_text = display_text[:117] + "..."
+        lines.append(f"{display_text}")
     else:
-        lines.append(f"《{title}》，这条内容尚未生成中文概述，建议打开原文查看。")
+        lines.append(f"《{title}》，这条内容尚未生成中文摘要，建议打开原文查看。")
 
     # Context
     context_parts: list[str] = []
@@ -171,7 +178,7 @@ def _format_primary_item(
     # Action hint
     if has_insight:
         lines.append("你可以打开原文或查看已有洞察卡。")
-    elif zh_one_liner:
+    elif display_text:
         lines.append("你可以打开原文阅读详细内容。")
     else:
         lines.append("建议打开原文查看完整内容。")

@@ -578,6 +578,61 @@ def fetch_today_item_html(
         db.close()
 
 
+@router.post("/today/items/{item_id}/generate-summary")
+def generate_today_item_summary(
+    item_id: int,
+    section: str = Form(ALL_KEY),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Generate a summary from content snapshot for a radar item.
+
+    This route generates a Chinese summary from the HTML content snapshot.
+    It requires LLM_SUMMARY_ENABLED=true and proper LLM configuration.
+    Returns redirect to the radar page with status message.
+    """
+    from app.application.summary.source_item_summary_service import (
+        generate_source_item_summary,
+        SummaryStatus,
+    )
+
+    db = next(get_db())
+    try:
+        result = generate_source_item_summary(db, item_id, force=False)
+
+        # Build status message for redirect
+        if result.status == SummaryStatus.GENERATED:
+            msg = "summary_generated"
+        elif result.status == SummaryStatus.SKIPPED:
+            msg = "summary_skipped:already_generated"
+        elif result.status == SummaryStatus.DISABLED:
+            msg = "summary_disabled:llm_not_configured"
+        elif result.status == SummaryStatus.MISSING_SNAPSHOT:
+            msg = "summary_failed:missing_snapshot"
+        elif result.status == SummaryStatus.FAILED:
+            msg = f"summary_failed:{result.error or 'unknown'}"
+        elif result.status == SummaryStatus.NOT_ELIGIBLE:
+            msg = "summary_skipped:not_eligible"
+        else:
+            msg = f"summary_{result.status}"
+
+        params = {
+            "section": section,
+            "item_id": item_id,
+            "hours": hours,
+            "limit": limit,
+            "page": page,
+            "per_page": per_page,
+            "summary_status": result.status,
+            "summary_message": msg,
+        }
+        return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
+    finally:
+        db.close()
+
+
 @router.post("/today/generate-summaries")
 def generate_today_summaries(
     section: str = Form(ALL_KEY),

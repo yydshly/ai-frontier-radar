@@ -166,6 +166,7 @@ class DailyReportPrimaryItem:
     source_label: str
     url: str | None
     zh_one_liner: str | None
+    zh_summary: str | None  # From snapshot summary, preferred over zh_one_liner
     reason: str
     related_directions: list[str] = field(default_factory=list)
     suggested_action: str | None = None
@@ -383,9 +384,14 @@ def build_daily_report_card(
         has_insight = item.status == "compiled" and item.insight_card_id
         reason = _build_reason(item.source_key, directions, has_insight)
         zh_one_liner = str(raw.get("zh_one_liner") or "").strip() or None
+        # Prefer snapshot-generated zh_summary over one-liner
+        summary_basis = raw.get("summary_basis")
+        zh_summary = str(raw.get("zh_summary") or "").strip() or None if summary_basis == "html_snapshot" else None
 
         if has_insight:
             suggested = "查看洞察卡"
+        elif zh_summary:
+            suggested = "阅读正文摘要"
         elif zh_one_liner:
             suggested = "阅读中文概述"
         else:
@@ -399,6 +405,7 @@ def build_daily_report_card(
             source_label=_source_label(item.source_key),
             url=item.url,
             zh_one_liner=zh_one_liner,
+            zh_summary=zh_summary,
             reason=reason,
             related_directions=directions[:3],
             suggested_action=suggested,
