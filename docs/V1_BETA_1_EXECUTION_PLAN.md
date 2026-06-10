@@ -125,6 +125,18 @@ class DueSourcePlan:
 - 来源信息完整
 - SourceItem 列表正确
 
+#### Task 3A.1：来源列表操作区 UX 调整 ✅ 已实现
+
+**已完成目标**：
+- `/sources` 页面将"工作台"作为每个来源的第一操作入口。
+- "运行探测"保留为 POST 操作，但移动到操作区末尾。
+- 产品路径从"先运行"调整为"先查看状态，再决定是否运行"。
+
+**实现细节**：
+- `app/templates/sources.html`：操作区顺序为 工作台 → 运行记录 → 候选池 → 原始资料 → 运行探测
+- `app/static/style.css`：新增 `.source-workspace-primary-link` / `.source-fetch-secondary-button` / `.source-fetch-inline-form`
+- `scripts/quick_test.py`：新增 4 个防回归断言（顺序 / POST / 工作台链接 / 样式类名）
+
 ---
 
 ### Task 4：单来源手动探测

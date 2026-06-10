@@ -4843,3 +4843,16 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
         padding: 1rem;
     }
 }
+
+/* ── Source workspace primary link + fetch secondary button ─────────────── */
+.source-fetch-inline-form {
+    display: inline;
+}
+
+.source-workspace-primary-link {
+    font-weight: 600;
+}
+
+.source-fetch-secondary-button {
+    opacity: 0.9;
+}

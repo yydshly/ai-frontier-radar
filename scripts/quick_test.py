@@ -3299,6 +3299,40 @@ def main():
     except Exception as e:
         check("due source service checks", False, str(e))
 
+    # ── 26b. Source workspace primary action order (UX guard) ──────────────────
+    print("\n[26b] Source workspace primary action order")
+    try:
+        sources_html_text = (templates_dir / "sources.html").read_text(encoding="utf-8")
+
+        source_actions_index = sources_html_text.find("source-card-actions")
+        workspace_index = sources_html_text.find(
+            'href="/sources/{{ s.source_key }}"', source_actions_index
+        )
+        fetch_form_index = sources_html_text.find(
+            'action="/sources/{{ s.source_key }}/fetch"', source_actions_index
+        )
+
+        check("sources page puts workspace before fetch action",
+              source_actions_index >= 0
+              and workspace_index >= 0
+              and fetch_form_index >= 0
+              and workspace_index < fetch_form_index,
+              "source workspace should be the first action; fetch is a side-effect action and should come later")
+        check("sources page keeps source fetch as POST form",
+              'method="POST"' in sources_html_text
+              and 'action="/sources/{{ s.source_key }}/fetch"' in sources_html_text,
+              "manual source fetch must remain a POST form")
+        check("sources page still links to source workspace",
+              'href="/sources/{{ s.source_key }}"' in sources_html_text
+              and "工作台" in sources_html_text,
+              "sources page should link to the read-only source workspace")
+        check("sources fetch button uses secondary style class",
+              "source-fetch-secondary-button" in sources_html_text
+              and "source-workspace-primary-link" in sources_html_text,
+              "sources page should mark workspace as primary and fetch as secondary")
+    except Exception as e:
+        check("source workspace primary action order", False, str(e))
+
     # ── 26. Source workspace (read-only single source page) ──────────────────
     print("\n[26] Source workspace (read-only)")
     try:
