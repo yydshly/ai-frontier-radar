@@ -54,25 +54,12 @@ def main() -> int:
         print(f"[ERROR] Failed to import app modules: {e}")
         return 1
 
-    # Import selection logic
+    # Import selection logic from app layer
     try:
-        from scripts.select_today_compile_candidates import select_candidates
-    except Exception:
-        # Fallback: inline selection if import fails
-        def select_candidates(db, hours, limit, per_source_limit):
-            from collections import defaultdict
-            from datetime import timedelta
-            from app.models import SourceItem
-            cutoff = datetime.utcnow() - timedelta(hours=hours)
-            items = (
-                db.query(SourceItem)
-                .filter(
-                    (SourceItem.first_seen_at >= cutoff) |
-                    (SourceItem.last_seen_at >= cutoff),
-                )
-                .all()
-            )
-            return []  # simplified fallback
+        from app.application.candidates.compile_candidates import select_compile_candidates
+    except Exception as e:
+        print(f"[ERROR] Failed to import candidate selection: {e}")
+        return 1
 
     init_db()
     db = SessionLocal()
@@ -80,7 +67,7 @@ def main() -> int:
     try:
         print(f"[SELECT] Selecting candidates (hours={args.hours}, limit={args.limit}, "
               f"per_source_limit={args.per_source_limit})...")
-        candidates = select_candidates(
+        candidates = select_compile_candidates(
             db,
             hours=args.hours,
             limit=args.limit,

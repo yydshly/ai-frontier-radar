@@ -4604,6 +4604,126 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     word-break: break-all;
 }
 
+/* ── Compile candidates section ────────────────────────────────────── */
+.radar-compile-candidates {
+    margin: 0 0 1rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #d8a8f5;
+    border-radius: 8px;
+    background: #fdf5ff;
+}
+
+.radar-compile-candidates-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+}
+
+.radar-compile-candidates-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #6e40c9;
+    margin: 0;
+}
+
+.radar-compile-candidates-meta {
+    font-size: 0.78rem;
+    color: #7c6aaf;
+}
+
+.radar-compile-candidates-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.radar-compile-candidate-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    background: white;
+    border: 1px solid #e8d5fc;
+    border-radius: 6px;
+    font-size: 0.82rem;
+}
+
+.radar-compile-candidate-rank {
+    font-weight: 700;
+    color: #6e40c9;
+    min-width: 1.8rem;
+    padding-top: 0.05rem;
+}
+
+.radar-compile-candidate-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.radar-compile-candidate-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+}
+
+.radar-compile-candidate-source {
+    font-size: 0.75rem;
+    color: #57606a;
+    background: #eaeef2;
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.radar-compile-candidate-title {
+    color: #1f2328;
+    text-decoration: none;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.radar-compile-candidate-title:hover {
+    color: #6e40c9;
+    text-decoration: underline;
+}
+
+.radar-compile-candidate-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: #57606a;
+}
+
+.radar-compile-candidate-score {
+    font-weight: 600;
+    color: #6e40c9;
+}
+
+.radar-compile-candidate-basis {
+    color: #7c6aaf;
+}
+
+.radar-compile-candidate-reasons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+}
+
+.radar-reason-tag {
+    background: #f0e5ff;
+    color: #6e40c9;
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+}
+
 /* ── Fetch run summary in today radar sidebar ─────────────────────── */
 .radar-fetch-summary {
     margin-top: 0.9rem;

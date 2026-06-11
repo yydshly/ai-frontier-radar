@@ -23,6 +23,10 @@ from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
 from app.models import FetchRun, InsightCard, Source, SourceItem
+from app.application.candidates.compile_candidates import (
+    CompileCandidate,
+    select_compile_candidates,
+)
 from app.application.candidates.display import (
     CandidateDisplayCard,
     build_candidate_display_card,
@@ -350,6 +354,8 @@ class RadarTodayView:
     fetch_run_summary: "RadarFetchRunSummary | None" = None
     # ── Quality filter stats (items in window filtered by validity guards) ──
     quality_filter_stats: "QualityFilterStats | None" = None
+    # ── Compile candidates (top N recommended items for InsightCard generation) ──
+    compile_candidates: list[CompileCandidate] = field(default_factory=list)
 
 def _clamp(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
@@ -721,6 +727,14 @@ class RadarTodayService:
 
         quality_filter_stats = self.compute_quality_filter_stats(hours)
 
+        # ── Compile candidates (read-only, no LLM, no auto-compile) ─────────────
+        compile_candidates = select_compile_candidates(
+            self.db,
+            hours=hours,
+            limit=10,
+            per_source_limit=3,
+        )
+
         return RadarTodayView(
             total_items=total_items_in_section,
             selected_item_id=selected_item_id,
@@ -742,6 +756,7 @@ class RadarTodayService:
             panel_state=panel_state,
             fetch_run_summary=fetch_run_summary,
             quality_filter_stats=quality_filter_stats,
+            compile_candidates=compile_candidates,
         )
 
     def _build_sections(
