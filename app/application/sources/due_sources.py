@@ -17,8 +17,11 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any
 
-# Supported fetch strategies for due-source computation.
-SUPPORTED_FETCH_STRATEGIES: frozenset[str] = frozenset({"rss", "html_index"})
+# Supported fetch strategies for due-source computation — single source of truth
+# lives in effective_strategy (shared with the fetch services, no drift).
+from app.application.sources.effective_strategy import (
+    SUPPORTED_STRATEGIES as SUPPORTED_FETCH_STRATEGIES,
+)
 
 # Reason codes for DueSourceDecision.reason.
 REASON_NEVER_FETCHED = "never_fetched"

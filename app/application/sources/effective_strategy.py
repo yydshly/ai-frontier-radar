@@ -36,6 +36,11 @@ RELIABILITY_ORDER: tuple[str, ...] = (
 
 _RANK = {name: i for i, name in enumerate(RELIABILITY_ORDER)}
 
+# Single source of truth for strategies the system can actually fetch *and*
+# auto-schedule today. Both the fetch services and due-source scheduling import
+# this, so the two no longer drift apart.
+SUPPORTED_STRATEGIES: frozenset[str] = frozenset({"rss", "html_index"})
+
 
 def reliability_rank(strategy: str | None) -> int:
     """Return the reliability rank (lower == more reliable). Unknown -> large."""

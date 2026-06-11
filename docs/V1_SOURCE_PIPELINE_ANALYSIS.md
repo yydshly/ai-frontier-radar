@@ -83,8 +83,11 @@ config/sources.example.yaml  ──load_sources_config──▶ SourceConfig
 - RSS 失败 → 依可靠性顺序尝试下一档；记录每档结果；展示"实际成功的探测方式"。
 
 ### 阶段 S4（解析可靠性元数据 + 字段收敛）
-- `config_loader` 解析 `strategy_notes` / `strategy_status` 进 SourceConfig 并展示。
-- 统一两处 SUPPORTED 集合到单一来源；评估 `source_type` 与 `fetch_strategy` 去冗余。
+- ✅ S4(a)：统一两处 SUPPORTED 集合到单一来源——
+  `effective_strategy.SUPPORTED_STRATEGIES` 为唯一真源，`fetch_service.SUPPORTED_STRATEGIES`
+  与 `due_sources.SUPPORTED_FETCH_STRATEGIES` 改为复用同一对象（quick_test 固化为护栏）。
+- ⏳ S4(b)：`config_loader` 解析 `strategy_notes` / `strategy_status` 进 SourceConfig 并展示。
+- ⏳ S4(c)：评估 `source_type` 与 `fetch_strategy` 去冗余。
 
 ### 阶段 S5（feed 自动发现）
 - 对 html_index 源做一次性 feed 探测（`<link rel=alternate type=application/rss+xml>`），

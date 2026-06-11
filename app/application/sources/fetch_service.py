@@ -25,8 +25,11 @@ from app.sources.rss_probe import probe_rss_source
 from app.sources.html_index_probe import probe_html_index_source
 
 
-# Supported fetch strategies
-SUPPORTED_STRATEGIES = {"rss", "html_index"}
+# Supported fetch strategies — single source of truth lives in effective_strategy.
+# Re-exported here so existing `from fetch_service import SUPPORTED_STRATEGIES`
+# importers keep working.
+from app.application.sources.effective_strategy import SUPPORTED_STRATEGIES  # noqa: F401,E402
+
 DEFAULT_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 50
 MIN_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 1
 MAX_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 500

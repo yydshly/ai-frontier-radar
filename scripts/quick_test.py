@@ -7192,6 +7192,14 @@ def main():
         check("config sources obey RSS-first (no strategy drift)",
               violations == [],
               f"these sources have feed_url/strategy drift: {violations}")
+
+        # S4(a): the duplicated supported-strategy sets are now one object.
+        from app.application.sources.effective_strategy import SUPPORTED_STRATEGIES as _canon
+        from app.application.sources.fetch_service import SUPPORTED_STRATEGIES as _fs
+        from app.application.sources.due_sources import SUPPORTED_FETCH_STRATEGIES as _ds
+        check("supported strategy set is a single source of truth",
+              _fs is _canon and _ds is _canon and _canon == frozenset({"rss", "html_index"}),
+              "fetch_service / due_sources must reuse the canonical SUPPORTED_STRATEGIES")
     except Exception as e:
         check("effective strategy checks", False, str(e))
 
