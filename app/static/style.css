@@ -3795,6 +3795,51 @@ body.app-shell .main-content {
     color: #9a6700;
 }
 
+.radar-header-filter-stats {
+    padding: 0.3rem 1rem;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    font-size: 0.82rem;
+    color: #57606a;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.radar-filter-badge {
+    background: #fff3cd;
+    color: #856404;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.radar-filter-badge-ok {
+    background: #d4edda;
+    color: #155724;
+}
+
+.radar-filter-details {
+    font-size: 0.78rem;
+    color: #57606a;
+}
+
+.radar-filter-details summary {
+    cursor: pointer;
+    color: #57606a;
+    user-select: none;
+}
+
+.radar-filter-list {
+    margin: 0.25rem 0 0 1rem;
+    padding: 0;
+    list-style: disc;
+}
+
+.radar-filter-list li {
+    color: #856404;
+}
+
 .radar-quick-links {
     display: flex;
     flex-wrap: wrap;

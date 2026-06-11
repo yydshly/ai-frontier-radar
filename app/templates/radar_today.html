@@ -27,6 +27,35 @@
                     <a href="/cards" class="radar-quick-link">InsightCard</a>
                 </div>
             </div>
+            {# ── Data quality filter stats ───────────────────────────────────── #}
+            {% if view.quality_filter_stats and view.quality_filter_stats.total_filtered > 0 %}
+            <div class="radar-header-filter-stats">
+                <span class="radar-filter-badge">
+                    数据质量：已隐藏 {{ view.quality_filter_stats.total_filtered }} 条无效内容
+                </span>
+                <details class="radar-filter-details">
+                    <summary>查看详情</summary>
+                    <ul class="radar-filter-list">
+                        {% if view.quality_filter_stats.orphan_source > 0 %}
+                        <li>无有效来源：{{ view.quality_filter_stats.orphan_source }}</li>
+                        {% endif %}
+                        {% if view.quality_filter_stats.disabled_source > 0 %}
+                        <li>来源已停用：{{ view.quality_filter_stats.disabled_source }}</li>
+                        {% endif %}
+                        {% if view.quality_filter_stats.missing_url > 0 %}
+                        <li>缺少链接：{{ view.quality_filter_stats.missing_url }}</li>
+                        {% endif %}
+                        {% if view.quality_filter_stats.missing_title > 0 %}
+                        <li>缺少标题：{{ view.quality_filter_stats.missing_title }}</li>
+                        {% endif %}
+                    </ul>
+                </details>
+            </div>
+            {% elif view.quality_filter_stats and view.quality_filter_stats.total_filtered == 0 %}
+            <div class="radar-header-filter-stats">
+                <span class="radar-filter-badge radar-filter-badge-ok">数据质量：正常</span>
+            </div>
+            {% endif %}
         </div>
 
         <div class="radar-layout">

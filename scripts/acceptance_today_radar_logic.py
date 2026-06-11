@@ -175,6 +175,12 @@ def get_today_item_ids(session, hours: int = 24, limit: int = 50) -> set[int]:
     return ids
 
 
+def get_quality_filter_stats(session, hours: int = 24, limit: int = 50):
+    """Return the QualityFilterStats from today's radar view."""
+    view = build_today_view_isolated(session, hours=hours, limit=limit)
+    return view.quality_filter_stats
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 def run_tests() -> list[TestResult]:
@@ -352,6 +358,55 @@ def run_tests() -> list[TestResult]:
                 "snapshot-missing item appears",
                 FAIL,
                 f"item id={item8.id} unexpectedly excluded"
+            ))
+
+        # ── Test 9: quality_filter_stats total ───────────────────────────────
+        stats = get_quality_filter_stats(session)
+        # 4 invalid items were added: item2(url=''), item3(title=''),
+        # item4(disabled source), item5(orphan source_id)
+        expected_total = 4
+        if stats and stats.total_filtered == expected_total:
+            results.append(TestResult(
+                "quality_filter_stats.total_filtered == 4",
+                PASS,
+                f"total_filtered={stats.total_filtered}"
+            ))
+        else:
+            results.append(TestResult(
+                "quality_filter_stats.total_filtered == 4",
+                FAIL,
+                f"expected {expected_total}, got {stats.total_filtered if stats else 'None'}"
+            ))
+
+        # ── Test 10: quality_filter_stats breakdown ─────────────────────────
+        if stats:
+            broken = []
+            if stats.orphan_source != 1:
+                broken.append(f"orphan_source: expected 1, got {stats.orphan_source}")
+            if stats.disabled_source != 1:
+                broken.append(f"disabled_source: expected 1, got {stats.disabled_source}")
+            if stats.missing_url != 1:
+                broken.append(f"missing_url: expected 1, got {stats.missing_url}")
+            if stats.missing_title != 1:
+                broken.append(f"missing_title: expected 1, got {stats.missing_title}")
+            if not broken:
+                results.append(TestResult(
+                    "quality_filter_stats breakdown correct",
+                    PASS,
+                    f"orphan={stats.orphan_source}, disabled={stats.disabled_source}, "
+                    f"no_url={stats.missing_url}, no_title={stats.missing_title}"
+                ))
+            else:
+                results.append(TestResult(
+                    "quality_filter_stats breakdown correct",
+                    FAIL,
+                    "; ".join(broken)
+                ))
+        else:
+            results.append(TestResult(
+                "quality_filter_stats breakdown correct",
+                FAIL,
+                "quality_filter_stats is None"
             ))
 
     finally:

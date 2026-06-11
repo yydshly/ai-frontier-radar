@@ -78,6 +78,21 @@ class RadarFetchRunSummary:
 
 
 @dataclass
+class QualityFilterStats:
+    """Counts of items in the time window that were filtered by quality guards.
+
+    These are items that existed in the same time window as the displayed
+    radar items, but were excluded because they fail validity checks.
+    Counts are mutually exclusive (priority: orphan > disabled > no_url > no_title).
+    """
+    orphan_source: int = 0   # source_id has no matching Source row
+    disabled_source: int = 0  # Source exists but enabled == False
+    missing_url: int = 0      # url is None or empty
+    missing_title: int = 0     # title is None or empty
+    total_filtered: int = 0   # sum of above
+
+
+@dataclass
 class RadarInsightPreview:
     """Insight preview for the right reading panel — prioritizes actionable insight fields.
 
@@ -333,7 +348,8 @@ class RadarTodayView:
     panel_state: RadarPanelState | None = None
     # ── Recent fetch run status summary ────────────────────────────────────
     fetch_run_summary: "RadarFetchRunSummary | None" = None
-
+    # ── Quality filter stats (items in window filtered by validity guards) ──
+    quality_filter_stats: "QualityFilterStats | None" = None
 
 def _clamp(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
@@ -703,6 +719,8 @@ class RadarTodayService:
             else None
         )
 
+        quality_filter_stats = self.compute_quality_filter_stats(hours)
+
         return RadarTodayView(
             total_items=total_items_in_section,
             selected_item_id=selected_item_id,
@@ -723,6 +741,7 @@ class RadarTodayService:
             section_counts=section_counts,
             panel_state=panel_state,
             fetch_run_summary=fetch_run_summary,
+            quality_filter_stats=quality_filter_stats,
         )
 
     def _build_sections(
@@ -842,4 +861,64 @@ class RadarTodayService:
             items_failed=items_failed,
             latest_started_at=latest_started_at,
             latest_finished_at=latest_finished_at,
+        )
+
+    def compute_quality_filter_stats(self, hours: int) -> QualityFilterStats:
+        """Count items in the time window filtered by quality guards.
+
+        Applies the same time-window filter as build_today_view, then
+        counts how many would be excluded by each guard (mutually exclusive,
+        priority: orphan > disabled > missing_url > missing_title).
+        This is used to show users how many invalid items were hidden.
+        """
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+
+        # Get ALL items in the time window (no quality filters yet)
+        raw_items = (
+            self.db.query(SourceItem)
+            .filter(
+                or_(
+                    SourceItem.first_seen_at >= cutoff,
+                    SourceItem.last_seen_at >= cutoff,
+                )
+            )
+            .all()
+        )
+
+        orphan_source = 0
+        disabled_source = 0
+        missing_url = 0
+        missing_title = 0
+
+        # Pre-fetch source rows for efficiency
+        all_source_ids = {s.id for s in self.db.query(Source.id).all()}
+        enabled_source_ids = {
+            s.id for s in self.db.query(Source).filter(Source.enabled.is_(True)).all()
+        }
+
+        for item in raw_items:
+            # Priority 1: orphan source (source_id doesn't exist)
+            if item.source_id is None or item.source_id not in all_source_ids:
+                orphan_source += 1
+                continue
+            # Priority 2: disabled source
+            if item.source_id not in enabled_source_ids:
+                disabled_source += 1
+                continue
+            # Priority 3: missing url
+            if not (item.url and item.url.strip()):
+                missing_url += 1
+                continue
+            # Priority 4: missing title
+            if not (item.title and item.title.strip()):
+                missing_title += 1
+                continue
+
+        total = orphan_source + disabled_source + missing_url + missing_title
+        return QualityFilterStats(
+            orphan_source=orphan_source,
+            disabled_source=disabled_source,
+            missing_url=missing_url,
+            missing_title=missing_title,
+            total_filtered=total,
         )

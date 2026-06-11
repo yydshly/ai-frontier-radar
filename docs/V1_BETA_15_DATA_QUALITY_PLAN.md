@@ -245,11 +245,48 @@ items = (
 - [x] `scripts/cleanup_polluted_data.py` dry-run 输出正确
 - [x] `scripts/acceptance_today_radar_logic.py` 覆盖关键场景
 
-### Phase 3 新增（数据 guard 修复）
+### Phase 3 新增（数据 guard 修复 + UI 过滤统计）
 
 - [x] `app/application/radar/today.py` 新增 Source join + enabled/url/title guard
-- [x] `scripts/acceptance_today_radar_logic.py` 4 个 SKIP → PASS
+- [x] `app/application/radar/today.py` 新增 `QualityFilterStats` dataclass + `compute_quality_filter_stats()` 方法
+- [x] `app/routes/radar.py` 透传 `quality_filter_stats` 到模板
+- [x] `app/templates/radar_today.html` 新增过滤统计展示（`已隐藏 N 条无效内容`）
+- [x] `app/static/style.css` 新增 `.radar-header-filter-stats` 等样式
+- [x] `scripts/acceptance_today_radar_logic.py` 新增 `quality_filter_stats` 验证测试（2 个 PASS）
+- [x] `scripts/cleanup_polluted_data.py` 新增 `filtered_from_ui` 分类（与 UI guard 口径对齐）
 - [x] 今日雷达入口过滤：disabled source、url 空值、title 空值、孤立 source_id
 - [x] 不改变时间窗口、排序策略、InsightCard 展示逻辑
 - [x] 本轮只增加 guard，不删除历史数据
+
+---
+
+## 八、清理合理性判断标准
+
+本项目的数据清理遵循以下原则，确保每次清理行为可验证、可回滚：
+
+```
+1. dry-run 可解释
+   → cleanup_polluted_data.py 默认 dry-run，输出人类可读的分类报告
+
+2. apply 前有备份
+   → SQLite DB 在 --apply 前自动备份到 data/backups/
+   → 备份文件名含时间戳，不覆盖已有备份
+
+3. 今日雷达 guard 防止未来污染
+   → RadarTodayService 入口过滤无效数据（disabled source / url / title / orphan source_id）
+   → 新数据自动被 guard 拦截，无需重复清理
+
+4. UI 显示过滤统计
+   → /radar/today 页面显示"已隐藏 N 条无效内容"
+   → 用户可验证 guard 是否生效
+
+5. A/B snapshot 缺失数据暂不删除
+   → 这些数据仍可能有标题、URL、摘要，可后续重抓或降级处理
+   → 不在 Phase 2/3 自动清理范围
+
+6. cleanup 只处理安全项
+   → safe_to_apply_now：仅 stale running FetchRun 重置为 failed
+   → manual_review_required：仅列出，不自动删除
+   → do_not_touch_in_phase_2：snapshot 缺失、重复 URL，暂不处理
+```
 

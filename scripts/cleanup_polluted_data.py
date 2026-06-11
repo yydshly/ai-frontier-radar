@@ -88,6 +88,12 @@ class CleanupPlan:
         self.snapshot_missing_B_count: int = 0     # B: has zh_summary no snapshot
         self.duplicate_url_groups_count: int = 0
 
+        # filtered_from_ui (items already blocked by today radar guard — informational)
+        self.ui_disabled_source_count: int = 0
+        self.ui_missing_url_count: int = 0
+        self.ui_missing_title_count: int = 0
+        self.ui_orphan_source_count: int = 0
+
 
 # ── Analysis ─────────────────────────────────────────────────────────────────
 
@@ -154,6 +160,39 @@ def analyze_database(db) -> CleanupPlan:
         for i in no_title_no_url_items[:5]
     ]
 
+    # ── filtered_from_ui: counts matching the today radar guard (mutually exclusive) ──
+    # These items are already blocked from appearing in the today radar by the quality guard.
+    # Counting uses the same priority as compute_quality_filter_stats:
+    # orphan > disabled > missing_url > missing_title
+    enabled_source_ids = {s.id for s in db.query(Source).filter(Source.enabled.is_(True)).all()}
+    orphan_ui = 0
+    disabled_ui = 0
+    no_url_ui = 0
+    no_title_ui = 0
+
+    for item in all_items:
+        # Priority 1: orphan source
+        if item.source_id is None or item.source_id not in existing_source_ids:
+            orphan_ui += 1
+            continue
+        # Priority 2: disabled source
+        if item.source_id not in enabled_source_ids:
+            disabled_ui += 1
+            continue
+        # Priority 3: missing url
+        if not (item.url and item.url.strip()):
+            no_url_ui += 1
+            continue
+        # Priority 4: missing title
+        if not (item.title and item.title.strip()):
+            no_title_ui += 1
+            continue
+
+    plan.ui_orphan_source_count = orphan_ui
+    plan.ui_disabled_source_count = disabled_ui
+    plan.ui_missing_url_count = no_url_ui
+    plan.ui_missing_title_count = no_title_ui
+
     # ── 3. orphan InsightCard ─────────────────────────────────────
     all_cards = db.query(InsightCard).all()
     linked_card_ids = {
@@ -219,6 +258,25 @@ def format_plan(plan: CleanupPlan, mode: str) -> str:
     lines.append("  These are FetchRuns stuck in 'running' state for too long.")
     lines.append("  On --apply: status → failed, error_message gets [stale-timeout] marker.")
     lines.append("  No SourceItem or InsightCard rows are modified.")
+    lines.append("")
+
+    # ── Section 1b: filtered_from_ui ─────────────────────────────────
+    # Items that exist in the DB but are blocked from today radar by quality guards.
+    # These are informational — they have no visible impact on the UI.
+    total_ui_filtered = (
+        plan.ui_orphan_source_count
+        + plan.ui_disabled_source_count
+        + plan.ui_missing_url_count
+        + plan.ui_missing_title_count
+    )
+    lines.append("## filtered_from_ui")
+    lines.append("  (these items are already hidden from today radar by quality guards)")
+    lines.append(f"  total_filtered_from_ui: {total_ui_filtered}")
+    lines.append(f"    orphan_source:     {plan.ui_orphan_source_count}")
+    lines.append(f"    disabled_source:  {plan.ui_disabled_source_count}")
+    lines.append(f"    missing_url:      {plan.ui_missing_url_count}")
+    lines.append(f"    missing_title:    {plan.ui_missing_title_count}")
+    lines.append("  Deleting these would have no visible effect on today radar.")
     lines.append("")
 
     # ── Section 2: manual_review_required ─────────────────────────
