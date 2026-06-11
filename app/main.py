@@ -1458,15 +1458,17 @@ def source_workspace_page(request: Request, source_key: str):
         )
 
         # Summarized items: SourceItem.raw_metadata_json contains a summary marker.
-        # Counted in SQL (no full-table load into Python).
+        # Counted in SQL (no full-table load into Python). Uses the canonical
+        # marker set (daily_scope.SUMMARY_MARKERS) — the local copy here was
+        # missing "zh_summary" and undercounted (same bug class as C4).
         from sqlalchemy import or_
+        from app.application.radar.daily_scope import SUMMARY_MARKERS
 
-        _summary_markers = ('"zh_one_liner"', '"summary_zh"', '"auto_summary"')
         summarized_items = (
             db.query(SourceItem)
             .filter(SourceItem.source_key == source_key)
             .filter(
-                or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _summary_markers])
+                or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in SUMMARY_MARKERS])
             )
             .count()
         )
@@ -1481,7 +1483,7 @@ def source_workspace_page(request: Request, source_key: str):
 
         def _has_summary(item: SourceItem) -> bool:
             raw = item.raw_metadata_json or ""
-            return '"zh_one_liner"' in raw or '"summary_zh"' in raw or '"auto_summary"' in raw
+            return any(m in raw for m in SUMMARY_MARKERS)
 
         # P-002: reuse the canonical candidate display helper for the Chinese
         # one-liner preview — never re-parse summaries here. Only the 20 recent

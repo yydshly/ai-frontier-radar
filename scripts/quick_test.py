@@ -7652,6 +7652,14 @@ def main():
         check("digest and report share the canonical markers",
               _dg_markers is _canon_markers and _dr_markers is _canon_markers,
               "digest/report must reuse daily_scope.SUMMARY_MARKERS, not local copies")
+
+        # Source workspace must not keep a divergent local marker set (was missing
+        # zh_summary → undercounted; same C4 bug class).
+        main_py = (Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
+        check("source workspace uses canonical summary markers",
+              "from app.application.radar.daily_scope import SUMMARY_MARKERS" in main_py
+              and "'\"zh_one_liner\"', '\"summary_zh\"', '\"auto_summary\"'" not in main_py,
+              "source workspace summarized-count must use canonical SUMMARY_MARKERS")
     except Exception as e:
         check("summary markers single source checks", False, str(e))
 
