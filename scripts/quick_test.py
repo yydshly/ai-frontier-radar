@@ -6825,13 +6825,69 @@ def main():
         check("Style sheet defines .hidden utility",
               ".hidden" in style_text,
               "style.css must define .hidden utility class")
+        check("Style sheet defines radar-player-default-badge",
+              "radar-player-default-badge" in style_text,
+              "style.css must define radar-player-default-badge for auto-selected badge")
+        check("Template shows 默认最新 badge when audio_job_is_default",
+              "audio_job_is_default" in broadcast_html,
+              "template must expose audio_job_is_default for badge conditional")
 
         from app.application.radar.daily_broadcast import (
             DailyBroadcastScript,
             generate_daily_broadcast_audio,
             get_daily_broadcast_audio_path,
         )
+        from app.routes.radar import _select_default_daily_audio_job
         from tempfile import TemporaryDirectory
+
+        # Behavioral tests for _select_default_daily_audio_job
+        class _FakeAudioJob:
+            def __init__(self, job_id, status, audio_url, date_label, report_version=None):
+                self.job_id = job_id
+                self.status = status
+                self.audio_url = audio_url
+                self.date_label = date_label
+                self.report_version = report_version
+
+        check("_select_default_daily_audio_job prefers same report_version",
+              _select_default_daily_audio_job(
+                  [_FakeAudioJob("a", "generated", "/audio/a.wav", "2026-06-12", "v2"),
+                   _FakeAudioJob("b", "generated", "/audio/b.wav", "2026-06-12", "v1")],
+                  date_label="2026-06-12",
+                  report_version="v1",
+              ).job_id == "b",
+              "_select_default_daily_audio_job must prefer same report_version")
+        check("_select_default_daily_audio_job falls back to latest when no report_version match",
+              _select_default_daily_audio_job(
+                  [_FakeAudioJob("a", "generated", "/audio/a.wav", "2026-06-12", "v2"),
+                   _FakeAudioJob("b", "generated", "/audio/b.wav", "2026-06-12", None)],
+                  date_label="2026-06-12",
+                  report_version="v9",
+              ).job_id == "a",
+              "_select_default_daily_audio_job must fall back to latest when no report_version match")
+        check("_select_default_daily_audio_job returns None when no today audio",
+              _select_default_daily_audio_job(
+                  [_FakeAudioJob("old", "generated", "/audio/old.wav", "2026-06-11", None)],
+                  date_label="2026-06-12",
+                  report_version=None,
+              ) is None,
+              "_select_default_daily_audio_job must not fall back to yesterday's audio")
+        check("_select_default_daily_audio_job ignores non-generated jobs",
+              _select_default_daily_audio_job(
+                  [_FakeAudioJob("x", "running", "/audio/x.wav", "2026-06-12", None),
+                   _FakeAudioJob("y", "generated", "/audio/y.wav", "2026-06-12", None)],
+                  date_label="2026-06-12",
+                  report_version=None,
+              ).job_id == "y",
+              "_select_default_daily_audio_job must ignore non-generated jobs")
+        check("_select_default_daily_audio_job ignores jobs without audio_url",
+              _select_default_daily_audio_job(
+                  [_FakeAudioJob("bad", "generated", None, "2026-06-12", None),
+                   _FakeAudioJob("good", "generated", "/audio/good.wav", "2026-06-12", None)],
+                  date_label="2026-06-12",
+                  report_version=None,
+              ).job_id == "good",
+              "_select_default_daily_audio_job must ignore jobs without audio_url")
 
         sample_script = DailyBroadcastScript(
             date_label="2026-06-11",

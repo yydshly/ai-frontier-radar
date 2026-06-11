@@ -50,7 +50,10 @@
             <div>
                 <h2>当前语音报告</h2>
                 {% if player_has_initial_audio %}
-                <p>{{ audio_job.voice }} 音色 · {{ audio_job.date_label or script.date_label }}</p>
+                <p>
+                    {{ audio_job.voice }} 音色 · {{ audio_job.date_label or script.date_label }}
+                    {% if audio_job_is_default %}<span class="radar-player-default-badge">默认最新</span>{% endif %}
+                </p>
                 {% else %}
                 <p class="radar-player-empty-hint">从历史记录中选择一条语音报告播放</p>
                 {% endif %}

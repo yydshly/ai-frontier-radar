@@ -6685,6 +6685,18 @@ details[open] .radar-compile-candidate-details summary::before {
     font-style: italic;
 }
 
+.radar-player-default-badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.45rem;
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
 /* Responsive */
 @media (max-width: 760px) {
     .radar-broadcast-card-header,

@@ -1406,6 +1406,35 @@ def _build_daily_broadcast_page_data() -> tuple[object, str, str | None]:
     return script, "今日可读简报", None
 
 
+def _select_default_daily_audio_job(
+    audio_jobs,
+    *,
+    date_label: str,
+    report_version: str | None,
+):
+    """Select the default playable audio job for today's broadcast page.
+
+    Priority:
+    1. generated + same date_label + same report_version
+    2. generated + same date_label (list is already sorted by updated_at desc)
+    3. None  (don't fall back to yesterday or older)
+    """
+    playable_today = [
+        job
+        for job in audio_jobs
+        if getattr(job, "status", None) == "generated"
+        and getattr(job, "audio_url", None)
+        and getattr(job, "date_label", None) == date_label
+    ]
+    if not playable_today:
+        return None
+    if report_version:
+        for job in playable_today:
+            if getattr(job, "report_version", None) == report_version:
+                return job
+    return playable_today[0]
+
+
 @router.get("/daily-report/broadcast", response_class=HTMLResponse)
 def get_daily_broadcast(
     request: Request,
@@ -1437,11 +1466,21 @@ def get_daily_broadcast(
         default_style = os.getenv("MIMO_TTS_STYLE", "").strip()
         tts_config_error = str(exc)
     audio_job = load_daily_audio_job(job_id) if job_id else None
+    audio_job_is_default = False
     if audio_job is not None:
         resume_result = resume_daily_audio_job(audio_job.job_id)
         if resume_result and resume_result.should_start:
             audio_job = resume_result.job
             background_tasks.add_task(run_daily_audio_job, audio_job.job_id)
+    else:
+        # No explicit job_id: auto-select today's latest generated audio
+        audio_jobs = list_daily_audio_jobs(limit=20)
+        audio_job = _select_default_daily_audio_job(
+            audio_jobs,
+            date_label=script.date_label,
+            report_version=report_version,
+        )
+        audio_job_is_default = audio_job is not None
     audio_jobs = list_daily_audio_jobs(limit=20)
 
     return _radar_templates.TemplateResponse(
@@ -1458,6 +1497,7 @@ def get_daily_broadcast(
             "default_style": default_style,
             "tts_config_error": tts_config_error,
             "audio_error": audio_error,
+            "audio_job_is_default": audio_job_is_default,
         },
     )
 
