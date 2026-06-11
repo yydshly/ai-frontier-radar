@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}今日 AI 前沿核心报告 - AI Frontier Radar{% endblock %}
+{% block title %}今日报告 - AI Frontier Radar{% endblock %}
 
 {% block main_class %}wide-page radar-workbench-page{% endblock %}
 
@@ -12,13 +12,11 @@
     <div class="radar-header">
         <div class="radar-header-top">
             <h1 class="radar-header-title">今日报告</h1>
-            <span class="radar-header-subtitle">AI 前沿每日概览</span>
             <span class="radar-header-meta">{{ date_label }}</span>
             <div class="radar-quick-links">
                 <a href="/radar/today" class="radar-quick-link">返回今日雷达</a>
                 <a href="/sources" class="radar-quick-link">信息来源</a>
                 <a href="/cards" class="radar-quick-link">洞察卡</a>
-                <a href="/radar/daily-report/broadcast" class="radar-quick-link">生成播报文案</a>
             </div>
         </div>
     </div>
@@ -29,19 +27,15 @@
         <div class="radar-report-overview-grid">
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.total_items }}</span>
-                <span class="radar-report-stat-label">今日新增</span>
+                <span class="radar-report-stat-label">收录内容</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.with_zh_one_liner }}</span>
-                <span class="radar-report-stat-label">已生成中文概述</span>
-            </div>
-            <div class="radar-report-stat">
-                <span class="radar-report-stat-value">{{ overview.with_zh_summary }}</span>
-                <span class="radar-report-stat-label">已生成中文摘要</span>
+                <span class="radar-report-stat-label">已有中文概述</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.with_insight_card }}</span>
-                <span class="radar-report-stat-label">已生成洞察卡</span>
+                <span class="radar-report-stat-label">洞察卡</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.covered_sources }}</span>
@@ -50,48 +44,33 @@
         </div>
     </div>
 
-    {# ── Summary guidance when Chinese summaries are sparse ── #}
-    {% if overview.total_items > 0 and overview.with_zh_one_liner < overview.total_items %}
-    <div class="radar-report-summary-guidance">
-        <p>今日中文概述覆盖率 {{ (overview.with_zh_one_liner * 100 // overview.total_items) }}%，部分条目仍显示英文原题。</p>
-        <p>返回<a href="/radar/today?section=all&page=1">今日雷达</a>，点击「生成当前页中文摘要」补全后，再回来看报告更完整。</p>
+    {# ── Empty state ──────────────────────────────────── #}
+    {% if overview.total_items == 0 %}
+    <div class="radar-report-empty">
+        <p>今日暂无收录内容。</p>
+        <p>请先在<a href="/radar/today">今日雷达</a>中运行「更新今日新增」，探测到内容后再回来看报告。</p>
+        <a href="/radar/today" class="btn btn-primary">前往今日雷达</a>
+    </div>
+
+    {# ── Report ready / partial ──────────────────────────────────── #}
+    {% elif overview.report_status == "ready" %}
+    <div class="radar-report-ready-banner">
+        <p><strong>今日报告已可读。</strong> 以下是基于已有中文摘要整理的今日简报。</p>
+    </div>
+
+    {% elif overview.report_status == "partial" %}
+    <div class="radar-report-partial-banner">
+        <p><strong>今日报告尚未完全准备好。</strong> 当前可读摘要 {{ overview.with_zh_one_liner }} 条，建议先补全后再看完整报告。</p>
+        <p>返回<a href="/radar/today?section=all&page=1">今日雷达</a>，点击「生成当前页中文摘要」，再回来看报告。</p>
         <a href="/radar/today?section=all&page=1" class="btn btn-primary">去生成中文摘要</a>
     </div>
     {% endif %}
 
-    {# ── Empty state ──────────────────────────────────── #}
-    {% if not primary_items and not secondary_items %}
-    <div class="radar-report-empty">
-        <p>今日暂无内容。</p>
-        <p>请先在<a href="/radar/today">今日雷达</a>中运行更新，探测新增内容后，再生成日报卡片。</p>
-        <a href="/radar/today" class="btn btn-primary">前往今日雷达</a>
-    </div>
-
-    {# ── Primary: Must Read ───────────────────────────── #}
-    <div class="radar-report-section">
-        <div class="radar-report-section-header">
-            <h2 class="radar-report-section-title">今日必看</h2>
-            <span class="radar-report-section-count">0 条</span>
-        </div>
-        <p class="radar-report-empty-hint">暂无内容（请先在今日雷达中运行更新）</p>
-    </div>
-
-    {# ── Secondary: Worth a Glance ─────────────────────── #}
-    <div class="radar-report-section">
-        <div class="radar-report-section-header">
-            <h2 class="radar-report-section-title">其他值得扫一眼</h2>
-            <span class="radar-report-section-count">0 条</span>
-        </div>
-        <p class="radar-report-empty-hint">暂无其他内容。</p>
-    </div>
-
-    {% else %}
-
-    {# ── Primary: Must Read ───────────────────────────── #}
+    {# ── Readable report (今日可读简报) ──────────────────────────────── #}
     {% if primary_items %}
     <div class="radar-report-section">
         <div class="radar-report-section-header">
-            <h2 class="radar-report-section-title">今日必看</h2>
+            <h2 class="radar-report-section-title">今日可读简报</h2>
             <span class="radar-report-section-count">{{ primary_items|length }} 条</span>
         </div>
         <div class="radar-report-primary-list">
@@ -102,16 +81,16 @@
                     <span class="radar-report-reason">{{ item.reason }}</span>
                 </div>
 
-                {# ── Primary text: Chinese overview as main, English as subtitle ── #}
-                {% if item.zh_one_liner %}
+                {# Show zh_summary > zh_one_liner > metadata #}
+                {% if item.zh_summary %}
+                <h3 class="radar-report-primary-summary">{{ item.zh_summary }}</h3>
+                <p class="radar-report-original-title">英文原题：{{ item.title }}</p>
+                {% elif item.zh_one_liner %}
                 <h3 class="radar-report-primary-summary">{{ item.zh_one_liner }}</h3>
                 <p class="radar-report-original-title">英文原题：{{ item.title }}</p>
-                {% else %}
-                <h3 class="radar-report-primary-summary">待生成中文概述</h3>
-                <p class="radar-report-original-title">{{ item.title }}</p>
                 {% endif %}
 
-                {# ── Direction tags ── #}
+                {# Direction tags #}
                 {% if item.related_directions %}
                 <div class="radar-report-tags">
                     {% for tag in item.related_directions %}
@@ -120,7 +99,7 @@
                 </div>
                 {% endif %}
 
-                {# ── Actions ── #}
+                {# Actions #}
                 <div class="radar-report-primary-actions">
                     {% if item.url %}
                     <a href="{{ item.url }}" target="_blank" rel="noopener" class="radar-report-action-link">打开原文</a>
@@ -140,18 +119,19 @@
     </div>
     {% endif %}
 
-    {# ── Secondary: Worth a Glance ─────────────────────── #}
+    {# ── Pending content (待补全内容) ─────────────────────────────────── #}
+    {% if secondary_items %}
     <div class="radar-report-section">
         <div class="radar-report-section-header">
-            <h2 class="radar-report-section-title">其他值得扫一眼</h2>
-            <span class="radar-report-section-count">{{ secondary_items|length }} 条</span>
+            <h2 class="radar-report-section-title">待补全内容</h2>
+            <span class="radar-report-section-count">{{ secondary_items|length }}
+                {% if not secondary_all_shown %}（共 {{ overview.total_items - primary_items|length }} 条）{% endif %}
+            </span>
         </div>
-
-        {% if secondary_items %}
-        <p class="radar-report-secondary-hint">以下内容未进入今日必看，但仍建议扫一眼，避免错过关键报告。</p>
+        <p class="radar-report-secondary-hint">以下条目尚未生成中文摘要，可在今日雷达中补全后再回来看报告。</p>
         <div class="radar-report-secondary-list">
             {% for item in secondary_items %}
-            <div class="radar-report-secondary-item">
+            <div class="radar-report-secondary-item radar-report-pending-item">
                 <div class="radar-report-secondary-header">
                     <span class="radar-report-source-tag">{{ item.source_label }}</span>
                     {% if item.tags %}
@@ -161,14 +141,7 @@
                     {% endif %}
                 </div>
                 <div class="radar-report-secondary-content">
-                    {# ── Brief as main, title as subtitle ── #}
-                    {% if item.brief %}
-                    <h4 class="radar-report-secondary-title">{{ item.brief }}</h4>
-                    <p class="radar-report-secondary-original">{{ item.title }}</p>
-                    {% else %}
-                    <h4 class="radar-report-secondary-title">待生成中文概述</h4>
-                    <p class="radar-report-secondary-original">{{ item.title }}</p>
-                    {% endif %}
+                    <h4 class="radar-report-secondary-title">{{ item.title }}</h4>
                 </div>
                 <div class="radar-report-secondary-actions">
                     {% if item.url %}
@@ -180,20 +153,19 @@
             {% endfor %}
         </div>
 
-        {% elif overview.total_items > 0 and secondary_all_shown %}
-        {# Secondary is empty because all content made it to primary #}
-        <p class="radar-report-secondary-hint">今日发现内容较少，暂无次要条目；所有内容已进入今日必看。</p>
-
-        {% else %}
-        <p class="radar-report-secondary-hint">暂无其他内容。</p>
+        {% if not secondary_all_shown %}
+        <p class="radar-report-secondary-hint">
+            还有 {{ overview.total_items - primary_items|length - secondary_items|length }} 条内容待生成中文摘要。
+            在今日雷达中点击「生成当前页中文摘要」可继续补全。
+        </p>
         {% endif %}
     </div>
-
     {% endif %}
 
     {# ── Footer ─────────────────────────────────────── #}
     <div class="radar-report-footer">
         <a href="/radar/today" class="btn btn-secondary">返回今日雷达</a>
+        <a href="/radar/today?section=all&page=1" class="btn btn-secondary">去生成中文摘要</a>
     </div>
 </div>
 {% endblock %}

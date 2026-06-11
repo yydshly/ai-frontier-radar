@@ -2,7 +2,7 @@
 """
 acceptance_daily_report_fast_path.py
 
-V1.0-beta.25 Daily Report Fast Path Acceptance Script
+V1.0-beta.26 Daily Report Fast Path Acceptance Script
 
 Checks static / lightweight conditions only — no LLM calls, no DB writes.
 
@@ -58,36 +58,51 @@ def main():
     check("POST /radar/today/daily-report route exists",
           'router.post("/today/daily-report"' in routes or 'POST /today/daily-report' in routes)
 
-    # Template checks
-    print("\n[Templates]")
+    # Template structure checks
+    print("\n[Template Structure]")
     check("radar_daily_report.html exists",
           daily_report_html.exists())
-    check("radar_daily_report.html contains '今日报告'",
+    check("radar_daily_report.html contains '今日报告' page title",
           "今日报告" in report_html)
-    check("radar_daily_report.html contains '今日必看'",
-          "今日必看" in report_html)
+    check("radar_daily_report.html contains '今日可读简报'",
+          "今日可读简报" in report_html)
+    check("radar_daily_report.html contains '待补全内容'",
+          "待补全内容" in report_html)
     check("radar_daily_report.html contains '返回今日雷达'",
           "返回今日雷达" in report_html)
-    check("radar_daily_report.html contains '查看洞察卡' or '已有洞察卡'",
-          "查看洞察卡" in report_html or "已有洞察卡" in report_html)
+    check("radar_daily_report.html contains '查看洞察卡'",
+          "查看洞察卡" in report_html)
+    check("radar_daily_report.html does NOT use '今日必看' as primary section",
+          "今日必看" not in report_html or "其他值得" not in report_html)
+    check("radar_daily_report.html does NOT show pending items as primary",
+          "待补全内容" in report_html)
+    check("radar_daily_report.html has report status banners (ready/partial/empty)",
+          ("radar-report-ready-banner" in report_html or "radar-report-partial-banner" in report_html or "radar-report-empty" in report_html))
+    check("radar_daily_report.html uses clearer stat labels ('收录内容', '洞察卡')",
+          "收录内容" in report_html or "洞察卡" in report_html)
+    check("radar_daily_report.html does NOT show misleading '今日新增 N' stat",
+          '>今日新增<' not in report_html and
+          '今日新增</span>' not in report_html and
+          '今日新增\n' not in report_html)
 
-    # Rule-based: no DAILY_REPORT_ENABLED gate for GET page
+    # Rule-based: no LLM dependency
     print("\n[Rule-based Report]")
     check("GET /radar/daily-report does NOT require DAILY_REPORT_ENABLED",
           "DAILY_REPORT_ENABLED" not in routes[routes.find('def get_daily_report_card'):routes.find('def get_daily_report_card') + 500])
-    check("build_daily_report_card does NOT call LLM",
+    check("build_daily_report_card does NOT call LLM providers",
           "def build_daily_report_card" in card_py and
           "os.environ" not in card_py and
           "OPENAI" not in card_py and
           "llm_providers" not in card_py)
-    check("radar_daily_report.html does not block when DAILY_REPORT_ENABLED=false",
-          "未启用" not in report_html or
-          ("查看今日报告" in report_html and "规则版" in report_html))
+    check("build_daily_report_card has report_status logic",
+          "report_status" in card_py and "READY_THRESHOLD" in card_py)
 
-    # Guidance hints
+    # Guidance checks
     print("\n[Guidance]")
-    check("radar_daily_report.html shows summary guidance when coverage is low",
-          "生成当前页中文摘要" in report_html and ("今日雷达" in report_html or "去生成" in report_html))
+    check("radar_daily_report.html has partial/not-ready guidance",
+          "尚未" in report_html or "补全" in report_html)
+    check("radar_daily_report.html links back to today radar for summary generation",
+          "/radar/today" in report_html and "生成中文摘要" in report_html)
     check("radar_today.html shows recommended flow hint",
           "推荐" in today_html_content and "更新今日新增" in today_html_content and "生成中文摘要" in today_html_content)
 

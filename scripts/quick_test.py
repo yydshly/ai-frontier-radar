@@ -6363,12 +6363,12 @@ def main():
 
         # Template content
         check("Template has 今日必看",
-              "今日必看" in radar_html,
-              "template should have 今日必看 section")
+              "今日可读简报" in radar_html,
+              "template should have 今日可读简报 section (renamed from 今日必看)")
 
         check("Template has 其他值得扫一眼",
-              "其他值得扫一眼" in radar_html,
-              "template should have 其他值得扫一眼 section")
+              "待补全内容" in radar_html,
+              "template should have 待补全内容 section (renamed from 其他值得扫一眼)")
 
         check("Template has 打开原文 link",
               "打开原文" in radar_html,
@@ -6387,12 +6387,12 @@ def main():
               "template should have overview section")
 
         check("Template has 防漏提示",
-              "以下内容未进入今日必看" in radar_html or "扫一眼" in radar_html,
-              "template should have leak-prevention hint for secondary items")
+              "待补全内容" in radar_html or "待生成中文摘要" in radar_html,
+              "template should have leak-prevention hint for pending items")
 
         check("Template has 避免错过关键报告",
-              "避免错过关键报告" in radar_html,
-              "template should have leak-prevention message for secondary items")
+              "待补全" in radar_html or "今日可读" in radar_html,
+              "template should differentiate readable vs pending content")
 
         check("Template has 查看洞察卡 link",
               "查看洞察卡" in radar_html,

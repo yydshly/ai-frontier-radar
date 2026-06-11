@@ -192,6 +192,12 @@ class DailyReportOverview:
     with_zh_summary: int
     with_insight_card: int
     covered_sources: int
+    # Report readiness: "ready" | "partial" | "empty"
+    report_status: str = "empty"
+
+
+# Minimum readable items before the report is considered "ready".
+_READY_THRESHOLD = 5
 
 
 @dataclass(frozen=True)
@@ -361,38 +367,69 @@ def build_daily_report_card(
         if item.insight_card_id:
             with_insight += 1
 
+    # ── Report readiness ───────────────────────────────────────────────────────
+    readable_count = with_one_liner + with_summary
+    if readable_count == 0:
+        report_status = "empty"
+    elif readable_count < _READY_THRESHOLD:
+        report_status = "partial"
+    else:
+        report_status = "ready"
+
     overview = DailyReportOverview(
         total_items=len(rows),
         with_zh_one_liner=with_one_liner,
         with_zh_summary=with_summary,
         with_insight_card=with_insight,
         covered_sources=len(source_keys),
+        report_status=report_status,
     )
 
-    total = len(rows)
-    if total >= primary_min:
-        primary_count = min(primary_max, max(primary_min, total))
-    else:
-        primary_count = total
+    # ── Separate readable vs pending items ────────────────────────────────────
+    readable: list[tuple[SourceItem, str, str | None, str | None]] = []
+    pending: list[tuple[SourceItem, str]] = []
 
-    primary_rows = [r for _, r in scored[:primary_count]]
-    primary_items: list[DailyReportPrimaryItem] = []
-    for item in primary_rows:
+    for score, item in scored:
         raw = _read_raw_metadata(item)
+        zh_one_liner_val = str(raw.get("zh_one_liner") or "").strip() or None
+        summary_basis = raw.get("summary_basis")
+        zh_summary_val = str(raw.get("zh_summary") or "").strip() or None if summary_basis == "html_snapshot" else None
+        has_zh = bool(zh_one_liner_val or zh_summary_val)
+
         title = item.title or "无标题"
         directions = _extract_directions(title)
         has_insight = bool(item.insight_card_id)
         reason = _build_reason(item.source_key, directions, has_insight)
-        zh_one_liner = str(raw.get("zh_one_liner") or "").strip() or None
-        # Prefer snapshot-generated zh_summary over one-liner
-        summary_basis = raw.get("summary_basis")
-        zh_summary = str(raw.get("zh_summary") or "").strip() or None if summary_basis == "html_snapshot" else None
+
+        if has_zh:
+            readable.append((item, zh_one_liner_val, zh_summary_val, reason))
+        else:
+            pending.append((item, reason))
+
+    # Sort readable: insight first > zh_summary > zh_one_liner > score
+    # Build a score lookup dict first
+    score_map = {id(item): score for score, item in scored}
+    readable.sort(
+        key=lambda x: (
+            -bool(x[0].insight_card_id),
+            -bool(x[2]),   # zh_summary
+            -bool(x[1]),   # zh_one_liner
+            -score_map.get(id(x[0]), 0),
+        )
+    )
+
+    primary_items: list[DailyReportPrimaryItem] = []
+    for item, zh_one_liner_val, zh_summary_val, reason in readable[:primary_max]:
+        raw = _read_raw_metadata(item)
+        title = item.title or "无标题"
+        directions = _extract_directions(title)
+        has_insight = bool(item.insight_card_id)
 
         if has_insight:
             suggested = "查看洞察卡"
-        elif zh_summary:
+        elif zh_summary_val:
             suggested = "阅读正文摘要"
-        elif zh_one_liner:
+        elif zh_one_liner_val:
             suggested = "阅读中文概述"
         else:
             suggested = "打开原文"
@@ -404,16 +441,17 @@ def build_daily_report_card(
             source_key=item.source_key,
             source_label=_source_label(item.source_key),
             url=item.url,
-            zh_one_liner=zh_one_liner,
-            zh_summary=zh_summary,
+            zh_one_liner=zh_one_liner_val,
+            zh_summary=zh_summary_val,
             reason=reason,
             related_directions=directions[:3],
             suggested_action=suggested,
         ))
 
-    secondary_rows = [r for _, r in scored[primary_count:primary_count + secondary_limit]]
+    # Pending items: show at most secondary_limit, no scoring needed
+    pending_items_for_secondary = pending[:secondary_limit]
     secondary_items: list[DailyReportSecondaryItem] = []
-    for item in secondary_rows:
+    for item, reason in pending_items_for_secondary:
         raw = _read_raw_metadata(item)
         title = item.title or "无标题"
         directions = _extract_directions(title)
@@ -429,8 +467,8 @@ def build_daily_report_card(
             tags=directions[:3],
         ))
 
-    # secondary_all_shown = True means all remaining items are shown (no truncation)
-    secondary_all_shown = len(scored) <= primary_count + secondary_limit
+    # secondary_all_shown: whether all pending items are displayed
+    secondary_all_shown = len(pending) <= secondary_limit
 
     return DailyReportCard(
         date_label=day_start.strftime("%Y-%m-%d"),
