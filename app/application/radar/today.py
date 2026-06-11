@@ -566,16 +566,14 @@ class RadarTodayService:
             item.id: build_candidate_display_card(item) for item in items
         }
 
-        compile_candidates = []
-        if page == 1 or section == RECOMMENDED_KEY:
-            compile_candidates = select_compile_candidates(
-                self.db,
-                hours=hours,
-                limit=RECOMMENDED_LIMIT,
-                per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
-                max_scan=RECOMMENDED_MAX_SCAN,
-                item_ids={item.id for item in items},
-            )
+        compile_candidates = select_compile_candidates(
+            self.db,
+            hours=hours,
+            limit=RECOMMENDED_LIMIT,
+            per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
+            max_scan=RECOMMENDED_MAX_SCAN,
+            item_ids={item.id for item in items},
+        )
         recommended_item_ids = {
             candidate.source_item_id for candidate in compile_candidates
         }
@@ -642,12 +640,6 @@ class RadarTodayService:
             RadarTodaySection(key=key, title=title, items=full_buckets[key])
             for key, title in SECTION_ORDER
         ]
-        if section == RECOMMENDED_KEY:
-            sections.append(RadarTodaySection(
-                key=RECOMMENDED_KEY,
-                title=RECOMMENDED_TITLE,
-                items=page_items,
-            ))
 
         # ── Selected item resolution ──────────────────────────────────────
         # Selected item should always be in full_display_map (so panel renders).

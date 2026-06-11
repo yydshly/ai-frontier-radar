@@ -83,11 +83,14 @@
                                 <span class="radar-section-count">{{ view.section_counts.get('today_focus', 0) }}</span>
                             </a>
                         </li>
-                        {% if view.compile_candidates %}
+                        {% if view.section_counts.get('recommended', 0) > 0 %}
                         <li>
-                            <a href="/radar/today?section=recommended&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}&panel=recommendations" class="radar-section-link {% if view.active_section == 'recommended' %}is-active{% endif %}">
-                                <span>推荐深入分析</span>
-                                <span class="radar-section-count">{{ view.section_counts.get('recommended', view.compile_candidates|length) }}</span>
+                            <a href="/radar/today?section=recommended&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}&panel=recommendations" class="radar-section-link radar-section-link-recommended {% if view.active_section == 'recommended' %}is-active{% endif %}">
+                                <span>
+                                    <span class="radar-section-kicker">重点推荐</span>
+                                    推荐深入分析
+                                </span>
+                                <span class="radar-section-count">{{ view.section_counts.get('recommended', 0) }}</span>
                             </a>
                         </li>
                         {% endif %}
@@ -123,10 +126,10 @@
                                 <li><strong>同步新增</strong>：收录最近 24 小时的新文章。</li>
                                 <li><strong>补全摘要</strong>：生成报告需要的中文概述与摘要。</li>
                                 <li><strong>推荐洞察</strong>：可选，但能为重点文章补充深度分析。</li>
-                                <li><strong>可读简报</strong>：检查哪些内容会进入报告输入。</li>
-                                <li><strong>核心报告</strong>：生成最终报告，并查看语音文稿。</li>
+                                <li><strong>报告依据</strong>：检查哪些内容会进入报告输入。</li>
+                                <li><strong>核心报告</strong>：生成最终报告，并查看语音播报。</li>
                             </ol>
-                            <p>未启用综合报告能力时，仍可查看规则整理的可读简报。</p>
+                            <p>未启用综合报告能力时，仍可查看规则整理的报告依据。</p>
                         </details>
 
                         <div class="radar-action-stage">
@@ -171,17 +174,17 @@
 
                         <div class="radar-action-stage">
                             <div class="radar-action-stage-heading"><span>3</span>汇总与交付</div>
-                            <p>先查看规则整理的可读简报，再按需生成综合报告。</p>
-                            <a href="/radar/daily-report" class="btn-sm" title="基于已有中文摘要按规则整理，无需调用 LLM">查看可读简报</a>
+                            <p>先检查报告依据，再生成综合核心报告。</p>
+                            <a href="/radar/daily-report" class="btn-sm" title="规则整理今日可读内容，不调用 LLM，用于检查报告输入">查看报告依据</a>
                             <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
-                                <button type="submit" class="btn-sm {% if not DAILY_REPORT_ENABLED %}btn-secondary{% endif %}" title="综合今日已有中文摘要生成核心报告" {% if not DAILY_REPORT_ENABLED %}disabled{% endif %}>生成核心报告</button>
+                                <button type="submit" class="btn-sm {% if not DAILY_REPORT_ENABLED %}btn-secondary{% endif %}" title="基于报告依据综合生成的最终报告" {% if not DAILY_REPORT_ENABLED %}disabled{% endif %}>生成核心报告</button>
                                 {% if not DAILY_REPORT_ENABLED %}
                                 <span class="radar-digest-form-hint">综合报告能力未启用</span>
                                 {% endif %}
                             </form>
                             <div class="radar-action-result-links">
-                                <a href="/radar/daily-report#daily-core-report">核心报告</a>
-                                <a href="/radar/daily-report/broadcast">语音文稿</a>
+                                <a href="/radar/daily-report#daily-core-report" title="基于报告依据综合生成的最终报告">核心报告</a>
+                                <a href="/radar/daily-report/broadcast" title="将核心报告转为可播放语音">语音播报</a>
                             </div>
                         </div>
                     </div>

@@ -3120,6 +3120,12 @@ def main():
               and ".radar-panel-insight-preview" in style_css
               and ".radar-panel-state-failed" in style_css,
               "right panel state styles should exist")
+        check("today.py no longer appends recommended as a duplicate section",
+              "sections.append(RadarTodaySection(" not in radar_py,
+              "recommended must not be appended to sections; use section_counts['recommended'] for sidebar")
+        check("today.py always computes compile_candidates (not only on page=1)",
+              "if page == 1 or section == RECOMMENDED_KEY:" not in radar_py,
+              "compile_candidates must be computed on every request for stable pagination")
     except Exception as e:
         check("Today Radar panel state checks", False, str(e))
 
@@ -4805,12 +4811,24 @@ def main():
         check("radar_today.html no longer has misleading 生成今日报告卡片",
               "生成今日报告卡片" not in radar_html,
               "misleading 生成今日报告卡片 text should be removed")
-        check("radar_today.html has 查看可读简报",
-              "查看可读简报" in radar_html,
-              "daily-report link should be labeled 查看可读简报")
+        check("radar_today.html has 查看报告依据",
+              "查看报告依据" in radar_html,
+              "daily-report link should be labeled 查看报告依据")
         check("radar_today.html has 生成核心报告",
               "生成核心报告" in radar_html,
               "daily-report generation button should be preserved")
+        check("radar_today.html has 语音播报",
+              "语音播报" in radar_html,
+              "broadcast link should be labeled 语音播报 not 语音文稿")
+        check("radar_today.html no longer has 查看可读简报",
+              "查看可读简报" not in radar_html,
+              "查看可读简报 should be replaced with 查看报告依据")
+        check("radar_today.html uses radar-section-link-recommended",
+              "radar-section-link-recommended" in radar_html,
+              "recommended sidebar link must use radar-section-link-recommended class")
+        check("radar_today.html shows 重点推荐 kicker",
+              "重点推荐" in radar_html,
+              "recommended sidebar link must have a kicker label")
         check("radar_today.html has 生成洞察卡",
               "生成洞察卡" in radar_html,
               "insight card generation button should be labeled 生成洞察卡")

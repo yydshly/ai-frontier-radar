@@ -4203,6 +4203,34 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     padding: 0 0.45rem;
 }
 
+.radar-section-link-recommended {
+    background: #eef6ff;
+    border: 1px solid #b6d7ff;
+    color: #0969da;
+    font-weight: 700;
+}
+
+.radar-section-link-recommended:hover {
+    background: #dbeafe;
+}
+
+.radar-section-link-recommended.is-active {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #0759b8;
+}
+
+.radar-section-kicker {
+    display: inline-block;
+    margin-right: 0.35rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
 .radar-section {
     margin-bottom: 1rem;
 }
