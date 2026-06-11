@@ -6702,6 +6702,7 @@ def main():
               broadcast_template_path.exists(),
               "broadcast template should exist")
         broadcast_html = broadcast_template_path.read_text(encoding="utf-8")
+        style_text = (project_root / "app" / "static" / "style.css").read_text(encoding="utf-8")
         check("Template has 今日 AI 前沿播报",
               "今日 AI 前沿播报" in broadcast_html,
               "broadcast template should have title")
@@ -6726,6 +6727,31 @@ def main():
         check("Template has 返回今日报告",
               "返回今日报告" in broadcast_html,
               "broadcast template should have back link")
+        check("Template uses inline player card (not playback link)",
+              "radar-broadcast-player-card" in broadcast_html,
+              "generated audio section must use inline player card, not a jump link")
+        check("Template audio player has radar-broadcast-audio-player class",
+              'class="radar-broadcast-audio-player"' in broadcast_html
+              or "class='radar-broadcast-audio-player'" in broadcast_html,
+              "audio element must carry radar-broadcast-audio-player class")
+        check("History play button uses radar-broadcast-history-play",
+              "radar-broadcast-history-play" in broadcast_html,
+              "history play action must be a button, not a jump link")
+        check("History play button has data-audio-url attribute",
+              "data-audio-url=" in broadcast_html,
+              "history play button must carry the audio URL as a data attribute")
+        check("History inline player uses radar-broadcast-history-player",
+              "radar-broadcast-history-player" in broadcast_html,
+              "history inline player must use radar-broadcast-history-player class")
+        check("Style sheet contains radar-broadcast-player-card",
+              "radar-broadcast-player-card" in style_text,
+              "style.css must define radar-broadcast-player-card")
+        check("Style sheet contains radar-broadcast-audio-player",
+              "radar-broadcast-audio-player" in style_text,
+              "style.css must define radar-broadcast-audio-player")
+        check("Style sheet contains radar-broadcast-history-player",
+              "radar-broadcast-history-player" in style_text,
+              "style.css must define radar-broadcast-history-player")
 
         from app.application.radar.daily_broadcast import (
             DailyBroadcastScript,
@@ -7879,8 +7905,59 @@ def main():
         check("briefing rendering does not write rows",
               _before == _after,
               "rendering the briefing must not change row counts")
+
+        # ── Document shell: daily-report and broadcast use natural scroll layout ───
+        # report_html, style_css already defined earlier in this try block
+        broadcast_html = (project_root / "app" / "templates" / "radar_daily_broadcast.html").read_text(encoding="utf-8")
+
+        check("daily-report uses radar-document-shell (not workbench-shell)",
+              "radar-document-shell" in report_html and "radar-workbench-shell" not in report_html,
+              "daily-report page must use document shell for natural scrolling")
+        check("daily-report uses radar-document-page",
+              "radar-document-page" in report_html,
+              "daily-report must set radar-document-page class on main-content")
+        check("daily-report uses radar-readable-page",
+              "radar-readable-page" in report_html,
+              "daily-report content wrapper must use radar-readable-page class")
+
+        check("broadcast uses radar-document-shell (not workbench-shell)",
+              "radar-document-shell" in broadcast_html and "radar-workbench-shell" not in broadcast_html,
+              "broadcast page must use document shell for natural scrolling")
+        check("broadcast uses radar-document-page",
+              "radar-document-page" in broadcast_html,
+              "broadcast must set radar-document-page class on main-content")
+        check("broadcast uses radar-readable-page",
+              "radar-readable-page" in broadcast_html,
+              "broadcast content wrapper must use radar-readable-page class")
+        check("broadcast uses readable div (not textarea) for script",
+              "radar-broadcast-script-readable" in broadcast_html
+              and '<div id="broadcast-script"' in broadcast_html,
+              "broadcast script must use a div, not textarea")
+        check("broadcast copy button reads innerText",
+              "innerText" in broadcast_html,
+              "copy button must read innerText from the div, not value from textarea")
+
+        check("style.css defines radar-document-shell",
+              "radar-document-shell" in style_css,
+              "style.css must define radar-document-shell rules")
+        check("style.css defines radar-document-page",
+              "radar-document-page" in style_css,
+              "style.css must define radar-document-page rules")
+        check("style.css defines radar-readable-page",
+              "radar-readable-page" in style_css,
+              "style.css must define radar-readable-page rules")
+        check("style.css has overflow:visible for document sections",
+              "overflow: visible" in style_css,
+              "document shell sections must use overflow:visible to enable natural scroll")
+
+        # Ensure /radar/today still uses workbench shell (not broken by the above)
+        radar_today_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        check("/radar/today still uses radar-workbench-shell",
+              "radar-workbench-shell" in radar_today_html,
+              "today radar must still use workbench shell (not affected by document shell changes)")
+
     except Exception as e:
-        check("daily briefing checks", False, str(e))
+        check("daily briefing + document shell checks", False, str(e))
 
     # ── 52. Summary markers single source of truth (C4 bug fix) ──────────────
     print("\n[52] summary markers single source of truth")

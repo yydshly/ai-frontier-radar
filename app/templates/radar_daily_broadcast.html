@@ -2,12 +2,12 @@
 
 {% block title %}今日 AI 前沿播报 - AI Frontier Radar{% endblock %}
 
-{% block main_class %}wide-page radar-workbench-page{% endblock %}
+{% block main_class %}wide-page radar-document-page{% endblock %}
 
-{% block body_class %}radar-workbench-shell{% endblock %}
+{% block body_class %}radar-document-shell{% endblock %}
 
 {% block content %}
-<div class="radar-page">
+<div class="radar-page radar-readable-page">
     {# ── Header ─────────────────────────────────────────── #}
     <div class="radar-header">
         <div class="radar-header-top">
@@ -34,11 +34,15 @@
     {% if audio_job %}
     <div class="radar-broadcast-audio-status">
         {% if audio_job.status == "generated" %}
-        <div class="radar-broadcast-audio-ready">
-            <span class="radar-broadcast-audio-icon">完成</span>
-            <span>{{ audio_job.voice }}音色的语音报告已生成。</span>
-            <audio controls preload="metadata" src="{{ audio_job.audio_url }}"></audio>
-            <a href="{{ audio_job.audio_url }}" download class="radar-report-action-link">下载 WAV</a>
+        <div class="radar-broadcast-player-card">
+            <div class="radar-broadcast-player-title">{{ audio_job.voice }} 音色的语音报告已生成</div>
+            <audio class="radar-broadcast-audio-player" controls preload="metadata" src="{{ audio_job.audio_url }}">
+                当前浏览器不支持音频播放。
+            </audio>
+            <div class="radar-broadcast-player-actions">
+                <a href="{{ audio_job.audio_url }}" download class="radar-report-action-link">下载 WAV</a>
+                <a href="{{ audio_job.audio_url }}" target="_blank" rel="noopener" class="radar-report-action-link">在新标签打开</a>
+            </div>
         </div>
         {% elif audio_job.status == "failed" %}
         <div class="radar-broadcast-audio-failed">
@@ -72,13 +76,13 @@
             <h2 class="radar-broadcast-section-title">播报文案</h2>
             <span class="radar-report-stat-note">内容来源：{{ script_basis }}</span>
             <div class="radar-broadcast-toolbar">
-                <button type="button" id="copy-btn" class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').value).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">复制文案</button>
+                <button type="button" id="copy-btn" class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').innerText).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">复制文案</button>
                 <span class="radar-broadcast-tts-note">MiMo V2.5 TTS · 后台分段生成</span>
             </div>
         </div>
 
         {% if script.full_text %}
-        <textarea id="broadcast-script" class="radar-broadcast-script" readonly>{{ script.full_text }}</textarea>
+        <div id="broadcast-script" class="radar-broadcast-script-readable">{{ script.full_text }}</div>
         <form method="post" action="/radar/daily-report/broadcast/audio"
               class="radar-broadcast-generation-form"
               onsubmit="var btn=document.getElementById('audio-btn');btn.disabled=true;btn.textContent='任务提交中';">
@@ -133,13 +137,21 @@
                 <div class="radar-broadcast-history-actions">
                     <a href="/radar/daily-report/broadcast?job_id={{ job.job_id }}" class="radar-report-action-link">查看</a>
                     {% if job.audio_url %}
-                    <a href="{{ job.audio_url }}" class="radar-report-action-link">播放</a>
+                    <button type="button"
+                            class="radar-broadcast-history-play"
+                            data-audio-url="{{ job.audio_url }}"
+                            data-target="broadcast-audio-{{ loop.index }}">
+                        播放
+                    </button>
                     {% endif %}
                     {% if job.status != "running" and job.status != "queued" %}
                     <form method="post" action="/radar/daily-report/broadcast/audio/{{ job.job_id }}/delete">
                         <button type="submit" class="btn btn-secondary btn-sm">删除</button>
                     </form>
                     {% endif %}
+                </div>
+                <div id="broadcast-audio-{{ loop.index }}" class="radar-broadcast-history-player" hidden>
+                    <audio controls preload="metadata" src="{{ job.audio_url }}"></audio>
                 </div>
             </div>
             {% endfor %}
@@ -148,6 +160,29 @@
     {% endif %}
 
     {# ── Footer ─────────────────────────────────────────── #}
+    <script>
+    document.addEventListener("click", function (event) {
+        var btn = event.target.closest(".radar-broadcast-history-play");
+        if (!btn) return;
+
+        var targetId = btn.getAttribute("data-target");
+        var panel = document.getElementById(targetId);
+        if (!panel) return;
+
+        var isHidden = panel.hasAttribute("hidden");
+        panel.toggleAttribute("hidden", !isHidden);
+        btn.textContent = isHidden ? "收起" : "播放";
+
+        if (isHidden) {
+            var audio = panel.querySelector("audio");
+            if (audio) {
+                audio.play().catch(function () {
+                    // 浏览器可能阻止自动播放，不视为错误，用户可手动点播放。
+                });
+            }
+        }
+    });
+    </script>
     <div class="radar-report-footer">
         <a href="/radar/daily-report" class="btn btn-secondary">返回今日报告</a>
         <a href="/radar/today" class="btn btn-secondary">返回今日雷达</a>

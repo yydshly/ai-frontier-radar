@@ -4627,6 +4627,93 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     }
 }
 
+/* ── Radar document shell: natural scroll for long-form reading ── */
+/* Applied to /radar/daily-report and /radar/daily-report/broadcast */
+body.app-shell.radar-document-shell {
+    min-height: 100vh;
+    height: auto;
+    overflow: auto;
+}
+
+body.app-shell.radar-document-shell .main-wrapper {
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+}
+
+body.app-shell .main-content.radar-document-page,
+body.app-shell.radar-document-shell .main-content.radar-document-page {
+    max-width: none;
+    width: 100%;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    display: block;
+    padding: 0;
+}
+
+.radar-readable-page {
+    max-width: min(1500px, calc(100vw - 64px));
+    margin: 0 auto;
+    padding: 1.25rem 1.5rem 3rem;
+}
+
+.radar-readable-page .radar-page {
+    display: block;
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+}
+
+/* Core report / readable sections must not clip content */
+.radar-daily-core-report,
+.radar-core-report,
+.radar-report-core,
+.radar-report-core-section {
+    overflow: visible;
+    max-height: none;
+}
+
+/* Readable broadcast script — replaces textarea scroll with natural page scroll */
+.radar-broadcast-script-readable {
+    width: 100%;
+    min-height: 400px;
+    font-size: 0.98rem;
+    line-height: 1.85;
+    color: #212121;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 1.25rem;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: visible;
+}
+
+/* Responsive: document shell also unlocks on small screens */
+@media (max-width: 1024px) {
+    body.app-shell.radar-document-shell {
+        height: auto;
+        overflow: visible;
+    }
+
+    body.app-shell.radar-document-shell .main-wrapper {
+        height: auto;
+        overflow: visible;
+    }
+
+    body.app-shell .main-content.radar-document-page {
+        height: auto;
+        overflow: visible;
+        padding: 1rem;
+    }
+
+    .radar-readable-page {
+        padding: 1rem;
+    }
+}
+
 /* ============================================================
    V1-beta — Today Radar Update Action
    ============================================================ */
@@ -6500,6 +6587,54 @@ details[open] .radar-compile-candidate-details summary::before {
 
 .radar-broadcast-empty a {
     color: #1976d2;
+}
+
+/* ── Inline Audio Player (V1.0-beta — broadcast playback UX fix) ── */
+
+.radar-broadcast-player-card {
+    margin-top: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid #b6e3ff;
+    border-radius: 8px;
+    background: #f6fbff;
+}
+
+.radar-broadcast-player-title {
+    font-weight: 700;
+    color: #0969da;
+    margin-bottom: 0.5rem;
+}
+
+.radar-broadcast-audio-player,
+.radar-broadcast-history-player audio {
+    width: 100%;
+    display: block;
+}
+
+.radar-broadcast-player-actions {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.radar-broadcast-history-play {
+    border: none;
+    background: transparent;
+    color: #1976d2;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+}
+
+.radar-broadcast-history-play:hover {
+    text-decoration: underline;
+}
+
+.radar-broadcast-history-player {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed #d0d7de;
 }
 
 /* ── 今日新增简报 (read-only daily briefing page) ───────────────── */
