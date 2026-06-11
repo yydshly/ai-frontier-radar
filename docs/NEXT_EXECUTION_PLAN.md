@@ -387,6 +387,46 @@
 
 - README 准确反映当前能力
 - FIRST_USABLE_LOOP_CHECK 与代码能力一致
+
+---
+
+## V1.0-beta.14：精选来源配置修正与每日获取链路验证
+
+> 分支：`feature/v1-beta-14-source-config-and-daily-loop`
+> main merge commit：`待合并`
+> 完成日期：2026-06-11
+
+### 目标
+
+不新增来源、不做自动探测系统。人工核查 15 个精选来源的 feed_url，修正配置，同步 DB，验证每日获取和展示主链路。
+
+### RSS 核查结果
+
+- **RSS 可用（8个）**：openai_news, deepmind_blog, huggingface_blog, arxiv_cs_ai, arxiv_cs_cl, arxiv_cs_lg, nvidia_ai_blog, berkeley_bair_blog
+- **HTML index fallback（7个）**：anthropic_news, stanford_hai, mit_news_ai, meta_ai_blog, microsoft_ai_source, mistral_ai_news, cohere_blog
+
+### 主要变更
+
+- `config/sources.example.yaml`：4 个来源新增 RSS feed_url（deepmind_blog, huggingface_blog, nvidia_ai_blog, berkeley_bair_blog），全部 15 个来源补充 strategy_notes
+- `scripts/sync_sources_from_config.py`（新增）：YAML → DB 配置同步 CLI，默认 dry-run，--apply 执行
+- `scripts/diagnose_data_quality.py`：修复 Windows GBK 编码错误（emoji → ASCII）
+- `app/application/radar/daily_report.py`：修复 generate_daily_report check 顺序（no_input → enabled gate）
+- `app/templates/radar_daily_report.html`：空状态也渲染 section 头部
+- DB Source 表：15 个来源全部同步
+
+### 数据质量现状
+
+- 525 个 SourceItem
+- 20 个条目 content 存在但无 snapshot（建议清理）
+- 41 个条目有 summary 但 snapshot 缺失（建议清理）
+- 0 个重复 URL、0 个无标题、0 个无 URL、0 个 orphaned insight_card_id
+
+### 后续未完成项
+
+1. 数据清理（V1.0-beta.15）：处理 20 + 41 条脏数据
+2. HTML index 来源持续观察：7 个 html_index 来源的抓取成功率待实际运行验证
+3. RSS 来源稳定性监控：新增的 4 个 RSS 来源需要下次定时运行验证
+
 - KNOWN_LIMITATIONS 包含真实限制
 - NEXT_EXECUTION_PLAN 可见于 /project-docs
 - 全部测试通过：compileall / quick_test / smoke_test / acceptance_demo_flow / acceptance_demo_data / health_check --quick

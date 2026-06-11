@@ -7041,6 +7041,102 @@ def main():
     except Exception as e:
         check("V1.0-beta.13 Source Experience checks", False, str(e))
 
+    # ── 57. V1.0-beta.14 Source Config & Daily Loop ─────────────────
+    print("\n[57] V1.0-beta.14 Source Config & Daily Loop")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+        sources_yaml = project_root / "config" / "sources.example.yaml"
+
+        # Load and parse sources.example.yaml
+        import yaml
+        with open(sources_yaml, encoding="utf-8") as f:
+            sources_data = yaml.safe_load(f)
+
+        sources_list = sources_data.get("sources", {})
+        check("15 sources in sources.example.yaml",
+              len(sources_list) == 15,
+              f"expected 15, got {len(sources_list)}")
+
+        # Collect feed_url and strategy per source
+        rss_sources = []
+        html_no_feed = []
+        empty_homepage = []
+        for key, cfg in sources_list.items():
+            if not cfg.get("homepage_url"):
+                empty_homepage.append(key)
+            fs = cfg.get("fetch_strategy", "")
+            feed = cfg.get("feed_url")
+            if feed:
+                rss_sources.append(key)
+                check(f"  {key}: feed_url set → fetch_strategy must be rss",
+                      fs == "rss",
+                      f"got fetch_strategy={fs}")
+                if cfg.get("needs_review") is True:
+                    check(f"  {key}: has feed_url → needs_review should not be True",
+                          False,
+                          f"{key} has feed_url but needs_review=True")
+            else:
+                html_no_feed.append(key)
+
+        check("No source has empty homepage_url",
+              len(empty_homepage) == 0,
+              f"empty homepage: {empty_homepage}")
+
+        # RSS sources should have feed_url; HTML sources should note it
+        check("RSS sources have feed_url (rss_sources: {})".format(len(rss_sources)),
+              len(rss_sources) > 0,
+              f"need at least 1 RSS source with feed_url")
+        check("HTML-index sources have no feed_url ({})".format(len(html_no_feed)),
+              len(html_no_feed) > 0,
+              f"need at least 1 HTML-index source without feed_url")
+
+        # All HTML-index sources should have strategy_notes documenting why
+        all_have_notes = all(
+            sources_list[k].get("strategy_notes")
+            for k in html_no_feed
+        )
+        check("HTML-index sources have strategy_notes",
+              all_have_notes,
+              "all html_index sources should document no-RSS reason in strategy_notes")
+
+        # sync_sources_from_config.py exists
+        sync_script = project_root / "scripts" / "sync_sources_from_config.py"
+        check("scripts/sync_sources_from_config.py exists",
+              sync_script.exists(),
+              "sync script should exist for YAML→DB sync")
+
+        # diagnose_data_quality.py runs dry-run (no crash)
+        diag_script = project_root / "scripts" / "diagnose_data_quality.py"
+        check("scripts/diagnose_data_quality.py exists",
+              diag_script.exists(),
+              "diagnose script should exist")
+        result = subprocess.run(
+            [sys.executable, str(diag_script)],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        check("diagnose_data_quality.py runs without crash",
+              result.returncode == 0,
+              f"exit code {result.returncode}: {result.stderr[:200]}")
+
+        # check_sources_config.py still passes
+        check_script = project_root / "scripts" / "check_sources_config.py"
+        result2 = subprocess.run(
+            [sys.executable, str(check_script)],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("check_sources_config.py validation passes",
+              result2.returncode == 0,
+              result2.stdout[:300])
+
+    except Exception as e:
+        check("V1.0-beta.14 Source Config checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

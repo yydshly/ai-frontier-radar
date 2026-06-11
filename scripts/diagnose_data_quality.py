@@ -197,7 +197,7 @@ def format_diagnosis_report(issues: dict, total_items: int) -> str:
 
     def report_count(key: str, label: str):
         count = issues.get(key, 0)
-        icon = "✅" if count == 0 else "⚠️"
+        icon = "[OK]" if count == 0 else "[WARN]"
         lines.append(f"{icon} {label}: {count}")
         samples_key = key + "_samples"
         if issues.get(samples_key):
@@ -283,9 +283,9 @@ def main():
 
         print()
         if error_count == 0:
-            print("✅ No data quality issues found.")
+            print("[OK] No data quality issues found.")
         else:
-            print(f"⚠️  Found {error_count} total quality issue(s).")
+            print(f"[WARN] Found {error_count} total quality issue(s).")
         print("=" * 60)
         return 0
 
