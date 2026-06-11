@@ -1393,6 +1393,9 @@ def source_workspace_page(request: Request, source_key: str):
         # V1.0-beta.13: recommended strategy and needs_review flag
         recommended_strategy = effective_strategy
         needs_review = (effective_strategy == "html_index")
+        # S2: configured-vs-effective consistency for a sensible "获取方式" display.
+        from app.application.sources.effective_strategy import check_strategy_consistency
+        strategy_consistency = check_strategy_consistency(source.feed_url, source.fetch_strategy)
 
         # 4b. Stale running FetchRun diagnostics (read-only) for this source.
         from app.application.sources.stale_runs import build_stale_fetch_run_report
@@ -1510,6 +1513,8 @@ def source_workspace_page(request: Request, source_key: str):
                 "fetch_strategy_label": describe_fetch_strategy(source.fetch_strategy),
                 "effective_strategy": effective_strategy,
                 "effective_strategy_label": describe_fetch_strategy(effective_strategy),
+                "strategy_consistent": strategy_consistency.consistent,
+                "strategy_consistency_message": strategy_consistency.message,
                 "recommended_strategy": recommended_strategy,
                 "needs_review": needs_review,
                 "stale_runs": source_stale_runs,

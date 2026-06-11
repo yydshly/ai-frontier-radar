@@ -876,14 +876,15 @@ def main():
             )
             db_session.add(src_rss)
 
-            # Create HTML test source
+            # Create HTML test source. html_index sources have no feed_url —
+            # a feed_url would (correctly) make the effective strategy RSS.
             src_html = Source(
                 source_key=bg_test_key + "_html",
                 name="Test BG HTML",
                 description="Test",
                 source_type="html_index",
                 homepage_url="https://example.com",
-                feed_url="https://example.com/index.html",
+                feed_url=None,
                 category="research",
                 tags_json="[]",
                 enabled=True,
@@ -918,6 +919,11 @@ def main():
                 check("background RSS source_fetch_limit.max_items_per_run == 50",
                       metadata.get("source_fetch_limit", {}).get("max_items_per_run") == 50,
                       f"got {metadata.get('source_fetch_limit')}")
+                # S2: FetchRun records the actual (effective) strategy used.
+                check("background RSS FetchRun records effective strategy",
+                      metadata.get("fetch_strategy", {}).get("effective") == "rss"
+                      and metadata.get("fetch_strategy", {}).get("configured") == "rss",
+                      f"got {metadata.get('fetch_strategy')}")
 
             # Test 2: HTML background run receives max_items
             captured_calls.clear()

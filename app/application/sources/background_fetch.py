@@ -334,7 +334,12 @@ def run_source_fetch_in_background(run_id: int) -> None:
             _finish_run_as_failed(db, fetch_run, source=None, error_message=f"Source(id={fetch_run.source_id}) not found at execution time")
             return
 
-        strategy = source.fetch_strategy
+        # S2: probe by the *effective* strategy (RSS-first when a feed_url exists),
+        # not the raw configured value. For sources without a feed_url this is
+        # identical to the configured strategy.
+        from app.application.sources.effective_strategy import compute_effective_strategy
+        configured_strategy = source.fetch_strategy
+        strategy = compute_effective_strategy(source.feed_url, source.fetch_strategy)
 
         # Check if strategy is supported (same logic as SourceFetchService)
         from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
@@ -442,7 +447,7 @@ def run_source_fetch_in_background(run_id: int) -> None:
             probe_result, max_items, items_found
         )
 
-        # Write delta and source_fetch_limit to metadata_json
+        # Write delta, source_fetch_limit, and the actual strategy used.
         fetch_run.metadata_json = _json.dumps({
             "delta": {
                 "new_ids": new_ids,
@@ -451,6 +456,11 @@ def run_source_fetch_in_background(run_id: int) -> None:
                 "failed_urls": [],
             },
             "source_fetch_limit": source_fetch_limit,
+            "fetch_strategy": {
+                "configured": configured_strategy,
+                "effective": strategy,
+                "rss_first_applied": strategy != configured_strategy,
+            },
         }, ensure_ascii=False)
 
         db.commit()

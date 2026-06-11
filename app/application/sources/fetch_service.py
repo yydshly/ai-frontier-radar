@@ -122,7 +122,10 @@ class SourceFetchService:
         max_items = get_source_fetch_max_items_per_run()
 
         try:
-            strategy = source.fetch_strategy
+            # S2: use the effective (RSS-first) strategy, mirroring the
+            # background fetch path. Identical to configured when no feed_url.
+            from app.application.sources.effective_strategy import compute_effective_strategy
+            strategy = compute_effective_strategy(source.feed_url, source.fetch_strategy)
 
             # Check if strategy is supported
             if strategy not in SUPPORTED_STRATEGIES:

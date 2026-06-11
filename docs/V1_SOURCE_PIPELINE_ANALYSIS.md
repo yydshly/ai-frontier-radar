@@ -68,10 +68,16 @@ config/sources.example.yaml  ──load_sources_config──▶ SourceConfig
 3. quick_test 把"当前 config 无 RSS 优先违规"固化为**回归护栏**（P-A 防漂移）。
 - **不改抓取行为**，纯展示 + 护栏。
 
-### 阶段 S2（让抓取以有效策略为准）
-- 抓取入口改用 `compute_effective_strategy(...)` 选择 probe（有 feed_url 强制走 RSS），
-  并在 FetchRun.metadata_json 记录 `effective_strategy` / `attempted` / `succeeded`（P-A/P-C 抓取侧）。
-- 隔离 DB + mock RSS 验收（仿 `acceptance_run_due_sources_once_apply.py`）。
+### 阶段 S2（让抓取以有效策略为准）✅ 已落地
+- 抓取入口（`background_fetch.run_source_fetch_in_background` 与
+  `fetch_service.SourceFetchService.run_source`）改用 `compute_effective_strategy(...)`
+  选择 probe（有 feed_url 强制走 RSS）。对当前 15 个来源**行为不变**（effective==configured），
+  但堵住"有 feed_url 却配成 html_index 会用弱方式抓"的隐患（P-A 抓取侧）。
+- `FetchRun.metadata_json` 新增 `fetch_strategy.{configured, effective, rss_first_applied}`
+  记录"实际用哪种策略抓"（P-C 抓取侧）。
+- UI：工作台"推荐策略"行标注"实际抓取以此为准"，配置与有效策略漂移时显示"策略提示"告警。
+- 验收：隔离 DB + mock RSS 真实抓取通过；background RSS 单测断言 metadata 记录 effective=rss。
+- 顺带修正一个测试 fixture（html_index 源误带 feed_url），使其符合 RSS 优先语义。
 
 ### 阶段 S3（可靠性回退链）
 - RSS 失败 → 依可靠性顺序尝试下一档；记录每档结果；展示"实际成功的探测方式"。
