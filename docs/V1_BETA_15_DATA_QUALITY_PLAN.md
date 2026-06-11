@@ -288,5 +288,69 @@ items = (
    → safe_to_apply_now：仅 stale running FetchRun 重置为 failed
    → manual_review_required：仅列出，不自动删除
    → do_not_touch_in_phase_2：snapshot 缺失、重复 URL，暂不处理
+   → informational：历史状态记录，无需处理
+
+---
+
+## 九、G 类 stale FetchRun 复核结论
+
+通过 `python scripts/mark_stale_fetch_runs_failed.py` dry-run 验证：
+
 ```
+matched_stale_runs: 0
+No stale running FetchRun matched the filters.
+```
+
+G=8 的 FetchRun（run_id 789–796）**已是 `status=failed` + `[stale-timeout]`**，属于**历史遗留状态记录**，不是当前待清理问题。
+
+| 属性 | 值 |
+|---|---|
+| run_id | 789–796 |
+| status | failed |
+| error_message | 含 `[stale-timeout]` |
+| 影响 | 仅历史记录，不影响雷达运行 |
+| mark_stale_fetch_runs_failed.py 匹配 | 0（无 stale running） |
+
+**结论：G 类不需要 apply。后续不再将 G=8 计入待清理问题总数。**
+
+---
+
+## 十、A/B snapshot 缺失处理策略
+
+A/B 类（共 61 条）数据仍保留在 DB 中，**不直接删除**。
+
+### 10.1 分类与来源分布
+
+A 类（20 条，status=fetched/compiled 但无 snapshot）：
+- 全部有 URL，可重抓
+- 部分有 zh_summary（B 类重叠）
+
+B 类（41 条，有 zh_summary 但无 snapshot）：
+- 全部有 URL，可重抓
+- 部分已有关联 InsightCard
+
+### 10.2 可恢复性判断
+
+| 条件 | A 类 | B 类 |
+|---|---|---|
+| 有 URL | 20/20 | 41/41 |
+| 有标题 | 20/20 | 41/41 |
+| 有 zh_summary | 部分 | 全部 |
+| 有关联 InsightCard | 少量 | 少量 |
+
+### 10.3 推荐处理路线
+
+1. **优先重抓 snapshot**：有 URL 的条目可直接重抓重建 snapshot
+2. **降级显示**：无 snapshot 但有 zh_summary 的条目，右侧面板可降级为纯摘要模式
+3. **不自动删除**：已有关联 InsightCard 的条目不得自动删除
+
+### 10.4 Phase 4 计划
+
+```
+1. 按 source_key 分组，确认哪些来源批量缺失 snapshot
+2. 评估重抓成本（URL 是否仍有效）
+3. 设计 snapshot 缺失的降级显示方案
+4. 不在 Phase 3/3.3 自动清理 A/B 条目
+```
+
 

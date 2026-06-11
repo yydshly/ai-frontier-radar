@@ -94,6 +94,10 @@ class CleanupPlan:
         self.ui_missing_title_count: int = 0
         self.ui_orphan_source_count: int = 0
 
+        # informational
+        self.stale_failed_count: int = 0  # G: already failed + [stale-timeout]
+        self.stale_failed_samples: list[str] = []
+
 
 # ── Analysis ─────────────────────────────────────────────────────────────────
 
@@ -204,6 +208,18 @@ def analyze_database(db) -> CleanupPlan:
     plan.orphan_insight_cards_samples = [
         f"  card_id={c.id} title={str(c.source_title or '')[:40]}"
         for c in orphan_cards[:5]
+    ]
+
+    # ── G. historical stale failed fetch runs (informational) ─────────
+    stale_failed_runs = db.query(FetchRun).filter(
+        FetchRun.status == "failed",
+        FetchRun.error_message.like("%[stale-timeout]%")
+    ).all()
+    plan.stale_failed_count = len(stale_failed_runs)
+    plan.stale_failed_samples = [
+        f"  run_id={r.id} source_key={r.source_key} "
+        f"finished_at={r.finished_at.strftime('%Y-%m-%d %H:%M') if r.finished_at else '?'}"
+        for r in stale_failed_runs[:5]
     ]
 
     # ── 4. A/B snapshot missing items (from diagnose logic) ─────────
@@ -327,6 +343,16 @@ def format_plan(plan: CleanupPlan, mode: str) -> str:
         f"(F from diagnose)"
     )
     lines.append("  → duplicates in same source. Requires manual dedup review.")
+    lines.append("")
+
+    # ── Section 4: informational ─────────────────────────────────
+    lines.append("## informational")
+    lines.append("")
+    lines.append(f"  historical_stale_failed_fetch_runs: {plan.stale_failed_count}")
+    if plan.stale_failed_samples:
+        for s in plan.stale_failed_samples:
+            lines.append(f"    {s}")
+    lines.append("  → Already marked failed + [stale-timeout]. No apply needed.")
     lines.append("")
 
     # ── Footer ───────────────────────────────────────────────────
