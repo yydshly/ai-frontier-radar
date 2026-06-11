@@ -121,20 +121,51 @@ def analyze_dataset(db) -> dict:
         key=lambda x: -x[1]
     )[:10]
 
-    # Eligibility for InsightCard generation
-    # Must have: summary_status=generated, summary_basis=html_snapshot
-    eligible = 0
+    # Eligibility for InsightCard generation (V1.0-beta.16 Phase 4.3)
+    # Three categories:
+    # - already_compiled: compiled status OR has insight_card_id
+    # - metadata_compile_candidates: discovered, no card, has rich RSS/metadata text in raw_metadata_json
+    # - fulltext_compile_candidates: discovered, no card, has snapshot file (URL fetch fallback)
+    already_compiled = 0
+    metadata_compile = 0
+    fulltext_compile = 0
+
+    SNAPSHOT_MIN_CHARS = 120  # matches insight_compiler.SNAPSHOT_MIN_CHARS
+
     for item in all_items:
-        raw = item.raw_metadata_json
-        if not raw:
+        # Already compiled or has card
+        if item.status == "compiled" or item.insight_card_id:
+            already_compiled += 1
             continue
-        try:
-            meta = json.loads(raw)
-            if meta.get("summary_status") == "generated" and meta.get("summary_basis") == "html_snapshot":
-                eligible += 1
-        except Exception:
-            pass
-    stats["eligible_for_insight_card"] = eligible
+
+        # Only categorize discovered items without cards
+        if item.status != "discovered":
+            continue
+
+        # Check for snapshot file
+        has_snapshot = get_snapshot_path(item.id).exists()
+        if has_snapshot:
+            fulltext_compile += 1
+            continue
+
+        # Check for rich metadata text (RSS summary, description, etc.)
+        raw = item.raw_metadata_json
+        if raw:
+            try:
+                meta = json.loads(raw)
+                # Check any of the known metadata summary fields
+                for field in ("zh_summary", "summary_zh", "zh_one_liner",
+                               "summary", "rss_summary", "description",
+                              "detail_description", "content_snippet"):
+                    if meta.get(field) and len(str(meta[field])) >= SNAPSHOT_MIN_CHARS:
+                        metadata_compile += 1
+                        break
+            except Exception:
+                pass
+
+    stats["already_compiled_items"] = already_compiled
+    stats["metadata_compile_candidates"] = metadata_compile
+    stats["fulltext_compile_candidates"] = fulltext_compile
 
     # Time range
     first_seen_times = [i.first_seen_at for i in all_items if i.first_seen_at]
@@ -171,7 +202,12 @@ def format_report(stats: dict) -> str:
     lines.append(f"  with_summary:          {stats['with_summary']}")
     lines.append(f"  with_snapshot:          {stats['with_snapshot']}")
     lines.append(f"  with_insight_card:      {stats['with_insight_card']}")
-    lines.append(f"  eligible_for_insight:   {stats['eligible_for_insight_card']}")
+    lines.append("")
+    lines.append("## Compile Readiness (V1.0-beta.16 Phase 4.3)")
+    lines.append(f"  already_compiled_items:         {stats['already_compiled_items']}")
+    lines.append(f"  metadata_compile_candidates:     {stats['metadata_compile_candidates']}  (discovered + rich RSS/metadata text)")
+    lines.append(f"  fulltext_compile_candidates:   {stats['fulltext_compile_candidates']}  (discovered + snapshot file, needs URL fetch)")
+    lines.append("  Note: Most discovered items are metadata compile candidates — no URL fetch needed.")
     lines.append("")
 
     lines.append("## Status Breakdown")
@@ -335,14 +371,15 @@ def main() -> int:
 
         print(f"  Total SourceItems: {total}")
         print(f"  New items (24h): {new_24h} ({100*new_24h/max(total,1):.1f}%)")
-        print(f"  Already have InsightCard: {with_card}")
-        print(f"  Eligible for InsightCard generation: {eligible}")
+        print(f"  Already compiled/with card: {stats['already_compiled_items']}")
+        print(f"  Metadata compile candidates: {stats['metadata_compile_candidates']}")
+        print(f"  Fulltext compile candidates: {stats['fulltext_compile_candidates']}")
         print(f"  Items needing processing: {discovered}")
         print("")
-        if eligible == 0 and discovered > 0:
-            print("  ⚠ Most items are 'discovered' — need compile step before card generation")
-        if new_24h > 0 and eligible == 0:
-            print("  ℹ New items need: compile → summary → insight card pipeline")
+        if stats["metadata_compile_candidates"] > 0:
+            print(f"  ℹ {stats['metadata_compile_candidates']} items can use metadata compile (no URL fetch needed)")
+        if stats["fulltext_compile_candidates"] > 0:
+            print(f"  ℹ {stats['fulltext_compile_candidates']} items need URL fetch for fulltext compile")
         if with_card > 0:
             print(f"  ✓ {with_card} items already have InsightCards")
 

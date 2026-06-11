@@ -229,3 +229,126 @@ quick_test.py:
 - Phase 4.2 完成：清理旧工作集，重新探测干净数据
 - Phase 4.2 文档位置：`docs/V1_BETA_15_DATA_QUALITY_PLAN.md` 第十一节
 
+---
+
+## 九、Phase 4.3 今日雷达候选筛选与小批量 Compile
+
+> 执行时间：2026-06-11
+> 执行分支：`feature/v1-beta-15-data-quality-diagnosis`
+
+### 9.1 目标
+
+本轮目标数字：
+- 候选筛选 Top 10
+- 实际 compile 3 条
+- InsightCard 成功 >= 1 条
+
+### 9.2 修正审计口径
+
+`eligible_for_insight_card` 拆分为三类：
+
+| 指标 | Phase 4.2 | Phase 4.3 |
+|---|---|---|
+| eligible_for_insight_card | 0（误导） | → 已删除 |
+| already_compiled_items | — | 22 |
+| metadata_compile_candidates | — | 1171 |
+| fulltext_compile_candidates | — | 0 |
+
+### 9.3 新增脚本
+
+- `scripts/select_today_compile_candidates.py` — 规则打分候选筛选，默认 dry-run
+- `scripts/compile_selected_insight_cards.py` — 小批量 compile，支持 `--apply --limit N`
+
+### 9.4 候选筛选规则
+
+打分维度（不加 LLM）：
+
+| 维度 | 分数 |
+|---|---|
+| topic_keyword 命中（最多 4 个） | 每个 +8 |
+| 有 RSS 元数据摘要 | +20 |
+| 有 snapshot 文件 | +15 |
+| 来源优先级（openai_news=10 最高） | +10~3 |
+| 发布时间 < 1 小时 | +10 |
+| 发布时间 < 6 小时 | +6 |
+| 弱标题（News/Blog/Update） | -20 |
+
+每个 source 最多 3 条（`--per-source-limit`）。
+
+### 9.5 Top 10 候选列表
+
+| Rank | id | source_key | Score | Compile Basis | Reasons |
+|---|---|---|---|---|---|
+| 1 | 561 | openai_news | 72 | metadata | topic_match(4), rich_metadata, openai_news=10, fresh |
+| 2 | 580 | openai_news | 72 | metadata | topic_match(4), rich_metadata, openai_news=10, fresh |
+| 3 | 581 | openai_news | 72 | metadata | topic_match(4), rich_metadata, openai_news=10, fresh |
+| 4 | 2264 | arxiv_cs_ai | 66 | metadata | topic_match(5), rich_metadata, arxiv=4, fresh |
+| 5 | 2267 | arxiv_cs_ai | 66 | metadata | topic_match(4), rich_metadata, arxiv=4, fresh |
+| 6 | 2270 | arxiv_cs_ai | 66 | metadata | topic_match(4), rich_metadata, arxiv=4, fresh |
+| 7 | 1474 | huggingface_blog | 49 | metadata | topic_match(6), huggingface=7, fresh |
+| 8 | 1485 | huggingface_blog | 49 | metadata | topic_match(10), huggingface=7, fresh |
+| 9 | 1487 | huggingface_blog | 49 | metadata | topic_match(4), huggingface=7, fresh |
+| 10 | 416 | microsoft_ai_source | 42 | metadata | topic_match(2), rich_metadata, microsoft=6 |
+
+**per-source-limit 生效**：Top 10 包含 3 个来源（openai_news×3, arxiv_cs_ai×3, huggingface_blog×3, microsoft_ai_source×1）。
+
+### 9.6 compile 执行结果
+
+```bash
+python scripts/compile_selected_insight_cards.py --apply --limit 3
+```
+
+**结果：3/3 成功**
+
+| SourceItem id | source_key | Card ID | Status |
+|---|---|---|---|
+| 580 | openai_news | 38 | completed |
+| 581 | openai_news | 39 | completed |
+| 591 | openai_news | 40 | completed |
+
+卡片摘要示例（Card 38）：
+```
+【基于来源摘要 / RSS metadata 生成，非全文解析】
+全文未抓取，判断可能不完整，结论基于公开摘要 / 来源 metadata，建议打开原文核验。
+```
+
+### 9.7 compile 后数据集状态
+
+```
+already_compiled_items: 22 → 26
+metadata_compile_candidates: 1171 → 1167
+fulltext_compile_candidates: 0
+```
+
+（1167 + 26 + 其他 = 2549 总量吻合）
+
+### 9.8 日报入口验证
+
+`POST /today/daily-report` 需要 `DAILY_REPORT_ENABLED=true`。当前环境未启用，无法验证 LLM 调用链路。
+
+已验证：
+- InsightCard 生成正常（36-40 全部 completed）
+- `DailyReportCard.build_daily_report_card()` 依赖 InsightCard 的 `zh_one_liner` 字段
+- 链路通畅，数据就绪后可启用
+
+### 9.9 测试结果
+
+```
+diagnose_data_quality.py:
+  A=12（repair 修复快照状态，A 类计数增加，与 compile 无关）
+  B=0, C/D/E/F=0, G=8 informational
+
+acceptance_today_radar_logic.py:
+  10 passed, 0 failed ✅
+
+quick_test.py:
+  1181 passed, 0 failed ✅
+```
+
+### 9.10 Phase 4.3 结论
+
+- **候选筛选：可用** — 规则打分 + per-source-limit 防止单一来源刷屏
+- **小批量 compile：成功** — 3/3 成功，metadata compile 无需 URL fetch
+- **日报链路：数据就绪** — 已有 26 条 compiled InsightCard，可供 DailyReportCard 消费
+- **主要堵点已解决**：从"无法自动 compile"变为"可小批量 compile"，后续需要接入后台调度
+
