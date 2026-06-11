@@ -20,11 +20,12 @@ from datetime import datetime
 from sqlalchemy import or_
 
 from app.models import Source, SourceItem
-from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.daily_scope import recent_valid_items_query, SUMMARY_MARKERS
 from app.application.radar.settings import get_daily_scope_settings
 
-# Markers that indicate a SourceItem already carries a (Chinese) summary.
-_SUMMARY_MARKERS = ('"zh_one_liner"', '"summary_zh"', '"auto_summary"')
+# Single source of truth for summary markers lives in daily_scope (was a local
+# 3-element tuple here that missed "zh_summary" and undercounted summaries).
+_SUMMARY_MARKERS = SUMMARY_MARKERS
 
 # Cap on how many top items to surface in the digest.
 _TOP_ITEMS_LIMIT = 5

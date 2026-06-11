@@ -25,11 +25,12 @@ from typing import Any, Protocol
 from sqlalchemy import or_
 
 from app.models import SourceItem
-from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.daily_scope import recent_valid_items_query, SUMMARY_MARKERS
 from app.application.radar.settings import get_daily_scope_settings
 
-# Markers that indicate a SourceItem already carries a (Chinese) summary.
-_SUMMARY_MARKERS = ('"zh_one_liner"', '"zh_summary"', '"summary_zh"', '"auto_summary"')
+# Summary markers live in daily_scope (single source of truth, shared with the
+# digest so their "已有中文摘要" counts cannot drift apart).
+_SUMMARY_MARKERS = SUMMARY_MARKERS
 
 DAILY_REPORT_SYSTEM_PROMPT = """\
 你是 AI 前沿信息每日编译助手。你会收到"今天"已生成的一组中文一句话摘要条目。

@@ -8,6 +8,11 @@ from app.models import Source, SourceItem
 
 DEFAULT_DAILY_HOURS = 24
 
+# Canonical raw_metadata_json substrings that mark a SourceItem as already
+# carrying a (Chinese) summary. Single source of truth — imported by the digest
+# and the daily report so their "已有中文摘要" counts can never drift apart.
+SUMMARY_MARKERS = ('"zh_one_liner"', '"zh_summary"', '"summary_zh"', '"auto_summary"')
+
 
 def recent_valid_items_query(
     db,

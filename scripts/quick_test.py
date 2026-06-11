@@ -7640,6 +7640,21 @@ def main():
     except Exception as e:
         check("daily briefing checks", False, str(e))
 
+    # ── 52. Summary markers single source of truth (C4 bug fix) ──────────────
+    print("\n[52] summary markers single source of truth")
+    try:
+        from app.application.radar.daily_scope import SUMMARY_MARKERS as _canon_markers
+        from app.application.radar.daily_digest import _SUMMARY_MARKERS as _dg_markers
+        from app.application.radar.daily_report import _SUMMARY_MARKERS as _dr_markers
+        check("canonical summary markers include zh_summary",
+              '"zh_summary"' in _canon_markers and '"zh_one_liner"' in _canon_markers,
+              "canonical markers must include zh_summary (was missing in digest)")
+        check("digest and report share the canonical markers",
+              _dg_markers is _canon_markers and _dr_markers is _canon_markers,
+              "digest/report must reuse daily_scope.SUMMARY_MARKERS, not local copies")
+    except Exception as e:
+        check("summary markers single source checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
