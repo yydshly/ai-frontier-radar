@@ -299,6 +299,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="把 SourceItem 状态（status / insight_card_id / raw_metadata_json 多键）收敛为单一只读状态层的分阶段设计。",
     ),
+    "relevance-unification": DocEntry(
+        key="relevance-unification",
+        title="相关性统一设计（C1）",
+        path="docs/V1_RELEVANCE_UNIFICATION_DESIGN.md",
+        category="优化路线",
+        description="统一分类/报告排序/推荐三处的来源权重与主题词表，分阶段并对会改行为的步骤先出 diff 再实施。",
+    ),
 }
 
 
