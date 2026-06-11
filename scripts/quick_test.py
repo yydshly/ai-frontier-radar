@@ -2322,6 +2322,42 @@ def main():
     except Exception as e:
         check("V1 beta docs and scripts checks", False, str(e))
 
+    # ── 16f2. V1.0-beta.24 Environment Config & Next Plan ─────────────────────
+    print("\n[16f2] V1.0-beta.24 Environment Config & Next Plan")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        env_example = (project_root / ".env.example").read_text(encoding="utf-8")
+
+        check(".env.example contains ONE_LINER_MAX_PER_RUN=20",
+              "ONE_LINER_MAX_PER_RUN=20" in env_example,
+              "ONE_LINER_MAX_PER_RUN should be 20 to match code default")
+        check(".env.example contains DAILY_REPORT_ENABLED=false",
+              "DAILY_REPORT_ENABLED=false" in env_example,
+              "DAILY_REPORT_ENABLED should default to false for safety")
+        check(".env.example contains DAILY_REPORT_MAX_ITEMS=12",
+              "DAILY_REPORT_MAX_ITEMS=12" in env_example,
+              "DAILY_REPORT_MAX_ITEMS should be 12")
+        check(".env.example contains DAILY_BROADCAST_TTS_ENABLED=false",
+              "DAILY_BROADCAST_TTS_ENABLED=false" in env_example,
+              "TTS should default to false")
+        check(".env.example contains LLM_SUMMARY_ENABLED=false",
+              "LLM_SUMMARY_ENABLED=false" in env_example,
+              "LLM_SUMMARY_ENABLED should default to false for safety")
+        check("docs/ENV_CONFIGURATION.md exists",
+              (project_root / "docs/ENV_CONFIGURATION.md").exists(),
+              "ENV_CONFIGURATION.md should exist")
+        check("scripts/check_env_config.py exists",
+              (project_root / "scripts/check_env_config.py").exists(),
+              "check_env_config.py should exist")
+        check("docs/V1_BETA_NEXT_OPTIMIZATION_PLAN.md exists",
+              (project_root / "docs/V1_BETA_NEXT_OPTIMIZATION_PLAN.md").exists(),
+              "NEXT_OPTIMIZATION_PLAN.md should exist")
+        check("scripts/acceptance_v1_beta_first_usable_loop.py exists",
+              (project_root / "scripts/acceptance_v1_beta_first_usable_loop.py").exists(),
+              "acceptance_v1_beta_first_usable_loop.py should exist")
+    except Exception as e:
+        check("V1.0-beta.24 env config checks", False, str(e))
+
     # ── 16f. Today Radar: summary generation per-item diagnostics ───────────────
     print("\n[16f] Today Radar summary generation diagnostics")
     try:
