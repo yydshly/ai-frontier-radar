@@ -22,7 +22,7 @@ from typing import Any
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
-from app.models import FetchRun, InsightCard, SourceItem
+from app.models import FetchRun, InsightCard, Source, SourceItem
 from app.application.candidates.display import (
     CandidateDisplayCard,
     build_candidate_display_card,
@@ -578,11 +578,17 @@ class RadarTodayService:
         cutoff = datetime.utcnow() - timedelta(hours=hours)
         items = (
             self.db.query(SourceItem)
+            .join(Source, Source.id == SourceItem.source_id)
             .filter(
                 or_(
                     SourceItem.first_seen_at >= cutoff,
                     SourceItem.last_seen_at >= cutoff,
-                )
+                ),
+                Source.enabled.is_(True),
+                SourceItem.url.isnot(None),
+                SourceItem.url != "",
+                SourceItem.title.isnot(None),
+                SourceItem.title != "",
             )
             .order_by(order)
             .limit(limit)
@@ -595,6 +601,14 @@ class RadarTodayService:
             fallback_used = True
             items = (
                 self.db.query(SourceItem)
+                .join(Source, Source.id == SourceItem.source_id)
+                .filter(
+                    Source.enabled.is_(True),
+                    SourceItem.url.isnot(None),
+                    SourceItem.url != "",
+                    SourceItem.title.isnot(None),
+                    SourceItem.title != "",
+                )
                 .order_by(order)
                 .limit(limit)
                 .all()

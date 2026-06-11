@@ -209,27 +209,23 @@ def run_tests() -> list[TestResult]:
             ))
 
         # ── Test 2: item without URL ─────────────────────────────────────────
-        # Currently today radar does NOT filter by url emptiness
         item2 = add_source_item(
             session, id=2, source_id=1, source_key="test_enabled",
             url="", title="Item Without URL",
             hours_ago=1,
         )
         ids = get_today_item_ids(session)
-        # This is a risk_point — the current code does NOT filter empty-url items
         if item2.id in ids:
             results.append(TestResult(
-                "item without url does NOT appear (guard not implemented)",
-                SKIP,
-                "Current RadarTodayService does NOT filter by url emptiness. "
-                "Items with url='' appear in today radar. "
-                "Recommended minimal guard: filter SourceItem.url != '' and != None."
+                "item without url does NOT appear",
+                FAIL,
+                f"item id={item2.id} was included — url='' should be filtered by guard."
             ))
         else:
             results.append(TestResult(
                 "item without url does NOT appear",
                 PASS,
-                f"item id={item2.id} was correctly excluded"
+                f"item id={item2.id} was correctly excluded by url guard"
             ))
 
         # ── Test 3: item without title ─────────────────────────────────────
@@ -239,24 +235,20 @@ def run_tests() -> list[TestResult]:
             hours_ago=1,
         )
         ids = get_today_item_ids(session)
-        # Current code does NOT filter by title emptiness
         if item3.id in ids:
             results.append(TestResult(
-                "item without title does NOT appear (guard not implemented)",
-                SKIP,
-                "Current RadarTodayService does NOT filter by title emptiness. "
-                "Items with title='' appear in today radar. "
-                "Recommended minimal guard: filter SourceItem.title != '' and != None."
+                "item without title does NOT appear",
+                FAIL,
+                f"item id={item3.id} was included — title='' should be filtered by guard."
             ))
         else:
             results.append(TestResult(
                 "item without title does NOT appear",
                 PASS,
-                f"item id={item3.id} was correctly excluded"
+                f"item id={item3.id} was correctly excluded by title guard"
             ))
 
         # ── Test 4: item from disabled source ───────────────────────────────
-        # Current code does NOT filter by Source.enabled
         item4 = add_source_item(
             session, id=4, source_id=2, source_key="test_disabled",
             url="https://example.com/disabled-source", title="Disabled Source Article",
@@ -265,21 +257,18 @@ def run_tests() -> list[TestResult]:
         ids = get_today_item_ids(session)
         if item4.id in ids:
             results.append(TestResult(
-                "item from disabled source does NOT appear (guard not implemented)",
-                SKIP,
-                "Current RadarTodayService does NOT filter by Source.enabled. "
-                "Items from disabled sources appear in today radar. "
-                "Recommended minimal guard: join Source and filter Source.enabled == True."
+                "item from disabled source does NOT appear",
+                FAIL,
+                f"item id={item4.id} was included — disabled source should be filtered by guard."
             ))
         else:
             results.append(TestResult(
                 "item from disabled source does NOT appear",
                 PASS,
-                f"item id={item4.id} was correctly excluded"
+                f"item id={item4.id} was correctly excluded by enabled-source guard"
             ))
 
         # ── Test 5: item with non-existent source_id ───────────────────────
-        # Current code does NOT validate source_id FK
         item5 = add_source_item(
             session, id=5, source_id=999, source_key="nonexistent_source",
             url="https://example.com/orphan", title="Orphan Article",
@@ -288,17 +277,15 @@ def run_tests() -> list[TestResult]:
         ids = get_today_item_ids(session)
         if item5.id in ids:
             results.append(TestResult(
-                "item with non-existent source_id does NOT appear (guard not implemented)",
-                SKIP,
-                "Current RadarTodayService does NOT validate SourceItem.source_id FK. "
-                "Orphan SourceItems (source_id=999) appear in today radar. "
-                "Recommended minimal guard: join Source and filter Source.id == SourceItem.source_id."
+                "item with non-existent source_id does NOT appear",
+                FAIL,
+                f"item id={item5.id} was included — orphan source_id should be filtered by join."
             ))
         else:
             results.append(TestResult(
                 "item with non-existent source_id does NOT appear",
                 PASS,
-                f"item id={item5.id} was correctly excluded"
+                f"item id={item5.id} was correctly excluded by Source join guard"
             ))
 
         # ── Test 6: item outside today window ───────────────────────────────

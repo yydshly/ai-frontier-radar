@@ -198,19 +198,18 @@ order = desc(func.coalesce(
 4. 无 FK 验证：孤立 SourceItem（source_id 无对应 Source）会被读取
 
 #### risk_points（风险点）
-1. **disabled source 泄漏**：来自已禁用来源的 SourceItem 出现在雷达中
-2. **无 URL 项泄漏**：url='' 的 SourceItem 出现在雷达中（无法点击）
-3. **无标题项泄漏**：title='' 的 SourceItem 出现在雷达中（卡片显示为空）
-4. **孤立 source_id 泄漏**：source_id 引用不存在的 Source 的 SourceItem 出现在雷达中
-5. **snapshot 缺失数据泄漏**：A/B 类问题的数据出现，显示为空内容
-6. **重复 URL 泄漏**：F 类问题的重复 URL 都出现
+1. **disabled source 泄漏**：来自已禁用来源的 SourceItem 出现在雷达中 → **已修复（Phase 3）**
+2. **无 URL 项泄漏**：url='' 的 SourceItem 出现在雷达中（无法点击） → **已修复（Phase 3）**
+3. **无标题项泄漏**：title='' 的 SourceItem 出现在雷达中（卡片显示为空） → **已修复（Phase 3）**
+4. **孤立 source_id 泄漏**：source_id 引用不存在的 Source 的 SourceItem 出现在雷达中 → **已修复（Phase 3）**
+5. **snapshot 缺失数据泄漏**：A/B 类问题的数据出现，显示为空内容（后续 Phase 处理）
+6. **重复 URL 泄漏**：F 类问题的重复 URL 都出现（后续 Phase 处理）
 
 #### recommended_minimal_guards（推荐最小 guard）
 
-以下 guard 只需在 `build_today_view` 的 SourceItem 查询中增加 JOIN 和过滤条件，**不改变卡片生成或推荐算法**：
+以下 guard 已于 Phase 3 在 `RadarTodayService.build_today_view` 中实现：
 
 ```python
-# 在 RadarTodayService.build_today_view 的查询中增加（最小侵入）：
 items = (
     self.db.query(SourceItem)
     .join(Source, Source.id == SourceItem.source_id)  # 确保 source 存在
@@ -219,24 +218,23 @@ items = (
             SourceItem.first_seen_at >= cutoff,
             SourceItem.last_seen_at >= cutoff,
         ),
-        Source.enabled == True,           # guard: 过滤 disabled source
-        SourceItem.url != "",             # guard: 过滤空 URL
-        SourceItem.url.isnot(None),       # guard: 过滤 NULL URL
-        SourceItem.title != "",           # guard: 过滤空标题
-        SourceItem.title.isnot(None),    # guard: 过滤 NULL 标题
+        Source.enabled.is_(True),       # guard: 过滤 disabled source
+        SourceItem.url.isnot(None),     # guard: 过滤 NULL URL
+        SourceItem.url != "",           # guard: 过滤空 URL
+        SourceItem.title.isnot(None),  # guard: 过滤 NULL 标题
+        SourceItem.title != "",         # guard: 过滤空标题
     )
     ...
 )
 ```
 
 #### not_fixed_yet（本次未修复）
-1. A/B 类 snapshot 缺失数据——需 Phase 3 重建 snapshot 或降级处理
-2. F 类重复 URL——需 Phase 4 人工 dedup
-3. disabled source 过滤——需后续 sprint 小 guard 修复（不影响主链路）
+1. A/B 类 snapshot 缺失数据——需 Phase 4 重建 snapshot 或降级处理
+2. F 类重复 URL——需 Phase 5 人工 dedup
 
 ---
 
-## 七、本阶段检查清单
+## 七、Phase 3 检查清单
 
 - [x] A-G 七类诊断已实现
 - [x] 诊断脚本只读，不写 DB
@@ -246,3 +244,12 @@ items = (
 - [x] 文档已记录本阶段范围
 - [x] `scripts/cleanup_polluted_data.py` dry-run 输出正确
 - [x] `scripts/acceptance_today_radar_logic.py` 覆盖关键场景
+
+### Phase 3 新增（数据 guard 修复）
+
+- [x] `app/application/radar/today.py` 新增 Source join + enabled/url/title guard
+- [x] `scripts/acceptance_today_radar_logic.py` 4 个 SKIP → PASS
+- [x] 今日雷达入口过滤：disabled source、url 空值、title 空值、孤立 source_id
+- [x] 不改变时间窗口、排序策略、InsightCard 展示逻辑
+- [x] 本轮只增加 guard，不删除历史数据
+
