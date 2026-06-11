@@ -333,6 +333,56 @@
 
 ---
 
+## V1.0-beta.13：信息来源页与来源工作台体验修复 + 来源接入治理（进行中）
+
+> 分支：`feature/v1-beta-13-source-experience-polish`
+
+### V1.0-beta.13 目标
+
+两个子目标：
+1. **体验修复**：优化信息来源入口，让用户能清楚理解每个来源的探测方式、当前状态、失败原因
+2. **接入治理**：审计 15 个精选来源的 RSS/HTML 接入质量，确立 RSS 优先策略
+
+### V1.0-beta.13 完成项
+
+**体验修复：**
+- ✅ 来源卡片去掉重复标签，统一展示 `effective_strategy_label`
+- ✅ `effective_strategy_label` 规则：feed_url 存在时优先显示"RSS 订阅"
+- ✅ 来源卡片按钮简化：主按钮"进入工作台"+"运行探测"，其余入"技术详情"折叠
+- ✅ `_humanize_fetch_error()` 将原始错误映射为可读中文（超时/404/解析失败等）
+- ✅ 来源工作台显示"推荐探测方式"vs"实际探测方式"
+- ✅ 来源工作台探测记录显示可读错误原因
+- ✅ 来源工作台区分"成功0新增"与"失败"
+- ✅ 侧边栏"精选来源"默认显示5个
+
+**接入治理：**
+- ✅ `scripts/audit_sources_onboarding.py` — 审计 15 个精选来源的接入质量（dry-run，默认不写配置）
+- ✅ `scripts/probe_feed_url.py` — 探测单个 RSS/Atom URL 的可用性
+- ✅ `scripts/diagnose_data_quality.py` — 诊断数据质量问题（快照缺失/摘要失败/重复 URL 等）
+- ✅ 来源卡片展示 `needs_review` 标签（无 RSS 的 HTML index 来源）
+- ✅ 来源卡片展示 `recommended_strategy` 字段
+- ✅ 来源工作台展示"推荐策略"/"当前策略"/"最近失败原因"
+- ✅ 来源工作台展示"建议动作"（缺少 feed_url/HTML 失败/无新增 等情况）
+- ✅ 来源工作台展示 homepage_url 和 feed_url
+- ✅ `docs/V1_BETA_13_SOURCE_ONBOARDING_AUDIT_PLAN.md` — 来源接入治理与 RSS 优先审计完整文档
+
+### V1.0-beta.13 暂不改
+
+- ❌ ViewModel 重构
+- ❌ DB schema 变更
+- ❌ TTS / PDF
+- ❌ 新增来源抓取算法
+- ❌ 批量摘要 / 批量 InsightCard
+
+### 后续接入方向
+
+- ViewModel 封装（beta13 稳定后可做）
+- 来源健康度趋势图
+- RSS feed 验证自动化
+- TTS 音频播报
+
+---
+
 ## 验收标准
 
 - README 准确反映当前能力
