@@ -181,12 +181,23 @@ Source（YAML 配置 + DB 持久化）
 
 **目标：** 候选推荐从"能用"到"好用"
 
-可选项（不阻塞主链路）：
-- 补充摘要预览（候选区显示 zh_one_liner 预览）
-- 折叠行为默认关闭（已实现 `<details>`）
-- 候选点击后 panel 联动（已实现）
+已完成：
+- 折叠行为 `<details>`（已实现）
+- 候选点击后 panel 联动（已实现，Phase 4.4）
+- 候选区摘要预览（已实现，Phase B）
+- 性能保护：`section=all && page=1` 时才计算（Phase 4.4 fix）
 
-### Phase B：小批量 compile 操作收口
+### Phase B：中文摘要补全链路
+
+**目标：** 让 `CandidateOneLinerService` 真正写入 `zh_one_liner + zh_summary`，今日雷达优先展示中文可读信息。
+
+已完成（V1.0-beta.16 Phase B）：
+- `_write_result()` 现在写入 `zh_summary` 到 `raw_metadata_json`
+- `should_generate()` 同时检查 `zh_one_liner` 和 `zh_summary`
+- 候选区增加 `summary_preview`（zh_summary > zh_one_liner > 来源摘要）
+- `audit_today_radar_dataset.py` 新统计：`with_zh_one_liner / with_zh_summary / with_metadata_summary / missing_all_summary`
+
+### Phase C：小批量 compile 操作收口
 
 **目标：** 稳定支持手动 / cron 触发 compile
 
@@ -195,7 +206,7 @@ Source（YAML 配置 + DB 持久化）
 - 支持 cron 定时触发（通过 `--apply` flag）
 - **不做**：复杂后台队列、优先级调度、大规模批量 compile
 
-### Phase C：日报 dry-run 验证
+### Phase D：日报 dry-run 验证
 
 **目标：** 确认 DailyReportCard 能正常消费现有 InsightCard
 
@@ -204,7 +215,7 @@ Source（YAML 配置 + DB 持久化）
 - 输出将进入日报的卡片列表，确认内容质量
 - **不做**：强制启用 LLM 调用、自动发送
 
-### Phase D：每日新增语义增强
+### Phase E：每日新增语义增强
 
 **目标：** 区分"首次发现"vs"真实发布时间"vs"每日新增"
 
@@ -213,14 +224,14 @@ Source（YAML 配置 + DB 持久化）
 - **不急着改 schema**：不新增字段，不引入向量库
 - 后续有需要再扩展
 
-### Phase E：真实 TTS / 播报
+### Phase F：真实 TTS / 播报
 
 **目标：** 等日报链路稳定后再接入
 
 - 当前 TTS 为 stub，不阻塞任何主链路
 - 等 `DAILY_REPORT_ENABLED` 稳定 + `DailyReportCard` 内容质量确认后
 - 再接入真实 TTS provider
-- **不做**：在 Phase A-D 未稳定前接入 TTS
+- **不做**：在 Phase A-E 未稳定前接入 TTS
 
 ---
 

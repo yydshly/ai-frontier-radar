@@ -5185,19 +5185,19 @@ def main():
               "generate_for_items must accept force parameter")
 
         # Default-no-overwrite guard in should_generate
-        # Rule: force=False + has zh_one_liner → always skip (fill_missing_summary cannot bypass)
-        check("one_liner.py has 'not force and has_one_liner' guard",
-              "not force and has_one_liner" in one_liner_py,
-              "should_generate must guard: not force and has_one_liner")
-        # Old guard that allowed fill_missing_summary to bypass must be gone
-        check("one_liner.py does NOT use has_summary in force bypass guard",
-              "(has_summary or not fill_missing_summary)" not in one_liner_py,
-              "old guard using has_summary to bypass force must be removed")
+        # Rule (Phase B): force=False + has zh_one_liner → skip (fill_missing_summary only bypasses when zh_summary also missing)
+        check("one_liner.py has 'not force' guard",
+              "if not force:" in one_liner_py,
+              "should_generate must guard: if not force:")
+        # Phase B behavior: fill_missing_summary can bypass only when BOTH zh_one_liner AND zh_summary exist
+        check("one_liner.py uses has_summary in guard",
+              "has_summary" in one_liner_py,
+              "should_generate must check has_summary for fill_missing_summary bypass")
 
-        # _write_result does NOT write zh_summary (that is a separate service's field)
-        check("one_liner.py _write_result does NOT write zh_summary",
-              'raw["zh_summary"]' not in one_liner_py,
-              "_write_result must not write zh_summary — belongs to a separate service")
+        # Phase B: _write_result now writes zh_summary (persist both one-liner and detailed summary)
+        check("one_liner.py _write_result writes zh_summary",
+              'raw["zh_summary"]' in one_liner_py,
+              "_write_result must write zh_summary — Phase B Chinese summary persistence")
 
         # CandidateOneLinerService does not touch L0 source fields
         check("one_liner.py does not clear description",

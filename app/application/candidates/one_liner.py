@@ -244,13 +244,15 @@ class CandidateOneLinerService:
     ) -> bool:
         raw = _parse_metadata(item.raw_metadata_json)
         has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
+        has_summary = bool(str(raw.get("zh_summary") or "").strip())
 
-        # fill_missing_summary is kept for backward compatibility.
-        # This service no longer writes zh_summary (only zh_one_liner), so it must
-        # not bypass the non-force zh_one_liner overwrite guard.
-        # Rule: force=False + existing non-empty zh_one_liner = always skip.
-        if not force and has_one_liner:
-            return False
+        if not force:
+            # When fill_missing_summary=True: skip if both zh_one_liner AND zh_summary exist
+            if fill_missing_summary and has_one_liner and has_summary:
+                return False
+            # When fill_missing_summary=False: skip if zh_one_liner exists
+            if not fill_missing_summary and has_one_liner:
+                return False
 
         if item.status not in ELIGIBLE_STATUSES:
             return False
@@ -282,16 +284,17 @@ class CandidateOneLinerService:
             )
 
         if self.provider is None:
-            return self._write_result(item, "failed", None, "provider unavailable")
+            return self._write_result(item, "failed", None, "provider unavailable", summary=None, summary_status="skipped")
 
         payload = self._build_input(item)
         try:
             result = self.provider.generate(payload)
             if not result.one_liner.strip():
-                return self._write_result(item, "failed", None, "empty provider response")
-            return self._write_result(item, "success", result.one_liner, None)
+                return self._write_result(item, "failed", None, "empty provider response", summary=None, summary_status="failed")
+            summary_status = "success" if result.summary else "skipped"
+            return self._write_result(item, "success", result.one_liner, None, summary=result.summary, summary_status=summary_status)
         except Exception as exc:
-            return self._write_result(item, "failed", None, str(exc))
+            return self._write_result(item, "failed", None, str(exc), summary=None, summary_status="failed")
 
     def generate_for_items(
         self,
@@ -346,8 +349,12 @@ class CandidateOneLinerService:
         status: str,
         text: str | None,
         error: str | None,
+        summary: str | None = None,
+        summary_status: str | None = None,
     ) -> OneLinerResult:
         raw = _parse_metadata(item.raw_metadata_json)
+
+        # zh_one_liner: don't overwrite existing non-empty unless force (handled at call site)
         raw["zh_one_liner_status"] = status
         raw["zh_one_liner_model"] = self._model_name()
         raw["zh_one_liner_generated_at"] = datetime.utcnow().isoformat()
@@ -356,6 +363,24 @@ class CandidateOneLinerService:
             raw.pop("zh_one_liner_error", None)
         if error:
             raw["zh_one_liner_error"] = error
+
+        # zh_summary: write if provided; track status
+        if summary is not None:
+            raw["zh_summary"] = summary
+            raw.pop("zh_summary_error", None)
+        if summary_status is not None:
+            raw["zh_summary_status"] = summary_status
+            raw["zh_summary_model"] = self._model_name()
+            raw["zh_summary_generated_at"] = datetime.utcnow().isoformat()
+        elif summary is not None:
+            # Summary was written without explicit status → assume success
+            raw["zh_summary_status"] = "success"
+            raw["zh_summary_model"] = self._model_name()
+            raw["zh_summary_generated_at"] = datetime.utcnow().isoformat()
+        if error and summary is None:
+            raw["zh_summary_status"] = "failed"
+            raw["zh_summary_error"] = error
+
         item.raw_metadata_json = _dump_metadata(raw)
         item.updated_at = datetime.utcnow()
         self.db.add(item)

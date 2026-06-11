@@ -82,6 +82,7 @@ class CompileCandidate:
     compile_basis: str  # "metadata" | "fulltext"
     published_at: str | None
     first_seen_at: str | None
+    summary_preview: str | None = None  # zh_one_liner or zh_summary preview (max 120 chars)
 
 
 # ── Candidate selection logic ─────────────────────────────────────────────────
@@ -214,12 +215,16 @@ def select_compile_candidates(
             score -= 20
             reasons.append("weak_title")
 
+        # Build summary_preview: zh_summary > zh_one_liner > zh_summary from metadata > first 80 chars of source summary
+        summary_preview = _build_summary_preview(meta)
+
         item_dict = {
             "item": item,
             "score": score,
             "reasons": reasons,
             "compile_basis": compile_basis,
             "rich_text": rich_text,
+            "summary_preview": summary_preview,
         }
         scored.append((score, item_dict))
 
@@ -246,6 +251,7 @@ def select_compile_candidates(
             compile_basis=item_dict["compile_basis"],
             published_at=str(item.published_at) if item.published_at else None,
             first_seen_at=item.first_seen_at.isoformat() if item.first_seen_at else None,
+            summary_preview=item_dict["summary_preview"],
         ))
 
         if len(results) >= limit:
@@ -261,3 +267,38 @@ def _is_weak_title(title: str | None) -> bool:
     if len(t) < 5:
         return True
     return t in _WEAK_TITLES
+
+
+_METADATA_SUMMARY_KEYS = (
+    "zh_summary", "summary_zh", "zh_one_liner",
+    "summary", "rss_summary", "description",
+    "detail_description", "content_snippet",
+)
+
+
+def _build_summary_preview(meta: dict[str, Any] | None) -> str | None:
+    """Build a short Chinese summary preview for compile candidates.
+
+    Priority: zh_summary > zh_one_liner > first available metadata summary.
+    Returns up to 120 chars, or None if nothing is available.
+    """
+    if not meta:
+        return None
+    # Try zh_summary first
+    for key in ("zh_summary", "summary_zh"):
+        val = meta.get(key)
+        if isinstance(val, str) and val.strip():
+            text = " ".join(val.strip().split())
+            return text[:120] if len(text) > 120 else text
+    # Try zh_one_liner
+    val = meta.get("zh_one_liner")
+    if isinstance(val, str) and val.strip():
+        text = " ".join(val.strip().split())
+        return text[:120] if len(text) > 120 else text
+    # Fallback: first available metadata summary
+    for key in ("summary", "rss_summary", "description", "detail_description", "content_snippet"):
+        val = meta.get(key)
+        if isinstance(val, str) and val.strip() and len(val) >= 30:
+            text = " ".join(val.strip().split())
+            return text[:120] if len(text) > 120 else text
+    return None

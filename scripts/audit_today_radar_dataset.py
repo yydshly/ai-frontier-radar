@@ -39,6 +39,8 @@ def analyze_dataset(db) -> dict:
     by_source: dict[str, dict] = defaultdict(lambda: {
         "total": 0, "new_24h": 0, "new_48h": 0,
         "with_title": 0, "with_url": 0,
+        "with_zh_one_liner": 0, "with_zh_summary": 0,
+        "with_metadata_summary": 0, "missing_all_summary": 0,
         "with_summary": 0, "with_snapshot": 0, "with_card": 0,
         "discovered": 0, "compiled": 0, "fetched": 0, "other_status": 0,
     })
@@ -62,11 +64,22 @@ def analyze_dataset(db) -> dict:
 
         # Parse raw_metadata
         raw = item.raw_metadata_json
-        has_summary = False
+        has_zh_one_liner = False
+        has_zh_summary = False
+        has_metadata_summary = False  # English source summary
         if raw:
             try:
                 meta = json.loads(raw)
-                has_summary = bool(meta.get("zh_summary") or meta.get("summary_zh"))
+                has_zh_one_liner = bool(meta.get("zh_one_liner") and str(meta.get("zh_one_liner")).strip())
+                has_zh_summary = bool(meta.get("zh_summary") and str(meta.get("zh_summary")).strip())
+                # English source summary: any of the L0 fields that are non-empty and not Chinese
+                _src_keys = ("detail_description", "summary", "description", "excerpt",
+                             "content_snippet", "og_description", "meta_description",
+                             "rss_summary", "rss_description")
+                has_metadata_summary = any(
+                    meta.get(k) and len(str(meta.get(k)).strip()) >= 30
+                    for k in _src_keys
+                )
                 summary_status = meta.get("summary_status")
                 summary_basis = meta.get("summary_basis")
                 insight_status = meta.get("insight_status")
@@ -79,6 +92,16 @@ def analyze_dataset(db) -> dict:
             summary_basis = None
             insight_status = None
 
+        if has_zh_one_liner:
+            by_source[s]["with_zh_one_liner"] += 1
+        if has_zh_summary:
+            by_source[s]["with_zh_summary"] += 1
+        if has_metadata_summary:
+            by_source[s]["with_metadata_summary"] += 1
+        if not has_zh_one_liner and not has_zh_summary and not has_metadata_summary:
+            by_source[s]["missing_all_summary"] += 1
+
+        has_summary = has_zh_one_liner or has_zh_summary or has_metadata_summary
         if has_summary:
             by_source[s]["with_summary"] += 1
 
@@ -100,13 +123,50 @@ def analyze_dataset(db) -> dict:
             by_source[s]["other_status"] += 1
 
     # Overall stats
+    # Compute per-item summary stats for overall counts
+    overall_zh_one_liner = 0
+    overall_zh_summary = 0
+    overall_metadata_summary = 0
+    overall_missing_all = 0
+    _src_keys = ("detail_description", "summary", "description", "excerpt",
+                 "content_snippet", "og_description", "meta_description",
+                 "rss_summary", "rss_description")
+    for i in all_items:
+        raw = i.raw_metadata_json
+        h_zh_ol = False
+        h_zh_sum = False
+        h_meta = False
+        if raw:
+            try:
+                meta = json.loads(raw)
+                h_zh_ol = bool(meta.get("zh_one_liner") and str(meta.get("zh_one_liner")).strip())
+                h_zh_sum = bool(meta.get("zh_summary") and str(meta.get("zh_summary")).strip())
+                h_meta = any(
+                    meta.get(k) and len(str(meta.get(k)).strip()) >= 30
+                    for k in _src_keys
+                )
+            except Exception:
+                pass
+        if h_zh_ol:
+            overall_zh_one_liner += 1
+        if h_zh_sum:
+            overall_zh_summary += 1
+        if h_meta:
+            overall_metadata_summary += 1
+        if not h_zh_ol and not h_zh_sum and not h_meta:
+            overall_missing_all += 1
+
     stats = {
         "total_source_items": total,
         "new_items_last_24h": sum(1 for i in all_items if i.first_seen_at and i.first_seen_at >= cutoff_24h),
         "new_items_last_48h": sum(1 for i in all_items if i.first_seen_at and i.first_seen_at >= cutoff_48h),
         "with_title": sum(1 for i in all_items if i.title and i.title.strip()),
         "with_url": sum(1 for i in all_items if i.url and i.url.strip()),
-        "with_summary": sum(1 for i in all_items if _has_summary(i.raw_metadata_json)),
+        "with_zh_one_liner": overall_zh_one_liner,
+        "with_zh_summary": overall_zh_summary,
+        "with_metadata_summary": overall_metadata_summary,
+        "missing_all_summary": overall_missing_all,
+        "with_summary": overall_zh_one_liner + overall_zh_summary + overall_metadata_summary,
         "with_snapshot": sum(1 for i in all_items if get_snapshot_path(i.id).exists()),
         "with_insight_card": sum(1 for i in all_items if i.insight_card_id),
         "status_discovered": sum(1 for i in all_items if i.status == "discovered"),
@@ -199,7 +259,10 @@ def format_report(stats: dict) -> str:
     lines.append(f"  new_items_last_48h:     {stats['new_items_last_48h']}")
     lines.append(f"  with_title:             {stats['with_title']}")
     lines.append(f"  with_url:               {stats['with_url']}")
-    lines.append(f"  with_summary:          {stats['with_summary']}")
+    lines.append(f"  with_zh_one_liner:     {stats['with_zh_one_liner']}   (AI Chinese one-liner)")
+    lines.append(f"  with_zh_summary:       {stats['with_zh_summary']}   (AI Chinese detailed summary)")
+    lines.append(f"  with_metadata_summary: {stats['with_metadata_summary']}   (English/来源 summary)")
+    lines.append(f"  missing_all_summary:   {stats['missing_all_summary']}   (no usable summary)")
     lines.append(f"  with_snapshot:          {stats['with_snapshot']}")
     lines.append(f"  with_insight_card:      {stats['with_insight_card']}")
     lines.append("")
@@ -234,7 +297,11 @@ def format_report(stats: dict) -> str:
         lines.append(f"  {source_key}:")
         lines.append(f"    total={d['total']} new_24h={d['new_24h']} new_48h={d['new_48h']}")
         lines.append(f"    with_title={d['with_title']} with_url={d['with_url']}")
-        lines.append(f"    with_summary={d['with_summary']} with_snapshot={d['with_snapshot']} with_card={d['with_card']}")
+        lines.append(f"    with_zh_one_liner={d['with_zh_one_liner']} "
+                     f"with_zh_summary={d['with_zh_summary']} "
+                     f"with_metadata_summary={d['with_metadata_summary']} "
+                     f"missing_all_summary={d['missing_all_summary']}")
+        lines.append(f"    with_snapshot={d['with_snapshot']} with_card={d['with_card']}")
         lines.append(f"    discovered={d['discovered']} fetched={d['fetched']} compiled={d['compiled']}")
     lines.append("")
 

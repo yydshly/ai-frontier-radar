@@ -314,12 +314,15 @@
                                     <a href="/radar/today?section={{ view.active_section }}&amp;hours={{ view.hours }}&amp;limit={{ view.limit }}&amp;page={{ view.page }}&amp;per_page={{ view.per_page }}&amp;item_id={{ c.source_item_id }}"
                                        class="radar-compile-candidate-title">{{ c.title[:80] }}{% if c.title|length > 80 %}…{% endif %}</a>
                                 </div>
+                                {% if c.summary_preview %}
+                                <div class="radar-compile-candidate-summary">{{ c.summary_preview[:120] }}{% if c.summary_preview|length > 120 %}…{% endif %}</div>
+                                {% endif %}
                                 <div class="radar-compile-candidate-meta">
                                     <span class="radar-compile-candidate-score" title="综合评分">得分 {{ c.score }}</span>
                                     <span class="radar-compile-candidate-basis">依据: {{ c.compile_basis }}</span>
                                     {% if c.reasons %}
                                     <span class="radar-compile-candidate-reasons">
-                                        {% for reason in c.reasons[:4] %}
+                                        {% for reason in c.reasons[:3] %}
                                         <span class="radar-reason-tag">{{ reason }}</span>
                                         {% endfor %}
                                     </span>
