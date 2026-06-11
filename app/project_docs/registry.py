@@ -292,6 +292,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="RSS 优先、按可靠性标记、以可靠探测方式展示的现状问题分析与分阶段处理方案。",
     ),
+    "item-state-model": DocEntry(
+        key="item-state-model",
+        title="条目状态模型收敛设计（C5）",
+        path="docs/V1_ITEM_STATE_MODEL_DESIGN.md",
+        category="优化路线",
+        description="把 SourceItem 状态（status / insight_card_id / raw_metadata_json 多键）收敛为单一只读状态层的分阶段设计。",
+    ),
 }
 
 
