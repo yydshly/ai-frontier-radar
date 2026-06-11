@@ -576,8 +576,15 @@ def _build_radar_today_view_context(
     page: int,
     per_page: int,
     section: str,
+    include_sidebar: bool = True,
 ):
-    """Build the context dict for radar today view (shared by full page and panel)."""
+    """Build the context dict for radar today view (shared by full page and panel).
+
+    ``include_sidebar`` controls the left-sidebar-only aggregates (scheduler
+    status + daily digest). The right reading panel does not use them, so the
+    panel partial route passes ``include_sidebar=False`` to skip that work
+    (avoids a due-source N+1 + several digest counts on every panel refresh).
+    """
     db = next(get_db())
     try:
         configured_sources = [s for s in list_sources() if s.enabled]
@@ -594,21 +601,25 @@ def _build_radar_today_view_context(
             fetch_run_source_keys=configured_keys,
         )
 
-        # V1.0-beta.3: read-only scheduler status for the sidebar block.
-        try:
-            from app.application.radar.status_view import (
-                build_radar_scheduler_status_view,
-            )
-            scheduler_status = build_radar_scheduler_status_view(db)
-        except Exception:
-            scheduler_status = None
+        # Left-sidebar-only aggregates — skipped for the panel partial refresh.
+        scheduler_status = None
+        daily_digest = None
+        if include_sidebar:
+            # V1.0-beta.3: read-only scheduler status for the sidebar block.
+            try:
+                from app.application.radar.status_view import (
+                    build_radar_scheduler_status_view,
+                )
+                scheduler_status = build_radar_scheduler_status_view(db)
+            except Exception:
+                scheduler_status = None
 
-        # P-003 step 1: read-only daily digest (no LLM). Degrades gracefully.
-        try:
-            from app.application.radar.daily_digest import build_daily_digest_view
-            daily_digest = build_daily_digest_view(db)
-        except Exception:
-            daily_digest = None
+            # P-003 step 1: read-only daily digest (no LLM). Degrades gracefully.
+            try:
+                from app.application.radar.daily_digest import build_daily_digest_view
+                daily_digest = build_daily_digest_view(db)
+            except Exception:
+                daily_digest = None
 
         sel = view.selected_item
         sel_card = view.display_map.get(sel.id) if sel else None
@@ -676,6 +687,7 @@ def radar_today_panel(
         page=page,
         per_page=per_page,
         section=section,
+        include_sidebar=False,  # panel partial uses neither scheduler_status nor daily_digest
     )
     context["panel_mode"] = panel
     context["RECOMMENDED_INSIGHT_LIMIT"] = RECOMMENDED_INSIGHT_LIMIT

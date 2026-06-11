@@ -7702,6 +7702,24 @@ def main():
     except Exception as e:
         check("today radar selection order checks", False, str(e))
 
+    # ── 55. Panel partial skips sidebar-only aggregates (B5 perf) ────────────
+    print("\n[55] panel partial skips sidebar aggregates")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_route_text = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        check("context builder supports include_sidebar",
+              "include_sidebar" in radar_route_text,
+              "context builder should support skipping sidebar-only aggregates")
+        check("panel route skips sidebar aggregates",
+              "include_sidebar=False" in radar_route_text,
+              "panel partial should not recompute scheduler_status / daily_digest")
+        panel_partial = (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
+        check("panel partial does not depend on sidebar aggregates",
+              "scheduler_status" not in panel_partial and "daily_digest" not in panel_partial,
+              "panel partial must not reference scheduler_status / daily_digest")
+    except Exception as e:
+        check("panel partial sidebar-skip checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
