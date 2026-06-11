@@ -7,8 +7,19 @@ No LLM is called. No external TTS API is called by default.
 """
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSError
+
+
+_AUDIO_FILENAME_RE = re.compile(
+    r"^daily_broadcast_\d{4}-\d{2}-\d{2}_[0-9a-f]{12,24}\.wav$"
+)
 
 
 @dataclass(frozen=True)
@@ -267,22 +278,108 @@ def _cn_number(n: int) -> str:
 
 def generate_daily_broadcast_audio(
     script: DailyBroadcastScript,
+    *,
+    client: MiMoTTSClient | None = None,
+    root_dir: str | Path | None = None,
 ) -> DailyBroadcastAudioResult:
-    """Generate TTS audio for the broadcast script.
-
-    Returns a disabled result if DAILY_BROADCAST_TTS_ENABLED is not set to "true".
-    This function does NOT call any external TTS API.
-    """
+    """Generate a WAV file from the broadcast script with MiMo V2.5 TTS."""
     enabled = os.getenv("DAILY_BROADCAST_TTS_ENABLED", "").strip().lower()
     if enabled != "true":
         return DailyBroadcastAudioResult(
             status="disabled",
-            message="音频播报入口已预留，当前未启用真实 TTS。配置 TTS 后，可将这份播报文案生成音频。",
+            message="MiMo 语音合成未启用。请设置 DAILY_BROADCAST_TTS_ENABLED=true。",
         )
 
-    # Placeholder for future real TTS implementation.
-    # The interface is ready; connect MiniMax / OpenAI / local TTS here.
+    try:
+        tts_client = client or MiMoTTSClient()
+        audio_dir = get_daily_broadcast_audio_dir(root_dir)
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        settings = getattr(tts_client, "settings", None)
+        fingerprint = "\n".join([
+            script.full_text,
+            str(getattr(settings, "model", "")),
+            str(getattr(settings, "voice", "")),
+            str(getattr(settings, "style", "")),
+        ])
+        digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:12]
+        date_match = re.search(r"\d{4}-\d{2}-\d{2}", script.date_label)
+        safe_date = date_match.group(0) if date_match else date.today().isoformat()
+        filename = f"daily_broadcast_{safe_date}_{digest}.wav"
+        audio_path = audio_dir / filename
+        if _is_valid_wav_file(audio_path):
+            return DailyBroadcastAudioResult(
+                status="generated",
+                message="已复用相同文稿的 MiMo V2.5 语音报告。",
+                audio_url=f"/radar/daily-report/broadcast/audio/files/{filename}",
+                audio_path=str(audio_path),
+            )
+
+        audio_bytes = tts_client.synthesize(script.full_text)
+        if not _is_valid_wav_bytes(audio_bytes):
+            raise MiMoTTSError("MiMo 返回的音频不是有效的 WAV 文件。")
+
+        temp_path = audio_path.with_suffix(".wav.tmp")
+        temp_path.write_bytes(audio_bytes)
+        os.replace(temp_path, audio_path)
+    except MiMoTTSError as exc:
+        return DailyBroadcastAudioResult(status="failed", message=str(exc))
+    except OSError:
+        return DailyBroadcastAudioResult(
+            status="failed",
+            message="音频已生成，但保存文件失败，请检查运行目录权限。",
+        )
+
     return DailyBroadcastAudioResult(
-        status="disabled",
-        message="音频播报入口已预留，当前未启用真实 TTS。配置 TTS 后，可将这份播报文案生成音频。",
+        status="generated",
+        message="MiMo V2.5 语音报告已生成。",
+        audio_url=f"/radar/daily-report/broadcast/audio/files/{filename}",
+        audio_path=str(audio_path),
     )
+
+
+def get_daily_broadcast_audio_dir(root_dir: str | Path | None = None) -> Path:
+    """Return the private runtime directory used for generated audio."""
+    if root_dir is not None:
+        return Path(root_dir)
+    configured = os.getenv("DAILY_BROADCAST_AUDIO_DIR", "").strip()
+    project_root = Path(__file__).resolve().parents[3]
+    if not configured:
+        return project_root / "runtime" / "daily_audio"
+    configured_path = Path(configured)
+    return (
+        configured_path
+        if configured_path.is_absolute()
+        else project_root / configured_path
+    )
+
+
+def get_daily_broadcast_audio_path(
+    filename: str,
+    *,
+    root_dir: str | Path | None = None,
+) -> Path | None:
+    """Resolve a generated audio filename without allowing path traversal."""
+    if not _AUDIO_FILENAME_RE.fullmatch(filename):
+        return None
+    return get_daily_broadcast_audio_dir(root_dir) / filename
+
+
+def _is_valid_wav_bytes(audio_bytes: bytes) -> bool:
+    return (
+        len(audio_bytes) >= 44
+        and audio_bytes.startswith(b"RIFF")
+        and audio_bytes[8:12] == b"WAVE"
+    )
+
+
+def _is_valid_wav_file(path: Path) -> bool:
+    try:
+        with path.open("rb") as file_obj:
+            return _is_valid_wav_bytes(file_obj.read(44))
+    except OSError:
+        return False
+
+
+def is_valid_daily_broadcast_audio_file(path: Path) -> bool:
+    """Return whether a generated audio path contains a valid WAV header."""
+    return _is_valid_wav_file(path)

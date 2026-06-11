@@ -2334,12 +2334,22 @@ def main():
         check(".env.example contains DAILY_REPORT_ENABLED=false",
               "DAILY_REPORT_ENABLED=false" in env_example,
               "DAILY_REPORT_ENABLED should default to false for safety")
-        check(".env.example contains DAILY_REPORT_MAX_ITEMS=12",
-              "DAILY_REPORT_MAX_ITEMS=12" in env_example,
-              "DAILY_REPORT_MAX_ITEMS should be 12")
+        check(".env.example contains DAILY_REPORT_MAX_ITEMS=50",
+              "DAILY_REPORT_MAX_ITEMS=50" in env_example,
+              "DAILY_REPORT_MAX_ITEMS should be 50")
         check(".env.example contains DAILY_BROADCAST_TTS_ENABLED=false",
               "DAILY_BROADCAST_TTS_ENABLED=false" in env_example,
               "TTS should default to false")
+        check(".env.example contains MiMo V2.5 TTS settings",
+              "MIMO_API_KEY=" in env_example
+              and "MIMO_TTS_MODEL=mimo-v2.5-tts" in env_example
+              and "MIMO_TTS_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1"
+              in env_example
+              and "MIMO_TTS_FORMAT=wav" in env_example
+              and "MIMO_TTS_CHUNK_CHARS=3000" in env_example
+              and "DAILY_BROADCAST_AUDIO_RETENTION_DAYS=30" in env_example
+              and "DAILY_BROADCAST_AUDIO_MAX_FILES=100" in env_example,
+              "MiMo TTS configuration should be documented")
         check(".env.example contains LLM_SUMMARY_ENABLED=false",
               "LLM_SUMMARY_ENABLED=false" in env_example,
               "LLM_SUMMARY_ENABLED should default to false for safety")
@@ -3178,10 +3188,19 @@ def main():
               '@router.post("/today/generate-summaries")' in radar_route_py,
               "today radar should expose a POST action for current-page Chinese summaries")
 
-        check("today radar summary route uses CandidateOneLinerService",
-              "CandidateOneLinerService" in radar_route_py
-              and "generate_for_items" in radar_route_py,
-              "summary route should reuse existing one-liner service")
+        background_summary_py = (
+            Path(__file__).resolve().parent.parent
+            / "app" / "application" / "radar" / "background_summary.py"
+        ).read_text(encoding="utf-8")
+        check("today radar summary route queues a background task",
+              "background_tasks.add_task" in radar_route_py
+              and "run_summary_batch_in_background" in radar_route_py,
+              "summary route should return immediately and queue background work")
+        check("background summary reuses CandidateOneLinerService",
+              "CandidateOneLinerService" in background_summary_py
+              and "generate_for_item" in background_summary_py
+              and "SessionLocal" in background_summary_py,
+              "background worker should reuse the summary service with its own DB session")
 
         check("today radar summary route caps current page generation",
               "summary_limit" in radar_route_py
@@ -3193,10 +3212,10 @@ def main():
               and "source_item_id" in radar_route_py,
               "summary route should include compile_candidates for InsightCard recommendation section")
 
-        check("today radar summary route uses _needs_chinese_summary",
-              "_needs_chinese_summary" in radar_route_py
-              and "_has_zh_summary" in radar_route_py,
-              "summary route should prioritize items missing zh_one_liner or zh_summary")
+        check("background summary queue is idempotent",
+              'current in {"queued", "running"}' in background_summary_py
+              and "_has_complete_summary" in background_summary_py,
+              "complete or already-running summaries must not be queued twice")
 
         check("today radar compile_candidates appear before visible items in route",
               "compile_candidates" in radar_route_py
@@ -3205,7 +3224,7 @@ def main():
 
         check("today radar actions have summary generation form",
               'action="/radar/today/generate-summaries"' in radar_html
-              and "补全中文摘要" in radar_html,
+              and "一键补全今日摘要" in radar_html,
               "today actions should expose batch Chinese summary generation")
 
         check("today radar summary form preserves context",
@@ -3216,7 +3235,8 @@ def main():
 
         check("today radar shows summary generation result",
               "summary_result" in radar_html
-              and "中文摘要处理完成" in radar_html,
+              and "中文摘要后台任务" in radar_html
+              and "刷新处理状态" in radar_html,
               "today radar should show summary generation results after redirect")
     except Exception as e:
         check("Today Radar generate summaries checks", False, str(e))
@@ -4469,8 +4489,8 @@ def main():
               "humanize function should return Chinese labels for all status values")
 
         # 9. button text explains recommendation-first summary generation.
-        check("button text mentions '补全中文摘要'",
-              "补全中文摘要" in radar_html
+        check("button text mentions background daily summary generation",
+              "一键补全今日摘要" in radar_html
               and "优先处理推荐候选" in radar_html,
               "button should mention compile candidates priority")
     except Exception as e:
@@ -4536,8 +4556,8 @@ def main():
               "external link must be preserved")
 
         # 9. radar_today.html contains the consolidated summary action.
-        check("radar_today.html contains '补全中文摘要'",
-              "补全中文摘要" in radar_html,
+        check("radar_today.html contains daily summary action",
+              "一键补全今日摘要" in radar_html,
               "summary generation should live in today actions")
 
         # 10. radar_today.html retains the reading assistant (now in partial).
@@ -5714,12 +5734,16 @@ def main():
         from app.application.radar.daily_report import (
             DailyReportSource,
             DailyReportResult,
+            _build_insight_context,
             normalize_daily_report_highlights,
             generate_daily_report,
             MockDailyReportProvider,
         )
+        from app.models import CardStatus
         from app.application.radar.daily_report_store import (
+            list_daily_report_versions,
             load_daily_report,
+            load_daily_report_version,
             save_daily_report,
         )
         from app.application.radar.daily_broadcast import build_core_report_broadcast_script
@@ -5789,6 +5813,23 @@ def main():
                   and _highlight_refs[0][0]["item_id"] == 101
                   and _highlight_refs[1] == [],
                   "report references should be deduplicated and restricted to input IDs")
+            from types import SimpleNamespace as _SimpleNamespace
+            _insight_context = _build_insight_context(_SimpleNamespace(
+                status=CardStatus.COMPLETED,
+                key_points_zh='["关键事实一", "关键事实二", "忽略第三条"]',
+                technical_insights_zh='["技术洞察一"]',
+                product_opportunities_zh='["产品机会一"]',
+                risks_zh='["风险一"]',
+            ))
+            check("daily report consumes bounded completed insight-card context",
+                  _insight_context is not None
+                  and "关键事实一" in _insight_context
+                  and "技术洞察一" in _insight_context
+                  and "产品机会一" in _insight_context
+                  and "风险一" in _insight_context
+                  and "忽略第三条" not in _insight_context
+                  and len(_insight_context) <= 600,
+                  "core report should use bounded insight-card details, not only card IDs")
             _stored = save_daily_report(
                 DailyReportResult(
                     status="generated",
@@ -5801,11 +5842,49 @@ def main():
                     highlight_references=_highlight_refs,
                 ),
                 root_dir=Path(_report_dir),
+                generated_at=datetime(2026, 6, 11, 12, 0, 0),
             )
             _loaded = load_daily_report("2026-06-11", root_dir=Path(_report_dir))
             check("daily report runtime store survives reload",
                   _stored is not None and _loaded == _stored,
                   "generated report should round-trip through runtime JSON")
+            _stored_second = save_daily_report(
+                DailyReportResult(
+                    status="generated",
+                    date_label="2026-06-11",
+                    input_item_count=4,
+                    message="已生成今日核心报告。",
+                    title="测试核心报告第二版",
+                    overview="第二次生成的报告。",
+                    highlights=["新版要点"],
+                    highlight_references=[[]],
+                ),
+                root_dir=Path(_report_dir),
+                generated_at=datetime(2026, 6, 11, 12, 0, 1),
+            )
+            _versions = list_daily_report_versions(
+                "2026-06-11",
+                root_dir=Path(_report_dir),
+            )
+            _first_version = load_daily_report_version(
+                "2026-06-11",
+                _stored["version_id"],
+                root_dir=Path(_report_dir),
+            )
+            check("daily report store preserves same-day history",
+                  _stored_second is not None
+                  and len(_versions) == 2
+                  and _versions[0]["title"] == "测试核心报告第二版"
+                  and _first_version == _stored
+                  and load_daily_report("2026-06-11", root_dir=Path(_report_dir)) == _stored_second,
+                  "same-day regeneration should preserve old versions and update latest")
+            check("daily report version path rejects traversal",
+                  load_daily_report_version(
+                      "2026-06-11",
+                      "../../outside",
+                      root_dir=Path(_report_dir),
+                  ) is None,
+                  "report version selection must only accept generated version IDs")
             _script = build_core_report_broadcast_script(_loaded or {})
             check("daily broadcast reuses the core report",
                   "测试核心报告" in _script.full_text
@@ -6151,10 +6230,9 @@ def main():
         check("radar today does not claim intent-only",
               "仅记录获取意图" not in radar_today_text and "尚未执行真实抓取" not in radar_today_text,
               "V1.0-beta.9 does real HTML fetching, UI should not say intent-only")
-        check("fetch-content route is POST-only",
-              '@router.post("/today/items/{item_id}/fetch-content")' in radar_route_text
-              and '@router.get("/today/items/{item_id}/fetch-content")' not in radar_route_text,
-              "fetch-content should only be registered as POST")
+        check("obsolete fetch-content placeholder route is removed",
+              "/today/items/{item_id}/fetch-content" not in radar_route_text,
+              "only the real fetch-html route should remain")
         check("GET /radar/today remains read-only",
               "def radar_today_page" in radar_route_text
               and "fetch_today_item_content" not in radar_route_text.split("def radar_today_page", 1)[1].split("@router.post", 1)[0],
@@ -6192,9 +6270,10 @@ def main():
             check("GET /radar/today returns 200 for content chain",
                   resp.status_code == 200,
                   "today radar page should render")
-            check("GET fetch-content is not allowed",
-                  client.get("/radar/today/items/0/fetch-content").status_code in (404, 405),
-                  "fetch-content must not run on GET")
+            check("obsolete fetch-content endpoint is unavailable",
+                  client.get("/radar/today/items/0/fetch-content").status_code == 404
+                  and client.post("/radar/today/items/0/fetch-content").status_code == 404,
+                  "the placeholder endpoint must not remain callable")
         else:
             check("TestClient available for beta.6 checks", False, "client is not available")
     except Exception as e:
@@ -6434,9 +6513,9 @@ def main():
               'get("/daily-report"' in radar_py,
               "GET /radar/daily-report route should be defined")
 
-        check("POST /radar/daily-report/build route exists",
-              'post("/daily-report/build")' in radar_py,
-              "POST /radar/daily-report/build route should be defined")
+        check("obsolete daily-report/build no-op route is removed",
+              'post("/daily-report/build")' not in radar_py,
+              "the report page is built directly by GET /radar/daily-report")
 
         # Template content
         check("Template has 今日必看",
@@ -6537,6 +6616,85 @@ def main():
         check("No LLM imports in daily_broadcast.py",
               "from app.llm" not in broadcast_text and "import app.llm" not in broadcast_text,
               "daily_broadcast.py should not import LLM modules")
+        mimo_module_path = project_root / "app" / "application" / "radar" / "mimo_tts.py"
+        check("mimo_tts.py exists",
+              mimo_module_path.exists(),
+              "MiMo TTS adapter should exist")
+        mimo_text = mimo_module_path.read_text(encoding="utf-8")
+        check("MiMo adapter uses official chat completions endpoint",
+              "/chat/completions" in mimo_text and '"api-key"' in mimo_text,
+              "MiMo adapter should use /chat/completions and api-key")
+        check("MiMo target speech uses assistant role",
+              '"role": "assistant"' in mimo_text,
+              "speech text must be sent in an assistant message")
+
+        import base64
+        import httpx
+        from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSSettings
+
+        captured_request = {}
+        mock_wav = (
+            b"RIFF" + (36).to_bytes(4, "little") + b"WAVE" + (b"\x00" * 32)
+        )
+
+        def mimo_handler(request):
+            captured_request["headers"] = request.headers
+            captured_request["payload"] = __import__("json").loads(
+                request.content.decode("utf-8")
+            )
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [{
+                        "message": {
+                            "audio": {
+                                "data": base64.b64encode(
+                                    mock_wav
+                                ).decode("ascii")
+                            }
+                        }
+                    }]
+                },
+            )
+
+        mimo_client = MiMoTTSClient(
+            MiMoTTSSettings(api_key="test-key"),
+            transport=httpx.MockTransport(mimo_handler),
+        )
+        check("MiMo adapter decodes Base64 WAV",
+              mimo_client.synthesize("今日播报") == mock_wav,
+              "adapter should decode choices[0].message.audio.data")
+        check("MiMo request payload follows V2.5 contract",
+              captured_request["headers"].get("api-key") == "test-key"
+              and captured_request["payload"]["messages"][-1]
+              == {"role": "assistant", "content": "今日播报"}
+              and captured_request["payload"]["audio"]["format"] == "wav",
+              "request should use api-key, assistant text, and WAV output")
+        check("MiMo default endpoint uses Token Plan China cluster",
+              captured_request["payload"]["model"] == "mimo-v2.5-tts"
+              and mimo_client.settings.base_url
+              == "https://token-plan-cn.xiaomimimo.com/v1",
+              "default MiMo endpoint should match the configured Token Plan cluster")
+        check("MiMo runtime validates Token Plan credential pairing",
+              "tp- API Key 必须配合 Token Plan Base URL" in mimo_text
+              and "sk- API Key 不能配合 Token Plan Base URL" in mimo_text,
+              "runtime should reject mismatched MiMo key and endpoint types")
+        audio_jobs_path = (
+            project_root / "app" / "application" / "radar" / "daily_audio_jobs.py"
+        )
+        audio_jobs_text = audio_jobs_path.read_text(encoding="utf-8")
+        check("Daily audio background job service exists",
+              audio_jobs_path.exists()
+              and "class DailyAudioJob" in audio_jobs_text
+              and "def run_daily_audio_job" in audio_jobs_text,
+              "daily audio should use a persistent background job service")
+        check("Daily audio supports chunks, history, retry, cleanup and locks",
+              "def split_broadcast_text" in audio_jobs_text
+              and "def merge_wav_parts" in audio_jobs_text
+              and "def retry_daily_audio_job" in audio_jobs_text
+              and "def cleanup_daily_audio_jobs" in audio_jobs_text
+              and "os.O_EXCL" in audio_jobs_text,
+              "audio jobs should cover long reports and operational lifecycle")
 
         # Template checks
         broadcast_template_path = project_root / "app" / "templates" / "radar_daily_broadcast.html"
@@ -6547,12 +6705,21 @@ def main():
         check("Template has 今日 AI 前沿播报",
               "今日 AI 前沿播报" in broadcast_html,
               "broadcast template should have title")
-        check("Template has 生成音频",
-              "生成音频" in broadcast_html,
+        check("Template has 生成语音报告",
+              "生成语音报告" in broadcast_html,
               "broadcast template should have audio button")
-        check("Template has 未启用真实 TTS",
-              "未启用真实 TTS" in broadcast_html,
-              "broadcast template should show disabled message with TTS context")
+        check("Template identifies MiMo V2.5 TTS",
+              "MiMo V2.5" in broadcast_html,
+              "broadcast template should identify the configured TTS provider")
+        check("Template embeds generated audio player",
+              "<audio controls" in broadcast_html and "下载 WAV" in broadcast_html,
+              "broadcast template should support playback and download")
+        check("Template exposes voice, style, progress and history",
+              "播报音色" in broadcast_html
+              and "播报风格" in broadcast_html
+              and "completed_chunks" in broadcast_html
+              and "语音报告历史" in broadcast_html,
+              "broadcast UI should expose the complete audio workflow")
         check("Template has 播报文案",
               "播报文案" in broadcast_html,
               "broadcast template should show script content")
@@ -6560,10 +6727,72 @@ def main():
               "返回今日报告" in broadcast_html,
               "broadcast template should have back link")
 
-        # No external TTS API call in the audio generation function
-        check("generate_daily_broadcast_audio does not call external API",
-              "requests." not in broadcast_text and "httpx" not in broadcast_text,
-              "audio function should not call external HTTP APIs")
+        from app.application.radar.daily_broadcast import (
+            DailyBroadcastScript,
+            generate_daily_broadcast_audio,
+            get_daily_broadcast_audio_path,
+        )
+        from tempfile import TemporaryDirectory
+
+        sample_script = DailyBroadcastScript(
+            date_label="2026-06-11",
+            title="测试播报",
+            opening="开始",
+            overview="概览",
+            primary_sections=["重点"],
+            secondary_section=None,
+            closing="结束",
+            full_text="测试播报全文",
+        )
+
+        class FakeMiMoClient:
+            calls = 0
+
+            def synthesize(self, text):
+                self.calls += 1
+                assert text == sample_script.full_text
+                return mock_wav
+
+        previous_tts_enabled = os.environ.get("DAILY_BROADCAST_TTS_ENABLED")
+        os.environ["DAILY_BROADCAST_TTS_ENABLED"] = "true"
+        try:
+            with TemporaryDirectory() as temp_dir:
+                fake_client = FakeMiMoClient()
+                result = generate_daily_broadcast_audio(
+                    sample_script,
+                    client=fake_client,
+                    root_dir=temp_dir,
+                )
+                check("MiMo audio generation saves WAV",
+                      result.status == "generated"
+                      and result.audio_path is not None
+                      and Path(result.audio_path).read_bytes() == mock_wav,
+                      "fake MiMo response should be saved as WAV")
+                check("MiMo audio URL uses restricted route",
+                      result.audio_url is not None
+                      and result.audio_url.startswith(
+                          "/radar/daily-report/broadcast/audio/files/"
+                      ),
+                      "generated audio should use the restricted file route")
+                cached_result = generate_daily_broadcast_audio(
+                    sample_script,
+                    client=fake_client,
+                    root_dir=temp_dir,
+                )
+                check("MiMo audio generation reuses identical report",
+                      cached_result.status == "generated"
+                      and fake_client.calls == 1
+                      and "复用" in cached_result.message,
+                      "identical report and voice settings should not call MiMo twice")
+        finally:
+            if previous_tts_enabled is None:
+                os.environ.pop("DAILY_BROADCAST_TTS_ENABLED", None)
+            else:
+                os.environ["DAILY_BROADCAST_TTS_ENABLED"] = previous_tts_enabled
+
+        check("Audio filename resolver rejects traversal",
+              get_daily_broadcast_audio_path("../secret.wav") is None,
+              "audio file route must reject arbitrary paths")
 
         # TestClient verification
         if client:
@@ -6572,26 +6801,31 @@ def main():
                   resp.status_code == 200,
                   f"broadcast page should return 200, got {resp.status_code}")
 
-            resp_audio = client.post("/radar/daily-report/broadcast/audio")
-            check("POST /radar/daily-report/broadcast/audio returns 200",
-                  resp_audio.status_code == 200,
-                  f"broadcast audio endpoint should return 200, got {resp_audio.status_code}")
+            previous_tts_enabled = os.environ.get("DAILY_BROADCAST_TTS_ENABLED")
+            os.environ["DAILY_BROADCAST_TTS_ENABLED"] = "false"
+            try:
+                resp_audio = client.post(
+                    "/radar/daily-report/broadcast/audio",
+                    follow_redirects=False,
+                )
+            finally:
+                if previous_tts_enabled is None:
+                    os.environ.pop("DAILY_BROADCAST_TTS_ENABLED", None)
+                else:
+                    os.environ["DAILY_BROADCAST_TTS_ENABLED"] = previous_tts_enabled
+            check("POST /radar/daily-report/broadcast/audio redirects immediately",
+                  resp_audio.status_code == 303,
+                  f"broadcast audio endpoint should return 303, got {resp_audio.status_code}")
+            check("Disabled audio enqueue redirects with readable error",
+                  "audio_error=" in resp_audio.headers.get("location", ""),
+                  "disabled TTS should return to the status page with an error")
 
-            # Verify audio result shows disabled
-            audio_html = resp_audio.text
-            check("Audio endpoint returns disabled message",
-                  "未启用真实 TTS" in audio_html,
-                  "broadcast audio should show disabled status when TTS not configured")
-
-            # Verify POST audio preserves broadcast content
-            check("POST audio response contains 播报文案",
-                  "播报文案" in audio_html,
-                  "POST audio should preserve broadcast script display")
-
-            # Verify TTS note is present
-            check("Template has TTS reserve note",
-                  "仅预留音频入口" in broadcast_html or "真实 TTS 尚未启用" in broadcast_html,
-                  "broadcast template should note that TTS is not yet enabled")
+            check("Missing audio file returns 404",
+                  client.get(
+                      "/radar/daily-report/broadcast/audio/files/"
+                      "daily_broadcast_2026-06-11_000000000000.wav"
+                  ).status_code == 404,
+                  "missing generated audio should return 404")
         else:
             check("TestClient available for broadcast checks", False, "client is not available")
 
@@ -6599,22 +6833,25 @@ def main():
         check("daily_broadcast.py does not modify schema",
               "db.query" not in broadcast_text or "add_column" not in broadcast_text.lower(),
               "broadcast module should not modify DB schema")
+        route_text = (project_root / "app" / "routes" / "radar.py").read_text(
+            encoding="utf-8"
+        )
+        check("Daily audio routes expose retry and delete",
+              "/daily-report/broadcast/audio/{job_id}/retry" in route_text
+              and "/daily-report/broadcast/audio/{job_id}/delete" in route_text
+              and "background_tasks.add_task(run_daily_audio_job" in route_text,
+              "audio route should queue work and support lifecycle actions")
 
         # Empty broadcast text is natural (no "共发现 0 条")
         check("Empty broadcast does not say 共发现 0 条",
               "共发现 0 条" not in broadcast_text,
               "empty broadcast should not say mechanical '共发现 0 条'")
 
-        # Checkpoint doc exists and says no real TTS
+        # Historical checkpoint remains available for the beta.8 implementation record.
         checkpoint_path = project_root / "docs" / "V1_BETA_8_DAILY_BROADCAST_CHECKPOINT.md"
         check("V1_BETA_8 checkpoint doc exists",
               checkpoint_path.exists(),
               "checkpoint doc should exist")
-        if checkpoint_path.exists():
-            checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
-            check("Checkpoint doc says no real TTS",
-                  "不调用" in checkpoint_text and "真实 TTS" in checkpoint_text,
-                  "checkpoint should clarify real TTS is not called")
 
     except Exception as e:
         check("V1.0-beta.8 DailyBroadcast checks", False, str(e))
@@ -7690,6 +7927,10 @@ def main():
               s.enabled == get_daily_report_enabled()
               and s.max_items == get_daily_report_max_items(),
               "daily_report settings must match radar.settings (single source)")
+        check("daily report default input cap is 50",
+              s.max_items == 50
+              and ".limit(min(scope_settings.item_limit, max_items))" in dr_text,
+              "daily report query must enforce the configured 50-item cap")
     except Exception as e:
         check("daily report settings single source checks", False, str(e))
 
@@ -7827,6 +8068,8 @@ def main():
               and "_SOURCE_PRIORITY" not in cc_py,
               "compile_candidates must derive priority from relevance.SOURCE_IMPORTANCE")
 
+        from app.application.candidates.compile_candidates import _TOPIC_KEYWORDS
+        from app.application.radar import relevance as relevance_module
         from app.application.radar.relevance import source_priority, source_weight
         # Derived priority reproduces the previous table EXCEPT deepmind (8->10),
         # and unknown-source defaults are preserved (priority 0, weight 1.0).
@@ -7841,6 +8084,26 @@ def main():
         check("unknown-source defaults preserved",
               source_priority("zzz_unknown") == 0 and source_weight("zzz_unknown") == 1.0,
               "unknown source should default to priority 0 / weight 1.0")
+        check("recommendation topic keywords are unique",
+              len(_TOPIC_KEYWORDS) == len(set(_TOPIC_KEYWORDS))
+              and "embodied" in _TOPIC_KEYWORDS
+              and " embodied" not in _TOPIC_KEYWORDS,
+              "duplicate or malformed keywords must not receive duplicate score")
+        original_importance = relevance_module.SOURCE_IMPORTANCE
+        try:
+            relevance_module.SOURCE_IMPORTANCE = {
+                f"test_{weight}": weight
+                for weight in (1.0, 1.2, 1.3, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0)
+            }
+            priorities = [
+                relevance_module.source_priority(f"test_{weight}")
+                for weight in (1.0, 1.2, 1.3, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0)
+            ]
+            check("derived source priorities are monotonic",
+                  priorities == sorted(priorities),
+                  f"priority should not decrease as importance rises: {priorities}")
+        finally:
+            relevance_module.SOURCE_IMPORTANCE = original_importance
     except Exception as e:
         check("source importance single source checks", False, str(e))
 

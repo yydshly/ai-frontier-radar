@@ -114,8 +114,8 @@ def main():
     # ── Path B: Summary Generation Chain ─────────────────────────────────────
     print("\n[Path B] Summary Generation Chain")
 
-    check("包含'补全中文摘要'按钮",
-          "补全中文摘要" in html)
+    check("包含'一键补全今日摘要'按钮",
+          "一键补全今日摘要" in html)
     gen_settings = get_generation_settings()
     # Template uses {{ SUMMARY_BATCH_LIMIT }} (Jinja2 var, resolved at render time)
     check(f"summary_limit hidden value uses settings var",
@@ -133,9 +133,9 @@ def main():
     check("generate_today_summaries 包含按 source_item_id 去重",
           "source_item_id" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000])
 
-    check("generate_today_summaries 包含 _needs_chinese_summary 优先",
-          "_needs_chinese_summary" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000] or
-          "needs_chinese_summary" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000])
+    check("generate_today_summaries 使用后台任务",
+          "background_tasks.add_task" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 5000] and
+          "run_summary_batch_in_background" in routes)
 
     check(f"generate_today_summaries cap {gen_settings.summary_batch_limit}",
           f"min(summary_limit, SUMMARY_BATCH_LIMIT)" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000] or

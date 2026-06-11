@@ -13,7 +13,7 @@
 
 - **默认关闭**：`DAILY_REPORT_ENABLED=false`（默认）。`--apply` 必须显式开启。
 - **dry-run 优先**：默认只组装"编译输入"（今日中文摘要条目），**不调用 LLM**。
-- **成本闸门**：`DAILY_REPORT_MAX_ITEMS`（默认 12，1~50）限制喂给 LLM 的条目数；
+- **成本闸门**：`DAILY_REPORT_MAX_ITEMS`（默认 50，1~50）限制喂给 LLM 的条目数；
   单次生成只调用 **一次** LLM。
 - **复用现有 LLM 基础设施**：通过 `app.llm.factory.create_llm_client()` +
   `LLMClient.generate_json()`，不新写 provider / HTTP 客户端。

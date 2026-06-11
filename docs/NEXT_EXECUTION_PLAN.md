@@ -126,7 +126,7 @@
 
 - ✅ TodayItemCard 多维状态（zh_one_liner / zh_summary / content / insight）
 - ✅ 右侧面板展示各维度状态标签及操作入口
-- ✅ 内容获取 intent-only 链路（POST fetch-content，只写 queued）
+- ✅ 真实正文获取链路（POST fetch-html，保存文本快照）
 - ✅ bootstrap / daily_increment 入口设计（bootstrap 独立，daily_increment 复用 due-source）
 - ✅ bootstrap dry-run / apply 语义
 - ✅ Web apply background（FastAPI BackgroundTasks）
@@ -182,9 +182,9 @@
 - ✅ DailyBroadcastScript dataclass（title/opening/overview/primary_sections/secondary_section/closing/full_text）
 - ✅ build_daily_broadcast_script() — 不调用 LLM，基于 DailyReportCard 规则生成
 - ✅ DailyBroadcastAudioResult dataclass（status/message/audio_url/audio_path）
-- ✅ generate_daily_broadcast_audio() — TTS gate，默认返回 disabled
+- ✅ generate_daily_broadcast_audio() — 已接入 MiMo V2.5 TTS，支持 WAV 缓存与安全落盘
 - ✅ GET /radar/daily-report/broadcast — 展示播报文案页面
-- ✅ POST /radar/daily-report/broadcast/audio — 音频生成入口（默认 disabled）
+- ✅ POST /radar/daily-report/broadcast/audio — 音频生成入口，受开关和 API Key 配置控制
 - ✅ 页面包含 textarea 展示 full_text，含复制按钮
 - ✅ 音频状态 banner（disabled / generated / failed）
 - ✅ 页面初始显示"音频播报入口已预留，当前未启用真实 TTS"

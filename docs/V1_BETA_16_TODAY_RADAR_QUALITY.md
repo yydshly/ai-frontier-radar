@@ -172,7 +172,7 @@ InsightCard 成功生成，summary_zh 包含中文摘要内容。雷达页面可
 
 **缺失能力：**
 
-1. **无真实 TTS 提供商** — `daily_broadcast.py` 的 `generate_daily_broadcast_audio()` 是 stub，V1.0-beta.8 明确说明不调用外部 TTS API
+1. **TTS 已接入但仍为同步请求** — 当前使用 MiMo V2.5 TTS 非流式生成 WAV；长报告需要等待完整音频返回，后续可迁移到后台任务
 2. **无播报内容来源** — 需要先有 `DailyReportCard`（依赖 InsightCard）
 
 **后续接入点：**
@@ -181,7 +181,7 @@ InsightCard 成功生成，summary_zh 包含中文摘要内容。雷达页面可
 每日探测 → compile → summary → InsightCard
   → DailyReportCard（基于已有 zh_one_liner）
     → DailyBroadcastScript（规则生成，无 LLM）
-      → TTS API（需要接入真实 TTS 提供商）
+      → MiMo V2.5 TTS
 ```
 
 ---
@@ -221,7 +221,7 @@ quick_test.py:
 
 1. **接入后台 compile 调度**：新探测完成后自动触发 background compile（参考 `BackgroundCompileService`）
 2. **批量 compile 脚本**：类似 `compile_one_insight_card.py`，支持按来源/状态批量 compile
-3. **TTS 接入**：在 `daily_broadcast.py` 中接入真实 TTS API（受 `DAILY_BROADCAST_TTS_ENABLED` 控制）
+3. **TTS 后台化**：将同步 MiMo WAV 生成迁移到后台任务，并增加状态刷新、失败重试和音频历史管理
 4. **日报自动化**：在每日探测调度中加入 compile 步骤
 
 ### 文档更新
@@ -351,4 +351,3 @@ quick_test.py:
 - **小批量 compile：成功** — 3/3 成功，metadata compile 无需 URL fetch
 - **日报链路：数据就绪** — 已有 26 条 compiled InsightCard，可供 DailyReportCard 消费
 - **主要堵点已解决**：从"无法自动 compile"变为"可小批量 compile"，后续需要接入后台调度
-

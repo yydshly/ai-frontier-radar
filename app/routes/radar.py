@@ -3,8 +3,8 @@
 GET /radar/today renders a catalog + cards + reading-panel layout built
 by RadarTodayService. Read-only: no fetching, no compilation, no LLM.
 
-POST /radar/today/generate-summaries triggers one-liner generation for
-items visible on the current page.
+POST /radar/today/generate-summaries queues background summary generation for
+today's items.
 """
 from collections import Counter
 from datetime import datetime
@@ -14,12 +14,11 @@ from urllib.parse import urlencode
 import os
 
 from fastapi import APIRouter, BackgroundTasks, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.db import get_db
 from app.context_processors import inject_sources_nav
-from app.application.candidates.one_liner import CandidateOneLinerService, get_one_liner_settings
 from app.application.radar.today import (
     RadarTodayService,
     DEFAULT_HOURS,
@@ -276,6 +275,88 @@ def _build_insight_batch_status(raw_item_ids: str | None) -> dict | None:
         db.close()
 
 
+def _build_summary_batch_status(raw_item_ids: str | None) -> dict | None:
+    from app.application.radar.background_summary import (
+        SUMMARY_BATCH_ERROR_KEY,
+        SUMMARY_BATCH_STATUS_KEY,
+    )
+
+    item_ids = _parse_item_ids(raw_item_ids, limit=50)
+    if not item_ids:
+        return None
+
+    db = next(get_db())
+    try:
+        rows = db.query(SourceItem).filter(SourceItem.id.in_(item_ids)).all()
+        rows_by_id = {row.id: row for row in rows}
+        details = []
+        completed = running = failed = pending = 0
+        retry_ids: list[int] = []
+
+        for item_id in item_ids:
+            item = rows_by_id.get(item_id)
+            title = item.title if item and item.title else f"文章 #{item_id}"
+            raw = {}
+            if item is not None:
+                try:
+                    raw = json.loads(item.raw_metadata_json or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    raw = {}
+                if not isinstance(raw, dict):
+                    raw = {}
+
+            complete = bool(
+                str(raw.get("zh_one_liner") or "").strip()
+                and str(raw.get("zh_summary") or "").strip()
+            )
+            batch_status = str(raw.get(SUMMARY_BATCH_STATUS_KEY) or "")
+            error = str(raw.get(SUMMARY_BATCH_ERROR_KEY) or "")
+
+            if item is None:
+                status = "failed"
+                status_label = "文章不存在"
+                failed += 1
+            elif complete:
+                status = "completed"
+                status_label = "中文摘要已完成"
+                completed += 1
+            elif batch_status == "running":
+                status = "running"
+                status_label = "正在生成中文摘要"
+                running += 1
+            elif batch_status == "failed":
+                status = "failed"
+                status_label = "生成失败，可重试"
+                failed += 1
+                retry_ids.append(item_id)
+            else:
+                status = "pending"
+                status_label = "等待后台处理"
+                pending += 1
+
+            details.append({
+                "item_id": item_id,
+                "title": title,
+                "status": status,
+                "message_label": status_label,
+                "error_label": error[:120] if status == "failed" else "",
+            })
+
+        return {
+            "item_ids": item_ids,
+            "details": details,
+            "success": completed,
+            "completed": completed,
+            "running": running,
+            "failed_actual": failed,
+            "failed": failed,
+            "pending": pending,
+            "retry_ids": retry_ids,
+        }
+    finally:
+        db.close()
+
+
 router = APIRouter(prefix="/radar", tags=["radar"])
 
 
@@ -364,6 +445,10 @@ def radar_today_page(
     summary_skipped: int | None = Query(None, ge=0),
     summary_failed: int | None = Query(None, ge=0),
     summary_details: str | None = Query(None),
+    summary_batch_ids: str | None = Query(None),
+    summary_batch_accepted: int | None = Query(None, ge=0),
+    summary_batch_skipped: int | None = Query(None, ge=0),
+    summary_batch_failed: int | None = Query(None, ge=0),
     insight_status: str | None = Query(None),
     insight_message: str | None = Query(None),
     insight_batch_accepted: int | None = Query(None, ge=0),
@@ -410,8 +495,15 @@ def radar_today_page(
         section=section,
     )
 
-    summary_result = None
-    if (
+    summary_result = _build_summary_batch_status(summary_batch_ids)
+    if summary_result is not None:
+        summary_result.update({
+            "accepted": summary_batch_accepted or 0,
+            "skipped": summary_batch_skipped or 0,
+            "failed_enqueue": summary_batch_failed or 0,
+            "background": True,
+        })
+    elif (
         summary_success is not None
         or summary_skipped is not None
         or summary_failed is not None
@@ -698,49 +790,6 @@ def radar_today_panel(
     )
 
 
-@router.post("/today/items/{item_id}/fetch-content")
-def fetch_today_item_content(
-    item_id: int,
-    section: str = Form(ALL_KEY),
-    hours: int = Form(DEFAULT_HOURS),
-    limit: int = Form(DEFAULT_LIMIT),
-    page: int = Form(1),
-    per_page: int = Form(DEFAULT_PER_PAGE),
-):
-    """Record a safe content-fetch request placeholder for a radar item.
-
-    First version: no network fetch, no LLM, no schema change. It records a
-    queued status in raw_metadata_json so the UI can show the chain state.
-    """
-    db = next(get_db())
-    try:
-        item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
-        if item is not None and item.url:
-            try:
-                raw = json.loads(item.raw_metadata_json or "{}")
-            except (TypeError, json.JSONDecodeError):
-                raw = {}
-            if not isinstance(raw, dict):
-                raw = {}
-            raw["content_fetch_status"] = "queued"
-            raw["content_fetch_requested_at"] = datetime.utcnow().isoformat()
-            raw["content_fetch_note"] = "queued placeholder; no network fetch in V1.0-beta.6"
-            item.raw_metadata_json = json.dumps(raw, ensure_ascii=False)
-            db.commit()
-    finally:
-        db.close()
-
-    params = {
-        "section": section,
-        "item_id": item_id,
-        "hours": hours,
-        "limit": limit,
-        "page": page,
-        "per_page": per_page,
-    }
-    return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
-
-
 @router.post("/today/items/{item_id}/fetch-html")
 def fetch_today_item_html(
     item_id: int,
@@ -896,6 +945,7 @@ def generate_today_item_insight(
 
 @router.post("/today/generate-summaries")
 def generate_today_summaries(
+    background_tasks: BackgroundTasks,
     section: str = Form(ALL_KEY),
     item_id: int | None = Form(None),
     hours: int = Form(DEFAULT_HOURS),
@@ -905,7 +955,12 @@ def generate_today_summaries(
     summary_limit: int = Form(SUMMARY_BATCH_LIMIT),
     summary_item_ids: str | None = Form(None),
 ):
-    """Generate Chinese summaries for items visible on the current radar page."""
+    """Queue Chinese-summary generation for up to 50 today-radar items."""
+    from app.application.radar.background_summary import (
+        enqueue_summary_batch,
+        run_summary_batch_in_background,
+    )
+
     db = next(get_db())
     try:
         service = RadarTodayService(db)
@@ -913,14 +968,12 @@ def generate_today_summaries(
             selected_item_id=item_id,
             hours=hours,
             limit=limit,
-            page=page,
-            per_page=per_page,
-            section=section,
+            page=1,
+            per_page=MAX_PER_PAGE,
+            section=ALL_KEY,
         )
 
-        # Collect currently-visible items in page display order (deduped).
-        # Prioritize compile_candidates (InsightCard recommendation section),
-        # then current page visible items.
+        # Prioritize recommended items, then the rest of today's radar.
         target_ids = []
         seen_ids = set()
 
@@ -931,14 +984,17 @@ def generate_today_summaries(
                     target_ids.append(candidate.source_item_id)
                     seen_ids.add(candidate.source_item_id)
 
-        # 2. Then add current page visible items
+        # 2. Then add all today items (the radar scope is capped at 50).
         for section_view in view.sections:
             for item in section_view.items:
                 if item.id not in seen_ids:
                     target_ids.append(item.id)
                     seen_ids.add(item.id)
 
-        requested_ids = _parse_item_ids(summary_item_ids, limit=20)
+        requested_ids = _parse_item_ids(
+            summary_item_ids,
+            limit=SUMMARY_BATCH_LIMIT,
+        )
         if requested_ids:
             allowed_ids = set(target_ids)
             target_ids = [
@@ -947,67 +1003,40 @@ def generate_today_summaries(
                 if requested_id in allowed_ids
             ]
 
-        # 3. Re-fetch items to ensure we have session-bound objects.
-        fetched_items = (
-            db.query(SourceItem)
-            .filter(SourceItem.id.in_(target_ids))
-            .all()
-        )
-        items_by_id = {item.id: item for item in fetched_items}
-        items = [items_by_id[iid] for iid in target_ids if iid in items_by_id]
-
-        # Prioritize items that are missing zh_one_liner or zh_summary.
-        needs_summary = [item for item in items if _needs_chinese_summary(item)]
-        complete = [item for item in items if not _needs_chinese_summary(item)]
-
         max_items = max(1, min(summary_limit, SUMMARY_BATCH_LIMIT))
-        items = (needs_summary + complete)[:max_items]
-
-        settings = get_one_liner_settings()
-        summary_service = CandidateOneLinerService(db, settings=settings)
-        results = summary_service.generate_for_items(
-            items,
-            limit=max_items,
-            fill_missing_summary=True,
-        )
-
-        success = sum(1 for r in results if r.status == "success")
-        skipped = sum(1 for r in results if r.status == "skipped")
-        failed = sum(1 for r in results if r.status == "failed")
-
-        # Build per-item detail string (max 5 items, message truncated to avoid long URLs)
-        detail_parts = []
-        for result in results[:5]:
-            item_id = getattr(result, "item_id", None) or ""
-            status = getattr(result, "status", "")
-            message = getattr(result, "error", "") or ""
-            # Sanitize: remove chars that could break URL parsing
-            safe_message = message.replace("|", " ").replace(";", " ").replace("\n", " ").strip()
-            if len(safe_message) > 80:
-                safe_message = safe_message[:77] + "..."
-            detail_parts.append(f"{item_id}:{status}:{safe_message}")
-
-        summary_details = ";".join(detail_parts)
-
-        safe_section = view.active_section
-        params = {
-            "section": safe_section,
-            "hours": hours,
-            "limit": limit,
-            "page": page,
-            "per_page": per_page,
-            "summary_success": success,
-            "summary_skipped": skipped,
-            "summary_failed": failed,
-        }
-        if item_id is not None:
-            params["item_id"] = item_id
-        if summary_details:
-            params["summary_details"] = summary_details
-        redirect_url = "/radar/today?" + urlencode(params)
-        return RedirectResponse(url=redirect_url, status_code=303)
+        target_ids = target_ids[:max_items]
     finally:
         db.close()
+
+    enqueue_result = enqueue_summary_batch(
+        target_ids,
+        hard_cap=SUMMARY_BATCH_LIMIT,
+    )
+    if enqueue_result.accepted_ids:
+        background_tasks.add_task(
+            run_summary_batch_in_background,
+            enqueue_result.accepted_ids,
+        )
+
+    params = {
+        "section": section,
+        "hours": hours,
+        "limit": limit,
+        "page": page,
+        "per_page": per_page,
+        "summary_batch_ids": ",".join(
+            str(target_id) for target_id in enqueue_result.tracked_ids
+        ),
+        "summary_batch_accepted": len(enqueue_result.accepted_ids),
+        "summary_batch_skipped": enqueue_result.skipped,
+        "summary_batch_failed": enqueue_result.failed,
+    }
+    if item_id is not None:
+        params["item_id"] = item_id
+    return RedirectResponse(
+        url="/radar/today?" + urlencode(params),
+        status_code=303,
+    )
 
 
 @router.post("/today/generate-recommended-insights")
@@ -1253,15 +1282,17 @@ def update_today_radar(
 
 
 @router.get("/daily-report", response_class=HTMLResponse)
-def get_daily_report_card(request: Request):
+def get_daily_report_card(
+    request: Request,
+    version: str | None = Query(None),
+):
     """Render the DailyReportCard for today.
 
     Read-only page. Builds the card using rule-based ranking without LLM.
-    Accessible via GET; build via POST /radar/daily-report/build.
     """
     return _radar_templates.TemplateResponse(
         "radar_daily_report.html",
-        _build_daily_report_page_context(request),
+        _build_daily_report_page_context(request, report_version=version),
     )
 
 
@@ -1269,10 +1300,15 @@ def _build_daily_report_page_context(
     request: Request,
     *,
     daily_report_result: dict | None = None,
+    report_version: str | None = None,
 ) -> dict:
     """Build the shared rule-report and generated-core-report page context."""
     from app.application.radar.daily_report_card import build_daily_report_card
-    from app.application.radar.daily_report_store import load_daily_report
+    from app.application.radar.daily_report_store import (
+        list_daily_report_versions,
+        load_daily_report,
+        load_daily_report_version,
+    )
 
     db = next(get_db())
     try:
@@ -1285,8 +1321,15 @@ def _build_daily_report_page_context(
     secondary_items = card.secondary_items
     date_label = card.date_label
     secondary_all_shown = card.secondary_all_shown
+    report_versions = list_daily_report_versions(date_label)
     if daily_report_result is None:
-        daily_report_result = load_daily_report(date_label)
+        daily_report_result = (
+            load_daily_report_version(date_label, report_version)
+            if report_version
+            else load_daily_report(date_label)
+        )
+        if report_version and daily_report_result is None:
+            daily_report_result = load_daily_report(date_label)
 
     return {
         "request": request,
@@ -1297,11 +1340,17 @@ def _build_daily_report_page_context(
         "secondary_all_shown": secondary_all_shown,
         "safe_external_url": safe_external_url,
         "daily_report_result": daily_report_result,
+        "report_versions": report_versions,
+        "selected_report_version": (
+            daily_report_result.get("version_id")
+            if isinstance(daily_report_result, dict)
+            else None
+        ),
         "DAILY_REPORT_ENABLED": os.getenv("DAILY_REPORT_ENABLED", "").lower() in ("true", "1", "yes"),
     }
 
 
-def _build_daily_broadcast_page_data() -> tuple[object, str]:
+def _build_daily_broadcast_page_data() -> tuple[object, str, str | None]:
     """Build today's script, preferring the persisted core report."""
     from app.application.radar.daily_broadcast import (
         build_core_report_broadcast_script,
@@ -1318,7 +1367,11 @@ def _build_daily_broadcast_page_data() -> tuple[object, str]:
 
     core_report = load_daily_report(card.date_label)
     if core_report is not None:
-        return build_core_report_broadcast_script(core_report), "今日核心报告"
+        return (
+            build_core_report_broadcast_script(core_report),
+            "今日核心报告",
+            core_report.get("version_id"),
+        )
 
     primary_items = [
         {
@@ -1350,26 +1403,46 @@ def _build_daily_broadcast_page_data() -> tuple[object, str]:
         primary_items=primary_items,
         secondary_items=secondary_items,
     )
-    return script, "今日可读简报"
-
-
-@router.post("/daily-report/build")
-def build_daily_report_card_action(request: Request):
-    """Build today's DailyReportCard and redirect to the report page.
-
-    This is a no-op action that builds the card server-side and redirects
-    to GET /radar/daily-report. No LLM is called.
-    """
-    return RedirectResponse(url="/radar/daily-report", status_code=303)
+    return script, "今日可读简报", None
 
 
 @router.get("/daily-report/broadcast", response_class=HTMLResponse)
-def get_daily_broadcast(request: Request):
+def get_daily_broadcast(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    job_id: str | None = Query(None),
+    audio_error: str | None = Query(None),
+):
     """Render the DailyBroadcastScript for today.
 
     Read-only page. Builds the broadcast script from the DailyReportCard without LLM.
     """
-    script, script_basis = _build_daily_broadcast_page_data()
+    script, script_basis, report_version = _build_daily_broadcast_page_data()
+    from app.application.radar.daily_audio_jobs import (
+        VOICE_OPTIONS,
+        list_daily_audio_jobs,
+        load_daily_audio_job,
+        resume_daily_audio_job,
+        run_daily_audio_job,
+    )
+    from app.application.radar.mimo_tts import MiMoTTSSettings, MiMoTTSError
+
+    try:
+        settings = MiMoTTSSettings.from_env()
+        default_voice = settings.voice
+        default_style = settings.style
+        tts_config_error = None
+    except MiMoTTSError as exc:
+        default_voice = os.getenv("MIMO_TTS_VOICE", "冰糖").strip() or "冰糖"
+        default_style = os.getenv("MIMO_TTS_STYLE", "").strip()
+        tts_config_error = str(exc)
+    audio_job = load_daily_audio_job(job_id) if job_id else None
+    if audio_job is not None:
+        resume_result = resume_daily_audio_job(audio_job.job_id)
+        if resume_result and resume_result.should_start:
+            audio_job = resume_result.job
+            background_tasks.add_task(run_daily_audio_job, audio_job.job_id)
+    audio_jobs = list_daily_audio_jobs(limit=20)
 
     return _radar_templates.TemplateResponse(
         "radar_daily_broadcast.html",
@@ -1377,30 +1450,104 @@ def get_daily_broadcast(request: Request):
             "request": request,
             "script": script,
             "script_basis": script_basis,
+            "report_version": report_version,
+            "audio_job": audio_job,
+            "audio_jobs": audio_jobs,
+            "voice_options": VOICE_OPTIONS,
+            "default_voice": default_voice,
+            "default_style": default_style,
+            "tts_config_error": tts_config_error,
+            "audio_error": audio_error,
         },
     )
 
 
 @router.post("/daily-report/broadcast/audio")
-def generate_daily_broadcast_audio(request: Request):
-    """Generate TTS audio for today's broadcast script.
-
-    Returns a disabled result if DAILY_BROADCAST_TTS_ENABLED is not set.
-    This route does NOT call any external TTS API in V1.0-beta.8.
-    """
-    from app.application.radar.daily_broadcast import (
-        generate_daily_broadcast_audio as _generate_audio,
+def generate_daily_broadcast_audio(
+    background_tasks: BackgroundTasks,
+    voice: str = Form("冰糖"),
+    style: str = Form(""),
+):
+    """Queue MiMo TTS audio for today's broadcast script."""
+    from app.application.radar.daily_audio_jobs import (
+        enqueue_daily_audio_job,
+        run_daily_audio_job,
     )
-    script, script_basis = _build_daily_broadcast_page_data()
+    script, script_basis, report_version = _build_daily_broadcast_page_data()
 
-    audio_result = _generate_audio(script)
+    try:
+        result = enqueue_daily_audio_job(
+            script,
+            script_basis=script_basis,
+            voice=voice,
+            style=style,
+            report_version=report_version,
+        )
+    except Exception as exc:
+        params = {"audio_error": str(exc)[:300]}
+        return RedirectResponse(
+            url="/radar/daily-report/broadcast?" + urlencode(params),
+            status_code=303,
+        )
+    if result.should_start:
+        background_tasks.add_task(run_daily_audio_job, result.job.job_id)
+    return RedirectResponse(
+        url="/radar/daily-report/broadcast?"
+        + urlencode({"job_id": result.job.job_id}),
+        status_code=303,
+    )
 
-    return _radar_templates.TemplateResponse(
-        "radar_daily_broadcast.html",
-        {
-            "request": request,
-            "script": script,
-            "script_basis": script_basis,
-            "audio_result": audio_result,
-        },
+
+@router.post("/daily-report/broadcast/audio/{job_id}/retry")
+def retry_daily_broadcast_audio(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+):
+    from app.application.radar.daily_audio_jobs import (
+        retry_daily_audio_job,
+        run_daily_audio_job,
+    )
+    result = retry_daily_audio_job(job_id)
+    if result is None:
+        return HTMLResponse("语音任务不存在。", status_code=404)
+    if result.should_start:
+        background_tasks.add_task(run_daily_audio_job, job_id)
+    return RedirectResponse(
+        url="/radar/daily-report/broadcast?" + urlencode({"job_id": job_id}),
+        status_code=303,
+    )
+
+
+@router.post("/daily-report/broadcast/audio/{job_id}/delete")
+def delete_daily_broadcast_audio(job_id: str):
+    from app.application.radar.daily_audio_jobs import delete_daily_audio_job
+
+    if not delete_daily_audio_job(job_id):
+        return HTMLResponse("语音任务不存在、正在运行或无法删除。", status_code=409)
+    return RedirectResponse(
+        url="/radar/daily-report/broadcast",
+        status_code=303,
+    )
+
+
+@router.get("/daily-report/broadcast/audio/files/{filename}")
+def get_daily_broadcast_audio_file(filename: str):
+    """Serve only validated daily broadcast WAV files."""
+    from app.application.radar.daily_broadcast import (
+        get_daily_broadcast_audio_path,
+        is_valid_daily_broadcast_audio_file,
+    )
+
+    audio_path = get_daily_broadcast_audio_path(filename)
+    if (
+        audio_path is None
+        or not audio_path.is_file()
+        or not is_valid_daily_broadcast_audio_file(audio_path)
+    ):
+        return HTMLResponse("音频文件不存在。", status_code=404)
+    return FileResponse(
+        audio_path,
+        media_type="audio/wav",
+        filename=filename,
+        content_disposition_type="inline",
     )

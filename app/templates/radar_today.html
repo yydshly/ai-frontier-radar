@@ -154,7 +154,7 @@
                                 <input type="hidden" name="page" value="{{ view.page }}">
                                 <input type="hidden" name="per_page" value="{{ view.per_page }}">
                                 <input type="hidden" name="summary_limit" value="{{ SUMMARY_BATCH_LIMIT }}">
-                                <button type="submit" class="btn-sm" title="优先处理推荐候选，再补齐当前页；最多 {{ SUMMARY_BATCH_LIMIT }} 条，已有完整摘要自动跳过">补全中文摘要</button>
+                                <button type="submit" class="btn-sm" title="后台优先处理推荐候选，再补齐今日内容；最多 {{ SUMMARY_BATCH_LIMIT }} 条，已有完整摘要自动跳过">一键补全今日摘要</button>
                             </form>
                             {% if view.compile_candidates %}
                             <form method="post" action="/radar/today/generate-recommended-insights" class="radar-summary-form-inline">
@@ -433,23 +433,37 @@
                 {% if summary_result %}
                 <div class="radar-summary-result">
                     <div>
+                        {% if summary_result.background %}
+                        中文摘要后台任务：
+                        已提交 {{ summary_result.accepted or 0 }}，
+                        已完成 {{ summary_result.completed or 0 }}，
+                        处理中 {{ (summary_result.running or 0) + (summary_result.pending or 0) }}，
+                        失败 {{ summary_result.failed_actual or summary_result.failed_enqueue or 0 }}。
+                        {% else %}
                         中文摘要处理完成：
                         成功 {{ summary_result.success or 0 }}，
                         跳过 {{ summary_result.skipped or 0 }}，
                         失败 {{ summary_result.failed or 0 }}。
+                        {% endif %}
                     </div>
 
                     {% if summary_result.details %}
                     <ul class="radar-summary-detail-list">
                         {% for detail in summary_result.details %}
                         <li>
-                            <strong>#{{ detail.item_id }}</strong>
+                            <a href="/source-items/{{ detail.item_id }}"><strong>{{ detail.title or ('文章 #' ~ detail.item_id) }}</strong></a>
                             <span class="radar-summary-status radar-summary-status-{{ detail.status }}">
                                 {{ detail.message_label }}
                             </span>
+                            {% if detail.error_label %}
+                            <span class="radar-summary-hint">{{ detail.error_label }}</span>
+                            {% endif %}
                         </li>
                         {% endfor %}
                     </ul>
+                    {% endif %}
+                    {% if summary_result.background and (summary_result.running or summary_result.pending) %}
+                    <a href="{{ request.url }}" class="btn-sm">刷新处理状态</a>
                     {% endif %}
                     {% if summary_result.retry_ids %}
                     <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form-inline">

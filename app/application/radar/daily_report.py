@@ -1,7 +1,7 @@
 """Today's core report generation (P-003-2 / Phase D).
 
-Synthesizes today's already-summarized SourceItems (their Chinese one-liners)
-into a single Chinese core report: title + overview + highlights.
+Synthesizes today's already-summarized SourceItems and available completed
+InsightCards into a single Chinese core report: title + overview + highlights.
 
 This is the first P-003 step that may call an LLM, so it is strictly gated:
 - Default mode is DRY-RUN: assembles the compile input only, never calls an LLM.
@@ -23,7 +23,7 @@ from typing import Any, Protocol
 
 from sqlalchemy import or_
 
-from app.models import SourceItem
+from app.models import CardStatus, InsightCard, SourceItem
 from app.application.radar.daily_scope import recent_valid_items_query, SUMMARY_MARKERS
 from app.application.radar.settings import get_daily_scope_settings
 
@@ -32,7 +32,8 @@ from app.application.radar.settings import get_daily_scope_settings
 _SUMMARY_MARKERS = SUMMARY_MARKERS
 
 DAILY_REPORT_SYSTEM_PROMPT = """\
-你是 AI 前沿信息每日编译助手。你会收到"今天"已生成的一组中文一句话摘要条目。
+你是 AI 前沿信息每日编译助手。你会收到"今天"已生成的一组中文摘要条目；
+部分条目还包含已完成洞察卡中的关键点、技术洞察、产品机会和风险。
 请把它们综合成一份简洁的中文今日核心报告，帮助中文读者快速掌握今天 AI 前沿的整体动向。
 
 要求：
@@ -53,6 +54,7 @@ class DailyReportSource:
     summary: str
     url: str | None
     insight_card_id: int | None
+    insight_context: str | None = None
 
 
 @dataclass(frozen=True)
@@ -135,8 +137,55 @@ def _normalize(value: Any) -> str | None:
     return text or None
 
 
+def _parse_text_list(value: Any, *, limit: int) -> list[str]:
+    """Parse a JSON/list text field into a small normalized string list."""
+    import json as _json
+
+    parsed = value
+    if isinstance(value, str):
+        try:
+            parsed = _json.loads(value)
+        except (TypeError, ValueError):
+            parsed = [value]
+    if not isinstance(parsed, list):
+        return []
+
+    result: list[str] = []
+    for item in parsed:
+        text = _normalize(item)
+        if text:
+            result.append(text)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _build_insight_context(card: InsightCard | None, *, max_chars: int = 600) -> str | None:
+    """Build bounded report context from one completed InsightCard."""
+    if card is None or card.status != CardStatus.COMPLETED:
+        return None
+
+    sections = (
+        ("关键点", _parse_text_list(card.key_points_zh, limit=2)),
+        ("技术洞察", _parse_text_list(card.technical_insights_zh, limit=2)),
+        ("产品机会", _parse_text_list(card.product_opportunities_zh, limit=1)),
+        ("风险", _parse_text_list(card.risks_zh, limit=1)),
+    )
+    parts = [
+        f"{label}：{'；'.join(values)}"
+        for label, values in sections
+        if values
+    ]
+    text = "｜".join(parts)
+    if not text:
+        return None
+    if len(text) > max_chars:
+        return text[: max_chars - 1].rstrip() + "…"
+    return text
+
+
 def build_daily_report_input(db, *, now: datetime | None = None, max_items: int | None = None) -> DailyReportInput:
-    """Assemble today's Chinese one-liners as report input. Read-only, no LLM."""
+    """Assemble today's summaries and completed insight context. Read-only."""
     import json as _json
 
     if now is None:
@@ -150,9 +199,23 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
         recent_valid_items_query(db, now=now, hours=scope_settings.window_hours)
         .filter(or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS]))
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(scope_settings.item_limit)
+        .limit(min(scope_settings.item_limit, max_items))
         .all()
     )
+    insight_ids = {
+        item.insight_card_id for item in rows if item.insight_card_id is not None
+    }
+    insight_cards = (
+        db.query(InsightCard)
+        .filter(
+            InsightCard.id.in_(insight_ids),
+            InsightCard.status == CardStatus.COMPLETED,
+        )
+        .all()
+        if insight_ids
+        else []
+    )
+    insight_by_id = {card.id: card for card in insight_cards}
 
     bullets: list[str] = []
     sources: list[DailyReportSource] = []
@@ -174,13 +237,20 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
         )
 
         if summary:
-            bullets.append(f"[文章ID:{it.id}] {it.title or '无标题'}｜{summary}")
+            insight_context = _build_insight_context(
+                insight_by_id.get(it.insight_card_id)
+            )
+            bullet = f"[文章ID:{it.id}] {it.title or '无标题'}｜摘要：{summary}"
+            if insight_context:
+                bullet += f"｜洞察卡：{insight_context}"
+            bullets.append(bullet)
             sources.append(DailyReportSource(
                 item_id=it.id,
                 title=it.title or "无标题",
                 summary=summary,
                 url=it.url,
                 insight_card_id=it.insight_card_id,
+                insight_context=insight_context,
             ))
 
     return DailyReportInput(
@@ -195,7 +265,7 @@ def build_daily_report_user_prompt(payload: DailyReportInput) -> str:
     lines = "\n".join(f"- {b}" for b in payload.bullet_sources)
     return (
         f"日期：{payload.date_label}\n"
-        f"今日中文摘要条目（共 {payload.item_count} 条，每条含可引用的文章 ID）：\n{lines}\n\n"
+        f"今日中文摘要与洞察条目（共 {payload.item_count} 条，每条含可引用的文章 ID）：\n{lines}\n\n"
         "请基于以上条目生成今日核心报告。"
     )
 

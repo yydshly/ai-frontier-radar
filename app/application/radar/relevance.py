@@ -43,13 +43,16 @@ SOURCE_IMPORTANCE: dict[str, float] = {
     "berkeley_bair_blog": 1.3,
 }
 
-# Float importance → integer recommendation priority. Reproduces the previous
-# compile_candidates._SOURCE_PRIORITY values exactly, EXCEPT deepmind_blog,
-# which aligns up (8 → 10) to match its top-tier report weight (the one prior
-# disagreement between the two tables; verified no current-data result change).
-_IMPORTANCE_TO_PRIORITY: dict[float, int] = {
-    2.0: 10, 1.8: 7, 1.7: 6, 1.5: 5, 1.3: 4, 1.2: 4, 1.0: 3,
-}
+# Float importance → integer recommendation priority. Thresholds preserve the
+# previous priorities while remaining monotonic for future intermediate values.
+_IMPORTANCE_PRIORITY_THRESHOLDS: tuple[tuple[float, int], ...] = (
+    (2.0, 10),
+    (1.8, 7),
+    (1.7, 6),
+    (1.5, 5),
+    (1.2, 4),
+    (1.0, 3),
+)
 
 
 def source_weight(source_key: str) -> float:
@@ -62,7 +65,10 @@ def source_priority(source_key: str) -> int:
     importance = SOURCE_IMPORTANCE.get(source_key)
     if importance is None:
         return 0
-    return _IMPORTANCE_TO_PRIORITY.get(round(importance, 1), int(round(importance * 5)))
+    for threshold, priority in _IMPORTANCE_PRIORITY_THRESHOLDS:
+        if importance >= threshold:
+            return priority
+    return 0
 
 
 # Topic taxonomy — evaluated in order; a normal item is placed in the FIRST

@@ -147,7 +147,7 @@ RADAR_RECOMMENDED_INSIGHT_LIMIT=5
 
 # ── 摘要生成批次 ────────────────────────────────────────────────────
 # 单次批量生成中文摘要的最大条目数
-RADAR_SUMMARY_BATCH_LIMIT=20
+RADAR_SUMMARY_BATCH_LIMIT=50
 ```
 
 **默认值**：所有数字均有安全默认值，环境变量仅用于覆盖。非法值（负数、超范围、非数字）会自动回退到默认值。
@@ -191,8 +191,8 @@ LLM 生成的中文核心报告，汇总当日重点内容。**默认关闭**。
 # 是否启用 LLM 生成今日核心报告
 DAILY_REPORT_ENABLED=false
 
-# 每次报告最多包含几条重点内容
-DAILY_REPORT_MAX_ITEMS=12
+# 每次报告最多包含几条今日内容
+DAILY_REPORT_MAX_ITEMS=50
 ```
 
 **为什么默认关闭？** 今日核心报告基于当日所有中文摘要内容调用 LLM，属于高成本操作。
@@ -206,15 +206,37 @@ DAILY_REPORT_MAX_ITEMS=12
 
 ## 8. 播报 / TTS 配置
 
-预留每日播报 TTS 开关。**当前实现不调用外部 TTS API**，默认关闭。
+每日播报使用小米 MiMo V2.5 TTS 将核心报告或可读简报转换为 WAV 音频。默认关闭，只有显式启用且配置 API Key 后才会调用外部接口。
 
 ```env
 DAILY_BROADCAST_TTS_ENABLED=false
+MIMO_API_KEY=
+MIMO_TTS_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
+MIMO_TTS_MODEL=mimo-v2.5-tts
+MIMO_TTS_VOICE=冰糖
+MIMO_TTS_FORMAT=wav
+MIMO_TTS_STYLE=使用清晰、专业、自然的中文新闻播报语气，语速适中，重点明确。
+MIMO_TTS_TIMEOUT_SECONDS=180
+MIMO_TTS_MAX_TEXT_CHARS=12000
+MIMO_TTS_CHUNK_CHARS=3000
+DAILY_BROADCAST_AUDIO_DIR=runtime/daily_audio
+DAILY_BROADCAST_AUDIO_RETENTION_DAYS=30
+DAILY_BROADCAST_AUDIO_MAX_FILES=100
+DAILY_BROADCAST_AUDIO_LOCK_MINUTES=30
 ```
+
+当前使用后台分段 WAV 生成。页面可查看排队、分段进度、完成和失败状态；相同文稿、音色与风格会复用已有结果。音频保存在运行目录，通过受限路由提供播放和下载，不会公开整个 `runtime` 目录。
+
+- `MIMO_TTS_CHUNK_CHARS`：单个 TTS 请求的建议文本长度，长文按自然段和句子拆分。
+- `DAILY_BROADCAST_AUDIO_RETENTION_DAYS`：历史音频保留天数。
+- `DAILY_BROADCAST_AUDIO_MAX_FILES`：最多保留的语音任务数。
+- `DAILY_BROADCAST_AUDIO_LOCK_MINUTES`：跨进程任务锁的过期时间。
+
+Token Plan 中国集群使用 `tp-` 开头的专属 API Key。Token Plan Key 与按量计费的 `sk-` Key 不能混用；其他区域应以订阅管理页面展示的 Base URL 为准。
 
 ---
 
-## 8. 安全默认值
+## 9. 安全默认值
 
 下表汇总了各高成本操作的默认状态：
 
@@ -223,11 +245,11 @@ DAILY_BROADCAST_TTS_ENABLED=false
 | `ONE_LINER_ENABLED` | `true` | 低成本的一句话说，，配额保护 |
 | `LLM_SUMMARY_ENABLED` | `false` | 高成本正文摘要，默认关闭 |
 | `DAILY_REPORT_ENABLED` | `false` | 高成本核心报告，默认关闭 |
-| `DAILY_BROADCAST_TTS_ENABLED` | `false` | TTS 未实现，默认关闭 |
+| `DAILY_BROADCAST_TTS_ENABLED` | `false` | MiMo TTS 已接入，默认关闭以避免意外调用 |
 
 ---
 
-## 9. 常见问题
+## 10. 常见问题
 
 ### Q: 复制 .env.example 后运行报错怎么办？
 

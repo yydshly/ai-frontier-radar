@@ -127,7 +127,7 @@ def get_generation_settings() -> RadarGenerationSettings:
     """Build RadarGenerationSettings from environment variables."""
     return RadarGenerationSettings(
         summary_batch_limit=_env_int(
-            "RADAR_SUMMARY_BATCH_LIMIT", default=20, minimum=1, maximum=50
+            "RADAR_SUMMARY_BATCH_LIMIT", default=50, minimum=1, maximum=50
         ),
     )
 
@@ -141,7 +141,7 @@ def get_daily_report_enabled() -> bool:
 
 def get_daily_report_max_items() -> int:
     """Return the max items included in one daily report LLM call."""
-    return _env_int("DAILY_REPORT_MAX_ITEMS", default=12, minimum=1, maximum=50)
+    return _env_int("DAILY_REPORT_MAX_ITEMS", default=50, minimum=1, maximum=50)
 
 
 def get_daily_broadcast_tts_enabled() -> bool:

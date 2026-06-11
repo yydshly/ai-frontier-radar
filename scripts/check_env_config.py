@@ -140,6 +140,38 @@ def main():
         ok(f"DAILY_BROADCAST_TTS_ENABLED={val}")
         if val.lower() == "false":
             ok("DAILY_BROADCAST_TTS_ENABLED=false (TTS not active)")
+        runtime_enabled = env.get("DAILY_BROADCAST_TTS_ENABLED", val).lower() == "true"
+        mimo_key = env.get("MIMO_API_KEY", example.get("MIMO_API_KEY", ""))
+        mimo_base_url = env.get(
+            "MIMO_TTS_BASE_URL",
+            example.get("MIMO_TTS_BASE_URL", ""),
+        )
+        if runtime_enabled and not mimo_key:
+            warn("MiMo TTS is enabled in .env but MIMO_API_KEY is missing")
+        elif runtime_enabled and mimo_key.startswith("tp-"):
+            if "token-plan-" not in mimo_base_url:
+                fail("tp- MiMo key must use the Token Plan Base URL")
+            else:
+                ok("MiMo Token Plan key and Base URL are paired")
+        elif runtime_enabled and mimo_key.startswith("sk-"):
+            if "token-plan-" in mimo_base_url:
+                fail("sk- MiMo key cannot use the Token Plan Base URL")
+            else:
+                ok("MiMo pay-as-you-go key and Base URL are paired")
+        elif runtime_enabled and mimo_key:
+            warn("MIMO_API_KEY does not use a recognized tp- or sk- prefix")
+        for key in (
+            "MIMO_API_KEY",
+            "MIMO_TTS_BASE_URL",
+            "MIMO_TTS_MODEL",
+            "MIMO_TTS_VOICE",
+            "MIMO_TTS_FORMAT",
+            "MIMO_TTS_CHUNK_CHARS",
+            "DAILY_BROADCAST_AUDIO_RETENTION_DAYS",
+            "DAILY_BROADCAST_AUDIO_MAX_FILES",
+        ):
+            if key not in example:
+                warn(f"{key} not in .env.example")
     else:
         warn("DAILY_BROADCAST_TTS_ENABLED not in .env.example (recommended: false)")
 

@@ -80,6 +80,17 @@
     <div class="radar-report-core-section" id="daily-core-report">
         <div class="radar-report-core-header">
             <h2 class="radar-report-core-title">今日核心报告</h2>
+            {% if report_versions|length > 1 %}
+            <div class="radar-report-core-history">
+                <span>历史版本：</span>
+                {% for report_version in report_versions %}
+                <a href="/radar/daily-report?version={{ report_version.version_id }}"
+                   class="radar-report-action-link {% if report_version.version_id == selected_report_version %}is-active{% endif %}">
+                    {{ report_version.generated_at|replace('T', ' ') }}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% if daily_report_result and daily_report_result.status == 'generated' %}
         <div class="radar-report-core-content">
@@ -152,14 +163,14 @@
         </div>
         {% endif %}
 
-        {# ── 音频播报预留 ──────────────────────────────── #}
+        {# ── 音频播报 ─────────────────────────────────── #}
         <div class="radar-report-audio-section">
             <div class="radar-report-audio-header">
                 <h3 class="radar-report-audio-title">音频播报</h3>
             </div>
             <div class="radar-report-audio-placeholder">
-                <p>语音文稿优先基于今日核心报告生成；真实 TTS 音频仍需后续接入。</p>
-                <a href="/radar/daily-report/broadcast" class="btn btn-secondary">查看语音文稿</a>
+                <p>语音文稿优先基于今日核心报告生成，并可通过 MiMo V2.5 TTS 生成 WAV 音频。</p>
+                <a href="/radar/daily-report/broadcast" class="btn btn-secondary">查看文稿并生成语音</a>
                 <p class="radar-report-audio-hint">未生成核心报告时，将使用今日可读简报生成文稿。</p>
             </div>
         </div>

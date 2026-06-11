@@ -28,12 +28,12 @@ _TOPIC_KEYWORDS = [
     "document", "pdf", "tts", "voice", "audio", "video", "safety", "policy",
     "openai", "anthropic", "deepmind", "gemini", "claude", "minimax",
     "mistral", "cohere", "huggingface", "arxiv",
-    "llm", "gpt", "gemini", "claude", "mistral", "benchmark",
-    "reasoning", "chain-of-thought", "reasoning", "inference",
-    "multimodal", "vision", "image", "video", "audio", "speech",
+    "llm", "gpt", "benchmark",
+    "reasoning", "chain-of-thought", "inference",
+    "multimodal", "vision", "image", "speech",
     "alignment", "rlhf", "fine-tuning", "training",
     "memory", "context", "attention", "transformer",
-    "robotics", " embodied", "agent", "planning",
+    "robotics", "embodied", "planning",
 ]
 
 # Weak/泛 titles

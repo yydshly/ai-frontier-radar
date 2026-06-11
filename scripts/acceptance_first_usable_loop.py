@@ -4,6 +4,7 @@ acceptance_first_usable_loop.py — V1.0-beta First Usable Loop 轻量验收脚�
 
 只做静态 / 轻量检查，不联网，不调用 LLM，不抓取外部 URL。
 """
+import os
 import sys
 from pathlib import Path
 
@@ -62,8 +63,8 @@ def main() -> int:
           'action="/radar/today/update"' in radar_html and "同步今日新增" in radar_html,
           "应有更新今日雷达表单")
     check("今日雷达有中文摘要补齐入口",
-          'action="/radar/today/generate-summaries"' in radar_html and "补全中文摘要" in radar_html,
-          "应有补齐当前页中文摘要表单")
+          'action="/radar/today/generate-summaries"' in radar_html and "一键补全今日摘要" in radar_html,
+          "应有后台补齐今日中文摘要表单")
     check("今日雷达有智能阅读面板",
           ("阅读面板" in radar_panel_partial or "文章阅读助手" in radar_panel_partial)
           and 'id="radar-panel"' in radar_panel_partial,
@@ -912,66 +913,12 @@ def main() -> int:
               "仅记录获取意图" not in today_resp.text and "尚未执行真实抓取" not in today_resp.text,
               "page should not claim intent-only since V1.0-beta.9 does real fetching")
 
-        get_fetch_resp = _client.get("/radar/today/items/0/fetch-content")
-        check("GET fetch-content is not allowed",
-              get_fetch_resp.status_code in (404, 405),
-              "GET must not trigger content fetch")
-
-        post_missing_resp = _client.post(
-            "/radar/today/items/999999999/fetch-content",
-            data={
-                "section": "all",
-                "hours": "24",
-                "limit": "50",
-                "page": "1",
-                "per_page": "20",
-            },
-            follow_redirects=False,
-        )
-        check("POST missing item safely redirects",
-              post_missing_resp.status_code in (303, 307),
-              "missing item should safely return to today radar")
-
-        import json as _json
-        db = SessionLocal()
-        item_for_post = None
-        old_metadata = None
-        try:
-            item_for_post = db.query(SourceItem).filter(SourceItem.url.isnot(None)).first()
-            if item_for_post is not None:
-                old_metadata = item_for_post.raw_metadata_json
-                post_existing_resp = _client.post(
-                    f"/radar/today/items/{item_for_post.id}/fetch-content",
-                    data={
-                        "section": "all",
-                        "hours": "24",
-                        "limit": "50",
-                        "page": "1",
-                        "per_page": "20",
-                    },
-                    follow_redirects=True,
-                )
-                check("POST existing item returns radar page (queued)",
-                      post_existing_resp.status_code == 200,
-                      "POST fetch-content should return the radar page; queued metadata verified below")
-                db.refresh(item_for_post)
-                raw = _json.loads(item_for_post.raw_metadata_json or "{}")
-                check("POST fetch-content writes queued metadata",
-                      raw.get("content_fetch_status") == "queued",
-                      "content_fetch_status should be queued")
-            else:
-                check("SourceItem with URL available for fetch-content POST", False, "no SourceItem URL found")
-        finally:
-            if item_for_post is not None:
-                item_for_post.raw_metadata_json = old_metadata
-                db.commit()
-            db.close()
-
         radar_route_text = read("app/routes/radar.py")
-        check("fetch-content route does not call LLM",
-              "fetch_today_item_content" in radar_route_text
-              and "CandidateOneLinerService" not in radar_route_text.split("def fetch_today_item_content", 1)[1].split("@router.post", 1)[0],
-              "fetch-content must not call LLM")
+        check("obsolete fetch-content placeholder is removed",
+              "/today/items/{item_id}/fetch-content" not in radar_route_text
+              and _client.get("/radar/today/items/0/fetch-content").status_code == 404
+              and _client.post("/radar/today/items/0/fetch-content").status_code == 404,
+              "real content fetching must use fetch-html only")
 
         after_columns = [col.name for col in SourceItem.__table__.columns]
         check("fetch-content does not change DB schema",
@@ -1165,13 +1112,9 @@ def main() -> int:
             check("Daily report card: page contains 查看语音文稿",
                   "查看语音文稿".encode() in resp.content,
                   "page should show broadcast-script link")
-        check("Daily report card: POST /radar/daily-report/build redirects",
-              True,
-              "build action should redirect to GET page")
-        resp_build = client.post("/radar/daily-report/build", follow_redirects=False)
-        check("Daily report card: POST /radar/daily-report/build redirects",
-              resp_build.status_code == 303,
-              f"got {resp_build.status_code}")
+        check("Daily report card: obsolete build endpoint is removed",
+              client.post("/radar/daily-report/build", follow_redirects=False).status_code == 404,
+              "GET /radar/daily-report builds the rule report directly")
 
         # Static checks
         card_text = read("app/application/radar/daily_report_card.py")
@@ -1224,29 +1167,32 @@ def main() -> int:
         check("Daily broadcast: page contains 返回今日报告",
               "返回今日报告" in resp.text,
               "broadcast page should have back link")
-        check("Daily broadcast: page contains 生成音频",
-              "生成音频" in resp.text,
+        check("Daily broadcast: page contains 生成语音报告",
+              "生成语音报告" in resp.text,
               "broadcast page should show audio button")
-        check("Daily broadcast: page contains 未启用真实 TTS",
-              "未启用真实 TTS" in resp.text,
-              "broadcast should show disabled TTS message")
+        check("Daily broadcast: page identifies MiMo V2.5",
+              "MiMo V2.5" in resp.text,
+              "broadcast should identify the configured TTS provider")
 
         # POST audio endpoint
-        resp_audio = client.post("/radar/daily-report/broadcast/audio", follow_redirects=False)
-        check("Daily broadcast: POST /radar/daily-report/broadcast/audio returns 200",
-              resp_audio.status_code == 200,
+        previous_tts_enabled = os.environ.get("DAILY_BROADCAST_TTS_ENABLED")
+        os.environ["DAILY_BROADCAST_TTS_ENABLED"] = "false"
+        try:
+            resp_audio = client.post(
+                "/radar/daily-report/broadcast/audio",
+                follow_redirects=False,
+            )
+        finally:
+            if previous_tts_enabled is None:
+                os.environ.pop("DAILY_BROADCAST_TTS_ENABLED", None)
+            else:
+                os.environ["DAILY_BROADCAST_TTS_ENABLED"] = previous_tts_enabled
+        check("Daily broadcast: POST /radar/daily-report/broadcast/audio returns 303",
+              resp_audio.status_code == 303,
               f"got {resp_audio.status_code}")
-        check("Daily broadcast: audio endpoint returns disabled message",
-              "未启用真实 TTS" in resp_audio.text,
-              "audio endpoint should show disabled when TTS not configured")
-
-        # POST audio preserves broadcast script display
-        check("Daily broadcast: POST audio preserves 播报文案",
-              "播报文案" in resp_audio.text,
-              "POST audio should preserve broadcast script display")
-        check("Daily broadcast: POST audio shows disabled banner",
-              "radar-broadcast-audio-disabled" in resp_audio.text or "未启用真实 TTS" in resp_audio.text,
-              "POST audio should show disabled banner")
+        check("Daily broadcast: disabled enqueue redirects with error",
+              "audio_error=" in resp_audio.headers.get("location", ""),
+              "disabled TTS should redirect with a readable error")
 
         # Static checks
         broadcast_text = read("app/application/radar/daily_broadcast.py")
@@ -1272,11 +1218,17 @@ def main() -> int:
               "daily-report/broadcast" in report_html,
               "daily report page should link to broadcast")
 
-        # TTS reserve note in broadcast template
+        # MiMo provider and audio player in broadcast template
         broadcast_html = read("app/templates/radar_daily_broadcast.html")
-        check("Daily broadcast: template has TTS reserve note",
-              "仅预留音频入口" in broadcast_html or "真实 TTS 尚未启用" in broadcast_html,
-              "broadcast template should note TTS is reserved but not enabled")
+        check("Daily broadcast: template identifies MiMo V2.5",
+              "MiMo V2.5" in broadcast_html and "<audio controls" in broadcast_html,
+              "broadcast template should identify MiMo and embed an audio player")
+        audio_jobs_text = read("app/application/radar/daily_audio_jobs.py")
+        check("Daily broadcast: persistent background audio jobs exist",
+              "class DailyAudioJob" in audio_jobs_text
+              and "def split_broadcast_text" in audio_jobs_text
+              and "def cleanup_daily_audio_jobs" in audio_jobs_text,
+              "audio should support background status, long text and retention")
 
         check("Daily broadcast: does not write DB",
               "db.add" not in broadcast_text and "db.commit" not in broadcast_text,

@@ -22,35 +22,47 @@
     </div>
 
     {# ── Audio status banner ─────────────────────────────── #}
-    {% if audio_result %}
+    {% if audio_error or tts_config_error %}
     <div class="radar-broadcast-audio-status">
-        {% if audio_result.status == "disabled" %}
-        <div class="radar-broadcast-audio-disabled">
-            <span class="radar-broadcast-audio-icon">🔇</span>
-            <span>{{ audio_result.message }}</span>
+        <div class="radar-broadcast-audio-failed">
+            <span class="radar-broadcast-audio-icon">!</span>
+            <span>{{ audio_error or tts_config_error }}</span>
         </div>
-        {% elif audio_result.status == "generated" %}
+    </div>
+    {% endif %}
+
+    {% if audio_job %}
+    <div class="radar-broadcast-audio-status">
+        {% if audio_job.status == "generated" %}
         <div class="radar-broadcast-audio-ready">
-            <span class="radar-broadcast-audio-icon">🔊</span>
-            <span>音频已生成：{{ audio_result.message }}</span>
-            {% if audio_result.audio_url %}
-            <a href="{{ audio_result.audio_url }}" target="_blank" class="radar-report-action-link">播放音频</a>
-            {% endif %}
+            <span class="radar-broadcast-audio-icon">完成</span>
+            <span>{{ audio_job.voice }}音色的语音报告已生成。</span>
+            <audio controls preload="metadata" src="{{ audio_job.audio_url }}"></audio>
+            <a href="{{ audio_job.audio_url }}" download class="radar-report-action-link">下载 WAV</a>
+        </div>
+        {% elif audio_job.status == "failed" %}
+        <div class="radar-broadcast-audio-failed">
+            <span class="radar-broadcast-audio-icon">失败</span>
+            <span>音频生成失败：{{ audio_job.error or "未知错误" }}</span>
+            <form method="post" action="/radar/daily-report/broadcast/audio/{{ audio_job.job_id }}/retry">
+                <button type="submit" class="btn btn-secondary">重新生成</button>
+            </form>
         </div>
         {% else %}
-        <div class="radar-broadcast-audio-failed">
-            <span class="radar-broadcast-audio-icon">⚠️</span>
-            <span>音频生成失败：{{ audio_result.message }}</span>
+        <div class="radar-broadcast-audio-processing">
+            <span class="radar-broadcast-audio-icon">处理中</span>
+            <span>
+                {% if audio_job.status == "queued" %}任务已进入后台队列{% else %}正在生成语音{% endif %}
+                {% if audio_job.chunk_count %}
+                （{{ audio_job.completed_chunks }}/{{ audio_job.chunk_count }} 段）
+                {% endif %}
+            </span>
+            <a href="/radar/daily-report/broadcast?job_id={{ audio_job.job_id }}" class="radar-report-action-link">刷新状态</a>
         </div>
+        <script>
+          window.setTimeout(function () { window.location.reload(); }, 2500);
+        </script>
         {% endif %}
-    </div>
-    {% else %}
-    {# Initial GET: show default disabled state #}
-    <div class="radar-broadcast-audio-status">
-        <div class="radar-broadcast-audio-disabled">
-            <span class="radar-broadcast-audio-icon">🔇</span>
-            <span>音频播报入口已预留，当前未启用真实 TTS。配置 TTS 后，可将这份播报文案生成音频。</span>
-        </div>
     </div>
     {% endif %}
 
@@ -60,16 +72,33 @@
             <h2 class="radar-broadcast-section-title">播报文案</h2>
             <span class="radar-report-stat-note">内容来源：{{ script_basis }}</span>
             <div class="radar-broadcast-toolbar">
-                <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').value).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">复制文案</button>
-                <form method="post" action="/radar/daily-report/broadcast/audio" style="display:inline;">
-                    <button type="submit" class="btn btn-primary" id="audio-btn">生成音频</button>
-                </form>
-                <span class="radar-broadcast-tts-note">当前版本仅预留音频入口，真实 TTS 尚未启用</span>
+                <button type="button" id="copy-btn" class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').value).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">复制文案</button>
+                <span class="radar-broadcast-tts-note">MiMo V2.5 TTS · 后台分段生成</span>
             </div>
         </div>
 
         {% if script.full_text %}
         <textarea id="broadcast-script" class="radar-broadcast-script" readonly>{{ script.full_text }}</textarea>
+        <form method="post" action="/radar/daily-report/broadcast/audio"
+              class="radar-broadcast-generation-form"
+              onsubmit="var btn=document.getElementById('audio-btn');btn.disabled=true;btn.textContent='任务提交中';">
+            <label>
+                <span>播报音色</span>
+                <select name="voice">
+                    {% for voice in voice_options %}
+                    <option value="{{ voice }}" {% if voice == (audio_job.voice if audio_job else default_voice) %}selected{% endif %}>{{ voice }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="radar-broadcast-style-field">
+                <span>播报风格</span>
+                <textarea name="style" maxlength="500" rows="3">{{ audio_job.style if audio_job else default_style }}</textarea>
+            </label>
+            <button type="submit" class="btn btn-primary" id="audio-btn" {% if tts_config_error %}disabled{% endif %}>
+                生成语音报告
+            </button>
+            <span class="radar-broadcast-tts-note">长文自动分段；相同文稿、音色和风格会复用已有音频。</span>
+        </form>
         {% else %}
         <div class="radar-broadcast-empty">
             <p>暂无播报内容。</p>
@@ -77,6 +106,46 @@
         </div>
         {% endif %}
     </div>
+
+    {% if audio_jobs %}
+    <div class="radar-broadcast-section">
+        <div class="radar-broadcast-section-header">
+            <h2 class="radar-broadcast-section-title">语音报告历史</h2>
+            <span class="radar-report-stat-note">最近 {{ audio_jobs|length }} 条</span>
+        </div>
+        <div class="radar-broadcast-history">
+            {% for job in audio_jobs %}
+            <div class="radar-broadcast-history-item">
+                <div>
+                    <strong>{{ job.date_label }} · {{ job.voice }}</strong>
+                    <span class="radar-report-stat-note">
+                        {{ job.updated_at|replace('T', ' ') }} ·
+                        {% if job.status == "generated" %}已完成
+                        {% elif job.status == "failed" %}失败
+                        {% elif job.status == "running" %}生成中
+                        {% else %}排队中{% endif %}
+                    </span>
+                    <div class="radar-report-stat-note">{{ job.script_basis }} · {{ job.title }}</div>
+                    {% if job.report_version %}
+                    <div class="radar-report-stat-note">报告版本：{{ job.report_version }}</div>
+                    {% endif %}
+                </div>
+                <div class="radar-broadcast-history-actions">
+                    <a href="/radar/daily-report/broadcast?job_id={{ job.job_id }}" class="radar-report-action-link">查看</a>
+                    {% if job.audio_url %}
+                    <a href="{{ job.audio_url }}" class="radar-report-action-link">播放</a>
+                    {% endif %}
+                    {% if job.status != "running" and job.status != "queued" %}
+                    <form method="post" action="/radar/daily-report/broadcast/audio/{{ job.job_id }}/delete">
+                        <button type="submit" class="btn btn-secondary btn-sm">删除</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     {# ── Footer ─────────────────────────────────────────── #}
     <div class="radar-report-footer">
