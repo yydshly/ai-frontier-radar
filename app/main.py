@@ -1202,6 +1202,7 @@ def _render_sources_page(
         # Convert to plain dicts for template
         from app.application.sources.strategy_labels import describe_fetch_strategy
         from app.application.sources.effective_strategy import compute_effective_strategy
+        from app.sources.config_loader import get_source as get_config_source
         sources_data = []
         for s in sources_orm:
             health = health_map.get(s.source_key)
@@ -1212,6 +1213,22 @@ def _render_sources_page(
             recommended_strategy = effective_strategy
             # V1.0-beta.13: needs_review when HTML index is used (no RSS feed)
             needs_review = (effective_strategy == "html_index")
+            # V1.0-beta.14: RSS status label (three-tier, replaces "需补充 RSS")
+            # Look up config for strategy_notes to determine if manually verified.
+            cfg = get_config_source(s.source_key)
+            rss_status_label = None
+            rss_status_class = ""
+            if effective_strategy == "rss":
+                rss_status_label = "RSS 已验证"
+                rss_status_class = "rss-ok"
+            elif effective_strategy == "html_index":
+                notes = (cfg.strategy_notes or "") if cfg else ""
+                if any(kw in notes for kw in ("No public RSS", "No reliable RSS", "HTML index fallback", "fallback")):
+                    rss_status_label = "未发现可靠 RSS"
+                    rss_status_class = "rss-warn"
+                elif not notes and needs_review:
+                    rss_status_label = "待核查 RSS"
+                    rss_status_class = "rss-pending"
             # V1.0-beta.13: readable error message
             raw_error = (health.latest_error_message if health else None) or s.last_error_message
             # A stale-timeout recovery is not a real fetch failure — the source
@@ -1244,6 +1261,9 @@ def _render_sources_page(
                 # V1.0-beta.13: recommended strategy and needs_review
                 "recommended_strategy": recommended_strategy,
                 "needs_review": needs_review,
+                # V1.0-beta.14: RSS status (three-tier, replaces "需补充 RSS")
+                "rss_status_label": rss_status_label,
+                "rss_status_class": rss_status_class,
                 # V1.0-beta.13: readable error
                 "readable_error": readable_error,
                 # Stale-timeout recovery is not a real failure (show neutrally).
@@ -1398,6 +1418,20 @@ def source_workspace_page(request: Request, source_key: str):
         # V1.0-beta.13: recommended strategy and needs_review flag
         recommended_strategy = effective_strategy
         needs_review = (effective_strategy == "html_index")
+        # V1.0-beta.14: RSS status label (three-tier, replaces "需补充 RSS")
+        rss_status_label = None
+        rss_status_class = ""
+        if effective_strategy == "rss":
+            rss_status_label = "RSS 已验证"
+            rss_status_class = "rss-ok"
+        elif effective_strategy == "html_index":
+            notes = (config_source.strategy_notes or "") if config_source else ""
+            if any(kw in notes for kw in ("No public RSS", "No reliable RSS", "HTML index fallback", "fallback")):
+                rss_status_label = "未发现可靠 RSS"
+                rss_status_class = "rss-warn"
+            elif not notes and needs_review:
+                rss_status_label = "待核查 RSS"
+                rss_status_class = "rss-pending"
         # S2: configured-vs-effective consistency for a sensible "获取方式" display.
         from app.application.sources.effective_strategy import check_strategy_consistency
         strategy_consistency = check_strategy_consistency(source.feed_url, source.fetch_strategy)
@@ -1522,6 +1556,8 @@ def source_workspace_page(request: Request, source_key: str):
                 "strategy_consistency_message": strategy_consistency.message,
                 "recommended_strategy": recommended_strategy,
                 "needs_review": needs_review,
+                "rss_status_label": rss_status_label,
+                "rss_status_class": rss_status_class,
                 "stale_runs": source_stale_runs,
                 "stale_threshold_minutes": stale_report.threshold_minutes,
                 "decision": decision,

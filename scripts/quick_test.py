@@ -6981,10 +6981,20 @@ def main():
               diagnose_script.exists(),
               "diagnose_data_quality.py should exist")
 
-        # sources.html shows recommended_strategy (needs_review tag)
-        check("sources.html shows 需补充 RSS tag for HTML-index sources",
-              "需补充 RSS" in sources_html,
-              "sources.html should show needs_review tag")
+        # sources.html no longer shows deprecated "需补充 RSS" (V1.0-beta.14)
+        check("sources.html no longer shows 需补充 RSS",
+              "需补充 RSS" not in sources_html,
+              "sources.html should not show the deprecated 需补充 RSS tag")
+
+        # V1.0-beta.14: RSS status labels are dynamic (from s.rss_status_label);
+        # check the rendered page, not the raw template.
+        rendered = client.get("/sources").text
+        rss_ok = "RSS 已验证" in rendered
+        rss_warn = "未发现可靠 RSS" in rendered
+        rss_pending = "待核查 RSS" in rendered
+        check("sources page shows one of the new RSS status labels in rendered HTML",
+              rss_ok or rss_warn or rss_pending,
+              "/sources should show RSS 已验证 / 未发现可靠 RSS / 待核查 RSS")
 
         # sources.html distinguishes success-with-0-new from failure
         check("sources.html distinguishes 成功（无新增） from failure",
@@ -6996,10 +7006,10 @@ def main():
               'tech-label">Feed' in sources_html,
               "sources.html should show Feed URL in tech details")
 
-        # source_detail shows needs_review indicator
-        check("source_detail shows 需补充 RSS",
-              "需补充 RSS" in detail_html,
-              "workspace should show needs_review tag")
+        # source_detail no longer shows deprecated "需补充 RSS" (V1.0-beta.14)
+        check("source_detail no longer shows 需补充 RSS",
+              "需补充 RSS" not in detail_html,
+              "source_detail should not show the deprecated 需补充 RSS")
 
         # source_detail shows homepage_url
         check("source_detail shows homepage_url in basic info",

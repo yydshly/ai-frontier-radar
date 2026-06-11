@@ -137,22 +137,13 @@
         <div class="sources-grid">
             {% for s in sources %}
             <div class="source-card" id="src-{{ s.source_key }}">
-                <!-- Card header -->
+                <!-- Card header: name (left) + status badge (right) -->
                 <div class="source-card-header">
-                    <div class="source-card-title">
+                    <div class="source-card-title-block">
                         <span class="source-icon">📡</span>
-                        <div>
-                            <div class="source-name">{{ s.name }}</div>
-                            <div class="source-meta">
-                                <span class="category-tag">{{ s.category }}</span>
-                                <span class="strategy-tag">{{ s.effective_strategy_label }}</span>
-                                {% if s.needs_review %}
-                                <span class="strategy-tag" style="background:#f57c00; color:white;">需补充 RSS</span>
-                                {% endif %}
-                            </div>
-                        </div>
+                        <span class="source-name">{{ s.name }}</span>
                     </div>
-                    <!-- Status badge -->
+                    <!-- Status badge (top-right, flex-shrink) -->
                     <div class="source-status">
                         {% if s.fetch_run_status == 'success' and s.fetch_run_items_new > 0 %}
                         <span class="status-badge status-compiled">成功 +{{ s.fetch_run_items_new }} 新增</span>
@@ -172,6 +163,15 @@
                         <span class="muted">从未运行</span>
                         {% endif %}
                     </div>
+                </div>
+
+                <!-- Badge row: category, fetch method, RSS status (wraps on narrow cards) -->
+                <div class="source-badge-row">
+                    <span class="category-tag">{{ s.category }}</span>
+                    <span class="strategy-tag">{{ s.effective_strategy_label }}</span>
+                    {% if s.rss_status_label %}
+                    <span class="strategy-tag {{ s.rss_status_class }}">{{ s.rss_status_label }}</span>
+                    {% endif %}
                 </div>
 
                 <!-- Card stats -->

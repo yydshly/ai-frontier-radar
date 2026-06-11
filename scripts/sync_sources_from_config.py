@@ -30,19 +30,18 @@ def main() -> int:
     db = SessionLocal()
     try:
         print("Loading config from sources.example.yaml...")
-        stats = sync_sources_config_to_db(db, force_reload=True)
+        dry_run = not args.apply
+        stats = sync_sources_config_to_db(db, force_reload=True, dry_run=dry_run)
         print(f"\nConfig loaded: {stats['total']} sources")
         print(f"  Would create: {stats['created']}")
         print(f"  Would update: {stats['updated']}")
         print(f"  Would disable: {stats['disabled']}")
 
-        if not args.apply:
+        if dry_run:
             print("\n[DRY-RUN] Pass --apply to write changes to DB.")
             return 0
 
         print("\n[APPLY] Writing changes to DB...")
-        # Re-run with apply flag (the sync itself commits in db_sync.py)
-        stats = sync_sources_config_to_db(db, force_reload=True)
         print(f"Done. created={stats['created']}, updated={stats['updated']}, disabled={stats['disabled']}")
         return 0
     finally:
