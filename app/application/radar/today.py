@@ -35,6 +35,7 @@ from app.application.candidates.summary_policy import (
     classify_detail_summary_kind,
     get_detail_summary_label,
 )
+from app.application.source_items.item_state import read_item_state
 from app.application.radar.today_item_card import (
     TodayItemCard,
     build_today_item_card,
@@ -505,8 +506,11 @@ def _build_panel_state(
 
     raw = _read_raw_metadata(item)
     today_card = build_today_item_card(item)
-    has_zh_summary = bool(str(raw.get("zh_summary") or "").strip())
-    has_zh_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
+    # Summary presence comes from the shared accessor (same computation), so the
+    # panel and the card can't disagree about what counts as a summary.
+    _summary = read_item_state(item).summary
+    has_zh_summary = _summary.has_zh_summary
+    has_zh_one_liner = _summary.has_one_liner
 
     if has_zh_summary:
         summary_state = "zh_summary"

@@ -126,14 +126,14 @@ def build_today_item_card(
 
     # can_generate_summary: True when content is fetched but no summary yet
     content_fetched = content.state == "fetched"
-    summary_generated = raw.get("summary_status") == "generated"
+    summary_generated = state.summary_generated
     can_generate_summary = bool(item.url) and content_fetched and not summary_generated
 
     # can_generate_insight: True when summary exists but no insight card yet
     can_generate_insight = (
         not item.insight_card_id
         and summary_generated
-        and raw.get("summary_basis") == "html_snapshot"
+        and state.summary_basis == "html_snapshot"
     )
 
     return TodayItemCard(
