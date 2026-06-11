@@ -7720,6 +7720,60 @@ def main():
     except Exception as e:
         check("panel partial sidebar-skip checks", False, str(e))
 
+    # ── 56. C5 Phase 1: single read_item_state accessor (behavior-preserving) ─
+    print("\n[56] item state accessor (C5 Phase 1)")
+    try:
+        import json as _json
+        project_root = Path(__file__).resolve().parents[1]
+        tic_text = (project_root / "app" / "application" / "radar" / "today_item_card.py").read_text(encoding="utf-8")
+        check("today_item_card delegates to read_item_state",
+              "read_item_state" in tic_text,
+              "today_item_card should derive state via the shared accessor")
+
+        from app.application.source_items.item_state import read_item_state
+        from app.application.radar.today_item_card import build_today_item_card
+
+        class _StubItem:
+            def __init__(self, raw, url="http://x", cid=None):
+                self.raw_metadata_json = _json.dumps(raw)
+                self.url = url
+                self.insight_card_id = cid
+                self.title = "T"
+                self.id = 1
+                self.source_key = "src"
+                self.first_seen_at = None
+                self.published_at = None
+
+        # Behavior parity: read_item_state matches the card builder's outputs.
+        cases = [
+            ({}, "http://x", None, "missing", "not_fetched", "missing"),
+            ({"zh_one_liner": "y"}, "http://x", None, "generated", "not_fetched", "missing"),
+            ({"description": "d"}, "http://x", None, "source_summary", "not_fetched", "missing"),
+            ({"content_fetch_status": "fetched", "summary_status": "generated",
+              "summary_basis": "html_snapshot"}, "http://x", None, "missing", "fetched", "eligible"),
+            ({}, None, None, "missing", "unknown", "missing"),
+        ]
+        ok = True
+        for raw, url, cid, exp_sum, exp_content, exp_insight in cases:
+            it = _StubItem(raw, url, cid)
+            st = read_item_state(it)
+            card = build_today_item_card(it)
+            ok = ok and (
+                st.summary.state == exp_sum == card.summary_state
+                and st.content.state == exp_content == card.content_state
+                and st.insight.state == exp_insight == card.insight_state
+            )
+        check("read_item_state matches card builder across state combos", ok,
+              "accessor and today_item_card must agree (behavior preserved)")
+
+        # Phase-1 invariant: zh_summary key only (alias unification is Phase 2).
+        only_alias = _StubItem({"summary_zh": "x"})
+        check("read_item_state does not yet fold summary_zh alias (Phase 1)",
+              read_item_state(only_alias).summary.state == "missing",
+              "Phase 1 must preserve exact current semantics (zh_summary only)")
+    except Exception as e:
+        check("item state accessor checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

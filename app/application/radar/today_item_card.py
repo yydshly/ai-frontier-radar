@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from app.application.candidates.display import CandidateDisplayCard
+from app.application.source_items.item_state import read_item_state
 from app.models import SourceItem
 
 
@@ -69,62 +70,18 @@ def _format_datetime(value: Any) -> str | None:
 
 
 def build_today_item_content_state(item: SourceItem) -> TodayItemContentState:
-    """Infer the content-fetch state from SourceItem metadata."""
-    raw = _read_raw_metadata(item)
-    explicit_status = str(raw.get("content_fetch_status") or "").strip()
-    explicit_error = str(raw.get("content_fetch_error") or "").strip() or None
+    """Infer the content-fetch state from SourceItem metadata.
 
-    if explicit_status == "queued":
-        return TodayItemContentState("queued", "待获取", "正文获取已记录为待处理。")
-    if explicit_status == "fetched":
-        return TodayItemContentState("fetched", "已获取")
-    if explicit_status in {"failed", "fetch_failed"}:
-        return TodayItemContentState("fetch_failed", "获取失败", explicit_error)
-
-    for key in (
-        "raw_text_path",
-        "content_snapshot",
-        "content_text",
-        "article_text",
-        "full_text",
-        "markdown_path",
-    ):
-        value = raw.get(key)
-        if isinstance(value, str) and value.strip():
-            return TodayItemContentState("fetched", "已获取")
-
-    if item.url:
-        return TodayItemContentState("not_fetched", "未获取")
-    return TodayItemContentState("unknown", "无法判断", "当前条目没有可用于获取正文的 URL。")
+    Delegates to the canonical ``read_item_state`` accessor (C5 Phase 1).
+    """
+    c = read_item_state(item).content
+    return TodayItemContentState(c.state, c.label, c.note)
 
 
 def _generated_or_missing(value: Any) -> tuple[str, str]:
     if isinstance(value, str) and value.strip():
         return "generated", "已生成"
     return "missing", "待生成"
-
-
-def _summary_state(raw: dict[str, Any]) -> tuple[str, str]:
-    if str(raw.get("zh_summary") or "").strip() or str(raw.get("zh_one_liner") or "").strip():
-        return "generated", "已生成"
-    for key in ("detail_description", "rss_summary", "rss_description", "description", "summary"):
-        if str(raw.get(key) or "").strip():
-            return "source_summary", "来源摘要"
-    return "missing", "待生成"
-
-
-def _insight_state(item: SourceItem) -> tuple[str, str]:
-    raw = _read_raw_metadata(item)
-    if item.insight_card_id:
-        insight_status = raw.get("insight_status", "")
-        if insight_status == "generated":
-            return "generated", "已生成"
-        return "has_card", "已有洞察卡"
-    if raw.get("summary_status") == "generated" and raw.get("summary_basis") == "html_snapshot":
-        return "eligible", "可生成"
-    if raw.get("summary_status") == "generated":
-        return "has_summary", "已有摘要"
-    return "missing", "未生成"
 
 
 def _fetch_method_label(raw: dict[str, Any]) -> str:
@@ -149,11 +106,12 @@ def build_today_item_card(
 ) -> TodayItemCard:
     """Build a TodayItemCard from a SourceItem and optional display card."""
     raw = _read_raw_metadata(item)
-    summary_state, summary_label = _summary_state(raw)
+    state = read_item_state(item)
+    summary_state, summary_label = state.summary.state, state.summary.label
     zh_one_liner_state, zh_one_liner_label = _generated_or_missing(raw.get("zh_one_liner"))
     zh_summary_state, zh_summary_label = _generated_or_missing(raw.get("zh_summary"))
-    content = build_today_item_content_state(item)
-    insight_state, insight_label = _insight_state(item)
+    content = TodayItemContentState(state.content.state, state.content.label, state.content.note)
+    insight_state, insight_label = state.insight.state, state.insight.label
 
     title = (
         (display_card.title if display_card else None)
