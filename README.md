@@ -189,6 +189,7 @@ V1.0-beta 为**第一可用闭环版本**，打通「雷达关注源 → 探测 
 阶段状态见：
 - [docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md](docs/V1_BETA_FIRST_USABLE_LOOP_STATUS.md) — 阶段定位、已完成能力、已知限制
 - [docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md](docs/V1_BETA_FIRST_USABLE_LOOP_CHECKLIST.md) — 人工验收清单
+- [docs/V1_BETA_FIRST_USABLE_LOOP_ROADMAP.md](docs/V1_BETA_FIRST_USABLE_LOOP_ROADMAP.md) — 开发路线、架构层、后续 Phase A-E
 
 轻量验收：
 
