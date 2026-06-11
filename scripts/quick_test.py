@@ -6799,6 +6799,32 @@ def main():
         check("Style sheet defines radar-broadcast-history-item.is-active",
               "is-active" in style_text,
               "style.css must define is-active state for history items")
+        check("Template has radar-player-download-link class",
+              "radar-player-download-link" in broadcast_html,
+              "download link must carry radar-player-download-link class for JS access")
+        check("Template has radar-player-open-link class",
+              "radar-player-open-link" in broadcast_html,
+              "open-in-new-tab link must carry radar-player-open-link class for JS access")
+        check("Template JS updates download link href on history switch",
+              "downloadLnk.href = audioUrl" in broadcast_html
+              or "downloadLink.href = audioUrl" in broadcast_html,
+              "broadcast JS must update download link href when switching audio")
+        check("Template JS updates open link href on history switch",
+              "openLnk.href = audioUrl" in broadcast_html
+              or "openLink.href = audioUrl" in broadcast_html,
+              "broadcast JS must update open link href when switching audio")
+        check("Template JS enables toggle after loading history audio",
+              "toggle.disabled = false" in broadcast_html,
+              "broadcast JS must enable play toggle after loading history audio")
+        check("Template has empty player hint text",
+              "从历史记录中选择一条语音报告播放" in broadcast_html,
+              "empty player must show hint text directing user to history")
+        check("Style sheet defines .radar-page.radar-readable-page",
+              ".radar-page.radar-readable-page" in style_text,
+              "style.css must define .radar-page.radar-readable-page for combined class")
+        check("Style sheet defines .hidden utility",
+              ".hidden" in style_text,
+              "style.css must define .hidden utility class")
 
         from app.application.radar.daily_broadcast import (
             DailyBroadcastScript,

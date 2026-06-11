@@ -37,31 +37,53 @@
     </div>
     {% endif %}
 
-    {# ── Current player / status banner ────────────────────── #}
-    {% if audio_job %}
-        {% if audio_job.status == "generated" %}
-    <section class="radar-broadcast-card radar-broadcast-now-playing"
-             data-current-audio-url="{{ audio_job.audio_url }}">
+    {# ── Player section — always rendered when any audio exists ── #}
+    {# Determine initial player state: prefer audio_job, fall back to first playable history item #}
+    {% set player_audio_url = audio_job.audio_url if (audio_job and audio_job.status == "generated") else "" %}
+    {% set player_audio_title = (audio_job.date_label or script.date_label ~ " · " ~ audio_job.voice) if (audio_job and audio_job.status == "generated") else "" %}
+    {% set player_has_initial_audio = (player_audio_url | length) > 0 %}
+    {% set any_playable = player_has_initial_audio or (audio_jobs | selectattr("status", "equalto", "generated") | selectattr("audio_url") | list | length > 0) %}
+
+    {% if any_playable %}
+    <section class="radar-broadcast-card radar-broadcast-now-playing">
         <div class="radar-broadcast-card-header">
             <div>
                 <h2>当前语音报告</h2>
+                {% if player_has_initial_audio %}
                 <p>{{ audio_job.voice }} 音色 · {{ audio_job.date_label or script.date_label }}</p>
+                {% else %}
+                <p class="radar-player-empty-hint">从历史记录中选择一条语音报告播放</p>
+                {% endif %}
             </div>
             <div class="radar-broadcast-player-actions">
-                <a href="{{ audio_job.audio_url }}" download class="radar-report-action-link">下载 WAV</a>
-                <a href="{{ audio_job.audio_url }}" target="_blank" rel="noopener" class="radar-report-action-link">新标签打开</a>
+                <a class="radar-report-action-link radar-player-download-link{% if not player_has_initial_audio %} hidden{% endif %}"
+                   href="{{ player_audio_url }}"
+                   download>下载 WAV</a>
+                <a class="radar-report-action-link radar-player-open-link{% if not player_has_initial_audio %} hidden{% endif %}"
+                   href="{{ player_audio_url }}"
+                   target="_blank"
+                   rel="noopener">新标签打开</a>
             </div>
         </div>
 
         <div class="radar-custom-player"
-             data-audio-url="{{ audio_job.audio_url }}"
-             data-audio-title="{{ audio_job.date_label or script.date_label }} · {{ audio_job.voice }}">
-            <audio class="radar-custom-player-audio" preload="metadata" src="{{ audio_job.audio_url }}"></audio>
+             data-audio-url="{{ player_audio_url }}"
+             data-audio-title="{{ player_audio_title }}">
+            <audio class="radar-custom-player-audio"
+                   preload="metadata"
+                   src="{{ player_audio_url }}"></audio>
 
-            <button type="button" class="radar-player-play-toggle" aria-label="播放或暂停">播放</button>
+            <button type="button"
+                    class="radar-player-play-toggle"
+                    aria-label="播放或暂停"
+                    {% if not player_has_initial_audio %}disabled{% endif %}>
+                播放
+            </button>
 
             <div class="radar-player-main">
-                <div class="radar-player-title">{{ audio_job.date_label or script.date_label }} · {{ audio_job.voice }}</div>
+                <div class="radar-player-title">
+                    {{- player_audio_title if player_has_initial_audio else "选择一条历史音频播放" -}}
+                </div>
                 <input type="range"
                        class="radar-player-progress"
                        min="0" max="100" value="0" step="0.1"
@@ -73,8 +95,10 @@
             </div>
         </div>
     </section>
+    {% endif %}
 
-        {% elif audio_job.status == "failed" %}
+    {# ── Status: failed ─────────────────────────────────────── #}
+    {% if audio_job and audio_job.status == "failed" %}
     <section class="radar-broadcast-card radar-broadcast-status-card">
         <div class="radar-broadcast-status-inner radar-broadcast-audio-failed">
             <span class="radar-broadcast-audio-icon">失败</span>
@@ -84,8 +108,10 @@
             </form>
         </div>
     </section>
+    {% endif %}
 
-        {% else %}
+    {# ── Status: processing / queued ─────────────────────────── #}
+    {% if audio_job and audio_job.status in ["processing", "queued", "running"] %}
     <section class="radar-broadcast-card radar-broadcast-status-card">
         <div class="radar-broadcast-status-inner radar-broadcast-audio-processing">
             <span class="radar-broadcast-audio-icon">处理中</span>
@@ -99,7 +125,6 @@
           window.setTimeout(function () { window.location.reload(); }, 2500);
         </script>
     </section>
-        {% endif %}
     {% endif %}
 
     {# ── Script card ──────────────────────────────────────── #}
@@ -222,12 +247,14 @@
         var player = document.querySelector(".radar-custom-player");
         if (!player) return;
 
-        var audio        = player.querySelector(".radar-custom-player-audio");
+        var audio       = player.querySelector(".radar-custom-player-audio");
         var toggle      = player.querySelector(".radar-player-play-toggle");
         var progress    = player.querySelector(".radar-player-progress");
         var currentEl   = player.querySelector(".radar-player-current-time");
         var durationEl  = player.querySelector(".radar-player-duration");
         var titleEl     = player.querySelector(".radar-player-title");
+        var downloadLnk = document.querySelector(".radar-player-download-link");
+        var openLnk     = document.querySelector(".radar-player-open-link");
 
         function pauseAudio() {
             audio.pause();
@@ -236,6 +263,7 @@
         }
 
         function playAudio() {
+            if (!audio.getAttribute("src") || !audio.getAttribute("src").trim()) return;
             audio.play().then(function () {
                 toggle.textContent = "暂停";
                 player.classList.add("is-playing");
@@ -275,12 +303,12 @@
             }
         });
 
-        // History play — switch main player
+        // History play — switch main player and sync download/open links
         document.addEventListener("click", function (event) {
             var btn = event.target.closest(".radar-broadcast-history-play");
             if (!btn) return;
 
-            var audioUrl  = btn.getAttribute("data-audio-url");
+            var audioUrl   = btn.getAttribute("data-audio-url");
             var audioTitle = btn.getAttribute("data-title") || "历史语音报告";
             if (!audioUrl) return;
 
@@ -291,6 +319,19 @@
             progress.value = "0";
             currentEl.textContent = "00:00";
             durationEl.textContent = "00:00";
+
+            // Sync download and open links
+            if (downloadLnk) {
+                downloadLnk.href = audioUrl;
+                downloadLnk.classList.remove("hidden");
+            }
+            if (openLnk) {
+                openLnk.href = audioUrl;
+                openLnk.classList.remove("hidden");
+            }
+
+            // Enable play button now that we have an audio src
+            if (toggle) toggle.disabled = false;
 
             document.querySelectorAll(".radar-broadcast-history-item.is-active").forEach(function (el) {
                 el.classList.remove("is-active");

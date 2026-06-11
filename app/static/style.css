@@ -18,6 +18,10 @@
     border: 0;
 }
 
+.hidden {
+    display: none !important;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     line-height: 1.6;
@@ -4665,6 +4669,14 @@ body.app-shell.radar-document-shell .main-content.radar-document-page {
     overflow: visible;
 }
 
+/* Also match when both classes are on the same element */
+.radar-page.radar-readable-page {
+    display: block;
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+}
+
 /* Core report / readable sections must not clip content */
 .radar-daily-core-report,
 .radar-core-report,
@@ -6665,6 +6677,12 @@ details[open] .radar-compile-candidate-details summary::before {
     font-size: 0.75rem;
     color: #888;
     margin-left: 0.25rem;
+}
+
+.radar-player-empty-hint {
+    color: #57606a;
+    font-size: 0.86rem;
+    font-style: italic;
 }
 
 /* Responsive */
