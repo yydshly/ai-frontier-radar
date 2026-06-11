@@ -482,4 +482,109 @@ python scripts/cleanup_polluted_data.py --apply --delete-safe-snapshot-gaps
 | /radar/today | 正常，数据质量提示正常 |
 | /cards | 正常，InsightCard 未受影响 |
 
+---
+
+## 十二、Phase 4.1 Snapshot 缺失补全探针
+
+> 执行时间：2026-06-11
+> 执行分支：`feature/v1-beta-15-data-quality-diagnosis`
+
+### 12.1 目标
+
+验证 URL → 重新抓取正文 → 保存 snapshot 这一路径是否可行，服务主链路：
+```
+SourceItem → 今日雷达阅读 → InsightCard 可追溯
+```
+
+### 12.2 新增脚本
+
+`scripts/repair_snapshot_gaps.py` — Snapshot gap repair probe
+
+- 默认 dry-run，只输出计划，不访问网络
+- `--apply --limit N` 执行真实抓取和保存
+- 优先级：A with_card > A without_card > B with_card > B without_card
+- 不调用 LLM，不删除数据，不修改 InsightCard
+
+### 12.3 dry-run 结果
+
+```
+A_total: 20
+A_with_card: 20
+A_without_card: 0
+B_total: 37
+B_with_card: 0
+B_without_card: 37
+repair_candidates: 57
+high_priority_A_with_card: 20
+high_priority_B_with_card: 0
+B_without_card: 37
+manual_review_required: 37
+```
+
+### 12.4 apply 执行结果
+
+```bash
+python scripts/repair_snapshot_gaps.py --apply --limit 5
+```
+
+结果：**repaired=5, failed=0, skipped=0**
+
+修复的 5 条 A-class with_card 候选：
+
+| id | source_key | title | snapshot_path |
+|---|---|---|---|
+| 39 | anthropic_news | Introducing Claude Opus 4.8 | runtime/content_snapshots/source_item_39.json |
+| 40 | anthropic_news | Expanding Project Glasswing | runtime/content_snapshots/source_item_40.json |
+| 73 | deepmind_blog | SIMA 2: A Gemini-Powered AI Agent for 3D Virtual W | runtime/content_snapshots/source_item_73.json |
+| 98 | deepmind_blog | News | runtime/content_snapshots/source_item_98.json |
+| 99 | mistral_ai_news | Remote agents in Vibe. Powered by Mistral Medium 3 | runtime/content_snapshots/source_item_99.json |
+
+### 12.5 修复前后 A/B 数量对比
+
+| 指标 | 修复前 | 修复后 |
+|---|---|---|
+| A | 20 | 15（减少 5） |
+| B | 41 | 41（未变） |
+| A with_card | 20 | 15 |
+
+### 12.6 为什么不修复 B 类
+
+B 类共 37 条（无卡片），优先级最低。B 类有 `zh_summary` 说明 LLM 已处理过，只缺 snapshot。但 B 类无卡片意味着没有下游消费者急着需要 snapshot。B 类是否值得修复取决于：
+1. 是否有 URL 仍然有效
+2. 是否有时间重抓
+
+当前 37 条 B 类暂时保留，待后续评估。
+
+### 12.7 为什么 A 类先修复
+
+A 类全部有 InsightCard（with_card=20/20），说明这些 SourceItem 已经完成了 LLM 处理并生成了 InsightCard。Snapshot 是阅读面板内容回溯的关键。所以优先修复 A 类。
+
+### 12.8 为什么不删除 A/B 类
+
+A/B 类数据不是脏数据，而是因抓取系统历史问题导致的 snapshot 文件缺失。删除这些数据会丢失已生成的 InsightCard 和 LLM 摘要。正确做法是补全 snapshot 而不是删除。
+
+### 12.9 审计导出路径
+
+```
+data/cleanup_exports/snapshot_gap_repair_plan_20260611_044234.jsonl
+```
+
+### 12.10 测试通过情况
+
+```
+acceptance_today_radar_logic.py: 10 passed, 0 failed ✅
+diagnose_data_quality.py: A 从 20 降到 15 ✅
+repair_snapshot_gaps.py: compileall 通过 ✅
+```
+
+### 12.11 Phase 4.1 结论
+
+Snapshot 补全探针验证成功：
+- 5 条 A-class with_card 条目全部修复成功
+- 失败率 0%
+- 诊断数量从 61 降到 56（A 减少 5）
+- 主链路验收测试全部通过
+
+后续可以继续用相同方法修复剩余 15 条 A-class 候选。
+
 
