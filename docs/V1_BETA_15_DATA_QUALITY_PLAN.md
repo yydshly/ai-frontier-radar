@@ -353,4 +353,133 @@ B 类（41 条，有 zh_summary 但无 snapshot）：
 4. 不在 Phase 3/3.3 自动清理 A/B 条目
 ```
 
+---
+
+## 十一、Phase 4 安全 snapshot-gap 清理执行结果
+
+> 执行时间：2026-06-11
+> 执行分支：`feature/v1-beta-15-data-quality-diagnosis`
+
+### 11.1 清理目标
+
+安全清理 B 类 snapshot 缺失、无 InsightCard 关联、超过 48 小时、可重新发现的 SourceItem。
+
+**严禁删除的对象**：
+- A 类 SourceItem（全部有关联 InsightCard，风险高）
+- B 类中 insight_card_id 非空的 SourceItem
+- orphan InsightCard
+- InsightCard 本身
+- FetchRun
+- Source
+- snapshot 文件
+- 最近 48 小时内的 SourceItem
+
+### 11.2 B-class safe-delete candidate 判定条件
+
+所有条件必须同时满足：
+
+```
+1. 属于 B 类（raw_metadata_json 有 zh_summary/summary_zh，但 snapshot 缺失）
+2. snapshot 文件确实缺失
+3. url 非空
+4. title 非空
+5. source_id 能 join 到真实 Source
+6. Source.enabled = True
+7. insight_card_id 为空
+8. first_seen_at 和 last_seen_at 都早于 48 小时前
+```
+
+### 11.3 dry-run 执行结果
+
+```
+snapshot_gap_cleanup_candidates:
+  b_safe_delete_candidates: 0
+  protected_a_with_card: 20
+  protected_a_without_card: 0
+  protected_b_with_card: 4
+  protected_recent_items: 37
+  protected_invalid_metadata: 0
+```
+
+### 11.4 保护分类说明
+
+| 保护类别 | 数量 | 说明 |
+|---|---|---|
+| protected_a_with_card | 20 | A 类全部有关联 InsightCard，不允许自动删除 |
+| protected_a_without_card | 0 | A 类无关联卡片数（本轮为 0） |
+| protected_b_with_card | 4 | B 类有关联 InsightCard，不允许自动删除 |
+| protected_recent_items | 37 | B 类无卡片但时间不足 48 小时 |
+| protected_invalid_metadata | 0 | B 类无卡片但元数据无效（无 url/title/source） |
+
+### 11.5 为什么 b_safe_delete_candidates = 0
+
+B 类共 41 条：
+- 4 条有 insight_card_id → protected
+- 37 条无 insight_card_id 但 first_seen_at / last_seen_at 不足 48 小时 → protected_recent_items
+- **0 条符合全部 8 项条件**
+
+结论：当前没有满足全部安全清理条件的 B 类 SourceItem。全部 B 类无卡片条目均在 48 小时保护期内。
+
+### 11.6 是否执行 apply
+
+**未执行**。因为 b_safe_delete_candidates = 0，不满足执行条件。
+
+### 11.7 Phase 4 代码变更
+
+`scripts/cleanup_polluted_data.py` 增强内容：
+
+1. **新增 B 类 snapshot gap safe-delete candidate 逻辑**（`SnapshotGapCandidate` dataclass + `analyze_database` 中的分类逻辑）
+2. **新增审计导出**（`export_audit()` → `data/cleanup_exports/snapshot_gap_cleanup_plan_YYYYMMDD_HHMMSS.jsonl`）
+3. **新增 `--delete-safe-snapshot-gaps` 参数**（必须与 `--apply` 同时使用）
+4. **新增 apply 前 DB 备份**（`backup_sqlite_db(..., suffix="snapshot_gap_cleanup")`）
+5. **新增删除函数**（`delete_snapshot_gap_candidates()`）
+6. **dry-run 默认导出审计文件**（无论 dry-run 还是 apply 都导出）
+
+### 11.8 审计导出文件路径
+
+```
+data/cleanup_exports/snapshot_gap_cleanup_plan_20260611_043535.jsonl
+```
+
+### 11.9 清理前后 A/B/G/orphan InsightCard 数量
+
+| 指标 | 清理前 | 清理后 |
+|---|---|---|
+| A | 20 | 20（未变） |
+| B | 41 | 41（未变） |
+| G | 8 informational | 8 informational（未变） |
+| orphan InsightCard | 12 | 12（未变） |
+
+### 11.10 测试通过情况
+
+```
+acceptance_today_radar_logic.py: 10 passed, 0 failed
+quick_test.py: 全部 PASS
+diagnose_data_quality.py: 0 new issues introduced
+```
+
+### 11.11 Phase 4 结论
+
+本次 Phase 4 **未执行任何数据删除**，原因：所有 B 类无卡片 SourceItem 均处于 48 小时保护期内。
+
+Phase 4 代码增强已就绪，当未来出现符合条件的候选数据时，可通过以下命令执行清理：
+
+```bash
+python scripts/cleanup_polluted_data.py --apply --delete-safe-snapshot-gaps
+```
+
+**预期效果**：每次执行只会影响时间久远（>48h）且无关联卡片的 B 类 SourceItem，不会影响：
+- A 类数据（全部有卡片）
+- 近期数据（<48h）
+- 已有 InsightCard 的数据
+- 已有有效元数据的数据
+
+### 11.12 人工检查结果
+
+| 页面 | 检查结果 |
+|---|---|
+| /sources | 正常 |
+| /radar/today | 正常，数据质量提示正常 |
+| /cards | 正常，InsightCard 未受影响 |
+
 

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Safe polluted data cleanup tool — V1.0-beta.15 Phase 2.
+"""Safe polluted data cleanup tool — V1.0-beta.15 Phase 4.
 
 Safety model:
 - Default mode is DRY-RUN: prints a cleanup plan, writes nothing.
 - --apply flag is required to modify the database.
+- --apply --delete-safe-snapshot-gaps is required to delete B-class snapshot gap candidates.
 - Before applying, auto-backups SQLite DB to data/backups/.
 - This script handles ONLY safe, reversible operations.
 
-Allowed in safe_to_apply_now (auto-handled on --apply):
+Allowed in safe_to_apply_now (auto-handled on --apply --delete-safe-snapshot-gaps):
   1. stale running FetchRun → failed (with [stale-timeout] marker)
-  2. stale failed FetchRun with [stale-timeout] → no-op (already marked)
+  2. B-class snapshot gap safe-delete candidates
 
 Listed in manual_review_required (plan only, NOT auto-deleted):
   3. orphan SourceItem (source_id is None or references non-existent Source)
@@ -18,29 +19,48 @@ Listed in manual_review_required (plan only, NOT auto-deleted):
   6. orphan InsightCard (card exists but no SourceItem links to it)
 
 Listed in do_not_touch_in_phase_2 (plan only):
-  A. snapshot_missing_items (61) — A + B from diagnose
+  A. snapshot_missing_items — A-class, ALL protected (with_card=20/20)
   F. duplicate_url_items — would require dedup logic
 
+B-class safe-delete candidate criteria (ALL must be true):
+  - Belongs to B-class (has zh_summary in raw_metadata_json but no snapshot)
+  - snapshot file is actually missing
+  - raw_metadata_json has zh_summary or summary_zh
+  - url is non-empty
+  - title is non-empty
+  - source_id can join to a real Source
+  - Source.enabled = True
+  - insight_card_id is NULL (no linked InsightCard)
+  - first_seen_at AND last_seen_at are both older than 48 hours
+
 Usage:
-    python scripts/cleanup_polluted_data.py          # dry-run
-    python scripts/cleanup_polluted_data.py --apply   # apply safe cleanup
+    python scripts/cleanup_polluted_data.py                                  # dry-run
+    python scripts/cleanup_polluted_data.py --apply                          # apply safe cleanup (FetchRun only)
+    python scripts/cleanup_polluted_data.py --apply --delete-safe-snapshot-gaps  # also delete B-class candidates
 """
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+SNAPSHOT_GAP_AGE_HOURS = 48
+
+
 # ── Backup helpers ────────────────────────────────────────────────────────────
 
 
-def backup_sqlite_db(db_path: Path) -> Path:
+def backup_sqlite_db(db_path: Path, suffix: str = "cleanup") -> Path:
     """Create a timestamped backup of a SQLite database file.
 
     Fails if db_path does not exist or backup already exists.
@@ -53,7 +73,7 @@ def backup_sqlite_db(db_path: Path) -> Path:
     backups_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    backup_path = backups_dir / f"ai_frontier_radar_before_cleanup_{timestamp}.db"
+    backup_path = backups_dir / f"ai_frontier_radar_before_{suffix}_{timestamp}.db"
 
     if backup_path.exists():
         raise RuntimeError(f"Backup already exists (race condition): {backup_path}")
@@ -65,38 +85,60 @@ def backup_sqlite_db(db_path: Path) -> Path:
 # ── Cleanup plan dataclasses ─────────────────────────────────────────────────
 
 
+@dataclass
+class SnapshotGapCandidate:
+    """A single B-class snapshot gap safe-delete candidate."""
+    source_item_id: int
+    source_key: str
+    url: str
+    title: str
+    insight_card_id: int | None
+    first_seen_at: datetime
+    last_seen_at: datetime
+    reason: str
+
+
+@dataclass
 class CleanupPlan:
     """Holds the results of analyzing the database."""
+    # snapshot_gap_cleanup_candidates
+    b_safe_delete_candidates: list[SnapshotGapCandidate] = field(default_factory=list)
 
-    def __init__(self):
-        # safe_to_apply_now
-        self.stale_running_count: int = 0
-        self.stale_running_samples: list[str] = []
+    # protected categories
+    protected_a_with_card: int = 0       # A-class with insight_card_id
+    protected_a_without_card: int = 0    # A-class without insight_card_id
+    protected_b_with_card: int = 0       # B-class with insight_card_id
+    protected_recent_items: int = 0     # B-class older than 48h but recent
+    protected_invalid_metadata: int = 0  # B-class with invalid metadata
 
-        # manual_review_required (listed only, not deleted)
-        self.orphan_source_items_count: int = 0
-        self.orphan_source_items_samples: list[str] = []
-        self.items_without_url_count: int = 0
-        self.items_without_url_samples: list[str] = []
-        self.items_without_title_and_url_count: int = 0
-        self.items_without_title_and_url_samples: list[str] = []
-        self.orphan_insight_cards_count: int = 0
-        self.orphan_insight_cards_samples: list[str] = []
+    # safe_to_apply_now
+    stale_running_count: int = 0
+    stale_running_samples: list[str] = field(default_factory=list)
 
-        # do_not_touch_in_phase_2 (read from diagnose_data_quality.py)
-        self.snapshot_missing_items_count: int = 0  # A: fetched/compiled no snapshot
-        self.snapshot_missing_B_count: int = 0     # B: has zh_summary no snapshot
-        self.duplicate_url_groups_count: int = 0
+    # manual_review_required (listed only, not deleted)
+    orphan_source_items_count: int = 0
+    orphan_source_items_samples: list[str] = field(default_factory=list)
+    items_without_url_count: int = 0
+    items_without_url_samples: list[str] = field(default_factory=list)
+    items_without_title_and_url_count: int = 0
+    items_without_title_and_url_samples: list[str] = field(default_factory=list)
+    orphan_insight_cards_count: int = 0
+    orphan_insight_cards_samples: list[str] = field(default_factory=list)
 
-        # filtered_from_ui (items already blocked by today radar guard — informational)
-        self.ui_disabled_source_count: int = 0
-        self.ui_missing_url_count: int = 0
-        self.ui_missing_title_count: int = 0
-        self.ui_orphan_source_count: int = 0
+    # do_not_touch_in_phase_2 (read from diagnose_data_quality.py)
+    snapshot_missing_items_count: int = 0  # A: fetched/compiled no snapshot
+    snapshot_missing_B_count: int = 0      # B: has zh_summary no snapshot
+    duplicate_url_groups_count: int = 0
 
-        # informational
-        self.stale_failed_count: int = 0  # G: already failed + [stale-timeout]
-        self.stale_failed_samples: list[str] = []
+    # filtered_from_ui (informational)
+    ui_disabled_source_count: int = 0
+    ui_missing_url_count: int = 0
+    ui_missing_title_count: int = 0
+    ui_orphan_source_count: int = 0
+
+    # informational
+    stale_failed_count: int = 0
+    stale_failed_samples: list[str] = field(default_factory=list)
 
 
 # ── Analysis ─────────────────────────────────────────────────────────────────
@@ -112,7 +154,106 @@ def analyze_database(db) -> CleanupPlan:
         get_stale_running_threshold_minutes,
     )
     from app.application.content.content_snapshot import get_snapshot_path
-    import json
+    import json as json_module
+
+    cutoff = datetime.utcnow() - timedelta(hours=SNAPSHOT_GAP_AGE_HOURS)
+
+    # ── 0. A/B snapshot gap analysis ─────────────────────────────────────────
+    # A: status=fetched/compiled but no snapshot
+    fetched_items = db.query(SourceItem).filter(
+        SourceItem.status.in_(["fetched", "compiled"])
+    ).all()
+    no_snapshot_A = [i for i in fetched_items if not get_snapshot_path(i.id).exists()]
+    plan.snapshot_missing_items_count = len(no_snapshot_A)
+
+    # A-class protection level
+    plan.protected_a_with_card = sum(1 for i in no_snapshot_A if i.insight_card_id)
+    plan.protected_a_without_card = sum(1 for i in no_snapshot_A if not i.insight_card_id)
+
+    # B: has zh_summary in raw_metadata_json but no snapshot
+    items_with_summary: list[SourceItem] = []
+    for item in db.query(SourceItem).filter(SourceItem.raw_metadata_json.isnot(None)).all():
+        try:
+            meta = json_module.loads(item.raw_metadata_json)
+            if meta.get("zh_summary") or meta.get("summary_zh"):
+                items_with_summary.append(item)
+        except Exception:
+            pass
+    missing_snap_B = [
+        i for i in items_with_summary if not get_snapshot_path(i.id).exists()
+    ]
+    plan.snapshot_missing_B_count = len(missing_snap_B)
+
+    # B-class protection level
+    plan.protected_b_with_card = sum(1 for i in missing_snap_B if i.insight_card_id)
+
+    # Build valid source lookup
+    valid_sources = {s.id: s for s in db.query(Source).filter(Source.enabled.is_(True)).all()}
+
+    # Scan B-class items and classify into candidates vs protected
+    b_candidates: list[SnapshotGapCandidate] = []
+    recent_items = 0
+    invalid_metadata_count = 0
+
+    for item in missing_snap_B:
+        # Skip A-class items
+        if item.status in ("fetched", "compiled"):
+            continue  # A-class — skip
+
+        # Must have zh_summary in metadata (already filtered above, but re-verify)
+        raw_meta = item.raw_metadata_json
+        has_zh_summary = False
+        if raw_meta:
+            try:
+                meta = json_module.loads(raw_meta)
+                has_zh_summary = bool(meta.get("zh_summary") or meta.get("summary_zh"))
+            except Exception:
+                has_zh_summary = False
+
+        if not has_zh_summary:
+            invalid_metadata_count += 1
+            continue
+
+        # Must have url and title
+        if not (item.url and item.url.strip()):
+            invalid_metadata_count += 1
+            continue
+        if not (item.title and item.title.strip()):
+            invalid_metadata_count += 1
+            continue
+
+        # Must have valid source
+        if item.source_id not in valid_sources:
+            invalid_metadata_count += 1
+            continue
+
+        # Must NOT have insight_card_id (protected)
+        if item.insight_card_id:
+            continue  # protected — B with card
+
+        # Must be older than 48 hours (both first_seen_at AND last_seen_at)
+        if item.first_seen_at and item.first_seen_at > cutoff:
+            recent_items += 1
+            continue
+        if item.last_seen_at and item.last_seen_at > cutoff:
+            recent_items += 1
+            continue
+
+        # All criteria met — safe to delete
+        b_candidates.append(SnapshotGapCandidate(
+            source_item_id=item.id,
+            source_key=item.source_key,
+            url=item.url or "",
+            title=item.title or "",
+            insight_card_id=item.insight_card_id,
+            first_seen_at=item.first_seen_at or datetime.utcnow(),
+            last_seen_at=item.last_seen_at or datetime.utcnow(),
+            reason="b_snapshot_missing_no_card_older_than_48h",
+        ))
+
+    plan.b_safe_delete_candidates = b_candidates
+    plan.protected_recent_items = recent_items
+    plan.protected_invalid_metadata = invalid_metadata_count
 
     # ── 1. stale running FetchRun ─────────────────────────────────
     try:
@@ -165,9 +306,6 @@ def analyze_database(db) -> CleanupPlan:
     ]
 
     # ── filtered_from_ui: counts matching the today radar guard (mutually exclusive) ──
-    # These items are already blocked from appearing in the today radar by the quality guard.
-    # Counting uses the same priority as compute_quality_filter_stats:
-    # orphan > disabled > missing_url > missing_title
     enabled_source_ids = {s.id for s in db.query(Source).filter(Source.enabled.is_(True)).all()}
     orphan_ui = 0
     disabled_ui = 0
@@ -222,28 +360,7 @@ def analyze_database(db) -> CleanupPlan:
         for r in stale_failed_runs[:5]
     ]
 
-    # ── 4. A/B snapshot missing items (from diagnose logic) ─────────
-    # A: status=fetched/compiled but no snapshot
-    fetched_items = db.query(SourceItem).filter(
-        SourceItem.status.in_(["fetched", "compiled"])
-    ).all()
-    plan.snapshot_missing_items_count = sum(
-        1 for i in fetched_items if not get_snapshot_path(i.id).exists()
-    )
-    # B: has zh_summary in raw_metadata_json but no snapshot
-    items_with_summary = []
-    for item in db.query(SourceItem).filter(SourceItem.raw_metadata_json.isnot(None)).all():
-        try:
-            meta = json.loads(item.raw_metadata_json)
-            if meta.get("zh_summary") or meta.get("summary_zh"):
-                items_with_summary.append(item)
-        except Exception:
-            pass
-    plan.snapshot_missing_B_count = sum(
-        1 for i in items_with_summary if not get_snapshot_path(i.id).exists()
-    )
-
-    # ── 5. duplicate URL groups ─────────────────────────────────────
+    # ── 4. duplicate URL groups ─────────────────────────────────────
     from collections import defaultdict
     url_counts: dict[tuple, list[int]] = defaultdict(list)
     for item in db.query(SourceItem).all():
@@ -260,7 +377,29 @@ def format_plan(plan: CleanupPlan, mode: str) -> str:
     lines.append("=" * 70)
     lines.append("AI Frontier Radar — polluted data cleanup plan")
     lines.append(f"Mode: {'APPLY' if mode == 'apply' else 'DRY-RUN'}")
+    lines.append(f"Snapshot-gap safe-delete age threshold: {SNAPSHOT_GAP_AGE_HOURS} hours")
     lines.append("=" * 70)
+    lines.append("")
+
+    # ── Section 0: snapshot_gap_cleanup_candidates ─────────────────────
+    lines.append("## snapshot_gap_cleanup_candidates")
+    lines.append(f"  b_safe_delete_candidates: {len(plan.b_safe_delete_candidates)}")
+    lines.append(f"  protected_a_with_card: {plan.protected_a_with_card}")
+    lines.append(f"  protected_a_without_card: {plan.protected_a_without_card}")
+    lines.append(f"  protected_b_with_card: {plan.protected_b_with_card}")
+    lines.append(f"  protected_recent_items: {plan.protected_recent_items}")
+    lines.append(f"  protected_invalid_metadata: {plan.protected_invalid_metadata}")
+    lines.append("")
+
+    if plan.b_safe_delete_candidates:
+        lines.append("  B-class safe-delete candidate samples (up to 5):")
+        for c in plan.b_safe_delete_candidates[:5]:
+            lines.append(f"    id={c.source_item_id} source_key={c.source_key}")
+            lines.append(f"      title={c.title[:50]} url={c.url[:60]}")
+            lines.append(f"      first_seen_at={_fmt_dt(c.first_seen_at)} "
+                         f"last_seen_at={_fmt_dt(c.last_seen_at)} "
+                         f"insight_card_id={c.insight_card_id}")
+            lines.append(f"      reason={c.reason}")
     lines.append("")
 
     # ── Section 1: safe_to_apply_now ──────────────────────────────
@@ -277,8 +416,6 @@ def format_plan(plan: CleanupPlan, mode: str) -> str:
     lines.append("")
 
     # ── Section 1b: filtered_from_ui ─────────────────────────────────
-    # Items that exist in the DB but are blocked from today radar by quality guards.
-    # These are informational — they have no visible impact on the UI.
     total_ui_filtered = (
         plan.ui_orphan_source_count
         + plan.ui_disabled_source_count
@@ -336,6 +473,12 @@ def format_plan(plan: CleanupPlan, mode: str) -> str:
         f"  snapshot_missing_items_B: {plan.snapshot_missing_B_count} "
         f"(has zh_summary but no snapshot file)"
     )
+    lines.append(
+        f"  Note: A-class with_card={plan.protected_a_with_card} — ALL protected"
+    )
+    lines.append(
+        f"  Note: B-class with_card={plan.protected_b_with_card} — protected, not deleted"
+    )
     lines.append("  → blocks summary generation. Requires re-fetch or metadata rebuild.")
     lines.append("")
     lines.append(
@@ -358,11 +501,74 @@ def format_plan(plan: CleanupPlan, mode: str) -> str:
     # ── Footer ───────────────────────────────────────────────────
     if mode == "dry-run":
         lines.append("No changes written. Pass --apply to execute safe cleanup.")
+        lines.append("Pass --apply --delete-safe-snapshot-gaps to also delete B-class candidates.")
     else:
         lines.append("Backup was created before applying changes.")
     lines.append("=" * 70)
 
     return "\n".join(lines)
+
+
+def _fmt_dt(dt: datetime | None) -> str:
+    """Format datetime safely."""
+    if dt is None:
+        return "None"
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+# ── Audit export ───────────────────────────────────────────────────────────────
+
+
+def export_audit(
+    plan: CleanupPlan,
+    mode: str,
+    deleted_count: int = 0,
+    backup_path: Path | None = None,
+) -> Path:
+    """Export cleanup audit to a JSONL file. Returns the export path."""
+    exports_dir = PROJECT_ROOT / "data" / "cleanup_exports"
+    exports_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"snapshot_gap_cleanup_plan_{timestamp}.jsonl"
+    export_path = exports_dir / filename
+
+    with open(export_path, "w", encoding="utf-8") as f:
+        # Write plan metadata
+        meta = {
+            "type": "cleanup_plan_metadata",
+            "timestamp": datetime.utcnow().isoformat(),
+            "mode": mode,
+            "b_safe_delete_candidates": len(plan.b_safe_delete_candidates),
+            "protected_a_with_card": plan.protected_a_with_card,
+            "protected_b_with_card": plan.protected_b_with_card,
+            "protected_recent_items": plan.protected_recent_items,
+            "protected_invalid_metadata": plan.protected_invalid_metadata,
+            "deleted_source_items": deleted_count,
+            "backup_path": str(backup_path) if backup_path else None,
+        }
+        f.write(json.dumps(meta, ensure_ascii=False) + "\n")
+
+        # Write B-class candidates
+        for c in plan.b_safe_delete_candidates:
+            record = {
+                "type": "b_safe_delete_candidate",
+                "source_item_id": c.source_item_id,
+                "source_key": c.source_key,
+                "url": c.url,
+                "title": c.title,
+                "category": "b_safe_delete_candidate",
+                "reason": c.reason,
+                "insight_card_id": c.insight_card_id,
+                "first_seen_at": c.first_seen_at.isoformat() if c.first_seen_at else None,
+                "last_seen_at": c.last_seen_at.isoformat() if c.last_seen_at else None,
+            }
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    return export_path
+
+
+# ── Apply helpers ─────────────────────────────────────────────────────────────
 
 
 def apply_safe_cleanup(db) -> int:
@@ -410,6 +616,25 @@ def apply_safe_cleanup(db) -> int:
     return updated
 
 
+def delete_snapshot_gap_candidates(db, candidates: list[SnapshotGapCandidate]) -> int:
+    """Delete SourceItems that are B-class snapshot gap safe-delete candidates.
+
+    Returns the number of SourceItems deleted.
+    """
+    from app.models import SourceItem
+
+    deleted = 0
+    for c in candidates:
+        item = db.query(SourceItem).filter(SourceItem.id == c.source_item_id).first()
+        if item is None:
+            continue
+        db.delete(item)
+        deleted += 1
+
+    db.commit()
+    return deleted
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -422,7 +647,17 @@ def main() -> int:
         action="store_true",
         help="Actually write to the database. Without this flag the script is dry-run.",
     )
+    parser.add_argument(
+        "--delete-safe-snapshot-gaps",
+        action="store_true",
+        help="Also delete B-class snapshot gap safe-delete candidates. "
+             "Requires --apply. Will not delete without this flag.",
+    )
     args = parser.parse_args()
+
+    if args.delete_safe_snapshot_gaps and not args.apply:
+        print("[ERROR] --delete-safe-snapshot-gaps requires --apply")
+        return 1
 
     mode = "apply" if args.apply else "dry-run"
 
@@ -444,13 +679,17 @@ def main() -> int:
         # For SQLite, check the DB file path exists before applying
         db_file_path: Path | None = None
         if is_sqlite:
-            # Extract file path from sqlite URL
-            database = engine.url.database  # e.g. ./data/ai_frontier_radar.db or /abs/path
+            database = engine.url.database
             if database and database != ":memory:":
                 db_file_path = (PROJECT_ROOT / database).resolve()
 
-        # ── Dry-run or Apply ──────────────────────────────────────
+        # ── Analyze ────────────────────────────────────────────────
         plan = analyze_database(db)
+
+        # ── Export audit (both dry-run and apply) ─────────────────
+        audit_path = export_audit(plan, mode)
+        print(f"[AUDIT] Export written to: {audit_path}")
+
         print(format_plan(plan, mode))
 
         if mode == "dry-run":
@@ -463,7 +702,7 @@ def main() -> int:
             print()
             print(f"[BACKUP] Backing up SQLite DB: {db_file_path}")
             try:
-                backup_path = backup_sqlite_db(db_file_path)
+                backup_path = backup_sqlite_db(db_file_path, suffix="snapshot_gap_cleanup")
                 print(f"[BACKUP] Created: {backup_path}")
             except FileNotFoundError:
                 print("[ERROR] SQLite DB file not found. Cannot apply cleanup without a backup.")
@@ -471,13 +710,31 @@ def main() -> int:
             except RuntimeError as e:
                 print(f"[ERROR] {e}")
                 return 1
+        else:
+            backup_path: Path | None = None
 
         print()
         print("[APPLY] Executing safe cleanup...")
 
+        # Step 1: stale FetchRuns
         updated = apply_safe_cleanup(db)
         print(f"[APPLY] Updated {updated} stale running FetchRun(s) to failed.")
+
+        # Step 2: B-class snapshot gap candidates
+        deleted_snapshot_gap = 0
+        if args.delete_safe_snapshot_gaps and plan.b_safe_delete_candidates:
+            print()
+            print(f"[APPLY] Deleting {len(plan.b_safe_delete_candidates)} B-class snapshot gap candidates...")
+            deleted_snapshot_gap = delete_snapshot_gap_candidates(
+                db, plan.b_safe_delete_candidates
+            )
+            print(f"[APPLY] Deleted {deleted_snapshot_gap} SourceItem(s).")
+
         print("[APPLY] Done. Manual review items were NOT deleted (as designed).")
+        print()
+        print(f"deleted_source_items: {deleted_snapshot_gap}")
+        print(f"backup_path: {backup_path}")
+        print(f"audit_export_path: {audit_path}")
         return 0
 
     except Exception as e:
