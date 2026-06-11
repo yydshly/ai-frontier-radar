@@ -174,17 +174,11 @@
                     {% endif %}
                 </div>
 
-                <!-- Card stats -->
+                <!-- Card stats: two-row grid (values / labels) -->
                 <div class="source-card-stats">
-                    <div class="source-stat">
+                    <div class="source-stats-values">
                         <span class="stat-val">{{ s.fetch_run_items_found if s.fetch_run_items_found is not none else '-' }}</span>
-                        <span class="stat-key">发现</span>
-                    </div>
-                    <div class="source-stat">
                         <span class="stat-val">{{ s.fetch_run_items_new if s.fetch_run_items_new is not none else '-' }}</span>
-                        <span class="stat-key">新增</span>
-                    </div>
-                    <div class="source-stat">
                         <span class="stat-val stat-datetime">
                             {% if s.last_success_at %}
                             {{ s.last_success_at.strftime('%m-%d %H:%M') }}
@@ -192,11 +186,15 @@
                             -
                             {% endif %}
                         </span>
+                    </div>
+                    <div class="source-stats-labels">
+                        <span class="stat-key">发现</span>
+                        <span class="stat-key">新增</span>
                         <span class="stat-key">最近成功</span>
                     </div>
                 </div>
 
-                <!-- Card actions: primary only -->
+                <!-- Card actions: right-aligned at bottom via margin-top:auto -->
                 <div class="source-card-actions">
                     <a href="/sources/{{ s.source_key }}" class="btn-link source-workspace-primary-link">进入工作台</a>
                     <form method="POST" action="/sources/{{ s.source_key }}/fetch" class="source-fetch-inline-form">
@@ -204,7 +202,8 @@
                     </form>
                 </div>
 
-                <!-- Technical details (collapsed by default) -->
+                <!-- Technical details (collapsed, below actions) -->
+                <div class="source-card-footer">
                 <details class="source-tech-details">
                     <summary>技术详情</summary>
                     {% if s.homepage_url %}
@@ -249,6 +248,7 @@
                         <a href="/source-items?source_key={{ s.source_key }}">查看</a>
                     </div>
                 </details>
+                </div><!-- /.source-card-footer -->
             </div>
             {% endfor %}
         </div>
