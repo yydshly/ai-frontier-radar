@@ -25,6 +25,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+def _configure_stdio_encoding() -> None:
+    """Force UTF-8 output encoding on Windows to prevent UnicodeEncodeError."""
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Today's core report generation (dry-run by default)"
@@ -38,6 +49,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_stdio_encoding()
     args = parse_args(argv)
 
     # Gate: --apply requires the explicit enable flag, checked before any LLM.

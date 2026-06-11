@@ -199,6 +199,7 @@ RECOMMENDED_LIMIT = _rec.limit
 RECOMMENDED_PER_SOURCE_LIMIT = _rec.per_source_limit
 RECOMMENDED_MAX_SCAN = _rec.max_scan
 RECOMMENDED_INSIGHT_LIMIT = _rec.insight_limit
+RECOMMENDED_INSIGHT_HARD_CAP = _rec.insight_hard_cap
 
 # ── Generation bounds ────────────────────────────────────────────────────────
 _gen = get_generation_settings()

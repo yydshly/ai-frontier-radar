@@ -17,9 +17,9 @@
                         <input type="hidden" name="limit" value="{{ view.limit }}">
                         <input type="hidden" name="page" value="{{ view.page }}">
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                        <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_LIMIT }}">
-                        <button type="submit" class="btn-sm btn-primary">一键生成推荐洞察卡（最多 {{ RECOMMENDED_INSIGHT_LIMIT }} 条）</button>
-                        <span class="radar-summary-hint">后台处理，已有或生成中的内容会自动跳过。</span>
+                        <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_HARD_CAP }}">
+                        <button type="submit" class="btn-sm btn-primary">生成全部推荐洞察</button>
+                        <span class="radar-summary-hint">将为当前 {{ view.compile_candidates|length }} 条推荐候选生成洞察卡，已有或生成中的会自动跳过。</span>
                     </form>
                     <div class="radar-panel-recommendations-list">
                         {% for c in view.compile_candidates %}

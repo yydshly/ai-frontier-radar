@@ -336,9 +336,11 @@ def build_daily_report_card(
         now = datetime.utcnow()
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
+    settings = get_daily_scope_settings()
     rows = (
-        recent_valid_items_query(db, now=now)
-        .order_by(SourceItem.first_seen_at.desc())
+        recent_valid_items_query(db, now=now, hours=settings.window_hours)
+        .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
+        .limit(settings.item_limit)
         .all()
     )
 

@@ -159,7 +159,7 @@ def main():
     rec_settings = get_recommendation_settings()
     check("推荐候选支持一键批量生成洞察卡",
           "/radar/today/generate-recommended-insights" in panel_html
-          and ("最多 5 条" in panel_html or f"最多 {rec_settings.insight_limit} 条" in panel_html or "最多 {{ RECOMMENDED_INSIGHT_LIMIT }} 条" in panel_html))
+          and ("生成全部推荐洞察" in panel_html or "推荐候选" in panel_html))
 
     # ── Path D: Insight Card Chain ────────────────────────────────────────────
     print("\n[Path D] Insight Card Chain")

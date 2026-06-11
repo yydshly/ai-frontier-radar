@@ -163,8 +163,8 @@
                                 <input type="hidden" name="limit" value="{{ view.limit }}">
                                 <input type="hidden" name="page" value="1">
                                 <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                                <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_LIMIT }}">
-                                <button type="submit" class="btn-sm" title="为推荐深入分析文章批量生成洞察卡，最多 {{ RECOMMENDED_INSIGHT_LIMIT }} 条">生成推荐洞察</button>
+                                <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_HARD_CAP }}">
+                                <button type="submit" class="btn-sm" title="为推荐深入分析文章批量生成洞察卡，已有或生成中的会自动跳过。安全上限 {{ RECOMMENDED_INSIGHT_HARD_CAP }} 条。">生成全部推荐洞察</button>
                             </form>
                             {% endif %}
                         </div>
@@ -483,10 +483,14 @@
                 {% if insight_batch_result %}
                 <div class="radar-insight-result">
                     <div class="radar-insight-success">
-                        推荐洞察卡：提交 {{ insight_batch_result.accepted }} 条，
+                        {% if insight_batch_result.hard_cap %}
+                        推荐洞察卡：推荐候选 {{ insight_batch_result.total_candidates }} 条，受安全上限 {{ insight_batch_result.hard_cap }} 限制，本次提交前 {{ insight_batch_result.hard_cap }} 条。
+                        {% else %}
+                        推荐洞察卡：推荐候选 {{ insight_batch_result.total_candidates }} 条，本次提交 {{ insight_batch_result.accepted }} 条，
                         已完成 {{ insight_batch_result.completed or 0 }} 条，
                         处理中 {{ insight_batch_result.running or 0 }} 条，
                         失败 {{ insight_batch_result.failed_actual or insight_batch_result.failed or 0 }} 条。
+                        {% endif %}
                     </div>
                     {% if insight_batch_result.skipped %}
                     <div class="radar-summary-hint">
@@ -521,7 +525,7 @@
                         <input type="hidden" name="limit" value="{{ view.limit }}">
                         <input type="hidden" name="page" value="{{ view.page }}">
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                        <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_LIMIT }}">
+                        <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_HARD_CAP }}">
                         <input type="hidden" name="insight_item_ids" value="{{ insight_batch_result.retry_ids|join(',') }}">
                         <button type="submit" class="btn-sm">重试失败项</button>
                     </form>

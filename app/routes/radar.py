@@ -37,6 +37,7 @@ from app.application.radar.today import (
     RECOMMENDED_PER_SOURCE_LIMIT,
     RECOMMENDED_MAX_SCAN,
     RECOMMENDED_INSIGHT_LIMIT,
+    RECOMMENDED_INSIGHT_HARD_CAP,
 )
 from app.application.radar.settings import (
     get_generation_settings,
@@ -369,6 +370,8 @@ def radar_today_page(
     insight_batch_skipped: int | None = Query(None, ge=0),
     insight_batch_failed: int | None = Query(None, ge=0),
     insight_batch_ids: str | None = Query(None),
+    insight_batch_total: int | None = Query(None, ge=0),
+    insight_batch_hard_cap: int | None = Query(None, ge=0),
     update_started: int | None = Query(None, ge=0),
     update_running: int | None = Query(None, ge=0),
     update_unsupported: int | None = Query(None, ge=0),
@@ -477,6 +480,8 @@ def radar_today_page(
             "accepted": insight_batch_accepted or 0,
             "skipped": insight_batch_skipped or 0,
             "failed": insight_batch_failed or 0,
+            "total_candidates": insight_batch_total or 0,
+            "hard_cap": insight_batch_hard_cap or 0,
         }
         if any(
             value is not None
@@ -621,6 +626,7 @@ def _build_radar_today_view_context(
             "DAILY_REPORT_ENABLED": get_daily_report_enabled(),
             "SUMMARY_BATCH_LIMIT": SUMMARY_BATCH_LIMIT,
             "RECOMMENDED_INSIGHT_LIMIT": RECOMMENDED_INSIGHT_LIMIT,
+            "RECOMMENDED_INSIGHT_HARD_CAP": RECOMMENDED_INSIGHT_HARD_CAP,
         }
     finally:
         db.close()
@@ -673,6 +679,7 @@ def radar_today_panel(
     )
     context["panel_mode"] = panel
     context["RECOMMENDED_INSIGHT_LIMIT"] = RECOMMENDED_INSIGHT_LIMIT
+    context["RECOMMENDED_INSIGHT_HARD_CAP"] = RECOMMENDED_INSIGHT_HARD_CAP
     return _radar_templates.TemplateResponse(
         "partials/radar_today_panel.html",
         context,
@@ -999,7 +1006,7 @@ def generate_recommended_insights(
     limit: int = Form(DEFAULT_LIMIT),
     page: int = Form(1),
     per_page: int = Form(DEFAULT_PER_PAGE),
-    insight_limit: int = Form(RECOMMENDED_INSIGHT_LIMIT),
+    insight_limit: int | None = Form(None),
     insight_item_ids: str | None = Form(None),
 ):
     """Enqueue the top recommended items for InsightCard generation."""
@@ -1010,7 +1017,6 @@ def generate_recommended_insights(
 
     db = next(get_db())
     try:
-        max_items = max(1, min(insight_limit, RECOMMENDED_INSIGHT_LIMIT))
         view = RadarTodayService(db).build_today_view(
             hours=hours,
             limit=limit,
@@ -1019,19 +1025,22 @@ def generate_recommended_insights(
             section=ALL_KEY,
         )
         candidates = view.compile_candidates
-        requested_ids = _parse_item_ids(insight_item_ids, limit=max_items)
-        if requested_ids:
-            allowed_item_ids = {candidate.source_item_id for candidate in candidates}
-            target_ids = [
-                item_id
-                for item_id in requested_ids
-                if item_id in allowed_item_ids
-            ]
+        all_candidate_ids = [c.source_item_id for c in candidates]
+
+        # Specific item IDs override limit (retry flow)
+        if insight_item_ids:
+            requested_ids = _parse_item_ids(insight_item_ids, limit=9999)
+            allowed_ids = set(all_candidate_ids)
+            base_ids = [iid for iid in requested_ids if iid in allowed_ids]
+        elif insight_limit is not None:
+            base_ids = all_candidate_ids[:max(1, int(insight_limit))]
         else:
-            target_ids = [
-                candidate.source_item_id
-                for candidate in candidates[:max_items]
-            ]
+            base_ids = all_candidate_ids  # None = all candidates
+
+        # Apply hard-cap safety ceiling
+        total_candidates = len(all_candidate_ids)
+        target_ids = base_ids[:RECOMMENDED_INSIGHT_HARD_CAP]
+        hard_cap_triggered = total_candidates > RECOMMENDED_INSIGHT_HARD_CAP
     finally:
         db.close()
 
@@ -1069,6 +1078,8 @@ def generate_recommended_insights(
         "insight_batch_skipped": skipped,
         "insight_batch_failed": failed,
         "insight_batch_ids": ",".join(str(item_id) for item_id in tracked_ids),
+        "insight_batch_total": total_candidates,
+        "insight_batch_hard_cap": RECOMMENDED_INSIGHT_HARD_CAP if hard_cap_triggered else 0,
     }
     return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 

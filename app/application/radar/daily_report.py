@@ -26,6 +26,7 @@ from sqlalchemy import or_
 
 from app.models import SourceItem
 from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.settings import get_daily_scope_settings
 
 # Markers that indicate a SourceItem already carries a (Chinese) summary.
 _SUMMARY_MARKERS = ('"zh_one_liner"', '"zh_summary"', '"summary_zh"', '"auto_summary"')
@@ -158,11 +159,12 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
         max_items = get_daily_report_settings().max_items
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
+    scope_settings = get_daily_scope_settings()
     rows = (
-        recent_valid_items_query(db, now=now)
+        recent_valid_items_query(db, now=now, hours=scope_settings.window_hours)
         .filter(or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS]))
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(max_items)
+        .limit(scope_settings.item_limit)
         .all()
     )
 

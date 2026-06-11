@@ -93,7 +93,8 @@ class RadarRecommendationSettings:
     limit: int                 # max candidates returned
     per_source_limit: int      # max candidates per single source
     max_scan: int              # max items to scan when building candidates
-    insight_limit: int         # max batch-insight items per trigger
+    insight_limit: int         # max batch-insight items per trigger (legacy, use insight_hard_cap)
+    insight_hard_cap: int      # absolute safety ceiling for one batch trigger
 
 
 def get_recommendation_settings() -> RadarRecommendationSettings:
@@ -105,7 +106,10 @@ def get_recommendation_settings() -> RadarRecommendationSettings:
         ),
         max_scan=_env_int("RADAR_RECOMMENDED_MAX_SCAN", default=300, minimum=10, maximum=1000),
         insight_limit=_env_int(
-            "RADAR_RECOMMENDED_INSIGHT_LIMIT", default=5, minimum=1, maximum=20
+            "RADAR_RECOMMENDED_INSIGHT_LIMIT", default=9999, minimum=1, maximum=9999
+        ),
+        insight_hard_cap=_env_int(
+            "RADAR_RECOMMENDED_INSIGHT_HARD_CAP", default=20, minimum=1, maximum=100
         ),
     )
 

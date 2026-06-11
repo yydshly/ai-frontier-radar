@@ -31,13 +31,18 @@
         <div class="radar-report-overview-grid">
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.total_items }}</span>
-                <span class="radar-report-stat-label">收录内容</span>
-                <span class="radar-report-stat-note">今日雷达时间窗口内的候选条目</span>
+                <span class="radar-report-stat-label">候选内容</span>
+                <span class="radar-report-stat-note">今日雷达候选池上限</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.readable_items }}</span>
                 <span class="radar-report-stat-label">可读内容</span>
                 <span class="radar-report-stat-note">已有中文概述或正文摘要</span>
+            </div>
+            <div class="radar-report-stat">
+                <span class="radar-report-stat-value">{{ overview.total_items - overview.readable_items }}</span>
+                <span class="radar-report-stat-label">待补全</span>
+                <span class="radar-report-stat-note">尚无中文摘要或正文</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.with_insight_card }}</span>
@@ -90,18 +95,22 @@
                     {% if daily_report_result.highlight_references
                           and daily_report_result.highlight_references|length > loop.index0
                           and daily_report_result.highlight_references[loop.index0] %}
-                    <div class="radar-report-primary-actions">
-                        {% for ref in daily_report_result.highlight_references[loop.index0] %}
-                        <a href="/source-items/{{ ref.item_id }}" class="radar-report-action-link">{{ ref.title }}</a>
-                        {% set safe_url = safe_external_url(ref.url) if ref.url else None %}
-                        {% if safe_url %}
-                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">查看原文</a>
-                        {% endif %}
-                        {% if ref.insight_card_id %}
-                        <a href="/cards/{{ ref.insight_card_id }}" class="radar-report-action-link">查看洞察卡</a>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
+                    {% set refs = daily_report_result.highlight_references[loop.index0] %}
+                    <details class="radar-highlight-refs">
+                        <summary>查看依据（{{ refs|length }}）</summary>
+                        <div class="radar-report-primary-actions">
+                            {% for ref in refs %}
+                            <a href="/source-items/{{ ref.item_id }}" class="radar-report-action-link">{{ ref.title }}</a>
+                            {% set safe_url = safe_external_url(ref.url) if ref.url else None %}
+                            {% if safe_url %}
+                            <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">查看原文</a>
+                            {% endif %}
+                            {% if ref.insight_card_id %}
+                            <a href="/cards/{{ ref.insight_card_id }}" class="radar-report-action-link">查看洞察卡</a>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </details>
                     {% endif %}
                 </li>
                 {% endfor %}
@@ -181,101 +190,97 @@
     {# ── Readable report (今日可读简报) ──────────────────────────────── #}
     {% if primary_items %}
     <div class="radar-report-section">
-        <div class="radar-report-section-header">
-            <h2 class="radar-report-section-title">今日可读简报</h2>
-            <span class="radar-report-section-count">{{ primary_items|length }} 条</span>
-        </div>
-        <div class="radar-report-primary-list">
-            {% for item in primary_items %}
-            <div class="radar-report-primary-item">
-                <div class="radar-report-primary-header">
-                    <span class="radar-report-source-tag">{{ item.source_label }}</span>
-                    <span class="radar-report-reason">{{ item.reason }}</span>
-                </div>
+        <details class="radar-report-details">
+            <summary>查看今日可读简报明细（{{ primary_items|length }} 条）</summary>
+            <div class="radar-report-primary-list">
+                {% for item in primary_items %}
+                <div class="radar-report-primary-item">
+                    <div class="radar-report-primary-header">
+                        <span class="radar-report-source-tag">{{ item.source_label }}</span>
+                        <span class="radar-report-reason">{{ item.reason }}</span>
+                    </div>
 
-                {# Show zh_summary > zh_one_liner > metadata #}
-                {% if item.zh_summary %}
-                <h3 class="radar-report-primary-summary">{{ item.zh_summary }}</h3>
-                <p class="radar-report-original-title">英文原题：{{ item.title }}</p>
-                {% elif item.zh_one_liner %}
-                <h3 class="radar-report-primary-summary">{{ item.zh_one_liner }}</h3>
-                <p class="radar-report-original-title">英文原题：{{ item.title }}</p>
-                {% endif %}
+                    {# Show zh_summary > zh_one_liner > metadata #}
+                    {% if item.zh_summary %}
+                    <h3 class="radar-report-primary-summary">{{ item.zh_summary }}</h3>
+                    <p class="radar-report-original-title">英文原题：{{ item.title }}</p>
+                    {% elif item.zh_one_liner %}
+                    <h3 class="radar-report-primary-summary">{{ item.zh_one_liner }}</h3>
+                    <p class="radar-report-original-title">英文原题：{{ item.title }}</p>
+                    {% endif %}
 
-                {# Direction tags #}
-                {% if item.related_directions %}
-                <div class="radar-report-tags">
-                    {% for tag in item.related_directions %}
-                    <span class="radar-report-tag">{{ tag }}</span>
-                    {% endfor %}
-                </div>
-                {% endif %}
+                    {# Direction tags #}
+                    {% if item.related_directions %}
+                    <div class="radar-report-tags">
+                        {% for tag in item.related_directions %}
+                        <span class="radar-report-tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
 
-                {# Actions #}
-                <div class="radar-report-primary-actions">
-                    {% set safe_url = safe_external_url(item.url) if item.url else None %}
-                    {% if safe_url %}
-                    <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">打开原文</a>
-                    {% endif %}
-                    {% if item.insight_card_id %}
-                    <a href="/cards/{{ item.insight_card_id }}" class="radar-report-action-link">查看洞察卡</a>
-                    {% else %}
-                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看条目</a>
-                    {% endif %}
-                    {% if item.suggested_action %}
-                    <span class="radar-report-action-hint">{{ item.suggested_action }}</span>
-                    {% endif %}
+                    {# Actions #}
+                    <div class="radar-report-primary-actions">
+                        {% set safe_url = safe_external_url(item.url) if item.url else None %}
+                        {% if safe_url %}
+                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">打开原文</a>
+                        {% endif %}
+                        {% if item.insight_card_id %}
+                        <a href="/cards/{{ item.insight_card_id }}" class="radar-report-action-link">查看洞察卡</a>
+                        {% else %}
+                        <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看条目</a>
+                        {% endif %}
+                        {% if item.suggested_action %}
+                        <span class="radar-report-action-hint">{{ item.suggested_action }}</span>
+                        {% endif %}
+                    </div>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
+        </details>
     </div>
     {% endif %}
 
     {# ── Pending content (待补全内容) ─────────────────────────────────── #}
     {% if secondary_items %}
     <div class="radar-report-section">
-        <div class="radar-report-section-header">
-            <h2 class="radar-report-section-title">待补全内容</h2>
-            <span class="radar-report-section-count">{{ secondary_items|length }} 条
-                {% if not secondary_all_shown %}（共 {{ overview.pending_items }} 条）{% endif %}
-            </span>
-        </div>
-        <p class="radar-report-secondary-hint">以下条目尚未生成中文摘要，可在今日雷达中补全后再回来看报告。</p>
-        <div class="radar-report-secondary-list">
-            {% for item in secondary_items %}
-            <div class="radar-report-secondary-item radar-report-pending-item">
-                <div class="radar-report-secondary-header">
-                    <span class="radar-report-source-tag">{{ item.source_label }}</span>
-                    {% if item.tags %}
-                    {% for tag in item.tags %}
-                    <span class="radar-report-tag">{{ tag }}</span>
-                    {% endfor %}
-                    {% endif %}
+        <details class="radar-report-details">
+            <summary>查看待补全内容（{{ secondary_items|length }} 条{% if not secondary_all_shown %}（共 {{ overview.pending_items }} 条）{% endif %}）</summary>
+            <p class="radar-report-secondary-hint">以下条目尚未生成中文摘要，可在今日雷达中补全后再回来看报告。</p>
+            <div class="radar-report-secondary-list">
+                {% for item in secondary_items %}
+                <div class="radar-report-secondary-item radar-report-pending-item">
+                    <div class="radar-report-secondary-header">
+                        <span class="radar-report-source-tag">{{ item.source_label }}</span>
+                        {% if item.tags %}
+                        {% for tag in item.tags %}
+                        <span class="radar-report-tag">{{ tag }}</span>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    <div class="radar-report-secondary-content">
+                        <h4 class="radar-report-secondary-title">{{ item.title }}</h4>
+                    </div>
+                    <div class="radar-report-secondary-actions">
+                        {% set safe_url = safe_external_url(item.url) if item.url else None %}
+                        {% if safe_url %}
+                        <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">打开原文</a>
+                        {% endif %}
+                        <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看条目</a>
+                    </div>
                 </div>
-                <div class="radar-report-secondary-content">
-                    <h4 class="radar-report-secondary-title">{{ item.title }}</h4>
-                </div>
-                <div class="radar-report-secondary-actions">
-                    {% set safe_url = safe_external_url(item.url) if item.url else None %}
-                    {% if safe_url %}
-                    <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">打开原文</a>
-                    {% endif %}
-                    <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看条目</a>
-                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
 
-        {% if not secondary_all_shown %}
-        {% set remaining = overview.pending_items - secondary_items|length %}
-        {% if remaining > 0 %}
-        <p class="radar-report-secondary-hint">
-            还有 {{ remaining }} 条内容待生成中文摘要。
-            在今日雷达中点击「生成当前页中文摘要」可继续补全。
-        </p>
-        {% endif %}
-        {% endif %}
+            {% if not secondary_all_shown %}
+            {% set remaining = overview.pending_items - secondary_items|length %}
+            {% if remaining > 0 %}
+            <p class="radar-report-secondary-hint">
+                还有 {{ remaining }} 条内容待生成中文摘要。
+                在今日雷达中点击「生成当前页中文摘要」可继续补全。
+            </p>
+            {% endif %}
+            {% endif %}
+        </details>
     </div>
     {% endif %}
 

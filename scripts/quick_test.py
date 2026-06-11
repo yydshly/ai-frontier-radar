@@ -5810,7 +5810,7 @@ def main():
         # CLI dry-run + gate (subprocess, no real LLM).
         dry_proc = subprocess.run(
             [sys.executable, "scripts/run_daily_report_once.py"],
-            cwd=project_root, capture_output=True, text=True, timeout=60,
+            cwd=project_root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
         )
         check("daily report CLI dry-run exits 0 without LLM",
               dry_proc.returncode == 0 and "DRY-RUN" in dry_proc.stdout,
@@ -5820,7 +5820,7 @@ def main():
             [sys.executable, "scripts/run_daily_report_once.py", "--apply"],
             cwd=project_root,
             env={k: v for k, v in os.environ.items() if k != "DAILY_REPORT_ENABLED"},
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
         )
         check("daily report CLI apply gate rejects without enable flag",
               gate_proc.returncode == 2,
