@@ -430,25 +430,45 @@ def main() -> int:
         # Summary judgment
         print("")
         print("## Quality Judgment")
-        eligible = stats["eligible_for_insight_card"]
         total = stats["total_source_items"]
         new_24h = stats["new_items_last_24h"]
         with_card = stats["with_insight_card"]
         discovered = stats["status_discovered"]
+        already_compiled = stats["already_compiled_items"]
+        metadata_candidates = stats["metadata_compile_candidates"]
+        fulltext_candidates = stats["fulltext_compile_candidates"]
+        processing_candidates = metadata_candidates + fulltext_candidates
 
         print(f"  Total SourceItems: {total}")
         print(f"  New items (24h): {new_24h} ({100*new_24h/max(total,1):.1f}%)")
-        print(f"  Already compiled/with card: {stats['already_compiled_items']}")
-        print(f"  Metadata compile candidates: {stats['metadata_compile_candidates']}")
-        print(f"  Fulltext compile candidates: {stats['fulltext_compile_candidates']}")
+        print(f"  Already compiled/with card: {already_compiled}")
+        print(f"  Metadata compile candidates: {metadata_candidates}")
+        print(f"  Fulltext compile candidates: {fulltext_candidates}")
+        print(f"  Processing candidates: {processing_candidates}")
         print(f"  Items needing processing: {discovered}")
         print("")
-        if stats["metadata_compile_candidates"] > 0:
-            print(f"  ℹ {stats['metadata_compile_candidates']} items can use metadata compile (no URL fetch needed)")
-        if stats["fulltext_compile_candidates"] > 0:
-            print(f"  ℹ {stats['fulltext_compile_candidates']} items need URL fetch for fulltext compile")
+        print("  --- Summary Coverage ---")
+        zh_one_liner = stats["with_zh_one_liner"]
+        zh_summary = stats["with_zh_summary"]
+        metadata_summary = stats["with_metadata_summary"]
+        missing_all = stats["missing_all_summary"]
+        print(f"  Chinese one-liner coverage: {zh_one_liner}/{total} ({100*zh_one_liner/max(total,1):.1f}%)")
+        print(f"  Chinese summary coverage: {zh_summary}/{total} ({100*zh_summary/max(total,1):.1f}%)")
+        print(f"  Source metadata summary coverage: {metadata_summary}/{total} ({100*metadata_summary/max(total,1):.1f}%)")
+        print(f"  Missing all summary: {missing_all}/{total} ({100*missing_all/max(total,1):.1f}%)")
+        print("")
+        if metadata_candidates > 0:
+            print(f"  i {metadata_candidates} items can use metadata compile (no URL fetch needed)")
+        if fulltext_candidates > 0:
+            print(f"  i {fulltext_candidates} items need URL fetch for fulltext compile")
+        if metadata_summary > 0:
+            print(f"  i {metadata_summary} items have English/source metadata -- suitable for Chinese summary generation")
+        if zh_summary == 0 and metadata_summary > 0:
+            print(f"  -> Next step: run generate-summaries on metadata compile candidates")
+        if missing_all > metadata_summary * 2:
+            print(f"  ! {missing_all} items missing all summary -- some sources may need better RSS/HTML extraction")
         if with_card > 0:
-            print(f"  ✓ {with_card} items already have InsightCards")
+            print(f"  [*] {with_card} items already have InsightCards")
 
         return 0
     finally:
