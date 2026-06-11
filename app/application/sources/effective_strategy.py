@@ -64,6 +64,64 @@ def compute_effective_strategy(feed_url: str | None, fetch_strategy: str | None)
     return fetch_strategy or ""
 
 
+def build_strategy_chain(
+    feed_url: str | None,
+    homepage_url: str | None,
+    fetch_strategy: str | None,
+    supported: frozenset[str] = SUPPORTED_STRATEGIES,
+) -> list[str]:
+    """Ordered, reliability-ranked list of strategies to attempt for a source.
+
+    Only includes supported strategies whose required URL is available:
+    - ``rss`` when a feed_url exists,
+    - ``html_index`` when a homepage_url exists.
+
+    The list is sorted most-reliable first, so the effective strategy is the
+    head and weaker methods follow as fallbacks. With both URLs present the
+    chain is ``["rss", "html_index"]``; with only one URL it has a single entry.
+    """
+    candidates: set[str] = set()
+    if feed_url:
+        candidates.add("rss")
+    if homepage_url:
+        candidates.add("html_index")
+
+    # If nothing derivable from URLs, fall back to the configured strategy.
+    if not candidates and fetch_strategy:
+        candidates.add(fetch_strategy)
+
+    chain = [s for s in sorted(candidates, key=reliability_rank) if s in supported]
+    return chain
+
+
+def select_succeeding_probe(chain, probe_runner):
+    """Run probes along the chain until one succeeds. Pure orchestration.
+
+    ``probe_runner(strategy) -> probe_result`` is injected (no DB/network here).
+    A probe "succeeds" when it found at least one item, or returned no error.
+    Returns ``(chosen_strategy, probe_result, attempts)`` where attempts is a
+    list of ``{strategy, items_found, ok, error}`` dicts in attempt order. If all
+    attempts fail, the last attempt's result is returned.
+    """
+    attempts: list[dict] = []
+    chosen_strategy = None
+    chosen_result = None
+
+    for strat in chain:
+        result = probe_runner(strat) or {}
+        items_found = result.get("items_found", 0) or 0
+        error = result.get("error_message")
+        ok = items_found > 0 or not error
+        attempts.append(
+            {"strategy": strat, "items_found": items_found, "ok": ok, "error": error}
+        )
+        chosen_strategy, chosen_result = strat, result
+        if ok:
+            break
+
+    return chosen_strategy, chosen_result, attempts
+
+
 @dataclass(frozen=True)
 class StrategyConsistency:
     """Result of comparing configured vs effective (most-reliable) strategy."""

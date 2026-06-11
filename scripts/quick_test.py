@@ -7212,6 +7212,40 @@ def main():
         check("source workspace surfaces strategy notes",
               "策略说明" in detail_html and "config_source.strategy_notes" in detail_html,
               "workspace should display config strategy_notes when present")
+
+        # S3: reliability fallback chain planner + orchestrator (pure).
+        from app.application.sources.effective_strategy import (
+            build_strategy_chain,
+            select_succeeding_probe,
+        )
+        check("strategy chain is reliability-ordered with both urls",
+              build_strategy_chain("https://x/rss", "https://x", "html_index") == ["rss", "html_index"]
+              and build_strategy_chain(None, "https://x", "html_index") == ["html_index"]
+              and build_strategy_chain("https://x/rss", None, "rss") == ["rss"],
+              "chain should be rss-first and only include strategies with an available url")
+
+        def _runner(s):
+            return {"items_found": 0, "error_message": "boom"} if s == "rss" else {"items_found": 3, "error_message": None}
+        chosen, _res, attempts = select_succeeding_probe(["rss", "html_index"], _runner)
+        check("orchestrator falls back to next reliable method on failure",
+              chosen == "html_index"
+              and [a["strategy"] for a in attempts] == ["rss", "html_index"]
+              and attempts[0]["ok"] is False and attempts[1]["ok"] is True,
+              "select_succeeding_probe should try weaker methods until one succeeds")
+        chosen2, _r2, att2 = select_succeeding_probe(["rss", "html_index"], lambda s: {"items_found": 5, "error_message": None})
+        check("orchestrator stops at first success (no extra attempts)",
+              chosen2 == "rss" and len(att2) == 1,
+              "a succeeding primary must not trigger fallback attempts")
+
+        # The fetch fallback is gated and default-off (behavior unchanged by default).
+        bg_text = (project_root / "app" / "application" / "sources" / "background_fetch.py").read_text(encoding="utf-8")
+        check("fetch fallback is gated by an opt-in env flag",
+              "RADAR_FETCH_FALLBACK_ENABLED" in bg_text
+              and "select_succeeding_probe" in bg_text,
+              "background fetch should gate the fallback chain behind RADAR_FETCH_FALLBACK_ENABLED")
+        check("fetch fallback isolated acceptance exists",
+              (project_root / "scripts" / "acceptance_fetch_fallback_chain.py").exists(),
+              "S3 isolated fallback acceptance script should exist")
     except Exception as e:
         check("effective strategy checks", False, str(e))
 

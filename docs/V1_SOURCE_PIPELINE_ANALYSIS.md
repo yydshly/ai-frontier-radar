@@ -79,8 +79,15 @@ config/sources.example.yaml  ──load_sources_config──▶ SourceConfig
 - 验收：隔离 DB + mock RSS 真实抓取通过；background RSS 单测断言 metadata 记录 effective=rss。
 - 顺带修正一个测试 fixture（html_index 源误带 feed_url），使其符合 RSS 优先语义。
 
-### 阶段 S3（可靠性回退链）
-- RSS 失败 → 依可靠性顺序尝试下一档；记录每档结果；展示"实际成功的探测方式"。
+### 阶段 S3（可靠性回退链）✅ 已落地（默认关闭）
+- 纯函数 `build_strategy_chain(...)`（按可靠性排序、只含有可用 URL 的支持策略）+
+  `select_succeeding_probe(chain, probe_runner)`（依次尝试直到成功，记录每档结果）。
+- `background_fetch` 接入回退链，**由 `RADAR_FETCH_FALLBACK_ENABLED` 显式开启**；
+  默认关闭时 = 单次有效策略尝试（与 S2 行为完全一致，零回归）。
+- 开启后 RSS 失败自动降级 html_index；`FetchRun.metadata_json.fetch_strategy` 记录
+  `succeeded` / `fallback_used` / `attempts`（实际成功的探测方式）。
+- 隔离 DB + 探针 monkeypatch 验收 `scripts/acceptance_fetch_fallback_chain.py`：
+  开启时 RSS 失败→html_index 成功→success；关闭时 RSS 失败→failed 且不尝试 html。
 
 ### 阶段 S4（解析可靠性元数据 + 字段收敛）
 - ✅ S4(a)：统一两处 SUPPORTED 集合到单一来源——

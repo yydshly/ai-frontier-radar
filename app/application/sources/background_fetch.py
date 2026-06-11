@@ -8,6 +8,7 @@ Does NOT use Celery/Redis/RQ — uses FastAPI BackgroundTasks only.
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
+import os
 
 from app.db import SessionLocal
 from app.models import Source, FetchRun
@@ -334,38 +335,51 @@ def run_source_fetch_in_background(run_id: int) -> None:
             _finish_run_as_failed(db, fetch_run, source=None, error_message=f"Source(id={fetch_run.source_id}) not found at execution time")
             return
 
-        # S2: probe by the *effective* strategy (RSS-first when a feed_url exists),
-        # not the raw configured value. For sources without a feed_url this is
-        # identical to the configured strategy.
-        from app.application.sources.effective_strategy import compute_effective_strategy
+        # S2/S3: probe by the *effective* (RSS-first) strategy. When the fallback
+        # gate is on, build a reliability-ranked chain and try weaker methods if
+        # the primary fails. Default (gate off) = single effective attempt,
+        # identical to S2.
+        from app.application.sources.effective_strategy import (
+            compute_effective_strategy,
+            build_strategy_chain,
+            select_succeeding_probe,
+            SUPPORTED_STRATEGIES,
+        )
         configured_strategy = source.fetch_strategy
-        strategy = compute_effective_strategy(source.feed_url, source.fetch_strategy)
+        effective_strategy = compute_effective_strategy(source.feed_url, source.fetch_strategy)
 
-        # Check if strategy is supported (same logic as SourceFetchService)
-        from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
-        if strategy not in SUPPORTED_STRATEGIES:
+        fallback_enabled = os.getenv("RADAR_FETCH_FALLBACK_ENABLED", "").strip().lower() == "true"
+        if fallback_enabled:
+            chain = build_strategy_chain(source.feed_url, source.homepage_url, source.fetch_strategy)
+        else:
+            chain = [effective_strategy]
+        chain = [s for s in chain if s in SUPPORTED_STRATEGIES]
+
+        if not chain:
             _finish_run_as_failed(
                 db, fetch_run, source,
-                error_message=f"unsupported fetch_strategy: {strategy}",
+                error_message=f"unsupported fetch_strategy: {effective_strategy}",
             )
             return
 
-        # Call the appropriate probe
+        # Call the appropriate probe for a given strategy.
         max_items = get_source_fetch_max_items_per_run()
-        try:
-            if strategy == "rss":
+
+        def _run_probe(strat: str) -> dict:
+            if strat == "rss":
                 from app.sources.rss_probe import probe_rss_source
-                probe_result = probe_rss_source(db, source, timeout_seconds=20, max_items=max_items)
-            elif strategy == "html_index":
+                return probe_rss_source(db, source, timeout_seconds=20, max_items=max_items)
+            if strat == "html_index":
                 from app.sources.html_index_probe import probe_html_index_source
-                probe_result = probe_html_index_source(db, source, timeout_seconds=20, max_items=max_items)
-            else:
-                # Should not reach here due to check above
-                probe_result = {
-                    "items_found": 0, "items_new": 0, "items_updated": 0,
-                    "items_failed": 0,
-                    "error_message": f"unknown fetch_strategy: {strategy}",
-                }
+                return probe_html_index_source(db, source, timeout_seconds=20, max_items=max_items)
+            return {
+                "items_found": 0, "items_new": 0, "items_updated": 0,
+                "items_failed": 0,
+                "error_message": f"unknown fetch_strategy: {strat}",
+            }
+
+        try:
+            strategy, probe_result, strategy_attempts = select_succeeding_probe(chain, _run_probe)
         except Exception as probe_error:
             _finish_run_as_failed(
                 db, fetch_run, source,
@@ -458,8 +472,11 @@ def run_source_fetch_in_background(run_id: int) -> None:
             "source_fetch_limit": source_fetch_limit,
             "fetch_strategy": {
                 "configured": configured_strategy,
-                "effective": strategy,
-                "rss_first_applied": strategy != configured_strategy,
+                "effective": effective_strategy,
+                "succeeded": strategy,
+                "rss_first_applied": effective_strategy != configured_strategy,
+                "fallback_used": strategy != effective_strategy,
+                "attempts": strategy_attempts,
             },
         }, ensure_ascii=False)
 
