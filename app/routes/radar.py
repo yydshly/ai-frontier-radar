@@ -212,6 +212,21 @@ def _has_zh_one_liner(item: SourceItem) -> bool:
         return False
 
 
+def _has_zh_summary(item: SourceItem) -> bool:
+    """Return True if the item already has a Chinese detailed summary in raw_metadata_json."""
+    import json
+    try:
+        raw = json.loads(item.raw_metadata_json or "{}")
+        return bool(raw.get("zh_summary", "").strip())
+    except Exception:
+        return False
+
+
+def _needs_chinese_summary(item: SourceItem) -> bool:
+    """Return True if the item is missing zh_one_liner or zh_summary."""
+    return not (_has_zh_one_liner(item) and _has_zh_summary(item))
+
+
 def _humanize_summary_detail_message(status: str, message: str | None) -> str:
     """Convert a raw summary status + technical message to user-facing Chinese."""
     if status == "success":
@@ -715,31 +730,40 @@ def generate_today_summaries(
         )
 
         # Collect currently-visible items in page display order (deduped).
-        visible_items = []
+        # Prioritize compile_candidates (InsightCard recommendation section),
+        # then current page visible items.
+        target_ids = []
         seen_ids = set()
+
+        # 1. Compile candidates first (only exists on section=all && page=1)
+        if view.compile_candidates:
+            for candidate in view.compile_candidates:
+                if candidate.source_item_id not in seen_ids:
+                    target_ids.append(candidate.source_item_id)
+                    seen_ids.add(candidate.source_item_id)
+
+        # 2. Then add current page visible items
         for section_view in view.sections:
             for item in section_view.items:
                 if item.id not in seen_ids:
-                    visible_items.append(item)
+                    target_ids.append(item.id)
                     seen_ids.add(item.id)
 
-        # Re-fetch items to ensure we have session-bound objects, but restore
-        # original page-order so visual sequence matches what the user sees.
-        visible_ids = [item.id for item in visible_items]
+        # 3. Re-fetch items to ensure we have session-bound objects.
         fetched_items = (
             db.query(SourceItem)
-            .filter(SourceItem.id.in_(visible_ids))
+            .filter(SourceItem.id.in_(target_ids))
             .all()
         )
         items_by_id = {item.id: item for item in fetched_items}
-        items = [items_by_id[iid] for iid in visible_ids if iid in items_by_id]
+        items = [items_by_id[iid] for iid in target_ids if iid in items_by_id]
 
-        # Prioritize items that are missing zh_one_liner.
-        missing_summary = [item for item in items if not _has_zh_one_liner(item)]
-        has_summary = [item for item in items if _has_zh_one_liner(item)]
+        # Prioritize items that are missing zh_one_liner or zh_summary.
+        needs_summary = [item for item in items if _needs_chinese_summary(item)]
+        complete = [item for item in items if not _needs_chinese_summary(item)]
 
         max_items = max(1, min(summary_limit, 20))
-        items = (missing_summary + has_summary)[:max_items]
+        items = (needs_summary + complete)[:max_items]
 
         settings = get_one_liner_settings()
         summary_service = CandidateOneLinerService(db, settings=settings)

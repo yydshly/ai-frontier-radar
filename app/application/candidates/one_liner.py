@@ -110,7 +110,7 @@ def get_one_liner_settings() -> OneLinerSettings:
     return OneLinerSettings(
         enabled=_env_bool("ONE_LINER_ENABLED", True),
         provider=os.getenv("ONE_LINER_PROVIDER", "llm_profile").strip() or "llm_profile",
-        max_per_run=_env_int("ONE_LINER_MAX_PER_RUN", 10, 1, 100),
+        max_per_run=_env_int("ONE_LINER_MAX_PER_RUN", 20, 1, 100),
         max_per_day=_env_int("ONE_LINER_MAX_PER_DAY", 50, 1, 1000),
         max_input_chars=_env_int("ONE_LINER_MAX_INPUT_CHARS", 1200, 100, 8000),
     )

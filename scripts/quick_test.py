@@ -1815,6 +1815,18 @@ def main():
             check("get_one_liner_settings default provider=llm_profile",
                   defaults.provider == "llm_profile")
 
+            # Test default max_per_run after isolating from env override.
+            old_max = os.environ.pop("ONE_LINER_MAX_PER_RUN", None)
+            try:
+                isolated = get_one_liner_settings()
+                check("get_one_liner_settings default max_per_run=20",
+                      isolated.max_per_run == 20)
+            finally:
+                if old_max is not None:
+                    os.environ["ONE_LINER_MAX_PER_RUN"] = old_max
+                elif "ONE_LINER_MAX_PER_RUN" in os.environ:
+                    del os.environ["ONE_LINER_MAX_PER_RUN"]
+
             os.environ["ONE_LINER_ENABLED"] = "false"
             disabled = get_one_liner_settings()
             check("ONE_LINER_ENABLED=false disables one-liner",
@@ -3127,6 +3139,21 @@ def main():
               and "min(summary_limit, 20)" in radar_route_py,
               "summary generation should be capped to avoid long requests")
 
+        check("today radar summary route includes compile_candidates",
+              "compile_candidates" in radar_route_py
+              and "source_item_id" in radar_route_py,
+              "summary route should include compile_candidates for InsightCard recommendation section")
+
+        check("today radar summary route uses _needs_chinese_summary",
+              "_needs_chinese_summary" in radar_route_py
+              and "_has_zh_summary" in radar_route_py,
+              "summary route should prioritize items missing zh_one_liner or zh_summary")
+
+        check("today radar compile_candidates appear before visible items in route",
+              "compile_candidates" in radar_route_py
+              and "target_ids" in radar_route_py,
+              "compile_candidate items should be collected before visible items")
+
         check("today radar toolbar has summary generation form",
               'action="/radar/today/generate-summaries"' in radar_html
               and "生成当前页中文摘要" in radar_html,
@@ -4395,8 +4422,8 @@ def main():
         # 9. button text mentions 生成当前页中文摘要.
         check("button text mentions '生成当前页中文摘要'",
               "生成当前页中文摘要" in radar_html
-              and "最多处理当前页 20 条" in radar_html,
-              "button should say '生成当前页中文摘要' with 20-item cap")
+              and "优先补全推荐候选" in radar_html,
+              "button should mention compile candidates priority")
     except Exception as e:
         check("V1.0-beta.3 Summary fill checks", False, str(e))
 

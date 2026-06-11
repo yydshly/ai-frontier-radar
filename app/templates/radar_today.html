@@ -262,7 +262,7 @@
                     <input type="hidden" name="per_page" value="{{ view.per_page }}">
                     <input type="hidden" name="summary_limit" value="20">
                     <button type="submit" class="btn-sm" title="优先处理当前页缺中文摘要的内容，最多处理 20 条；已有中文摘要会自动跳过">生成当前页中文摘要</button>
-                    <span class="radar-summary-hint">最多处理当前页 20 条；已有中文摘要会自动跳过</span>
+                    <span class="radar-summary-hint">最多处理 20 条，优先补全推荐候选；已有中文摘要会自动跳过</span>
                 </form>
 
                 <form method="get" action="/radar/today" class="radar-page-size-form">
