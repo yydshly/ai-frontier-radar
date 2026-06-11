@@ -58,6 +58,7 @@
     <div class="radar-broadcast-section">
         <div class="radar-broadcast-section-header">
             <h2 class="radar-broadcast-section-title">播报文案</h2>
+            <span class="radar-report-stat-note">内容来源：{{ script_basis }}</span>
             <div class="radar-broadcast-toolbar">
                 <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').value).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">复制文案</button>
                 <form method="post" action="/radar/daily-report/broadcast/audio" style="display:inline;">

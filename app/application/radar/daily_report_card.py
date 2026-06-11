@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from app.models import SourceItem
+from app.application.radar.daily_scope import recent_valid_items_query
 
 
 # Strong-signal keywords that indicate an important report.
@@ -335,8 +336,7 @@ def build_daily_report_card(
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     rows = (
-        db.query(SourceItem)
-        .filter(SourceItem.first_seen_at >= day_start)
+        recent_valid_items_query(db, now=now)
         .order_by(SourceItem.first_seen_at.desc())
         .all()
     )

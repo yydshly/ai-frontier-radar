@@ -20,6 +20,7 @@ from datetime import datetime
 from sqlalchemy import or_
 
 from app.models import Source, SourceItem
+from app.application.radar.daily_scope import recent_valid_items_query
 
 # Markers that indicate a SourceItem already carries a (Chinese) summary.
 _SUMMARY_MARKERS = ('"zh_one_liner"', '"summary_zh"', '"auto_summary"')
@@ -66,7 +67,7 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
         now = datetime.utcnow()
     day_start = _start_of_utc_day(now)
 
-    base = db.query(SourceItem).filter(SourceItem.first_seen_at >= day_start)
+    base = recent_valid_items_query(db, now=now)
 
     new_items_count = base.count()
 
@@ -79,8 +80,8 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
     card_count = base.filter(SourceItem.insight_card_id.isnot(None)).count()
 
     source_count = (
-        db.query(SourceItem.source_key)
-        .filter(SourceItem.first_seen_at >= day_start)
+        recent_valid_items_query(db, now=now)
+        .with_entities(SourceItem.source_key)
         .distinct()
         .count()
     )
@@ -171,12 +172,11 @@ def build_daily_briefing(
         now = datetime.utcnow()
     day_start = _start_of_utc_day(now)
 
-    base = db.query(SourceItem).filter(SourceItem.first_seen_at >= day_start)
+    base = recent_valid_items_query(db, now=now)
     new_items_count = base.count()
 
     rows = (
         base.order_by(
-            SourceItem.source_key.asc(),
             SourceItem.first_seen_at.desc(),
             SourceItem.id.desc(),
         )
@@ -184,13 +184,11 @@ def build_daily_briefing(
         .all()
     )
 
-    keys = {r.source_key for r in rows}
-    name_map = {}
-    if keys:
-        name_map = {
-            s.source_key: s.name
-            for s in db.query(Source).filter(Source.source_key.in_(keys)).all()
-        }
+    keys = {row.source_key for row in rows}
+    source_names = {
+        source.source_key: source.name
+        for source in db.query(Source).filter(Source.source_key.in_(keys)).all()
+    } if keys else {}
 
     from app.application.candidates.display import build_candidate_display_card
 
@@ -216,10 +214,10 @@ def build_daily_briefing(
     groups = [
         DailyBriefingGroup(
             source_key=k,
-            source_name=name_map.get(k, k),
+            source_name=source_names.get(k, k),
             items=v,
         )
-        for k, v in sorted(groups_map.items(), key=lambda kv: kv[0])
+        for k, v in groups_map.items()
     ]
 
     return DailyBriefingView(

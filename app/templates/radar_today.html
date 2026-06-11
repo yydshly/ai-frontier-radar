@@ -76,13 +76,21 @@
                                 <span class="radar-section-count">{{ view.section_counts.get('all', view.total_items) }}</span>
                             </a>
                         </li>
-                        {# 今日重点 — always shown #}
+                        {# 最新发现 — newest items #}
                         <li>
                             <a href="/radar/today?section=today_focus&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'today_focus' %}is-active{% endif %}">
-                                <span>今日重点</span>
+                                <span>最新发现</span>
                                 <span class="radar-section-count">{{ view.section_counts.get('today_focus', 0) }}</span>
                             </a>
                         </li>
+                        {% if view.compile_candidates %}
+                        <li>
+                            <a href="/radar/today?section=all&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}&panel=recommendations" class="radar-section-link {% if panel_mode == 'recommendations' %}is-active{% endif %}">
+                                <span>推荐深入分析</span>
+                                <span class="radar-section-count">{{ view.compile_candidates|length }}</span>
+                            </a>
+                        </li>
+                        {% endif %}
                         {# Other categories — only shown when full-set count > 0 #}
                         {% for section in view.sections %}
                         {% if section.key != 'today_focus' and section.key != 'others' and view.section_counts.get(section.key, 0) > 0 %}
@@ -108,7 +116,7 @@
                     {# ── 今日操作 ─────────────────────────────────────────── #}
                     <div class="radar-today-actions">
                         <div class="radar-today-actions-title">今日操作</div>
-                        <p class="radar-today-actions-hint">推荐：更新今日新增 → 生成中文摘要 → 生成今日核心报告</p>
+                        <p class="radar-today-actions-hint">从发现、理解到报告，按顺序完成今日信息处理。</p>
                         <form method="post" action="/radar/today/update" class="radar-update-form">
                             <input type="hidden" name="section" value="{{ view.active_section }}">
                             <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
@@ -118,7 +126,7 @@
                             <input type="hidden" name="per_page" value="{{ view.per_page }}">
                             <button type="submit" class="btn-sm btn-primary" title="更新今日雷达：只检查到期来源">更新今日新增</button>
                         </form>
-                        <form method="get" action="/radar/today/generate-summaries" class="radar-summary-form-inline">
+                        <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form-inline">
                             <input type="hidden" name="section" value="{{ view.active_section }}">
                             <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
                             <input type="hidden" name="hours" value="{{ view.hours }}">
@@ -126,13 +134,26 @@
                             <input type="hidden" name="page" value="{{ view.page }}">
                             <input type="hidden" name="per_page" value="{{ view.per_page }}">
                             <input type="hidden" name="summary_limit" value="20">
-                            <button type="submit" class="btn-sm" title="优先处理当前页缺中文摘要的内容，最多处理 20 条；已有中文摘要会自动跳过">生成当前页中文摘要</button>
+                            <button type="submit" class="btn-sm" title="优先处理推荐候选，再补齐当前页内容；最多处理 20 条，已有中文摘要会自动跳过">生成文章摘要</button>
                         </form>
+                        {% if view.compile_candidates %}
+                        <form method="post" action="/radar/today/generate-recommended-insights" class="radar-summary-form-inline">
+                            <input type="hidden" name="section" value="all">
+                            <input type="hidden" name="hours" value="{{ view.hours }}">
+                            <input type="hidden" name="limit" value="{{ view.limit }}">
+                            <input type="hidden" name="page" value="1">
+                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                            <input type="hidden" name="insight_limit" value="5">
+                            <button type="submit" class="btn-sm" title="为推荐深入分析候选批量生成洞察卡，最多 5 条">生成推荐洞察卡</button>
+                        </form>
+                        {% endif %}
                         <a href="/radar/daily-report" class="btn-sm" title="查看今日可读简报：规则筛选今日已有中文摘要内容，无需 LLM">查看今日可读简报</a>
                         <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
                             <button type="submit" class="btn-sm {% if not DAILY_REPORT_ENABLED %}btn-secondary{% endif %}" title="基于今日已有中文摘要内容生成，不包含待补全内容。需启用 LLM（DAILY_REPORT_ENABLED=true）。">生成今日核心报告{% if not DAILY_REPORT_ENABLED %}（需启用 LLM）{% endif %}</button>
                             <span class="radar-digest-form-hint">基于今日已有中文摘要内容生成，不包含待补全内容。</span>
                         </form>
+                        <a href="/radar/daily-report#daily-core-report" class="btn-sm">查看核心报告</a>
+                        <a href="/radar/daily-report/broadcast" class="btn-sm">查看语音播报</a>
                     </div>
 
                     {% if daily_digest %}
@@ -165,7 +186,7 @@
                         {% else %}
                         <div class="radar-scheduler-hint">今日暂无已摘要的新内容</div>
                         {% endif %}
-                        <a href="/radar/today/briefing" class="btn-sm radar-digest-briefing-link">查看今日新增简报 →</a>
+                        <a href="/radar/today/briefing" class="btn-sm radar-digest-briefing-link">查看全部今日新增 →</a>
                     </div>
                     {% endif %}
 
@@ -254,7 +275,7 @@
                 {# Active-section heading: shows the current filter name + total count #}
                 {% set active_label = {
                     'all': '全部',
-                    'today_focus': '今日重点',
+                    'today_focus': '最新发现',
                     'agent_workflow': 'Agent 工作流',
                     'rag_knowledge': 'RAG / 知识库',
                     'doc_understanding': '文档理解 / 资料处理',
@@ -271,18 +292,6 @@
                     {{ active_label.get(view.active_section, view.active_section) }}
                     <small>{{ view.total_items }}</small>
                 </h2>
-
-                <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form">
-                    <input type="hidden" name="section" value="{{ view.active_section }}">
-                    <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
-                    <input type="hidden" name="hours" value="{{ view.hours }}">
-                    <input type="hidden" name="limit" value="{{ view.limit }}">
-                    <input type="hidden" name="page" value="{{ view.page }}">
-                    <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                    <input type="hidden" name="summary_limit" value="20">
-                    <button type="submit" class="btn-sm" title="优先处理当前页缺中文摘要的内容，最多处理 20 条；已有中文摘要会自动跳过">生成当前页中文摘要</button>
-                    <span class="radar-summary-hint">最多处理 20 条，优先补全推荐候选；已有中文摘要会自动跳过</span>
-                </form>
 
                 <form method="get" action="/radar/today" class="radar-page-size-form">
                     <input type="hidden" name="section" value="{{ view.active_section }}">
@@ -314,15 +323,6 @@
                     {% endif %}
                 </nav>
                 </div>{# <!-- /.radar-main-toolbar --> #}
-
-                {# ── Compile candidates toggle (moved to right panel) ── #}
-                {% if view.compile_candidates %}
-                <div class="radar-compile-candidates-toggle">
-                    <a href="/radar/today?section={{ view.active_section }}&amp;hours={{ view.hours }}&amp;limit={{ view.limit }}&amp;page={{ view.page }}&amp;per_page={{ view.per_page }}&amp;panel=recommendations" class="btn-sm" title="推荐深入分析：今日雷达中最值得生成 InsightCard 的候选内容。">
-                        查看推荐深入分析（{{ view.compile_candidates|length }}）
-                    </a>
-                </div>
-                {% endif %}
 
                 {% if bootstrap_result %}
                 <div class="radar-update-result">
@@ -415,6 +415,18 @@
                         {% endfor %}
                     </ul>
                     {% endif %}
+                    {% if summary_result.retry_ids %}
+                    <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form-inline">
+                        <input type="hidden" name="section" value="{{ view.active_section }}">
+                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                        <input type="hidden" name="page" value="{{ view.page }}">
+                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                        <input type="hidden" name="summary_limit" value="{{ summary_result.retry_ids|length }}">
+                        <input type="hidden" name="summary_item_ids" value="{{ summary_result.retry_ids|join(',') }}">
+                        <button type="submit" class="btn-sm">重试失败摘要</button>
+                    </form>
+                    {% endif %}
                 </div>
                 {% endif %}
                 {% if insight_result %}
@@ -429,6 +441,54 @@
                     <div class="radar-insight-error">无法生成洞察卡：{{ insight_result.message or '请先基于正文生成摘要' }}</div>
                     {% else %}
                     <div class="radar-insight-error">洞察卡处理失败：{{ insight_result.message }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if insight_batch_result %}
+                <div class="radar-insight-result">
+                    <div class="radar-insight-success">
+                        推荐洞察卡：提交 {{ insight_batch_result.accepted }} 条，
+                        已完成 {{ insight_batch_result.completed or 0 }} 条，
+                        处理中 {{ insight_batch_result.running or 0 }} 条，
+                        失败 {{ insight_batch_result.failed_actual or insight_batch_result.failed or 0 }} 条。
+                    </div>
+                    {% if insight_batch_result.skipped %}
+                    <div class="radar-summary-hint">
+                        已有洞察卡或正在处理，跳过 {{ insight_batch_result.skipped }} 条。
+                    </div>
+                    {% endif %}
+                    {% if insight_batch_result.details %}
+                    <ul class="radar-summary-detail-list">
+                        {% for detail in insight_batch_result.details %}
+                        <li>
+                            <a href="/source-items/{{ detail.item_id }}"><strong>{{ detail.title }}</strong></a>
+                            <span class="radar-summary-status radar-summary-status-{{ detail.status }}">
+                                {{ detail.status_label }}
+                            </span>
+                            {% if detail.error_label %}
+                            <span class="radar-summary-hint">{{ detail.error_label }}</span>
+                            {% endif %}
+                            {% if detail.insight_card_id %}
+                            <a href="/cards/{{ detail.insight_card_id }}" class="radar-report-action-link">查看洞察卡</a>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% if insight_batch_result.running or insight_batch_result.pending %}
+                    <a href="{{ request.url }}" class="btn-sm">刷新处理状态</a>
+                    {% endif %}
+                    {% if insight_batch_result.retry_ids %}
+                    <form method="post" action="/radar/today/generate-recommended-insights" class="radar-summary-form-inline">
+                        <input type="hidden" name="section" value="{{ view.active_section }}">
+                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                        <input type="hidden" name="page" value="{{ view.page }}">
+                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                        <input type="hidden" name="insight_limit" value="5">
+                        <input type="hidden" name="insight_item_ids" value="{{ insight_batch_result.retry_ids|join(',') }}">
+                        <button type="submit" class="btn-sm">重试失败项</button>
+                    </form>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -464,6 +524,7 @@
                         {% for item in section.items %}
                         {% set display = display_map.get(item.id) %}
                         {% set today_card = today_card_map.get(item.id) %}
+                        {% set is_recommended = item.id in view.recommended_item_ids %}
                         {% set is_selected = sel and item.id == sel.id %}
                         {% set view_url = '/radar/today?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page ~ '#radar-item-' ~ item.id %}
                         {% set panel_url = '/radar/today/panel?section=' ~ view.active_section ~ '&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page %}
@@ -475,6 +536,7 @@
                                 <div class="radar-card-title">
                                     {{ display.primary_text }}
                                     <span class="radar-card-zh-badge">中文概述</span>
+                                    {% if is_recommended %}<span class="radar-card-recommended-badge">推荐深入分析</span>{% endif %}
                                 </div>
                                 {% if display.secondary_text %}
                                 <div class="radar-card-original-title">{{ display.secondary_text }}</div>
@@ -483,10 +545,14 @@
                                 {# No Chinese one-liner: line1=placeholder, line2=English title #}
                                 <div class="radar-card-title">
                                     <span class="radar-card-summary-placeholder">待生成中文摘要</span>
+                                    {% if is_recommended %}<span class="radar-card-recommended-badge">推荐深入分析</span>{% endif %}
                                 </div>
                                 <div class="radar-card-original-title">{{ display.primary_text or item.title or '无标题' }}</div>
                                 {% else %}
-                                <div class="radar-card-title">{{ item.title or '无标题' }}</div>
+                                <div class="radar-card-title">
+                                    {{ item.title or '无标题' }}
+                                    {% if is_recommended %}<span class="radar-card-recommended-badge">推荐深入分析</span>{% endif %}
+                                </div>
                                 {% endif %}
                             </a>
 

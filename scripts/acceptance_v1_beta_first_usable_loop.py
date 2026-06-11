@@ -89,8 +89,8 @@ def main():
 
     check("今日操作区包含'更新今日新增'",
           "更新今日新增" in html)
-    check("今日操作区包含'查看今日报告'",
-          "查看今日报告" in html)
+    check("今日操作区包含'查看今日可读简报'",
+          "查看今日可读简报" in html)
     check("今日操作区包含'生成今日核心报告'",
           "生成今日核心报告" in html)
 
@@ -107,11 +107,11 @@ def main():
     # ── Path B: Summary Generation Chain ─────────────────────────────────────
     print("\n[Path B] Summary Generation Chain")
 
-    check("包含'生成当前页中文摘要'按钮",
-          "生成当前页中文摘要" in html)
+    check("包含'生成文章摘要'按钮",
+          "生成文章摘要" in html)
     check("summary_limit hidden value = 20",
           'name="summary_limit" value="20"' in html)
-    check("按钮文案说明最多处理20条",
+    check("按钮说明最多处理20条",
           "最多处理 20 条" in html)
 
     check("compile_candidates 优先逻辑存在于 generate_today_summaries",
@@ -134,16 +134,19 @@ def main():
 
     check("区块标题为'推荐深入分析'",
           "推荐深入分析" in html)
-    check("推荐深入分析默认折叠，summary_result存在时展开",
-          '{% if summary_result %}open{% endif %}' in html or "summary_result %}open" in html)
-    check("副说明包含'今日推荐 N 条 · 点击条目查看详情'",
-          "今日推荐" in html and "点击条目查看详情" in html)
+    check("推荐深入分析使用独立右侧面板",
+          "panel=recommendations" in html and "radar-panel-recommendations" in panel_html)
+    check("副说明解释推荐依据",
+          "今日推荐" in panel_html and "主题相关性" in panel_html)
     check("每条候选优先展示 summary_preview",
-          "c.summary_preview" in html)
+          "c.summary_preview" in panel_html)
     check("技术推荐依据默认折叠",
-          "<details" in html and "查看推荐依据" in html)
+          "<details" in panel_html and "查看推荐依据" in panel_html)
     check("点击候选带 item_id，能联动右侧阅读面板",
-          "source_item_id" in html and "radar-panel-url" in html)
+          "item_id={{ c.source_item_id }}" in panel_html)
+    check("推荐候选支持一键批量生成洞察卡",
+          "/radar/today/generate-recommended-insights" in panel_html
+          and "最多 5 条" in panel_html)
 
     # ── Path D: Insight Card Chain ────────────────────────────────────────────
     print("\n[Path D] Insight Card Chain")
@@ -167,15 +170,15 @@ def main():
     # ── Path E: Daily Report Chain ───────────────────────────────────────────
     print("\n[Path E] Daily Report Chain")
 
-    check("'查看今日报告'入口存在，href=/radar/daily-report",
-          'href="/radar/daily-report"' in html and "查看今日报告" in html)
+    check("'查看今日可读简报'入口存在，href=/radar/daily-report",
+          'href="/radar/daily-report"' in html and "查看今日可读简报" in html)
     check("'生成今日核心报告'入口存在，method=post",
           'method="post"' in html and "生成今日核心报告" in html and
           'action="/radar/today/daily-report"' in html)
     check("未启用提示清楚说明",
           "今日核心报告未启用" in html and "DAILY_REPORT_ENABLED=true" in html)
     check("不把规则版和LLM版混为同一按钮",
-          html.count(">查看今日报告</a>") == 1)
+          html.count(">查看今日可读简报</a>") == 1)
 
     check("POST /today/daily-report 存在于 radar.py",
           'POST /today/daily-report' in routes or

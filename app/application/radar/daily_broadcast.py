@@ -137,6 +137,42 @@ def build_daily_broadcast_script(
     )
 
 
+def build_core_report_broadcast_script(core_report: dict) -> DailyBroadcastScript:
+    """Build a broadcast script from a persisted daily core report."""
+    date_label = str(core_report.get("date_label") or "")
+    report_title = str(core_report.get("title") or "今日 AI 前沿核心报告").strip()
+    overview = str(core_report.get("overview") or "").strip()
+    highlights = [
+        str(item).strip()
+        for item in core_report.get("highlights", [])
+        if str(item).strip()
+    ]
+    title = f"{report_title}，日期：{date_label}。"
+    opening = "以下是基于今日核心报告整理的语音摘要。"
+    primary_sections = [
+        f"第{_cn_number(index)}点，{highlight}"
+        for index, highlight in enumerate(highlights, start=1)
+    ]
+    closing = "以上是今日核心报告语音摘要。你可以返回报告查看相关文章、洞察卡和原文。"
+    full_parts = [title, "", opening]
+    if overview:
+        full_parts.extend(["", overview])
+    for section in primary_sections:
+        full_parts.extend(["", section])
+    full_parts.extend(["", closing])
+
+    return DailyBroadcastScript(
+        date_label=date_label,
+        title=title,
+        opening=opening,
+        overview=overview,
+        primary_sections=primary_sections,
+        secondary_section=None,
+        closing=closing,
+        full_text="\n".join(full_parts),
+    )
+
+
 def _format_primary_item(
     *,
     index: int,

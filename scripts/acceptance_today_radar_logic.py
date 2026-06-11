@@ -314,6 +314,28 @@ def run_tests() -> list[TestResult]:
                 f"item id={item6.id} (48h old) was included — should be outside 24h window"
             ))
 
+        # ── Test 6b: re-seeing an old item does not make it newly discovered ──
+        item6b = add_source_item(
+            session, id=9, source_id=1, source_key="test_enabled",
+            url="https://example.com/old-reseen", title="Old Article Seen Again",
+            hours_ago=48,
+        )
+        item6b.last_seen_at = now
+        session.commit()
+        ids = get_today_item_ids(session)
+        if item6b.id not in ids:
+            results.append(TestResult(
+                "old item re-seen today does NOT appear as new",
+                PASS,
+                "first_seen_at remains outside the daily window"
+            ))
+        else:
+            results.append(TestResult(
+                "old item re-seen today does NOT appear as new",
+                FAIL,
+                "last_seen_at must not make an old article newly discovered"
+            ))
+
         # ── Test 7: item with insight_card already generated ───────────────
         card = add_insight_card(session, id=1, source_title="Has InsightCard")
         item7 = add_source_item(

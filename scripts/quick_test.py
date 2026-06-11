@@ -2774,7 +2774,7 @@ def main():
               "section=all" in radar_html and ">全部<" in radar_html,
               "left sidebar should include an all section")
         check("today radar has today focus section",
-              "section=today_focus" in radar_html and "今日重点" in radar_html,
+              "section=today_focus" in radar_html and "最新发现" in radar_html,
               "left sidebar should include today focus")
         check("today radar has active-section heading",
               "radar-active-section-title" in radar_html,
@@ -3190,10 +3190,10 @@ def main():
               and "target_ids" in radar_route_py,
               "compile_candidate items should be collected before visible items")
 
-        check("today radar toolbar has summary generation form",
+        check("today radar actions have summary generation form",
               'action="/radar/today/generate-summaries"' in radar_html
-              and "生成当前页中文摘要" in radar_html,
-              "toolbar should expose current-page Chinese summary generation")
+              and "生成文章摘要" in radar_html,
+              "today actions should expose batch Chinese summary generation")
 
         check("today radar summary form preserves context",
               'name="section" value="{{ view.active_section }}"' in radar_html
@@ -4455,10 +4455,10 @@ def main():
               and 'return "已有摘要，已跳过"' in radar_py,
               "humanize function should return Chinese labels for all status values")
 
-        # 9. button text mentions 生成当前页中文摘要.
-        check("button text mentions '生成当前页中文摘要'",
-              "生成当前页中文摘要" in radar_html
-              and "优先补全推荐候选" in radar_html,
+        # 9. button text explains recommendation-first summary generation.
+        check("button text mentions '生成文章摘要'",
+              "生成文章摘要" in radar_html
+              and "优先处理推荐候选" in radar_html,
               "button should mention compile candidates priority")
     except Exception as e:
         check("V1.0-beta.3 Summary fill checks", False, str(e))
@@ -4522,10 +4522,10 @@ def main():
               "打开原文" in radar_html,
               "external link must be preserved")
 
-        # 9. radar_today.html contains "生成当前页中文摘要".
-        check("radar_today.html contains '生成当前页中文摘要'",
-              "生成当前页中文摘要" in radar_html,
-              "summary generation button text must be updated to current-page action")
+        # 9. radar_today.html contains the consolidated summary action.
+        check("radar_today.html contains '生成文章摘要'",
+              "生成文章摘要" in radar_html,
+              "summary generation should live in today actions")
 
         # 10. radar_today.html still contains "智能阅读面板" (now in partial).
         check("radar_today.html contains '智能阅读面板'",
@@ -4542,12 +4542,12 @@ def main():
 
         # 12. radar_today.html compile candidates section shows summary_preview.
         check("radar_today.html compile candidates show summary_preview",
-              "radar-compile-candidate-summary" in radar_html,
+              "radar-compile-candidate-summary" in panel_partial,
               "compile candidates should show summary_preview")
 
         # 13. radar_today.html compile candidates link to reading panel.
         check("radar_today.html compile candidates link to reading panel",
-              "item_id={{ c.source_item_id }}" in radar_html,
+              "item_id={{ c.source_item_id }}" in panel_partial,
               "compile candidates should link to reading panel")
     except Exception as e:
         check("V1.0-beta.3 Compact radar list UI checks", False, str(e))
@@ -4752,9 +4752,9 @@ def main():
               ".radar-layout {" not in style_css or "grid-template-columns" in _layout_block,
               "radar-layout grid-template-columns must be preserved")
 
-        # 9. radar_today.html still contains 全部 and 今日重点.
-        check("radar_today.html still contains 全部 / 今日重点",
-              ("全部" in radar_html and "今日重点" in radar_html),
+        # 9. radar_today.html contains all and latest-discovery views.
+        check("radar_today.html contains 全部 / 最新发现",
+              ("全部" in radar_html and "最新发现" in radar_html),
               "existing sidebar section links must be preserved")
         check("radar_today.html has 运行状态 section",
               "运行状态" in radar_html,
@@ -4772,9 +4772,9 @@ def main():
         check("radar_today.html no longer has misleading 生成今日报告卡片",
               "生成今日报告卡片" not in radar_html,
               "misleading 生成今日报告卡片 text should be removed")
-        check("radar_today.html has 查看今日报告",
-              "查看今日报告" in radar_html,
-              "daily-report link should be labeled 查看今日报告")
+        check("radar_today.html has 查看今日可读简报",
+              "查看今日可读简报" in radar_html,
+              "daily-report link should be labeled 查看今日可读简报")
         check("radar_today.html has 生成今日核心报告",
               "生成今日核心报告" in radar_html,
               "daily-report generation button should be preserved")
@@ -5699,9 +5699,17 @@ def main():
         from app.db import SessionLocal
         from app.models import FetchRun, SourceItem
         from app.application.radar.daily_report import (
+            DailyReportSource,
+            DailyReportResult,
+            normalize_daily_report_highlights,
             generate_daily_report,
             MockDailyReportProvider,
         )
+        from app.application.radar.daily_report_store import (
+            load_daily_report,
+            save_daily_report,
+        )
+        from app.application.radar.daily_broadcast import build_core_report_broadcast_script
         _db = SessionLocal()
         try:
             _before = (_db.query(FetchRun).count(), _db.query(SourceItem).count())
@@ -5724,7 +5732,16 @@ def main():
                   mock.status in ("generated", "no_input"),
                   "mock-provider apply should produce a structured (or no_input) result")
 
-            disabled = generate_daily_report(_db, provider=MockDailyReportProvider(), apply=True)
+            _prev_disabled_check = _os.environ.pop("DAILY_REPORT_ENABLED", None)
+            try:
+                disabled = generate_daily_report(
+                    _db,
+                    provider=MockDailyReportProvider(),
+                    apply=True,
+                )
+            finally:
+                if _prev_disabled_check is not None:
+                    _os.environ["DAILY_REPORT_ENABLED"] = _prev_disabled_check
             check("daily report apply disabled without enable flag",
                   disabled.status in ("disabled", "no_input"),
                   "apply without DAILY_REPORT_ENABLED must not generate")
@@ -5735,6 +5752,52 @@ def main():
                   "report generation must not write FetchRun / SourceItem rows")
         finally:
             _db.close()
+
+        import tempfile
+        with tempfile.TemporaryDirectory() as _report_dir:
+            _highlight_texts, _highlight_refs = normalize_daily_report_highlights(
+                [
+                    {"text": "可追溯要点", "source_item_ids": [101, 999, 101]},
+                    "兼容旧格式要点",
+                ],
+                [
+                    DailyReportSource(
+                        item_id=101,
+                        title="测试文章",
+                        summary="测试摘要",
+                        url="https://example.com/article",
+                        insight_card_id=7,
+                    ),
+                ],
+            )
+            check("daily report references only allowed input articles",
+                  _highlight_texts == ["可追溯要点", "兼容旧格式要点"]
+                  and len(_highlight_refs[0]) == 1
+                  and _highlight_refs[0][0]["item_id"] == 101
+                  and _highlight_refs[1] == [],
+                  "report references should be deduplicated and restricted to input IDs")
+            _stored = save_daily_report(
+                DailyReportResult(
+                    status="generated",
+                    date_label="2026-06-11",
+                    input_item_count=3,
+                    message="已生成今日核心报告。",
+                    title="测试核心报告",
+                    overview="这是用于验证持久化和语音复用的报告概览。",
+                    highlights=["要点一", "要点二"],
+                    highlight_references=_highlight_refs,
+                ),
+                root_dir=Path(_report_dir),
+            )
+            _loaded = load_daily_report("2026-06-11", root_dir=Path(_report_dir))
+            check("daily report runtime store survives reload",
+                  _stored is not None and _loaded == _stored,
+                  "generated report should round-trip through runtime JSON")
+            _script = build_core_report_broadcast_script(_loaded or {})
+            check("daily broadcast reuses the core report",
+                  "测试核心报告" in _script.full_text
+                  and "要点一" in _script.full_text,
+                  "voice script should be generated from the persisted report")
 
         # CLI dry-run + gate (subprocess, no real LLM).
         dry_proc = subprocess.run(
@@ -5773,8 +5836,9 @@ def main():
 
         check("daily report route reuses gated generate (apply=True)",
               "generate_daily_report(db, apply=True)" in radar_route_py
-              and "daily_report_result" in radar_route_py,
-              "route should call the gated generator and pass a result to the template")
+              and "save_daily_report(report)" in radar_route_py
+              and "load_daily_report(date_label)" in radar_route_py,
+              "route should generate, persist, and reload the daily report")
 
         check("radar template has explicit report button + result banner",
               "生成今日核心报告" in radar_html
@@ -7511,6 +7575,38 @@ def main():
         check("radar today links to the briefing",
               "/radar/today/briefing" in radar_html,
               "today radar should link to the daily briefing")
+        check("radar today summary action uses POST",
+              'method="post" action="/radar/today/generate-summaries"' in radar_html,
+              "summary generation is a write action and must use POST")
+        check("recommended InsightCards have a capped batch action",
+              '@router.post("/today/generate-recommended-insights")' in radar_route_py
+              and "/radar/today/generate-recommended-insights" in
+              (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
+              and "insight_limit: int = Form(5)" in radar_route_py
+              and "min(insight_limit, 5)" in radar_route_py,
+              "recommended batch generation should exist and be capped at five")
+        from app.routes.radar import _parse_item_ids
+        check("recommended InsightCard tracking parses bounded item IDs",
+              _parse_item_ids("4,2,bad,4,-1,9,11,12", limit=3) == [4, 2, 9],
+              "tracked item IDs should be positive, deduplicated, and bounded")
+        check("recommended InsightCards expose progress and retry",
+              "insight_batch_ids" in radar_route_py
+              and "_build_insight_batch_status" in radar_route_py
+              and "insight_item_ids" in radar_route_py
+              and "重试失败项" in radar_html
+              and "刷新处理状态" in radar_html,
+              "batch InsightCards should expose actual status and bounded retry")
+        check("batch summaries expose failed-item retry",
+              "summary_item_ids" in radar_route_py
+              and "重试失败摘要" in radar_html
+              and 'detail["status"] == "failed"' in radar_route_py,
+              "summary failures should be retryable without rerunning the whole batch")
+        report_html = (
+            project_root / "app" / "templates" / "radar_daily_report.html"
+        ).read_text(encoding="utf-8")
+        check("daily report exposes the voice report",
+              "/radar/daily-report/broadcast" in report_html,
+              "the final report should link to its voice-consumption view")
 
         # Functional: render + read-only.
         from fastapi.testclient import TestClient
@@ -7524,7 +7620,7 @@ def main():
             _db.close()
         _r = TestClient(_app).get("/radar/today/briefing")
         check("briefing page renders 200",
-              _r.status_code == 200 and "今日新增简报" in _r.text,
+              _r.status_code == 200 and "今日新增清单" in _r.text,
               f"briefing should render, got {_r.status_code}")
         _db = SessionLocal()
         try:

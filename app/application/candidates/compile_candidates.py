@@ -83,6 +83,8 @@ class CompileCandidate:
     published_at: str | None
     first_seen_at: str | None
     summary_preview: str | None = None  # zh_one_liner or zh_summary preview (max 120 chars)
+    reason_labels: list[str] = field(default_factory=list)
+    compile_basis_label: str = "来源信息"
 
 
 # ── Candidate selection logic ─────────────────────────────────────────────────
@@ -94,6 +96,7 @@ def select_compile_candidates(
     limit: int = 10,
     per_source_limit: int = 3,
     max_scan: int = 300,
+    item_ids: set[int] | None = None,
 ) -> list[CompileCandidate]:
     """Select and rank top compile candidates. Read-only.
 
@@ -124,9 +127,7 @@ def select_compile_candidates(
     # DB-layer filters: status, no existing card, has title, has url, in time window.
     # Blocked sources/domains and weak titles are checked in Python (lightweight).
     # Result is ordered by first_seen_at desc and limited to max_scan.
-    candidate_items = (
-        db.query(SourceItem)
-        .filter(
+    query = db.query(SourceItem).filter(
             SourceItem.status.in_(("discovered", "fetched")),
             SourceItem.insight_card_id.is_(None),
             SourceItem.title.isnot(None),
@@ -135,6 +136,13 @@ def select_compile_candidates(
             SourceItem.url != "",
             (SourceItem.first_seen_at >= cutoff) | (SourceItem.last_seen_at >= cutoff),
         )
+    if item_ids is not None:
+        if not item_ids:
+            return []
+        query = query.filter(SourceItem.id.in_(item_ids))
+
+    candidate_items = (
+        query
         .order_by(SourceItem.first_seen_at.desc())
         .limit(max_scan)
         .all()
@@ -160,10 +168,12 @@ def select_compile_candidates(
 
         # Parse raw_metadata for rich text detection
         raw = item.raw_metadata_json
+        meta: dict[str, Any] = {}
         rich_text = ""
         if raw:
             try:
-                meta = json.loads(raw)
+                parsed = json.loads(raw)
+                meta = parsed if isinstance(parsed, dict) else {}
                 for field_name in ("zh_summary", "summary_zh", "zh_one_liner",
                                    "summary", "rss_summary", "description",
                                    "detail_description", "content_snippet"):
@@ -252,6 +262,12 @@ def select_compile_candidates(
             published_at=str(item.published_at) if item.published_at else None,
             first_seen_at=item.first_seen_at.isoformat() if item.first_seen_at else None,
             summary_preview=item_dict["summary_preview"],
+            reason_labels=[_reason_label(reason) for reason in item_dict["reasons"]],
+            compile_basis_label=(
+                "已有正文，可进行全文分析"
+                if item_dict["compile_basis"] == "fulltext"
+                else "基于来源摘要与元数据分析"
+            ),
         ))
 
         if len(results) >= limit:
@@ -267,6 +283,22 @@ def _is_weak_title(title: str | None) -> bool:
     if len(t) < 5:
         return True
     return t in _WEAK_TITLES
+
+
+def _reason_label(reason: str) -> str:
+    if reason.startswith("topic_match"):
+        return "命中关注主题"
+    if reason == "rich_metadata":
+        return "来源信息较完整"
+    if reason == "has_snapshot":
+        return "已有正文内容"
+    if reason.startswith("source_priority"):
+        return "来源优先级较高"
+    if reason.startswith("fresh"):
+        return "近期新发现"
+    if reason == "weak_title":
+        return "标题信息较弱"
+    return reason
 
 
 _METADATA_SUMMARY_KEYS = (

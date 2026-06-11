@@ -377,10 +377,11 @@ def run_static_checks():
           "当前简报依据" in report_html)
     check("radar_daily_report.html has '今日核心报告' section",
           "今日核心报告" in report_html)
-    check("radar_daily_report.html has '音频播报' placeholder",
+    check("radar_daily_report.html has voice report entry",
           "音频播报" in report_html)
-    check("radar_daily_report.html has disabled '生成音频播报' button",
-          "disabled" in report_html and "生成音频播报" in report_html)
+    check("radar_daily_report.html links to the voice script",
+          "/radar/daily-report/broadcast" in report_html
+          and "查看语音文稿" in report_html)
 
     # Rule-based report logic
     print("\n[Rule-based Report]")
@@ -412,8 +413,9 @@ def run_static_checks():
           "生成今日核心报告" in today_html_content)
     check("radar_today.html mentions basis for core report",
           "基于今日已有中文摘要" in today_html_content)
-    check("radar_today.html compile candidates moved to toggle",
-          "查看推荐深入分析" in today_html_content)
+    check("radar_today.html exposes recommendation as peer navigation",
+          "推荐深入分析" in today_html_content
+          and "radar-section-link" in today_html_content)
 
 
 def main():

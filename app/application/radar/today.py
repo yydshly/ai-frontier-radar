@@ -39,6 +39,7 @@ from app.application.radar.today_item_card import (
     TodayItemCard,
     build_today_item_card,
 )
+from app.application.radar.daily_scope import recent_valid_items_query
 
 
 # ── Panel state ─────────────────────────────────────────────────────────────
@@ -197,7 +198,7 @@ class _CategoryDef:
 
 
 TODAY_FOCUS_KEY = "today_focus"
-TODAY_FOCUS_TITLE = "今日重点"
+TODAY_FOCUS_TITLE = "最新发现"
 OTHERS_KEY = "others"
 OTHERS_TITLE = "其他"
 ALL_KEY = "all"
@@ -356,6 +357,7 @@ class RadarTodayView:
     quality_filter_stats: "QualityFilterStats | None" = None
     # ── Compile candidates (top N recommended items for InsightCard generation) ──
     compile_candidates: list[CompileCandidate] = field(default_factory=list)
+    recommended_item_ids: set[int] = field(default_factory=set)
 
 def _clamp(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
@@ -597,21 +599,8 @@ class RadarTodayService:
         ))
 
         # ── Recent-window query ──────────────────────────────────────────
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
         items = (
-            self.db.query(SourceItem)
-            .join(Source, Source.id == SourceItem.source_id)
-            .filter(
-                or_(
-                    SourceItem.first_seen_at >= cutoff,
-                    SourceItem.last_seen_at >= cutoff,
-                ),
-                Source.enabled.is_(True),
-                SourceItem.url.isnot(None),
-                SourceItem.url != "",
-                SourceItem.title.isnot(None),
-                SourceItem.title != "",
-            )
+            recent_valid_items_query(self.db, hours=hours)
             .order_by(order)
             .limit(limit)
             .all()
@@ -732,15 +721,18 @@ class RadarTodayService:
             else None
         )
 
-        # ── Compile candidates: only when section=all and page=1 (cheap guard) ──
+        # ── Compile candidates: available across first-page views ───────────
+        # This keeps recommendation navigation and card badges visible when
+        # users switch between "all", "latest", and topic sections.
         compile_candidates = []
-        if section == ALL_KEY and page == 1:
+        if page == 1:
             compile_candidates = select_compile_candidates(
                 self.db,
                 hours=hours,
                 limit=10,
                 per_source_limit=3,
                 max_scan=300,
+                item_ids={item.id for item in items},
             )
 
         return RadarTodayView(
@@ -765,6 +757,9 @@ class RadarTodayService:
             fetch_run_summary=fetch_run_summary,
             quality_filter_stats=quality_filter_stats,
             compile_candidates=compile_candidates,
+            recommended_item_ids={
+                candidate.source_item_id for candidate in compile_candidates
+            },
         )
 
     def _build_sections(
@@ -899,12 +894,7 @@ class RadarTodayService:
         # Get ALL items in the time window (no quality filters yet)
         raw_items = (
             self.db.query(SourceItem)
-            .filter(
-                or_(
-                    SourceItem.first_seen_at >= cutoff,
-                    SourceItem.last_seen_at >= cutoff,
-                )
-            )
+            .filter(SourceItem.first_seen_at >= cutoff)
             .all()
         )
 

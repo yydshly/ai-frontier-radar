@@ -174,6 +174,91 @@ def _parse_int_query(value: str | None, default: int = 0) -> int:
     """Safely parse an int query param; return default on failure."""
     if value is None:
         return default
+
+
+def _parse_item_ids(raw: str | None, *, limit: int = 5) -> list[int]:
+    """Parse a small comma-separated item-id list, preserving order."""
+    if not raw:
+        return []
+    result: list[int] = []
+    seen: set[int] = set()
+    for part in raw.split(","):
+        try:
+            item_id = int(part.strip())
+        except (TypeError, ValueError):
+            continue
+        if item_id <= 0 or item_id in seen:
+            continue
+        result.append(item_id)
+        seen.add(item_id)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _build_insight_batch_status(raw_item_ids: str | None) -> dict | None:
+    item_ids = _parse_item_ids(raw_item_ids)
+    if not item_ids:
+        return None
+
+    db = next(get_db())
+    try:
+        rows = db.query(SourceItem).filter(SourceItem.id.in_(item_ids)).all()
+        rows_by_id = {row.id: row for row in rows}
+        details = []
+        completed = running = failed = pending = 0
+        retry_ids: list[int] = []
+        for item_id in item_ids:
+            item = rows_by_id.get(item_id)
+            if item is None:
+                status = "failed"
+                status_label = "文章不存在"
+                title = f"文章 #{item_id}"
+                failed += 1
+            elif item.status == "compiled" and item.insight_card_id:
+                status = "completed"
+                status_label = "洞察卡已生成"
+                title = item.title or f"文章 #{item_id}"
+                completed += 1
+            elif item.status == "compiling":
+                status = "running"
+                status_label = "正在生成洞察卡"
+                title = item.title or f"文章 #{item_id}"
+                running += 1
+            elif item.status == "failed":
+                status = "failed"
+                status_label = "生成失败，可重试"
+                title = item.title or f"文章 #{item_id}"
+                failed += 1
+                retry_ids.append(item_id)
+            else:
+                status = "pending"
+                status_label = "等待处理"
+                title = item.title or f"文章 #{item_id}"
+                pending += 1
+            details.append({
+                "item_id": item_id,
+                "title": title,
+                "status": status,
+                "status_label": status_label,
+                "error_label": (
+                    _humanize_insight_error(item.error_message)
+                    if item and status == "failed"
+                    else ""
+                ),
+                "insight_card_id": item.insight_card_id if item else None,
+            })
+        return {
+            "item_ids": item_ids,
+            "details": details,
+            "completed": completed,
+            "running": running,
+            "failed_actual": failed,
+            "pending": pending,
+            "retry_ids": retry_ids,
+        }
+    finally:
+        db.close()
     try:
         return int(value)
     except ValueError:
@@ -200,6 +285,17 @@ def _parse_summary_details(raw: str | None) -> list[dict[str, str]]:
             "message_label": _humanize_summary_detail_message(status, message),
         })
     return details
+
+
+def _humanize_insight_error(message: str | None) -> str:
+    raw = (message or "").lower()
+    if "url is empty" in raw:
+        return "缺少原文链接，暂时无法生成"
+    if "[intake:blocked]" in raw:
+        return "当前链接类型暂不支持自动深入分析"
+    if "timeout" in raw:
+        return "生成超时，可稍后重试"
+    return "生成失败，可稍后重试"
 
 
 def _has_zh_one_liner(item: SourceItem) -> bool:
@@ -259,6 +355,10 @@ def radar_today_page(
     summary_details: str | None = Query(None),
     insight_status: str | None = Query(None),
     insight_message: str | None = Query(None),
+    insight_batch_accepted: int | None = Query(None, ge=0),
+    insight_batch_skipped: int | None = Query(None, ge=0),
+    insight_batch_failed: int | None = Query(None, ge=0),
+    insight_batch_ids: str | None = Query(None),
     update_started: int | None = Query(None, ge=0),
     update_running: int | None = Query(None, ge=0),
     update_unsupported: int | None = Query(None, ge=0),
@@ -309,6 +409,11 @@ def radar_today_page(
             "failed": summary_failed or 0,
             "details": _parse_summary_details(summary_details),
         }
+        summary_result["retry_ids"] = [
+            detail["item_id"]
+            for detail in summary_result["details"]
+            if detail["status"] == "failed" and detail["item_id"].isdigit()
+        ]
 
     insight_result = None
     if insight_status is not None:
@@ -357,6 +462,29 @@ def radar_today_page(
 
     context["summary_result"] = summary_result
     context["insight_result"] = insight_result
+    insight_batch_result = (
+        {
+            "accepted": insight_batch_accepted or 0,
+            "skipped": insight_batch_skipped or 0,
+            "failed": insight_batch_failed or 0,
+        }
+        if any(
+            value is not None
+            for value in (
+                insight_batch_accepted,
+                insight_batch_skipped,
+                insight_batch_failed,
+            )
+        )
+        else None
+    )
+    insight_batch_status = _build_insight_batch_status(insight_batch_ids)
+    if insight_batch_result and insight_batch_status:
+        insight_batch_result.update(insight_batch_status)
+    elif insight_batch_status:
+        insight_batch_result = insight_batch_status
+        insight_batch_result.update({"accepted": 0, "skipped": 0, "failed": 0})
+    context["insight_batch_result"] = insight_batch_result
     context["update_result"] = update_result
     context["bootstrap_result"] = _build_bootstrap_result(
         dry_run=bootstrap_dry_run,
@@ -383,11 +511,12 @@ def generate_daily_core_report(request: Request):
 
     POST only — side-effecting (may call the LLM). Gated: the LLM is only
     reached when ``DAILY_REPORT_ENABLED=true``; otherwise the result is
-    ``status="disabled"`` and no LLM call happens. Result is rendered inline;
-    nothing is persisted.
+    ``status="disabled"`` and no LLM call happens. Successful results are
+    persisted as runtime JSON so they remain available after refresh.
     """
     from app.db import get_db
     from app.application.radar.daily_report import generate_daily_report
+    from app.application.radar.daily_report_store import save_daily_report
 
     db = next(get_db())
     try:
@@ -401,27 +530,25 @@ def generate_daily_core_report(request: Request):
                 "title": report.title,
                 "overview": report.overview,
                 "highlights": report.highlights,
+                "highlight_references": report.highlight_references,
             }
+            if report.status == "generated":
+                stored_result = save_daily_report(report)
+                if stored_result is not None:
+                    daily_report_result = stored_result
         except Exception:
             daily_report_result = {
                 "status": "error",
                 "message": "今日核心报告生成失败，请稍后重试。",
                 "highlights": [],
+                "highlight_references": [],
             }
 
-        context = _build_radar_today_view_context(
-            request=request,
-            item_id=None,
-            hours=DEFAULT_HOURS,
-            limit=DEFAULT_LIMIT,
-            page=1,
-            per_page=DEFAULT_PER_PAGE,
-            section=ALL_KEY,
+        context = _build_daily_report_page_context(
+            request,
+            daily_report_result=daily_report_result,
         )
-        context["summary_result"] = None
-        context["update_result"] = None
-        context["daily_report_result"] = daily_report_result
-        return _radar_templates.TemplateResponse("radar_today.html", context)
+        return _radar_templates.TemplateResponse("radar_daily_report.html", context)
     finally:
         db.close()
 
@@ -743,6 +870,7 @@ def generate_today_summaries(
     page: int = Form(1),
     per_page: int = Form(DEFAULT_PER_PAGE),
     summary_limit: int = Form(20),
+    summary_item_ids: str | None = Form(None),
 ):
     """Generate Chinese summaries for items visible on the current radar page."""
     db = next(get_db())
@@ -776,6 +904,15 @@ def generate_today_summaries(
                 if item.id not in seen_ids:
                     target_ids.append(item.id)
                     seen_ids.add(item.id)
+
+        requested_ids = _parse_item_ids(summary_item_ids, limit=20)
+        if requested_ids:
+            allowed_ids = set(target_ids)
+            target_ids = [
+                requested_id
+                for requested_id in requested_ids
+                if requested_id in allowed_ids
+            ]
 
         # 3. Re-fetch items to ensure we have session-bound objects.
         fetched_items = (
@@ -838,6 +975,88 @@ def generate_today_summaries(
         return RedirectResponse(url=redirect_url, status_code=303)
     finally:
         db.close()
+
+
+@router.post("/today/generate-recommended-insights")
+def generate_recommended_insights(
+    background_tasks: BackgroundTasks,
+    section: str = Form(ALL_KEY),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+    insight_limit: int = Form(5),
+    insight_item_ids: str | None = Form(None),
+):
+    """Enqueue the top recommended items for InsightCard generation."""
+    from app.application.source_items.background_compile import (
+        BackgroundCompileService,
+        run_source_item_compile_in_background,
+    )
+
+    db = next(get_db())
+    try:
+        max_items = max(1, min(insight_limit, 5))
+        view = RadarTodayService(db).build_today_view(
+            hours=hours,
+            limit=limit,
+            page=1,
+            per_page=per_page,
+            section=ALL_KEY,
+        )
+        candidates = view.compile_candidates
+        requested_ids = _parse_item_ids(insight_item_ids, limit=max_items)
+        if requested_ids:
+            allowed_item_ids = set(view.display_map)
+            target_ids = [
+                item_id
+                for item_id in requested_ids
+                if item_id in allowed_item_ids
+            ]
+        else:
+            target_ids = [
+                candidate.source_item_id
+                for candidate in candidates[:max_items]
+            ]
+    finally:
+        db.close()
+
+    accepted = 0
+    skipped = 0
+    failed = 0
+    tracked_ids: list[int] = []
+    enqueue_service = BackgroundCompileService()
+    for target_id in target_ids:
+        tracked_ids.append(target_id)
+        try:
+            result = enqueue_service.enqueue_item(target_id)
+        except Exception:
+            failed += 1
+            continue
+        if result.accepted:
+            accepted += 1
+            background_tasks.add_task(
+                run_source_item_compile_in_background,
+                target_id,
+            )
+        elif result.status in {"compiled", "compiling"}:
+            skipped += 1
+        else:
+            failed += 1
+
+    params = {
+        "section": section,
+        "hours": hours,
+        "limit": limit,
+        "page": page,
+        "per_page": per_page,
+        "panel": "recommendations",
+        "insight_batch_accepted": accepted,
+        "insight_batch_skipped": skipped,
+        "insight_batch_failed": failed,
+        "insight_batch_ids": ",".join(str(item_id) for item_id in tracked_ids),
+    }
+    return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 
 
 @router.post("/today/bootstrap")
@@ -1003,7 +1222,20 @@ def get_daily_report_card(request: Request):
     Read-only page. Builds the card using rule-based ranking without LLM.
     Accessible via GET; build via POST /radar/daily-report/build.
     """
+    return _radar_templates.TemplateResponse(
+        "radar_daily_report.html",
+        _build_daily_report_page_context(request),
+    )
+
+
+def _build_daily_report_page_context(
+    request: Request,
+    *,
+    daily_report_result: dict | None = None,
+) -> dict:
+    """Build the shared rule-report and generated-core-report page context."""
     from app.application.radar.daily_report_card import build_daily_report_card
+    from app.application.radar.daily_report_store import load_daily_report
 
     db = next(get_db())
     try:
@@ -1016,21 +1248,72 @@ def get_daily_report_card(request: Request):
     secondary_items = card.secondary_items
     date_label = card.date_label
     secondary_all_shown = card.secondary_all_shown
+    if daily_report_result is None:
+        daily_report_result = load_daily_report(date_label)
 
-    return _radar_templates.TemplateResponse(
-        "radar_daily_report.html",
-        {
-            "request": request,
-            "date_label": date_label,
-            "overview": overview,
-            "primary_items": primary_items,
-            "secondary_items": secondary_items,
-            "secondary_all_shown": secondary_all_shown,
-            "safe_external_url": safe_external_url,
-            "daily_report_result": None,
-            "DAILY_REPORT_ENABLED": os.getenv("DAILY_REPORT_ENABLED", "").lower() in ("true", "1", "yes"),
-        },
+    return {
+        "request": request,
+        "date_label": date_label,
+        "overview": overview,
+        "primary_items": primary_items,
+        "secondary_items": secondary_items,
+        "secondary_all_shown": secondary_all_shown,
+        "safe_external_url": safe_external_url,
+        "daily_report_result": daily_report_result,
+        "DAILY_REPORT_ENABLED": os.getenv("DAILY_REPORT_ENABLED", "").lower() in ("true", "1", "yes"),
+    }
+
+
+def _build_daily_broadcast_page_data() -> tuple[object, str]:
+    """Build today's script, preferring the persisted core report."""
+    from app.application.radar.daily_broadcast import (
+        build_core_report_broadcast_script,
+        build_daily_broadcast_script,
     )
+    from app.application.radar.daily_report_card import build_daily_report_card
+    from app.application.radar.daily_report_store import load_daily_report
+
+    db = next(get_db())
+    try:
+        card = build_daily_report_card(db)
+    finally:
+        db.close()
+
+    core_report = load_daily_report(card.date_label)
+    if core_report is not None:
+        return build_core_report_broadcast_script(core_report), "今日核心报告"
+
+    primary_items = [
+        {
+            "item_id": item.item_id,
+            "source_label": item.source_label,
+            "zh_one_liner": item.zh_one_liner,
+            "title": item.title,
+            "url": item.url,
+            "related_directions": item.related_directions,
+            "insight_card_id": item.insight_card_id,
+        }
+        for item in card.primary_items
+    ]
+    secondary_items = [
+        {
+            "item_id": item.item_id,
+            "source_label": item.source_label,
+            "title": item.title,
+            "url": item.url,
+        }
+        for item in card.secondary_items
+    ]
+    script = build_daily_broadcast_script(
+        date_label=card.date_label,
+        total_items=card.overview.total_items,
+        covered_sources=card.overview.covered_sources,
+        with_zh_one_liner=card.overview.with_zh_one_liner,
+        with_insight_card=card.overview.with_insight_card,
+        primary_items=primary_items,
+        secondary_items=secondary_items,
+    )
+    return script, "今日可读简报"
 
 
 @router.post("/daily-report/build")
@@ -1049,53 +1332,14 @@ def get_daily_broadcast(request: Request):
 
     Read-only page. Builds the broadcast script from the DailyReportCard without LLM.
     """
-    from app.application.radar.daily_report_card import build_daily_report_card
-    from app.application.radar.daily_broadcast import build_daily_broadcast_script
-
-    db = next(get_db())
-    try:
-        card = build_daily_report_card(db)
-    finally:
-        db.close()
-
-    # Convert card items to dicts for the broadcast builder
-    primary_items: list[dict] = [
-        {
-            "item_id": item.item_id,
-            "source_label": item.source_label,
-            "zh_one_liner": item.zh_one_liner,
-            "title": item.title,
-            "url": item.url,
-            "related_directions": item.related_directions,
-            "insight_card_id": item.insight_card_id,
-        }
-        for item in card.primary_items
-    ]
-    secondary_items: list[dict] = [
-        {
-            "item_id": item.item_id,
-            "source_label": item.source_label,
-            "title": item.title,
-            "url": item.url,
-        }
-        for item in card.secondary_items
-    ]
-
-    script = build_daily_broadcast_script(
-        date_label=card.date_label,
-        total_items=card.overview.total_items,
-        covered_sources=card.overview.covered_sources,
-        with_zh_one_liner=card.overview.with_zh_one_liner,
-        with_insight_card=card.overview.with_insight_card,
-        primary_items=primary_items,
-        secondary_items=secondary_items,
-    )
+    script, script_basis = _build_daily_broadcast_page_data()
 
     return _radar_templates.TemplateResponse(
         "radar_daily_broadcast.html",
         {
             "request": request,
             "script": script,
+            "script_basis": script_basis,
         },
     )
 
@@ -1107,49 +1351,10 @@ def generate_daily_broadcast_audio(request: Request):
     Returns a disabled result if DAILY_BROADCAST_TTS_ENABLED is not set.
     This route does NOT call any external TTS API in V1.0-beta.8.
     """
-    from app.application.radar.daily_report_card import build_daily_report_card
     from app.application.radar.daily_broadcast import (
-        build_daily_broadcast_script,
         generate_daily_broadcast_audio as _generate_audio,
     )
-
-    db = next(get_db())
-    try:
-        card = build_daily_report_card(db)
-    finally:
-        db.close()
-
-    primary_items: list[dict] = [
-        {
-            "item_id": item.item_id,
-            "source_label": item.source_label,
-            "zh_one_liner": item.zh_one_liner,
-            "title": item.title,
-            "url": item.url,
-            "related_directions": item.related_directions,
-            "insight_card_id": item.insight_card_id,
-        }
-        for item in card.primary_items
-    ]
-    secondary_items: list[dict] = [
-        {
-            "item_id": item.item_id,
-            "source_label": item.source_label,
-            "title": item.title,
-            "url": item.url,
-        }
-        for item in card.secondary_items
-    ]
-
-    script = build_daily_broadcast_script(
-        date_label=card.date_label,
-        total_items=card.overview.total_items,
-        covered_sources=card.overview.covered_sources,
-        with_zh_one_liner=card.overview.with_zh_one_liner,
-        with_insight_card=card.overview.with_insight_card,
-        primary_items=primary_items,
-        secondary_items=secondary_items,
-    )
+    script, script_basis = _build_daily_broadcast_page_data()
 
     audio_result = _generate_audio(script)
 
@@ -1158,6 +1363,7 @@ def generate_daily_broadcast_audio(request: Request):
         {
             "request": request,
             "script": script,
+            "script_basis": script_basis,
             "audio_result": audio_result,
         },
     )
