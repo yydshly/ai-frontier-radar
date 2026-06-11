@@ -196,7 +196,7 @@
                     </div>
                 </div>
 
-                <!-- Card actions: primary only -->
+                <!-- Card actions: right-aligned at bottom via margin-top:auto -->
                 <div class="source-card-actions">
                     <a href="/sources/{{ s.source_key }}" class="btn-link source-workspace-primary-link">进入工作台</a>
                     <form method="POST" action="/sources/{{ s.source_key }}/fetch" class="source-fetch-inline-form">
@@ -204,7 +204,8 @@
                     </form>
                 </div>
 
-                <!-- Technical details (collapsed by default) -->
+                <!-- Technical details (collapsed, below actions) -->
+                <div class="source-card-footer">
                 <details class="source-tech-details">
                     <summary>技术详情</summary>
                     {% if s.homepage_url %}
@@ -249,6 +250,7 @@
                         <a href="/source-items?source_key={{ s.source_key }}">查看</a>
                     </div>
                 </details>
+                </div><!-- /.source-card-footer -->
             </div>
             {% endfor %}
         </div>
