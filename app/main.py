@@ -1201,11 +1201,12 @@ def _render_sources_page(
 
         # Convert to plain dicts for template
         from app.application.sources.strategy_labels import describe_fetch_strategy
+        from app.application.sources.effective_strategy import compute_effective_strategy
         sources_data = []
         for s in sources_orm:
             health = health_map.get(s.source_key)
-            # V1.0-beta.13: effective strategy label (RSS when feed_url exists)
-            effective_strategy = "rss" if s.feed_url else s.fetch_strategy
+            # Effective strategy (RSS when feed_url exists) — centralized helper.
+            effective_strategy = compute_effective_strategy(s.feed_url, s.fetch_strategy)
             effective_label = describe_fetch_strategy(effective_strategy)
             # V1.0-beta.13: recommended strategy (RSS if feed works, HTML index otherwise)
             recommended_strategy = effective_strategy
@@ -1354,6 +1355,7 @@ def source_workspace_page(request: Request, source_key: str):
             compute_due_sources,
         )
         from app.application.sources.strategy_labels import describe_fetch_strategy
+        from app.application.sources.effective_strategy import compute_effective_strategy
 
         all_configured = list_sources(include_disabled=True)
         config_by_key = {s.source_key: s for s in all_configured}
@@ -1386,8 +1388,8 @@ def source_workspace_page(request: Request, source_key: str):
         latest_success_run = next((r for r in recent_runs if r.status == "success"), None)
         latest_failed_run = next((r for r in recent_runs if r.status == "failed"), None)
 
-        # V1.0-beta.13: effective strategy for this source
-        effective_strategy = "rss" if source.feed_url else source.fetch_strategy
+        # Effective strategy for this source — centralized helper.
+        effective_strategy = compute_effective_strategy(source.feed_url, source.fetch_strategy)
         # V1.0-beta.13: recommended strategy and needs_review flag
         recommended_strategy = effective_strategy
         needs_review = (effective_strategy == "html_index")

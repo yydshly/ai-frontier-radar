@@ -7137,6 +7137,58 @@ def main():
     except Exception as e:
         check("V1.0-beta.14 Source Config checks", False, str(e))
 
+    # ── 49. Effective fetch strategy helper + RSS-first guardrail (S1) ───────
+    print("\n[49] Effective fetch strategy + reliability")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        eff_py = project_root / "app" / "application" / "sources" / "effective_strategy.py"
+        analysis_doc = project_root / "docs" / "V1_SOURCE_PIPELINE_ANALYSIS.md"
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+
+        check("effective strategy helper exists",
+              eff_py.exists(),
+              "pure effective-strategy helper should exist")
+        check("source pipeline analysis doc exists",
+              analysis_doc.exists(),
+              "source pipeline analysis doc should exist")
+
+        from app.application.sources.effective_strategy import (
+            compute_effective_strategy,
+            reliability_rank,
+            check_strategy_consistency,
+        )
+        # Behavior identical to the previous inline rule.
+        check("effective strategy applies RSS-first rule",
+              compute_effective_strategy("https://x/rss", "html_index") == "rss"
+              and compute_effective_strategy(None, "html_index") == "html_index",
+              "feed_url present must yield rss; else the configured strategy")
+        check("reliability ordering ranks rss above html_index above crawler",
+              reliability_rank("rss") < reliability_rank("html_index") < reliability_rank("crawler"),
+              "reliability order should rank rss as most reliable")
+        check("consistency flags feed_url with non-rss strategy",
+              check_strategy_consistency("https://x/rss", "html_index").consistent is False
+              and check_strategy_consistency("https://x/rss", "rss").consistent is True,
+              "consistency check should flag a feed_url configured as non-rss")
+
+        # The inline duplication should be gone (centralized into the helper).
+        check("routes use the centralized effective-strategy helper",
+              "compute_effective_strategy(" in main_py
+              and '"rss" if s.feed_url else s.fetch_strategy' not in main_py
+              and '"rss" if source.feed_url else source.fetch_strategy' not in main_py,
+              "inline effective-strategy duplication should be replaced by the helper")
+
+        # Regression guardrail: current config must obey RSS-first (no drift).
+        from app.sources.config_loader import list_sources
+        violations = [
+            s.source_key for s in list_sources(include_disabled=True)
+            if not check_strategy_consistency(s.feed_url, s.fetch_strategy).consistent
+        ]
+        check("config sources obey RSS-first (no strategy drift)",
+              violations == [],
+              f"these sources have feed_url/strategy drift: {violations}")
+    except Exception as e:
+        check("effective strategy checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
