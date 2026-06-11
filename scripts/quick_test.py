@@ -7200,6 +7200,18 @@ def main():
         check("supported strategy set is a single source of truth",
               _fs is _canon and _ds is _canon and _canon == frozenset({"rss", "html_index"}),
               "fetch_service / due_sources must reuse the canonical SUPPORTED_STRATEGIES")
+
+        # S4(b): reliability annotations are parsed into SourceConfig.
+        from app.sources.config_loader import list_sources as _ls
+        _cfgs = list(_ls(include_disabled=True))
+        check("SourceConfig carries reliability annotations",
+              all(hasattr(s, "strategy_notes") and hasattr(s, "strategy_status") for s in _cfgs)
+              and any((s.strategy_notes or "").strip() for s in _cfgs),
+              "strategy_notes/strategy_status should be parsed from YAML into SourceConfig")
+        detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        check("source workspace surfaces strategy notes",
+              "策略说明" in detail_html and "config_source.strategy_notes" in detail_html,
+              "workspace should display config strategy_notes when present")
     except Exception as e:
         check("effective strategy checks", False, str(e))
 

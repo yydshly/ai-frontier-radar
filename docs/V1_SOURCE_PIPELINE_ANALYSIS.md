@@ -86,7 +86,9 @@ config/sources.example.yaml  ──load_sources_config──▶ SourceConfig
 - ✅ S4(a)：统一两处 SUPPORTED 集合到单一来源——
   `effective_strategy.SUPPORTED_STRATEGIES` 为唯一真源，`fetch_service.SUPPORTED_STRATEGIES`
   与 `due_sources.SUPPORTED_FETCH_STRATEGIES` 改为复用同一对象（quick_test 固化为护栏）。
-- ⏳ S4(b)：`config_loader` 解析 `strategy_notes` / `strategy_status` 进 SourceConfig 并展示。
+- ✅ S4(b)：`SourceConfig` 新增 `strategy_notes` / `strategy_status`（可选，默认空），
+  `config_loader` 解析 YAML 已有的可靠性注释；工作台展示"策略说明 / 可靠性状态"。
+  仅用于展示/审阅，不影响抓取决策（P-B 落地）。
 - ⏳ S4(c)：评估 `source_type` 与 `fetch_strategy` 去冗余。
 
 ### 阶段 S5（feed 自动发现）

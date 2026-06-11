@@ -345,6 +345,12 @@
                     {% if not strategy_consistent and strategy_consistency_message %}
                     <tr><th>策略提示</th><td><span class="error-msg">{{ strategy_consistency_message }}</span></td></tr>
                     {% endif %}
+                    {% if config_source and config_source.strategy_status %}
+                    <tr><th>可靠性状态</th><td><span class="strategy-chip chip-off">{{ config_source.strategy_status }}</span></td></tr>
+                    {% endif %}
+                    {% if config_source and config_source.strategy_notes %}
+                    <tr><th>策略说明</th><td><span class="source-workspace-muted">{{ config_source.strategy_notes }}</span></td></tr>
+                    {% endif %}
                     <tr><th>抓取间隔</th><td>{{ source.fetch_interval_hours or 24 }} 小时</td></tr>
                     {% if latest_failed_run %}
                     <tr><th>最近失败原因</th><td>
