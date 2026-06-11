@@ -298,7 +298,7 @@
 
                 {# ── Compile candidates section (read-only recommendations) ── #}
                 {% if view.compile_candidates %}
-                <details class="radar-compile-candidates" open>
+                <details class="radar-compile-candidates" {% if summary_result %}open{% endif %}>
                     <summary class="radar-compile-candidates-summary">
                         <span class="radar-compile-candidates-label">推荐深入分析</span>
                         <span class="radar-compile-candidates-meta">

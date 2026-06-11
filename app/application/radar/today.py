@@ -725,7 +725,12 @@ class RadarTodayService:
             else None
         )
 
-        quality_filter_stats = self.compute_quality_filter_stats(hours)
+        # Only compute quality_filter_stats when section=all and page=1 to save ~35ms per request.
+        quality_filter_stats = (
+            self.compute_quality_filter_stats(hours)
+            if section == ALL_KEY and page == 1
+            else None
+        )
 
         # ── Compile candidates: only when section=all and page=1 (cheap guard) ──
         compile_candidates = []
