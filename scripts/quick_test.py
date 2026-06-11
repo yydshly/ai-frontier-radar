@@ -7276,6 +7276,17 @@ def main():
                   and "open(" not in _cli_text
                   and "sources.yaml" in _cli_text,  # only referenced as manual-edit guidance
                   "feed discovery must be suggest-only (no config/db writes)")
+
+        # S4(c): lock the type==fetch_strategy convention for supported strategies
+        # (the two fields are redundant today; this catches future drift).
+        from app.sources.config_loader import list_sources as _ls2
+        _type_drift = [
+            s.source_key for s in _ls2(include_disabled=True)
+            if s.fetch_strategy in ("rss", "html_index") and s.type != s.fetch_strategy
+        ]
+        check("config source type matches fetch_strategy (supported strategies)",
+              _type_drift == [],
+              f"these sources have type/fetch_strategy mismatch: {_type_drift}")
     except Exception as e:
         check("effective strategy checks", False, str(e))
 

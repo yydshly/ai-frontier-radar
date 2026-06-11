@@ -96,7 +96,20 @@ config/sources.example.yaml  ──load_sources_config──▶ SourceConfig
 - ✅ S4(b)：`SourceConfig` 新增 `strategy_notes` / `strategy_status`（可选，默认空），
   `config_loader` 解析 YAML 已有的可靠性注释；工作台展示"策略说明 / 可靠性状态"。
   仅用于展示/审阅，不影响抓取决策（P-B 落地）。
-- ⏳ S4(c)：评估 `source_type` 与 `fetch_strategy` 去冗余。
+- ✅ S4(c)：`source_type` 与 `fetch_strategy` 冗余评估（结论：保留双字段，不改 schema）。
+
+#### S4(c) 评估结论
+- **不是同一枚举**：`SourceType={rss, html_index, manual_pdf, report_page}`（"来源本质"），
+  `FetchStrategy={rss, html_index, manual}`（"抓取方式"）。语义不同。
+- **当前实践完全冗余**：15 个来源全部 `type == fetch_strategy`（均 ∈ {rss, html_index}）。
+- **Source 注册表的 `source_type` 实为只写字段**：`db_sync` 写入 `cfg.type`，但**没有任何
+  逻辑读取它做决策**（main.py / insight_compiler 里读的 `source_type` 是 InsightCard 的
+  内容类型枚举 html/pdf/unknown，与来源注册表无关）。
+- **决策**：**保留双字段、不删列**（删字段 = schema/config 结构变更，违背"以当前架构为准"纪律）。
+  改为：① 文档化两者语义差异；② 加 drift 护栏——对使用受支持策略（rss/html_index）的配置来源，
+  锁定 `type == fetch_strategy` 约定，未来漂移即被 quick_test 拦截。
+- **后续（非本阶段）**：若引入 manual_pdf / report_page 等真正需要区分 type 与 strategy 的来源，
+  再重新评估字段收敛或显式拆分语义。
 
 ### 阶段 S5（feed 自动发现）✅ 已落地（只读、suggest-only）
 - 纯函数 `feed_discovery.discover_feed_links(html, base_url)`：解析
