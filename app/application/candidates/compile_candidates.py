@@ -92,6 +92,7 @@ def select_compile_candidates(
     hours: int = 24,
     limit: int = 10,
     per_source_limit: int = 3,
+    max_scan: int = 300,
 ) -> list[CompileCandidate]:
     """Select and rank top compile candidates. Read-only.
 
@@ -100,6 +101,8 @@ def select_compile_candidates(
         hours: Time window in hours (default 24).
         limit: Maximum number of candidates to return (default 10).
         per_source_limit: Max candidates per source_key (default 3).
+        max_scan: Maximum SourceItems to fetch from DB for scoring (default 300).
+                  Filtering happens in the SQL layer to avoid loading all items.
 
     Returns:
         List of CompileCandidate sorted by score descending, capped by per_source_limit.
@@ -110,36 +113,40 @@ def select_compile_candidates(
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     now = datetime.utcnow()
 
-    # Load enabled sources for filtering
+    # Load enabled sources for filtering (small set, always safe to load all)
     enabled_sources = {
         s.id: s.source_key
         for s in db.query(Source).filter(Source.enabled.is_(True)).all()
     }
+    enabled_ids = set(enabled_sources.keys())
 
-    # Collect candidates from the time window
-    all_items = (
+    # DB-layer filters: status, no existing card, has title, has url, in time window.
+    # Blocked sources/domains and weak titles are checked in Python (lightweight).
+    # Result is ordered by first_seen_at desc and limited to max_scan.
+    candidate_items = (
         db.query(SourceItem)
         .filter(
+            SourceItem.status.in_(("discovered", "fetched")),
+            SourceItem.insight_card_id.is_(None),
+            SourceItem.title.isnot(None),
+            SourceItem.title != "",
+            SourceItem.url.isnot(None),
+            SourceItem.url != "",
             (SourceItem.first_seen_at >= cutoff) | (SourceItem.last_seen_at >= cutoff),
         )
+        .order_by(SourceItem.first_seen_at.desc())
+        .limit(max_scan)
         .all()
     )
 
     scored: list[tuple[int, dict]] = []  # (score, item_dict)
 
-    for item in all_items:
-        # Basic filters
-        if item.status not in ("discovered", "fetched"):
-            continue
-        if item.insight_card_id:
-            continue  # already has card
-        if not item.title or not item.title.strip():
-            continue
-        if not item.url or not item.url.strip():
-            continue
+    for item in candidate_items:
+        # Blocked sources
         if item.source_key in _BLOCKED_SOURCES:
             continue
-        if item.source_id not in enabled_sources:
+        # Must be from an enabled source
+        if item.source_id not in enabled_ids:
             continue
         # Check blocked domains
         url_lower = item.url.lower()

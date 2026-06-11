@@ -727,13 +727,16 @@ class RadarTodayService:
 
         quality_filter_stats = self.compute_quality_filter_stats(hours)
 
-        # ── Compile candidates (read-only, no LLM, no auto-compile) ─────────────
-        compile_candidates = select_compile_candidates(
-            self.db,
-            hours=hours,
-            limit=10,
-            per_source_limit=3,
-        )
+        # ── Compile candidates: only when section=all and page=1 (cheap guard) ──
+        compile_candidates = []
+        if section == ALL_KEY and page == 1:
+            compile_candidates = select_compile_candidates(
+                self.db,
+                hours=hours,
+                limit=10,
+                per_source_limit=3,
+                max_scan=300,
+            )
 
         return RadarTodayView(
             total_items=total_items_in_section,

@@ -297,13 +297,13 @@
 
                 {# ── Compile candidates section (read-only recommendations) ── #}
                 {% if view.compile_candidates %}
-                <section class="radar-compile-candidates">
-                    <div class="radar-compile-candidates-header">
-                        <h2 class="radar-compile-candidates-title">建议生成 InsightCard 候选</h2>
+                <details class="radar-compile-candidates" open>
+                    <summary class="radar-compile-candidates-summary">
+                        <span class="radar-compile-candidates-label">建议生成 InsightCard 候选</span>
                         <span class="radar-compile-candidates-meta">
-                            Top {{ view.compile_candidates|length }} · 每来源最多 3 条 · 不调用 LLM · 不自动 compile
+                            Top {{ view.compile_candidates|length }} · 每来源最多 3 条 · 点击任意候选 → 右侧阅读面板
                         </span>
-                    </div>
+                    </summary>
                     <div class="radar-compile-candidates-list">
                         {% for c in view.compile_candidates %}
                         <div class="radar-compile-candidate-item">
@@ -311,7 +311,8 @@
                             <div class="radar-compile-candidate-body">
                                 <div class="radar-compile-candidate-top">
                                     <code class="radar-compile-candidate-source">{{ c.source_key }}</code>
-                                    <a href="/source-items/{{ c.source_item_id }}" class="radar-compile-candidate-title" target="_blank" rel="noopener">{{ c.title[:80] }}{% if c.title|length > 80 %}…{% endif %}</a>
+                                    <a href="/radar/today?section={{ view.active_section }}&amp;hours={{ view.hours }}&amp;limit={{ view.limit }}&amp;page={{ view.page }}&amp;per_page={{ view.per_page }}&amp;item_id={{ c.source_item_id }}"
+                                       class="radar-compile-candidate-title">{{ c.title[:80] }}{% if c.title|length > 80 %}…{% endif %}</a>
                                 </div>
                                 <div class="radar-compile-candidate-meta">
                                     <span class="radar-compile-candidate-score" title="综合评分">得分 {{ c.score }}</span>
@@ -328,7 +329,7 @@
                         </div>
                         {% endfor %}
                     </div>
-                </section>
+                </details>
                 {% endif %}
 
                 {% if bootstrap_result %}
