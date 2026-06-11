@@ -18,6 +18,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pathlib import Path
 
+# Import settings for value-aware checks
+from app.application.radar.settings import (
+    get_daily_scope_settings,
+    get_generation_settings,
+    get_recommendation_settings,
+)
+
 PASS = 0
 FAIL = 0
 FAILED_CHECKS = []
@@ -109,10 +116,15 @@ def main():
 
     check("包含'补全中文摘要'按钮",
           "补全中文摘要" in html)
-    check("summary_limit hidden value = 20",
-          'name="summary_limit" value="20"' in html)
-    check("按钮说明最多处理 20 条",
-          "最多 20 条" in html)
+    gen_settings = get_generation_settings()
+    # Template uses {{ SUMMARY_BATCH_LIMIT }} (Jinja2 var, resolved at render time)
+    check(f"summary_limit hidden value uses settings var",
+          f'name="summary_limit" value="{{{{ SUMMARY_BATCH_LIMIT }}}}"' in html or
+          f'name="summary_limit" value="{gen_settings.summary_batch_limit}"' in html)
+    check(f"按钮说明最多处理 {gen_settings.summary_batch_limit} 条",
+          f"最多 {gen_settings.summary_batch_limit} 条" in html or
+          f"最多 {{ SUMMARY_BATCH_LIMIT }} 条" in html or
+          "最多 {{ SUMMARY_BATCH_LIMIT }} 条" in html)
 
     check("compile_candidates 优先逻辑存在于 generate_today_summaries",
           "_prioritize_compile_candidates" in routes or
@@ -125,8 +137,8 @@ def main():
           "_needs_chinese_summary" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000] or
           "needs_chinese_summary" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000])
 
-    check("generate_today_summaries cap 20",
-          "cap 20" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000] or
+    check(f"generate_today_summaries cap {gen_settings.summary_batch_limit}",
+          f"min(summary_limit, SUMMARY_BATCH_LIMIT)" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000] or
           "min(summary_limit" in routes[routes.find("generate_today_summaries"):routes.find("generate_today_summaries") + 3000])
 
     # ── Path C: Recommended Deep Analysis ────────────────────────────────────
@@ -144,9 +156,10 @@ def main():
           "<details" in panel_html and "查看推荐依据" in panel_html)
     check("点击候选带 item_id，能联动右侧阅读面板",
           "item_id={{ c.source_item_id }}" in panel_html)
+    rec_settings = get_recommendation_settings()
     check("推荐候选支持一键批量生成洞察卡",
           "/radar/today/generate-recommended-insights" in panel_html
-          and "最多 5 条" in panel_html)
+          and ("最多 5 条" in panel_html or f"最多 {rec_settings.insight_limit} 条" in panel_html or "最多 {{ RECOMMENDED_INSIGHT_LIMIT }} 条" in panel_html))
 
     # ── Path D: Insight Card Chain ────────────────────────────────────────────
     print("\n[Path D] Insight Card Chain")

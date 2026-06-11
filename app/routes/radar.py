@@ -32,6 +32,16 @@ from app.application.radar.today import (
     MIN_PER_PAGE,
     MAX_PER_PAGE,
     ALL_KEY,
+    SUMMARY_BATCH_LIMIT,
+    RECOMMENDED_LIMIT,
+    RECOMMENDED_PER_SOURCE_LIMIT,
+    RECOMMENDED_MAX_SCAN,
+    RECOMMENDED_INSIGHT_LIMIT,
+)
+from app.application.radar.settings import (
+    get_generation_settings,
+    get_recommendation_settings,
+    get_daily_report_enabled,
 )
 from app.application.sources.background_fetch import SourceFetchBackgroundService
 from app.application.sources.discovery_runs import (
@@ -608,7 +618,9 @@ def _build_radar_today_view_context(
             "daily_digest": daily_digest,
             "sel": sel,
             "sel_card": sel_card,
-            "DAILY_REPORT_ENABLED": os.getenv("DAILY_REPORT_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"},
+            "DAILY_REPORT_ENABLED": get_daily_report_enabled(),
+            "SUMMARY_BATCH_LIMIT": SUMMARY_BATCH_LIMIT,
+            "RECOMMENDED_INSIGHT_LIMIT": RECOMMENDED_INSIGHT_LIMIT,
         }
     finally:
         db.close()
@@ -660,6 +672,7 @@ def radar_today_panel(
         section=section,
     )
     context["panel_mode"] = panel
+    context["RECOMMENDED_INSIGHT_LIMIT"] = RECOMMENDED_INSIGHT_LIMIT
     return _radar_templates.TemplateResponse(
         "partials/radar_today_panel.html",
         context,
@@ -870,7 +883,7 @@ def generate_today_summaries(
     limit: int = Form(DEFAULT_LIMIT),
     page: int = Form(1),
     per_page: int = Form(DEFAULT_PER_PAGE),
-    summary_limit: int = Form(20),
+    summary_limit: int = Form(SUMMARY_BATCH_LIMIT),
     summary_item_ids: str | None = Form(None),
 ):
     """Generate Chinese summaries for items visible on the current radar page."""
@@ -928,7 +941,7 @@ def generate_today_summaries(
         needs_summary = [item for item in items if _needs_chinese_summary(item)]
         complete = [item for item in items if not _needs_chinese_summary(item)]
 
-        max_items = max(1, min(summary_limit, 20))
+        max_items = max(1, min(summary_limit, SUMMARY_BATCH_LIMIT))
         items = (needs_summary + complete)[:max_items]
 
         settings = get_one_liner_settings()
@@ -986,7 +999,7 @@ def generate_recommended_insights(
     limit: int = Form(DEFAULT_LIMIT),
     page: int = Form(1),
     per_page: int = Form(DEFAULT_PER_PAGE),
-    insight_limit: int = Form(5),
+    insight_limit: int = Form(RECOMMENDED_INSIGHT_LIMIT),
     insight_item_ids: str | None = Form(None),
 ):
     """Enqueue the top recommended items for InsightCard generation."""
@@ -997,7 +1010,7 @@ def generate_recommended_insights(
 
     db = next(get_db())
     try:
-        max_items = max(1, min(insight_limit, 5))
+        max_items = max(1, min(insight_limit, RECOMMENDED_INSIGHT_LIMIT))
         view = RadarTodayService(db).build_today_view(
             hours=hours,
             limit=limit,

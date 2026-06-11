@@ -40,6 +40,11 @@ from app.application.radar.today_item_card import (
     build_today_item_card,
 )
 from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.settings import (
+    get_daily_scope_settings,
+    get_recommendation_settings,
+    get_generation_settings,
+)
 
 
 # ── Panel state ─────────────────────────────────────────────────────────────
@@ -176,15 +181,28 @@ def _build_insight_preview(card: "InsightCard | None") -> "RadarInsightPreview |
 
 
 # ── Query bounds ───────────────────────────────────────────────────────────
-DEFAULT_HOURS = 24
-DEFAULT_LIMIT = 50
+# API-level bounds (used for FastAPI Query validation — these never change)
 MIN_HOURS, MAX_HOURS = 1, 168
-MIN_LIMIT, MAX_LIMIT = 1, 100
+MIN_LIMIT, MAX_LIMIT = 1, 200
 DEFAULT_PER_PAGE = 20
 MIN_PER_PAGE, MAX_PER_PAGE = 5, 50
 
-# Number of newest items pinned into the "today focus" section.
-TODAY_FOCUS_SIZE = 5
+# Business-logic defaults — sourced from environment via settings
+_scope = get_daily_scope_settings()
+DEFAULT_HOURS = _scope.window_hours
+DEFAULT_LIMIT = _scope.item_limit
+TODAY_FOCUS_SIZE = _scope.today_focus_size
+
+# ── Recommendation bounds (used in select_compile_candidates) ────────────────
+_rec = get_recommendation_settings()
+RECOMMENDED_LIMIT = _rec.limit
+RECOMMENDED_PER_SOURCE_LIMIT = _rec.per_source_limit
+RECOMMENDED_MAX_SCAN = _rec.max_scan
+RECOMMENDED_INSIGHT_LIMIT = _rec.insight_limit
+
+# ── Generation bounds ────────────────────────────────────────────────────────
+_gen = get_generation_settings()
+SUMMARY_BATCH_LIMIT = _gen.summary_batch_limit
 
 
 # ── Catalog definition ───────────────────────────────────────────────────────
@@ -643,9 +661,9 @@ class RadarTodayService:
             compile_candidates = select_compile_candidates(
                 self.db,
                 hours=hours,
-                limit=10,
-                per_source_limit=3,
-                max_scan=300,
+                limit=RECOMMENDED_LIMIT,
+                per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
+                max_scan=RECOMMENDED_MAX_SCAN,
                 item_ids={item.id for item in items},
             )
         recommended_item_ids = {

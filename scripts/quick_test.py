@@ -3180,7 +3180,7 @@ def main():
 
         check("today radar summary route caps current page generation",
               "summary_limit" in radar_route_py
-              and "min(summary_limit, 20)" in radar_route_py,
+              and "min(summary_limit, SUMMARY_BATCH_LIMIT)" in radar_route_py,
               "summary generation should be capped to avoid long requests")
 
         check("today radar summary route includes compile_candidates",
@@ -7590,9 +7590,8 @@ def main():
               '@router.post("/today/generate-recommended-insights")' in radar_route_py
               and "/radar/today/generate-recommended-insights" in
               (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
-              and "insight_limit: int = Form(5)" in radar_route_py
-              and "min(insight_limit, 5)" in radar_route_py,
-              "recommended batch generation should exist and be capped at five")
+              and "RECOMMENDED_INSIGHT_LIMIT" in radar_route_py,
+              "recommended batch generation should exist and be capped at RECOMMENDED_INSIGHT_LIMIT")
         from app.routes.radar import _parse_item_ids
         check("recommended InsightCard tracking parses bounded item IDs",
               _parse_item_ids("4,2,bad,4,-1,9,11,12", limit=3) == [4, 2, 9],

@@ -153,8 +153,8 @@
                                 <input type="hidden" name="limit" value="{{ view.limit }}">
                                 <input type="hidden" name="page" value="{{ view.page }}">
                                 <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                                <input type="hidden" name="summary_limit" value="20">
-                                <button type="submit" class="btn-sm" title="优先处理推荐候选，再补齐当前页；最多 20 条，已有完整摘要自动跳过">补全中文摘要</button>
+                                <input type="hidden" name="summary_limit" value="{{ SUMMARY_BATCH_LIMIT }}">
+                                <button type="submit" class="btn-sm" title="优先处理推荐候选，再补齐当前页；最多 {{ SUMMARY_BATCH_LIMIT }} 条，已有完整摘要自动跳过">补全中文摘要</button>
                             </form>
                             {% if view.compile_candidates %}
                             <form method="post" action="/radar/today/generate-recommended-insights" class="radar-summary-form-inline">
@@ -163,8 +163,8 @@
                                 <input type="hidden" name="limit" value="{{ view.limit }}">
                                 <input type="hidden" name="page" value="1">
                                 <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                                <input type="hidden" name="insight_limit" value="5">
-                                <button type="submit" class="btn-sm" title="为推荐深入分析文章批量生成洞察卡，最多 5 条">生成推荐洞察</button>
+                                <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_LIMIT }}">
+                                <button type="submit" class="btn-sm" title="为推荐深入分析文章批量生成洞察卡，最多 {{ RECOMMENDED_INSIGHT_LIMIT }} 条">生成推荐洞察</button>
                             </form>
                             {% endif %}
                         </div>
@@ -521,7 +521,7 @@
                         <input type="hidden" name="limit" value="{{ view.limit }}">
                         <input type="hidden" name="page" value="{{ view.page }}">
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                        <input type="hidden" name="insight_limit" value="5">
+                        <input type="hidden" name="insight_limit" value="{{ RECOMMENDED_INSIGHT_LIMIT }}">
                         <input type="hidden" name="insight_item_ids" value="{{ insight_batch_result.retry_ids|join(',') }}">
                         <button type="submit" class="btn-sm">重试失败项</button>
                     </form>

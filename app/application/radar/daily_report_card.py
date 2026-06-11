@@ -16,6 +16,7 @@ from typing import Any
 
 from app.models import SourceItem
 from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.settings import get_daily_scope_settings
 
 
 # Strong-signal keywords that indicate an important report.
@@ -201,7 +202,7 @@ class DailyReportOverview:
 
 
 # Minimum readable items before the report is considered "ready".
-_READY_THRESHOLD = 5
+_READY_THRESHOLD = get_daily_scope_settings().report_ready_threshold
 
 
 @dataclass(frozen=True)

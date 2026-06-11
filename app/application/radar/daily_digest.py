@@ -21,6 +21,7 @@ from sqlalchemy import or_
 
 from app.models import Source, SourceItem
 from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.settings import get_daily_scope_settings
 
 # Markers that indicate a SourceItem already carries a (Chinese) summary.
 _SUMMARY_MARKERS = ('"zh_one_liner"', '"summary_zh"', '"auto_summary"')
@@ -127,7 +128,7 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
 # (or title), discovery time and read links. No LLM, no writes — this is the
 # deterministic "new-items report" that lets a user actually read what's new.
 
-DEFAULT_BRIEFING_MAX = 50
+DEFAULT_BRIEFING_MAX = get_daily_scope_settings().briefing_limit
 
 
 @dataclass(frozen=True)
