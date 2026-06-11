@@ -283,18 +283,23 @@ class CandidateOneLinerService:
                 item_id=item.id,
             )
 
+        # Determine whether to overwrite existing zh_one_liner
+        raw = _parse_metadata(item.raw_metadata_json)
+        has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
+        overwrite_one_liner = force or not has_one_liner
+
         if self.provider is None:
-            return self._write_result(item, "failed", None, "provider unavailable", summary=None, summary_status="skipped")
+            return self._write_result(item, "failed", None, "provider unavailable", summary=None, summary_status="skipped", overwrite_one_liner=overwrite_one_liner)
 
         payload = self._build_input(item)
         try:
             result = self.provider.generate(payload)
             if not result.one_liner.strip():
-                return self._write_result(item, "failed", None, "empty provider response", summary=None, summary_status="failed")
+                return self._write_result(item, "failed", None, "empty provider response", summary=None, summary_status="failed", overwrite_one_liner=overwrite_one_liner)
             summary_status = "success" if result.summary else "skipped"
-            return self._write_result(item, "success", result.one_liner, None, summary=result.summary, summary_status=summary_status)
+            return self._write_result(item, "success", result.one_liner, None, summary=result.summary, summary_status=summary_status, overwrite_one_liner=overwrite_one_liner)
         except Exception as exc:
-            return self._write_result(item, "failed", None, str(exc), summary=None, summary_status="failed")
+            return self._write_result(item, "failed", None, str(exc), summary=None, summary_status="failed", overwrite_one_liner=overwrite_one_liner)
 
     def generate_for_items(
         self,
@@ -351,16 +356,19 @@ class CandidateOneLinerService:
         error: str | None,
         summary: str | None = None,
         summary_status: str | None = None,
+        overwrite_one_liner: bool = True,
     ) -> OneLinerResult:
         raw = _parse_metadata(item.raw_metadata_json)
 
-        # zh_one_liner: don't overwrite existing non-empty unless force (handled at call site)
+        # zh_one_liner: preserve existing non-empty unless overwrite_one_liner is True
         raw["zh_one_liner_status"] = status
         raw["zh_one_liner_model"] = self._model_name()
         raw["zh_one_liner_generated_at"] = datetime.utcnow().isoformat()
+        existing_one_liner = str(raw.get("zh_one_liner") or "").strip()
         if text:
-            raw["zh_one_liner"] = text
-            raw.pop("zh_one_liner_error", None)
+            if overwrite_one_liner or not existing_one_liner:
+                raw["zh_one_liner"] = text
+                raw.pop("zh_one_liner_error", None)
         if error:
             raw["zh_one_liner_error"] = error
 

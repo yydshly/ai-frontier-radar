@@ -1727,6 +1727,47 @@ def main():
                   card.summary)
             check("FetchRun delta summary prefers zh_one_liner",
                   extract_lightweight_summary(item) == raw.get("zh_one_liner"))
+
+            # Test: existing zh_one_liner + fill_missing_summary=True preserves one_liner
+            item_with_existing = SourceItem(
+                source_id=src.id,
+                source_key=test_key,
+                url="https://example.com/existing-two",
+                title="Article With Existing One Liner",
+                status="discovered",
+                raw_metadata_json=json.dumps({
+                    "zh_one_liner": "原有一句话摘要",
+                    "summary": "English metadata summary for backfill test..."
+                }),
+            )
+            db_session.add(item_with_existing)
+            db_session.commit()
+            db_session.refresh(item_with_existing)
+
+            result_backfill = service.generate_for_item(
+                item_with_existing, fill_missing_summary=True, force=False
+            )
+            db_session.refresh(item_with_existing)
+            raw_backfill = json.loads(item_with_existing.raw_metadata_json)
+            check("backfill fill_missing_summary=True continues (not skipped)",
+                  result_backfill.success and raw_backfill.get("zh_summary_status") == "success",
+                  raw_backfill)
+            check("backfill preserves existing zh_one_liner when force=False",
+                  raw_backfill.get("zh_one_liner") == "原有一句话摘要",
+                  raw_backfill.get("zh_one_liner"))
+            check("backfill generates zh_summary",
+                  bool(raw_backfill.get("zh_summary")),
+                  raw_backfill.get("zh_summary"))
+
+            # Test: force=True overwrites existing zh_one_liner
+            result_force = service.generate_for_item(
+                item_with_existing, fill_missing_summary=True, force=True
+            )
+            db_session.refresh(item_with_existing)
+            raw_force = json.loads(item_with_existing.raw_metadata_json)
+            check("force=True overwrites existing zh_one_liner",
+                  raw_force.get("zh_one_liner") != "原有一句话摘要" and bool(raw_force.get("zh_one_liner")),
+                  raw_force.get("zh_one_liner"))
         finally:
             db_session.query(SourceItem).filter(SourceItem.source_key == test_key).delete(synchronize_session=False)
             db_session.query(Source).filter(Source.source_key == test_key).delete(synchronize_session=False)
