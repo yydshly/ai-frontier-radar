@@ -2728,18 +2728,23 @@ def main():
         except Exception as e:
             check("radar today.py is readable for category assertions", False, str(e))
             radar_py = ""
+        # Topic taxonomy now lives in relevance.py (C1 Phase A); check it there.
+        try:
+            relevance_py = (Path(__file__).resolve().parent.parent / "app" / "application" / "radar" / "relevance.py").read_text(encoding="utf-8")
+        except Exception:
+            relevance_py = ""
         check("today radar categories are less coarse",
-              "AI 编程 / 开发者工具" in radar_py
-              and "Agent 工作流" in radar_py
-              and "RAG / 知识库" in radar_py
-              and "文档理解 / 资料处理" in radar_py
-              and "基础设施 / 算力" in radar_py,
+              "AI 编程 / 开发者工具" in relevance_py
+              and "Agent 工作流" in relevance_py
+              and "RAG / 知识库" in relevance_py
+              and "文档理解 / 资料处理" in relevance_py
+              and "基础设施 / 算力" in relevance_py,
               "radar categories should be more granular than broad buckets")
         check("today radar classification uses Chinese summaries",
               "zh_one_liner" in radar_py and "zh_summary" in radar_py,
               "classification blob should include generated Chinese summary fields")
         check("today radar model company category is not the only broad bucket",
-              "模型公司 / 发布动态" in radar_py and "开源模型 / Benchmark" in radar_py,
+              "模型公司 / 发布动态" in relevance_py and "开源模型 / Benchmark" in relevance_py,
               "model news should be split from benchmark/open-model news")
         check("today radar route accepts section query param",
               "section: str" in radar_py or "section=section" in radar_py or "section: section" in radar_py,
@@ -7781,6 +7786,31 @@ def main():
               "Phase 1 must preserve exact current semantics (zh_summary only)")
     except Exception as e:
         check("item state accessor checks", False, str(e))
+
+    # ── 57. C1 Phase A/B: relevance taxonomy single source of truth ──────────
+    print("\n[57] relevance taxonomy single source (C1 A/B)")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        today_py = (project_root / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
+        rel_py = (project_root / "app" / "application" / "radar" / "relevance.py")
+        check("relevance.py taxonomy module exists",
+              rel_py.exists(),
+              "canonical relevance taxonomy module should exist")
+        check("today.py imports taxonomy from relevance (no local literal)",
+              "from app.application.radar.relevance import" in today_py
+              and "RELEVANCE_CATEGORIES" in today_py
+              and '_CATEGORIES: tuple[_CategoryDef, ...] = (' not in today_py,
+              "today.py must reuse the canonical taxonomy, not redefine it")
+
+        from app.application.radar.relevance import RELEVANCE_CATEGORIES
+        from app.application.radar.today import _CATEGORIES
+        check("today._CATEGORIES is the canonical taxonomy",
+              _CATEGORIES is RELEVANCE_CATEGORIES
+              and len(RELEVANCE_CATEGORIES) == 11
+              and sum(len(c.keywords) for c in RELEVANCE_CATEGORIES) == 122,
+              "today._CATEGORIES should be the imported canonical taxonomy (11 topics / 122 keywords)")
+    except Exception as e:
+        check("relevance taxonomy single source checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
