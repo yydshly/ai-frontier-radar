@@ -7655,6 +7655,31 @@ def main():
     except Exception as e:
         check("summary markers single source checks", False, str(e))
 
+    # ── 53. Daily report settings single source of truth (C3 dedup) ──────────
+    print("\n[53] daily report settings single source of truth")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        dr_text = (project_root / "app" / "application" / "radar" / "daily_report.py").read_text(encoding="utf-8")
+        check("daily_report delegates settings to radar.settings",
+              "get_daily_report_enabled" in dr_text
+              and "get_daily_report_max_items" in dr_text
+              and "def _env_bool" not in dr_text
+              and "def _env_int" not in dr_text,
+              "daily_report should reuse settings.py, not re-parse env locally")
+
+        from app.application.radar.daily_report import get_daily_report_settings
+        from app.application.radar.settings import (
+            get_daily_report_enabled,
+            get_daily_report_max_items,
+        )
+        s = get_daily_report_settings()
+        check("daily report settings agree with canonical settings",
+              s.enabled == get_daily_report_enabled()
+              and s.max_items == get_daily_report_max_items(),
+              "daily_report settings must match radar.settings (single source)")
+    except Exception as e:
+        check("daily report settings single source checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

@@ -17,7 +17,6 @@ successful result as runtime JSON without adding a database table.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -116,30 +115,16 @@ class _ClientReportProvider:
         return self._client.generate_json(system_prompt=system_prompt, user_prompt=user_prompt)
 
 
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        return default
-    if value < minimum or value > maximum:
-        return default
-    return value
-
-
 def get_daily_report_settings() -> DailyReportSettings:
+    # Single source of truth for these env vars lives in radar.settings; delegate
+    # so the enable flag / max-items bounds can never drift from settings.py.
+    from app.application.radar.settings import (
+        get_daily_report_enabled,
+        get_daily_report_max_items,
+    )
     return DailyReportSettings(
-        enabled=_env_bool("DAILY_REPORT_ENABLED", False),
-        max_items=_env_int("DAILY_REPORT_MAX_ITEMS", 12, 1, 50),
+        enabled=get_daily_report_enabled(),
+        max_items=get_daily_report_max_items(),
     )
 
 
