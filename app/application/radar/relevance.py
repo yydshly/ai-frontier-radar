@@ -20,6 +20,51 @@ class CategoryDef:
     keywords: tuple[str, ...]
 
 
+# ── Source importance (C1 Phase C) ──────────────────────────────────────────
+# Single source of truth for "how important is this source", consumed by both
+# the daily report ranking (as a float weight) and the recommendation scorer
+# (as an int priority, derived below). Replaces the two drifting tables
+# daily_report_card._SOURCE_WEIGHTS and compile_candidates._SOURCE_PRIORITY.
+SOURCE_IMPORTANCE: dict[str, float] = {
+    "openai_news": 2.0,
+    "anthropic_news": 2.0,
+    "deepmind_blog": 2.0,
+    "huggingface_blog": 1.8,
+    "meta_ai_blog": 1.8,
+    "nvidia_ai_blog": 1.8,
+    "microsoft_ai_source": 1.7,
+    "stanford_hai": 1.5,
+    "mit_news_ai": 1.5,
+    "arxiv_cs_ai": 1.2,
+    "arxiv_cs_cl": 1.0,
+    "arxiv_cs_lg": 1.0,
+    "mistral_ai_news": 1.5,
+    "cohere_blog": 1.5,
+    "berkeley_bair_blog": 1.3,
+}
+
+# Float importance → integer recommendation priority. Reproduces the previous
+# compile_candidates._SOURCE_PRIORITY values exactly, EXCEPT deepmind_blog,
+# which aligns up (8 → 10) to match its top-tier report weight (the one prior
+# disagreement between the two tables; verified no current-data result change).
+_IMPORTANCE_TO_PRIORITY: dict[float, int] = {
+    2.0: 10, 1.8: 7, 1.7: 6, 1.5: 5, 1.3: 4, 1.2: 4, 1.0: 3,
+}
+
+
+def source_weight(source_key: str) -> float:
+    """Float importance weight for ranking. Unknown sources default to 1.0."""
+    return SOURCE_IMPORTANCE.get(source_key, 1.0)
+
+
+def source_priority(source_key: str) -> int:
+    """Integer recommendation priority. Unknown sources default to 0."""
+    importance = SOURCE_IMPORTANCE.get(source_key)
+    if importance is None:
+        return 0
+    return _IMPORTANCE_TO_PRIORITY.get(round(importance, 1), int(round(importance * 5)))
+
+
 # Topic taxonomy — evaluated in order; a normal item is placed in the FIRST
 # matching category (substring match on a lowercased blob built from
 # source_key/title/summary/metadata). Order matters: "AI 编程" must come before

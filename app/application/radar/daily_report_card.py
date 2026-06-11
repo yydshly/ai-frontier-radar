@@ -40,24 +40,8 @@ _INTEREST_KEYWORDS = {
     "synthetic data", "data engineering", "pipeline", "finetuning",
 }
 
-# Source weight: higher = more important source for ranking.
-_SOURCE_WEIGHTS: dict[str, float] = {
-    "openai_news": 2.0,
-    "anthropic_news": 2.0,
-    "deepmind_blog": 2.0,
-    "huggingface_blog": 1.8,
-    "meta_ai_blog": 1.8,
-    "nvidia_ai_blog": 1.8,
-    "microsoft_ai_source": 1.7,
-    "stanford_hai": 1.5,
-    "mit_news_ai": 1.5,
-    "arxiv_cs_ai": 1.2,
-    "arxiv_cs_cl": 1.0,
-    "arxiv_cs_lg": 1.0,
-    "mistral_ai_news": 1.5,
-    "cohere_blog": 1.5,
-    "berkeley_bair_blog": 1.3,
-}
+# Source weight comes from the single source-importance table (C1 Phase C).
+from app.application.radar.relevance import source_weight
 
 # Source key → user-friendly display name.
 _SOURCE_DISPLAY_NAMES: dict[str, str] = {
@@ -244,7 +228,7 @@ def _score_item(item: SourceItem, now: datetime) -> float:
     """Score a SourceItem for ranking. Higher = more important."""
     raw = _read_raw_metadata(item)
 
-    source_weight = _SOURCE_WEIGHTS.get(item.source_key, 1.0)
+    src_weight = source_weight(item.source_key)
     title_lower = (item.title or "").lower()
 
     signal_matches = sum(
@@ -266,7 +250,7 @@ def _score_item(item: SourceItem, now: datetime) -> float:
     freshness = math.exp(-hours_old_val / 48)
 
     return (
-        source_weight * 3.0
+        src_weight * 3.0
         + signal_matches * 1.5
         + interest_matches * 1.0
         + content_bonus
@@ -290,8 +274,8 @@ def _extract_directions(text: str) -> list[str]:
 
 def _build_reason(source_key: str, directions: list[str], has_insight: bool) -> str:
     """Build a natural Chinese reason sentence for a primary item."""
-    source_weight = _SOURCE_WEIGHTS.get(source_key, 1.0)
-    is_high_weight = source_weight >= 1.8
+    src_weight = source_weight(source_key)
+    is_high_weight = src_weight >= 1.8
     source_label = _SOURCE_DISPLAY_NAMES.get(source_key, source_key)
 
     parts: list[str] = []

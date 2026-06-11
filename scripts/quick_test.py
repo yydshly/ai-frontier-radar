@@ -7812,6 +7812,38 @@ def main():
     except Exception as e:
         check("relevance taxonomy single source checks", False, str(e))
 
+    # ── 58. C1 Phase C: single source-importance table ───────────────────────
+    print("\n[58] source importance single source (C1 C)")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        card_py = (project_root / "app" / "application" / "radar" / "daily_report_card.py").read_text(encoding="utf-8")
+        cc_py = (project_root / "app" / "application" / "candidates" / "compile_candidates.py").read_text(encoding="utf-8")
+        check("report card uses shared source_weight (no local table)",
+              "from app.application.radar.relevance import source_weight" in card_py
+              and "_SOURCE_WEIGHTS" not in card_py,
+              "daily_report_card must derive weight from relevance.SOURCE_IMPORTANCE")
+        check("recommendation uses shared source_priority (no local table)",
+              "from app.application.radar.relevance import source_priority" in cc_py
+              and "_SOURCE_PRIORITY" not in cc_py,
+              "compile_candidates must derive priority from relevance.SOURCE_IMPORTANCE")
+
+        from app.application.radar.relevance import source_priority, source_weight
+        # Derived priority reproduces the previous table EXCEPT deepmind (8->10),
+        # and unknown-source defaults are preserved (priority 0, weight 1.0).
+        old = {"openai_news":10,"anthropic_news":10,"deepmind_blog":8,"huggingface_blog":7,
+               "meta_ai_blog":7,"nvidia_ai_blog":7,"microsoft_ai_source":6,"stanford_hai":5,
+               "mit_news_ai":5,"arxiv_cs_ai":4,"arxiv_cs_cl":3,"arxiv_cs_lg":3,
+               "mistral_ai_news":5,"cohere_blog":5,"berkeley_bair_blog":4}
+        diffs = {k:(old[k], source_priority(k)) for k in old if old[k] != source_priority(k)}
+        check("derived priority matches old table except deepmind (8->10)",
+              diffs == {"deepmind_blog": (8, 10)},
+              f"unexpected priority diffs: {diffs}")
+        check("unknown-source defaults preserved",
+              source_priority("zzz_unknown") == 0 and source_weight("zzz_unknown") == 1.0,
+              "unknown source should default to priority 0 / weight 1.0")
+    except Exception as e:
+        check("source importance single source checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

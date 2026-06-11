@@ -19,24 +19,8 @@ from typing import Any
 
 # ── Scoring constants ───────────────────────────────────────────────────────────
 
-# Source priority weights (higher = more important)
-_SOURCE_PRIORITY = {
-    "openai_news": 10,
-    "anthropic_news": 10,
-    "deepmind_blog": 8,
-    "huggingface_blog": 7,
-    "meta_ai_blog": 7,
-    "nvidia_ai_blog": 7,
-    "microsoft_ai_source": 6,
-    "stanford_hai": 5,
-    "mit_news_ai": 5,
-    "arxiv_cs_ai": 4,
-    "arxiv_cs_cl": 3,
-    "arxiv_cs_lg": 3,
-    "mistral_ai_news": 5,
-    "cohere_blog": 5,
-    "berkeley_bair_blog": 4,
-}
+# Source priority comes from the single source-importance table (C1 Phase C).
+from app.application.radar.relevance import source_priority
 
 # Keywords that suggest high-value content (in title or URL)
 _TOPIC_KEYWORDS = [
@@ -205,7 +189,7 @@ def select_compile_candidates(
             reasons.append("has_snapshot")
 
         # Source priority
-        src_score = _SOURCE_PRIORITY.get(item.source_key, 0)
+        src_score = source_priority(item.source_key)
         if src_score > 0:
             score += src_score
             reasons.append(f"source_priority({item.source_key}={src_score})")

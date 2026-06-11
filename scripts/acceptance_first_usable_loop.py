@@ -1179,8 +1179,8 @@ def main() -> int:
               "llm" not in card_text.lower() or "LLMClient" not in card_text,
               "build_daily_report_card should not call LLM")
         check("Daily report card: has source weight scoring",
-              "_SOURCE_WEIGHTS" in card_text,
-              "scoring should include source weights")
+              "source_weight" in card_text,
+              "scoring should include source weights (now from relevance.SOURCE_IMPORTANCE)")
         check("Daily report card: has keyword scoring",
               "_STRONG_SIGNAL_KEYWORDS" in card_text and "_INTEREST_KEYWORDS" in card_text,
               "scoring should include keyword matching")
