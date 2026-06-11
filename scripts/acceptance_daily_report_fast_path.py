@@ -350,9 +350,12 @@ def run_static_checks():
     # Template structure checks
     print("\n[Template Structure]")
     check("radar_daily_report.html exists", daily_report_html.exists())
-    check("radar_daily_report.html contains '今日报告' page title",
-          "今日报告" in report_html)
-    check("radar_daily_report.html contains '今日可读简报'",
+    check("radar_daily_report.html title is '今日可读简报'",
+          "今日可读简报" in report_html and
+          ("<title>今日可读简报" in report_html or '{% block title %}今日可读简报' in report_html))
+    check("radar_daily_report.html h1 is '今日可读简报'",
+          '<h1 class="radar-header-title">今日可读简报</h1>' in report_html)
+    check("radar_daily_report.html contains '今日可读简报' section",
           "今日可读简报" in report_html)
     check("radar_daily_report.html contains '待补全内容'",
           "待补全内容" in report_html)
@@ -369,6 +372,15 @@ def run_static_checks():
           "readable_items" in report_html)
     check("radar_daily_report.html uses pending_items in banner",
           "pending_items" in report_html)
+    # V1.0-beta.15 new checks
+    check("radar_daily_report.html has '当前简报依据' explanation",
+          "当前简报依据" in report_html)
+    check("radar_daily_report.html has '今日核心报告' section",
+          "今日核心报告" in report_html)
+    check("radar_daily_report.html has '音频播报' placeholder",
+          "音频播报" in report_html)
+    check("radar_daily_report.html has disabled '生成音频播报' button",
+          "disabled" in report_html and "生成音频播报" in report_html)
 
     # Rule-based report logic
     print("\n[Rule-based Report]")
@@ -393,6 +405,15 @@ def run_static_checks():
     check("radar_today.html shows recommended flow hint",
           "推荐" in today_html_content and "更新今日新增" in today_html_content
           and "生成中文摘要" in today_html_content)
+    # V1.0-beta.15 naming convention checks
+    check("radar_today.html has '查看今日可读简报' link",
+          "查看今日可读简报" in today_html_content)
+    check("radar_today.html has '生成今日核心报告' button",
+          "生成今日核心报告" in today_html_content)
+    check("radar_today.html mentions basis for core report",
+          "基于今日已有中文摘要" in today_html_content)
+    check("radar_today.html compile candidates moved to toggle",
+          "查看推荐深入分析" in today_html_content)
 
 
 def main():

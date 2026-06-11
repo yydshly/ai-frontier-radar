@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}今日报告 - AI Frontier Radar{% endblock %}
+{% block title %}今日可读简报 - AI Frontier Radar{% endblock %}
 
 {% block main_class %}wide-page radar-workbench-page{% endblock %}
 
@@ -11,13 +11,16 @@
     {# ── Header ─────────────────────────────────────────── #}
     <div class="radar-header">
         <div class="radar-header-top">
-            <h1 class="radar-header-title">今日报告</h1>
+            <h1 class="radar-header-title">今日可读简报</h1>
             <span class="radar-header-meta">{{ date_label }}</span>
             <div class="radar-quick-links">
                 <a href="/radar/today" class="radar-quick-link">返回今日雷达</a>
                 <a href="/sources" class="radar-quick-link">信息来源</a>
                 <a href="/cards" class="radar-quick-link">洞察卡</a>
             </div>
+        </div>
+        <div class="radar-header-subtitle">
+            这是基于今日已有中文摘要内容整理的规则版简报，用于检查今日核心报告的输入基础。
         </div>
     </div>
 
@@ -28,18 +31,91 @@
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.total_items }}</span>
                 <span class="radar-report-stat-label">收录内容</span>
+                <span class="radar-report-stat-note">今日雷达时间窗口内的候选条目</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.readable_items }}</span>
                 <span class="radar-report-stat-label">可读内容</span>
+                <span class="radar-report-stat-note">已有中文概述或正文摘要</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.with_insight_card }}</span>
                 <span class="radar-report-stat-label">洞察卡</span>
+                <span class="radar-report-stat-note">已生成 InsightCard</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.covered_sources }}</span>
                 <span class="radar-report-stat-label">覆盖来源</span>
+                <span class="radar-report-stat-note">今日内容覆盖的信息源</span>
+            </div>
+        </div>
+    </div>
+
+    {# ── Generation basis explanation ──────────────────────── #}
+    <div class="radar-report-basis">
+        <div class="radar-report-basis-title">当前简报依据</div>
+        <ul class="radar-report-basis-list">
+            <li>基于今日雷达时间窗口内的 SourceItem</li>
+            <li>当前可读内容：{{ overview.readable_items }} 条</li>
+            <li>待补全内容：{{ overview.pending_items }} 条</li>
+            <li>已有洞察卡：{{ overview.with_insight_card }} 条</li>
+        </ul>
+        {% if overview.pending_items > 0 %}
+        <p class="radar-report-basis-note">
+            仍有 {{ overview.pending_items }} 条内容未生成中文摘要，暂不进入今日核心报告输入。
+        </p>
+        {% endif %}
+        <p class="radar-report-basis-hint">
+            今日核心报告将优先基于这些可读内容和洞察卡生成。
+        </p>
+    </div>
+
+    {# ── 今日核心报告预留区域 ──────────────────────────────── #}
+    <div class="radar-report-core-section">
+        <div class="radar-report-core-header">
+            <h2 class="radar-report-core-title">今日核心报告</h2>
+        </div>
+        {% if daily_report_result %}
+        <div class="radar-report-core-content">
+            <h3 class="radar-report-core-report-title">{{ daily_report_result.title or '今日核心报告' }}</h3>
+            {% if daily_report_result.overview %}
+            <p class="radar-report-core-overview">{{ daily_report_result.overview }}</p>
+            {% endif %}
+            {% if daily_report_result.highlights %}
+            <ul class="radar-report-core-highlights">
+                {% for h in daily_report_result.highlights %}
+                <li>{{ h }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            <div class="radar-report-core-basis">
+                <strong>生成依据：</strong>基于 {{ daily_report_result.input_item_count }} 条可读内容生成
+            </div>
+        </div>
+        {% else %}
+        <div class="radar-report-core-placeholder">
+            <p>今日核心报告尚未生成。</p>
+            <p>可基于当前 {{ overview.readable_items }} 条可读内容生成。</p>
+            <form method="post" action="/radar/today/daily-report" class="radar-report-core-generate-form">
+                <button type="submit" class="btn btn-primary" {% if not DAILY_REPORT_ENABLED %}disabled{% endif %}>
+                    生成今日核心报告
+                </button>
+                {% if not DAILY_REPORT_ENABLED %}
+                <span class="radar-report-core-hint">（需启用 DAILY_REPORT_ENABLED=true）</span>
+                {% endif %}
+            </form>
+        </div>
+        {% endif %}
+
+        {# ── 音频播报预留 ──────────────────────────────── #}
+        <div class="radar-report-audio-section">
+            <div class="radar-report-audio-header">
+                <h3 class="radar-report-audio-title">音频播报</h3>
+            </div>
+            <div class="radar-report-audio-placeholder">
+                <p>基于今日核心报告生成，当前版本暂未启用。</p>
+                <button type="button" class="btn btn-secondary" disabled>生成音频播报</button>
+                <p class="radar-report-audio-hint">音频播报将在今日核心报告生成后可用。</p>
             </div>
         </div>
     </div>
@@ -55,12 +131,12 @@
     {# ── Report ready / partial ──────────────────────────────────── #}
     {% elif overview.report_status == "ready" %}
     <div class="radar-report-ready-banner">
-        <p><strong>今日报告已可读。</strong> 以下是基于已有中文摘要整理的今日简报。</p>
+        <p><strong>今日可读简报已可读。</strong> 以下是基于已有中文摘要整理的规则版简报。</p>
     </div>
 
     {% elif overview.report_status == "partial" %}
     <div class="radar-report-partial-banner">
-        <p><strong>今日报告尚未完全准备好。</strong> 当前可读内容 {{ overview.readable_items }} 条，还有 {{ overview.pending_items }} 条待补全。建议先补全中文摘要后再看完整报告。</p>
+        <p><strong>今日可读简报尚未完全准备好。</strong> 当前可读内容 {{ overview.readable_items }} 条，还有 {{ overview.pending_items }} 条待补全。建议先补全中文摘要后再看完整报告。</p>
         <p>返回<a href="/radar/today?section=all&page=1">今日雷达</a>，点击「生成当前页中文摘要」，再回来看报告。</p>
         <a href="/radar/today?section=all&page=1" class="btn btn-primary">去生成中文摘要</a>
     </div>

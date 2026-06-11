@@ -108,7 +108,7 @@
                     {# ── 今日操作 ─────────────────────────────────────────── #}
                     <div class="radar-today-actions">
                         <div class="radar-today-actions-title">今日操作</div>
-                        <p class="radar-today-actions-hint">推荐：更新今日新增 → 生成中文摘要 → 查看今日报告</p>
+                        <p class="radar-today-actions-hint">推荐：更新今日新增 → 生成中文摘要 → 生成今日核心报告</p>
                         <form method="post" action="/radar/today/update" class="radar-update-form">
                             <input type="hidden" name="section" value="{{ view.active_section }}">
                             <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
@@ -118,9 +118,20 @@
                             <input type="hidden" name="per_page" value="{{ view.per_page }}">
                             <button type="submit" class="btn-sm btn-primary" title="更新今日雷达：只检查到期来源">更新今日新增</button>
                         </form>
-                        <a href="/radar/daily-report" class="btn-sm" title="查看今日报告：规则筛选今日重点内容，无需 LLM">查看今日报告</a>
+                        <form method="get" action="/radar/today/generate-summaries" class="radar-summary-form-inline">
+                            <input type="hidden" name="section" value="{{ view.active_section }}">
+                            <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                            <input type="hidden" name="hours" value="{{ view.hours }}">
+                            <input type="hidden" name="limit" value="{{ view.limit }}">
+                            <input type="hidden" name="page" value="{{ view.page }}">
+                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                            <input type="hidden" name="summary_limit" value="20">
+                            <button type="submit" class="btn-sm" title="优先处理当前页缺中文摘要的内容，最多处理 20 条；已有中文摘要会自动跳过">生成当前页中文摘要</button>
+                        </form>
+                        <a href="/radar/daily-report" class="btn-sm" title="查看今日可读简报：规则筛选今日已有中文摘要内容，无需 LLM">查看今日可读简报</a>
                         <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
-                            <button type="submit" class="btn-sm" title="基于今日已摘要内容生成中文核心报告（需显式启用）">生成今日核心报告</button>
+                            <button type="submit" class="btn-sm {% if not DAILY_REPORT_ENABLED %}btn-secondary{% endif %}" title="基于今日已有中文摘要内容生成，不包含待补全内容。需启用 LLM（DAILY_REPORT_ENABLED=true）。">生成今日核心报告{% if not DAILY_REPORT_ENABLED %}（需启用 LLM）{% endif %}</button>
+                            <span class="radar-digest-form-hint">基于今日已有中文摘要内容生成，不包含待补全内容。</span>
                         </form>
                     </div>
 
@@ -303,49 +314,13 @@
                 </nav>
                 </div>{# <!-- /.radar-main-toolbar --> #}
 
-                {# ── Compile candidates section (read-only recommendations) ── #}
+                {# ── Compile candidates toggle (moved to right panel) ── #}
                 {% if view.compile_candidates %}
-                <details class="radar-compile-candidates" {% if summary_result %}open{% endif %}>
-                    <summary class="radar-compile-candidates-summary">
-                        <span class="radar-compile-candidates-label">推荐深入分析</span>
-                        <span class="radar-compile-candidates-meta">
-                            今日推荐 {{ view.compile_candidates|length }} 条 · 点击条目查看详情
-                        </span>
-                    </summary>
-                    <div class="radar-compile-candidates-list">
-                        {% for c in view.compile_candidates %}
-                        <div class="radar-compile-candidate-item">
-                            <span class="radar-compile-candidate-rank">#{{ c.rank }}</span>
-                            <div class="radar-compile-candidate-body">
-                                <div class="radar-compile-candidate-top">
-                                    <code class="radar-compile-candidate-source">{{ c.source_key }}</code>
-                                    <a href="/radar/today?section={{ view.active_section }}&amp;hours={{ view.hours }}&amp;limit={{ view.limit }}&amp;page={{ view.page }}&amp;per_page={{ view.per_page }}&amp;item_id={{ c.source_item_id }}"
-                                       class="radar-compile-candidate-title">{{ c.title[:80] }}{% if c.title|length > 80 %}…{% endif %}</a>
-                                </div>
-                                {% if c.summary_preview %}
-                                <div class="radar-compile-candidate-summary">{{ c.summary_preview[:120] }}{% if c.summary_preview|length > 120 %}…{% endif %}</div>
-                                {% endif %}
-                                <div class="radar-compile-candidate-meta">
-                                    <details class="radar-compile-candidate-details">
-                                        <summary>查看推荐依据</summary>
-                                        <span class="radar-compile-candidate-score" title="综合评分">得分 {{ c.score }}</span>
-                                        {% if c.compile_basis %}
-                                        <span class="radar-compile-candidate-basis">· {{ c.compile_basis }}</span>
-                                        {% endif %}
-                                        {% if c.reasons %}
-                                        <span class="radar-compile-candidate-reasons">
-                                            {% for reason in c.reasons[:3] %}
-                                            <span class="radar-reason-tag">{{ reason }}</span>
-                                            {% endfor %}
-                                        </span>
-                                        {% endif %}
-                                    </details>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </details>
+                <div class="radar-compile-candidates-toggle">
+                    <a href="/radar/today?section={{ view.active_section }}&amp;hours={{ view.hours }}&amp;limit={{ view.limit }}&amp;page={{ view.page }}&amp;per_page={{ view.per_page }}&amp;panel=recommendations" class="btn-sm" title="推荐深入分析：今日雷达中最值得生成 InsightCard 的候选内容。">
+                        查看推荐深入分析（{{ view.compile_candidates|length }}）
+                    </a>
+                </div>
                 {% endif %}
 
                 {% if bootstrap_result %}

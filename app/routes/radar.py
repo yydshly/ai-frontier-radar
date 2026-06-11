@@ -252,6 +252,7 @@ def radar_today_page(
     page: int = Query(1, ge=1),
     per_page: int = Query(DEFAULT_PER_PAGE, ge=MIN_PER_PAGE, le=MAX_PER_PAGE),
     section: str = Query(ALL_KEY),
+    panel: str | None = Query(None),
     summary_success: int | None = Query(None, ge=0),
     summary_skipped: int | None = Query(None, ge=0),
     summary_failed: int | None = Query(None, ge=0),
@@ -368,6 +369,7 @@ def radar_today_page(
         message=bootstrap_message,
         execution_mode=bootstrap_execution_mode,
     )
+    context["panel_mode"] = panel
 
     return _radar_templates.TemplateResponse(
         "radar_today.html",
@@ -493,6 +495,7 @@ def radar_today_panel(
     page: int = Query(1, ge=1),
     per_page: int = Query(DEFAULT_PER_PAGE, ge=MIN_PER_PAGE, le=MAX_PER_PAGE),
     section: str = Query(ALL_KEY),
+    panel: str | None = Query(None),
 ):
     """Return only the right-panel HTML fragment for partial fetch updates."""
     context = _build_radar_today_view_context(
@@ -504,6 +507,7 @@ def radar_today_panel(
         per_page=per_page,
         section=section,
     )
+    context["panel_mode"] = panel
     return _radar_templates.TemplateResponse(
         "partials/radar_today_panel.html",
         context,
@@ -999,6 +1003,8 @@ def get_daily_report_card(request: Request):
             "secondary_items": secondary_items,
             "secondary_all_shown": secondary_all_shown,
             "safe_external_url": safe_external_url,
+            "daily_report_result": None,
+            "DAILY_REPORT_ENABLED": os.getenv("DAILY_REPORT_ENABLED", "").lower() in ("true", "1", "yes"),
         },
     )
 

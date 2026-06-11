@@ -4846,6 +4846,17 @@ details[open] .radar-compile-candidate-details summary::before {
     content: "▼ ";
 }
 
+.radar-compile-candidate-actions {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.radar-summary-form-inline {
+    display: inline;
+}
+
 /* ── Fetch run summary in today radar sidebar ─────────────────────── */
 .radar-fetch-summary {
     margin-top: 0.9rem;
@@ -5811,6 +5822,228 @@ details[open] .radar-compile-candidate-details summary::before {
     margin: 0.1rem 0 0;
     font-style: italic;
     line-height: 1.3;
+}
+
+/* ── Daily Report Fast Path V1.0-beta.15 ─────────────────── */
+
+/* Stat note (sub-label) */
+.radar-report-stat-note {
+    font-size: 0.65rem;
+    color: #999;
+    margin-top: 0.1rem;
+    text-align: center;
+}
+
+/* Header subtitle */
+.radar-header-subtitle {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 0.3rem;
+    padding: 0.25rem 0;
+}
+
+/* Generation basis explanation */
+.radar-report-basis {
+    background: #fffde7;
+    border: 1px solid #fff176;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.radar-report-basis-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #f57f17;
+    margin-bottom: 0.5rem;
+}
+
+.radar-report-basis-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+    color: #555;
+}
+
+.radar-report-basis-list li {
+    margin-bottom: 0.25rem;
+}
+
+.radar-report-basis-note {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #e65100;
+    font-weight: 500;
+}
+
+.radar-report-basis-hint {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #666;
+}
+
+/* 今日核心报告 section */
+.radar-report-core-section {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.radar-report-core-header {
+    margin-bottom: 0.75rem;
+}
+
+.radar-report-core-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1565c0;
+    margin: 0;
+}
+
+.radar-report-core-content {
+    padding: 0.75rem;
+    background: #fff;
+    border-radius: 4px;
+}
+
+.radar-report-core-report-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1976d2;
+    margin: 0 0 0.5rem;
+}
+
+.radar-report-core-overview {
+    font-size: 0.9rem;
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.radar-report-core-highlights {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+}
+
+.radar-report-core-highlights li {
+    margin-bottom: 0.25rem;
+}
+
+.radar-report-core-basis {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.radar-report-core-placeholder {
+    padding: 1rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.radar-report-core-placeholder p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.radar-report-core-generate-form {
+    margin-top: 0.75rem;
+}
+
+.radar-report-core-hint {
+    font-size: 0.75rem;
+    color: #999;
+    margin-left: 0.5rem;
+}
+
+/* Audio broadcast placeholder */
+.radar-report-audio-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #90caf9;
+}
+
+.radar-report-audio-header {
+    margin-bottom: 0.5rem;
+}
+
+.radar-report-audio-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1565c0;
+    margin: 0;
+}
+
+.radar-report-audio-placeholder {
+    padding: 0.75rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.radar-report-audio-placeholder p {
+    margin: 0.25rem 0;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.radar-report-audio-hint {
+    font-size: 0.75rem;
+    color: #999;
+    margin-top: 0.5rem;
+}
+
+/* Compile candidates toggle (moved from middle) */
+.radar-compile-candidates-toggle {
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+}
+
+/* Panel recommendations mode */
+.radar-panel-recommendations {
+    height: 100%;
+    overflow-y: auto;
+}
+
+.radar-panel-recommendations-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.radar-panel-recommendations-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1976d2;
+}
+
+.radar-panel-back-link {
+    font-size: 0.75rem;
+}
+
+.radar-panel-recommendations-hint {
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+}
+
+.radar-panel-recommendations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Digest form hint */
+.radar-digest-form-hint {
+    display: block;
+    font-size: 0.7rem;
+    color: #999;
+    margin-top: 0.2rem;
 }
 
 /* ── Daily Broadcast ────────────────────────────────────── */
