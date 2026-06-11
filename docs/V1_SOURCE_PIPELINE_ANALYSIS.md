@@ -98,9 +98,13 @@ config/sources.example.yaml  ──load_sources_config──▶ SourceConfig
   仅用于展示/审阅，不影响抓取决策（P-B 落地）。
 - ⏳ S4(c)：评估 `source_type` 与 `fetch_strategy` 去冗余。
 
-### 阶段 S5（feed 自动发现）
-- 对 html_index 源做一次性 feed 探测（`<link rel=alternate type=application/rss+xml>`），
-  发现后建议"升级到 RSS"。属后置能力。
+### 阶段 S5（feed 自动发现）✅ 已落地（只读、suggest-only）
+- 纯函数 `feed_discovery.discover_feed_links(html, base_url)`：解析
+  `<link rel=alternate type=application/rss+xml|atom+xml|feed+json>`，相对地址转绝对、去重，
+  恶意/空输入不抛异常。**无网络 I/O，离线可单测**。
+- `scripts/discover_source_feeds.py`：对 html_index 源抓主页、发现 feed 后**建议升级到 RSS**。
+  **只读 suggest-only**：不改 config/sources.yaml、不写库、不改抓取行为；网络仅在显式运行时发生，
+  CI/quick_test 保持离线。
 
 ## 4. 本次（S1）边界
 - 只新增纯函数 + 工作台展示 + 回归护栏。

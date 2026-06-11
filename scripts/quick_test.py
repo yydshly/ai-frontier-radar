@@ -7246,6 +7246,36 @@ def main():
         check("fetch fallback isolated acceptance exists",
               (project_root / "scripts" / "acceptance_fetch_fallback_chain.py").exists(),
               "S3 isolated fallback acceptance script should exist")
+
+        # S5: feed auto-discovery (pure parser, offline) + read-only CLI.
+        from app.application.sources.feed_discovery import discover_feed_links
+        _sample = (
+            '<html><head>'
+            '<link rel="alternate" type="application/rss+xml" href="/feed.xml">'
+            '<link rel="stylesheet" href="/s.css">'
+            '<link rel="alternate" type="application/atom+xml" href="https://a.example/atom">'
+            '</head></html>'
+        )
+        _feeds = discover_feed_links(_sample, base_url="https://example.com/blog/")
+        check("feed discovery finds rss/atom links and resolves urls",
+              [f.url for f in _feeds] == ["https://example.com/feed.xml", "https://a.example/atom"],
+              "discover_feed_links should extract feed <link> tags and absolutize hrefs")
+        check("feed discovery ignores non-feed links and bad input",
+              discover_feed_links("<p>no feeds</p>", "https://x.com") == []
+              and discover_feed_links(None, None) == [],
+              "non-feed links / empty input must yield no feeds and never raise")
+
+        feed_cli = project_root / "scripts" / "discover_source_feeds.py"
+        check("feed discovery CLI exists and is read-only",
+              feed_cli.exists(),
+              "feed discovery CLI should exist")
+        if feed_cli.exists():
+            _cli_text = feed_cli.read_text(encoding="utf-8")
+            check("feed discovery CLI does not write config/db",
+                  ".commit(" not in _cli_text
+                  and "open(" not in _cli_text
+                  and "sources.yaml" in _cli_text,  # only referenced as manual-edit guidance
+                  "feed discovery must be suggest-only (no config/db writes)")
     except Exception as e:
         check("effective strategy checks", False, str(e))
 
