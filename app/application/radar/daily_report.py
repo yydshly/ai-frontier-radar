@@ -28,7 +28,7 @@ from app.models import SourceItem
 from app.application.radar.daily_scope import recent_valid_items_query
 
 # Markers that indicate a SourceItem already carries a (Chinese) summary.
-_SUMMARY_MARKERS = ('"zh_one_liner"', '"summary_zh"', '"auto_summary"')
+_SUMMARY_MARKERS = ('"zh_one_liner"', '"zh_summary"', '"summary_zh"', '"auto_summary"')
 
 DAILY_REPORT_SYSTEM_PROMPT = """\
 你是 AI 前沿信息每日编译助手。你会收到"今天"已生成的一组中文一句话摘要条目。
@@ -150,13 +150,13 @@ def _normalize(value: Any) -> str | None:
 
 def build_daily_report_input(db, *, now: datetime | None = None, max_items: int | None = None) -> DailyReportInput:
     """Assemble today's Chinese one-liners as report input. Read-only, no LLM."""
+    import json as _json
+
     if now is None:
         now = datetime.utcnow()
     if max_items is None:
         max_items = get_daily_report_settings().max_items
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    from app.application.candidates.display import build_candidate_display_card
 
     rows = (
         recent_valid_items_query(db, now=now)
@@ -169,9 +169,23 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
     bullets: list[str] = []
     sources: list[DailyReportSource] = []
     for it in rows:
-        card = build_candidate_display_card(it)
-        if card.uses_zh_one_liner and card.primary_text:
-            summary = card.primary_text
+        raw = {}
+        try:
+            raw = _json.loads(it.raw_metadata_json or "{}")
+        except Exception:
+            raw = {}
+        if not isinstance(raw, dict):
+            raw = {}
+
+        # Priority: zh_summary > zh_one_liner > summary_zh > auto_summary
+        summary = (
+            _normalize(raw.get("zh_summary"))
+            or _normalize(raw.get("zh_one_liner"))
+            or _normalize(raw.get("summary_zh"))
+            or _normalize(raw.get("auto_summary"))
+        )
+
+        if summary:
             bullets.append(f"[文章ID:{it.id}] {it.title or '无标题'}｜{summary}")
             sources.append(DailyReportSource(
                 item_id=it.id,

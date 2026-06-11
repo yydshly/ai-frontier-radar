@@ -174,6 +174,10 @@ def _parse_int_query(value: str | None, default: int = 0) -> int:
     """Safely parse an int query param; return default on failure."""
     if value is None:
         return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _parse_item_ids(raw: str | None, *, limit: int = 5) -> list[int]:
@@ -259,10 +263,6 @@ def _build_insight_batch_status(raw_item_ids: str | None) -> dict | None:
         }
     finally:
         db.close()
-    try:
-        return int(value)
-    except ValueError:
-        return default
 
 
 router = APIRouter(prefix="/radar", tags=["radar"])
@@ -608,6 +608,7 @@ def _build_radar_today_view_context(
             "daily_digest": daily_digest,
             "sel": sel,
             "sel_card": sel_card,
+            "DAILY_REPORT_ENABLED": os.getenv("DAILY_REPORT_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"},
         }
     finally:
         db.close()
@@ -1007,7 +1008,7 @@ def generate_recommended_insights(
         candidates = view.compile_candidates
         requested_ids = _parse_item_ids(insight_item_ids, limit=max_items)
         if requested_ids:
-            allowed_item_ids = set(view.display_map)
+            allowed_item_ids = {candidate.source_item_id for candidate in candidates}
             target_ids = [
                 item_id
                 for item_id in requested_ids

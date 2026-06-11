@@ -106,7 +106,7 @@
                 </section>
                 {% endif %}
 
-                {% if sel_card and sel_card.detail_summary %}
+                {% if view.panel_state and sel_card and sel_card.detail_summary %}
                 <section class="radar-panel-section">
                     <h3>{{ view.panel_state.detail_summary_label }}</h3>
                     <div class="radar-panel-summary">{{ sel_card.detail_summary }}</div>

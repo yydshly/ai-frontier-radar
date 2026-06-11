@@ -9,8 +9,8 @@ Phase boundaries:
 - Phase D (later): LLM core summary generation (cost-gated, explicit).
 - Phase E (later): voice broadcast (TTS, optional / toggleable).
 
-"Today" = the current UTC calendar day [00:00, now]. An item counts as "today"
-by its ``first_seen_at`` (first discovery), matching how new items enter.
+User-facing "today" means the rolling recent window (default 24 hours).
+Items are counted by their ``first_seen_at`` inside this window.
 """
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
 # (or title), discovery time and read links. No LLM, no writes — this is the
 # deterministic "new-items report" that lets a user actually read what's new.
 
-DEFAULT_BRIEFING_MAX = 80
+DEFAULT_BRIEFING_MAX = 50
 
 
 @dataclass(frozen=True)

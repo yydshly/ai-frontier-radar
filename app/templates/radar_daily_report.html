@@ -15,7 +15,7 @@
             <span class="radar-header-meta">{{ date_label }}</span>
             <div class="radar-quick-links">
                 <a href="/radar/today" class="radar-quick-link">返回今日雷达</a>
-                <a href="/radar/daily-report/broadcast" class="radar-quick-link">语音报告</a>
+                <a href="/radar/daily-report/broadcast" class="radar-quick-link">语音文稿</a>
                 <a href="/sources" class="radar-quick-link">信息来源</a>
                 <a href="/cards" class="radar-quick-link">洞察卡</a>
             </div>
@@ -114,7 +114,7 @@
                 {% endif %}
             </div>
             <div class="radar-report-core-generate-form">
-                <a href="/radar/daily-report/broadcast" class="btn btn-primary">查看语音报告</a>
+                <a href="/radar/daily-report/broadcast" class="btn btn-primary">查看语音文稿</a>
                 <form method="post" action="/radar/today/daily-report" style="display:inline;">
                     <button type="submit" class="btn btn-secondary" {% if not DAILY_REPORT_ENABLED %}disabled{% endif %}>重新生成核心报告</button>
                 </form>
@@ -283,7 +283,7 @@
     <div class="radar-report-footer">
         <a href="/radar/today" class="btn btn-secondary">返回今日雷达</a>
         <a href="/radar/today?section=all&page=1" class="btn btn-secondary">去生成中文摘要</a>
-        <a href="/radar/daily-report/broadcast" class="btn btn-secondary">查看语音报告</a>
+        <a href="/radar/daily-report/broadcast" class="btn btn-secondary">查看语音文稿</a>
     </div>
 </div>
 {% endblock %}
