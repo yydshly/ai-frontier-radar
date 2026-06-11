@@ -6048,7 +6048,7 @@ def main():
               "GET /radar/today should not trigger content fetching")
         check("panel shows content and InsightCard states",
               "正文状态" in radar_panel_text
-              and "InsightCard 状态" in radar_panel_text
+              and "洞察卡状态" in radar_panel_text
               and "当前处理链路" in radar_panel_text,
               "reading panel should show the processing chain")
         check("panel shows Chinese overview and summary states",

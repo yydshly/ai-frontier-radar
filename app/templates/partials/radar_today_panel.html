@@ -40,7 +40,7 @@
                         <li>中文概述状态：{{ panel_today_card.overview_label }}</li>
                         <li>中文摘要状态：{{ panel_today_card.detailed_summary_label }}</li>
                         <li>正文状态：{{ panel_today_card.content_label }}</li>
-                        <li>InsightCard 状态：{{ panel_today_card.insight_label }}</li>
+                        <li>洞察卡状态：{{ panel_today_card.insight_label }}</li>
                     </ol>
                     <p class=”radar-panel-note”>
                         下一步建议：
@@ -185,7 +185,7 @@
                             name="return_to"
                             value="/radar/today?section={{ view.active_section }}&item_id={{ sel.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
                         >
-                        <button type="submit" class="btn-sm btn-primary">加入生成</button>
+                        <button type="submit" class="btn-sm btn-primary">生成洞察卡</button>
                     </form>
                     {% elif sel.status == 'compiled' and sel.insight_card_id %}
                     <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
