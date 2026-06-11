@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}今日新增简报 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>今日新增简报 · {{ briefing.date_label }}</h1>
+            <p>今天各来源新发现的内容汇总（基于来源信息生成，按来源分组）。点击可读原文或查看详情。</p>
+        </div>
+
+        <div class="briefing-summary">
+            <span>今日新增 <strong>{{ briefing.new_items_count }}</strong></span>
+            <span>· 覆盖来源 <strong>{{ briefing.source_count }}</strong></span>
+            <span>· 已有中文摘要 <strong>{{ briefing.summarized_count }}</strong>/{{ briefing.shown_count }}</span>
+            {% if briefing.truncated %}
+            <span class="briefing-muted">· 仅展示最新 {{ briefing.shown_count }} 条</span>
+            {% endif %}
+            <a href="/radar/today" class="btn-link">← 返回今日雷达</a>
+        </div>
+
+        {% if briefing.groups %}
+        {% for group in briefing.groups %}
+        <section class="briefing-group">
+            <h2 class="briefing-group-title">{{ group.source_name }} <span class="briefing-muted">（{{ group.items|length }} 条）</span></h2>
+            <ul class="briefing-list">
+                {% for it in group.items %}
+                <li class="briefing-item">
+                    <div class="briefing-item-main">{{ it.zh_preview or it.title }}</div>
+                    {% if it.zh_preview and it.title and it.title != it.zh_preview %}
+                    <div class="briefing-item-sub">{{ it.title }}</div>
+                    {% endif %}
+                    <div class="briefing-item-meta">
+                        <span class="briefing-muted">{{ it.time_label }}</span>
+                        {% if not it.has_summary %}<span class="briefing-chip">待生成摘要</span>{% endif %}
+                        {% set safe_url = safe_external_url(it.url) %}
+                        {% if safe_url %}<a href="{{ safe_url }}" target="_blank" rel="noopener">原文</a>{% endif %}
+                        <a href="/source-items/{{ it.item_id }}">详情</a>
+                        {% if it.insight_card_id %}<a href="/cards/{{ it.insight_card_id }}">洞察卡</a>{% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endfor %}
+        {% else %}
+        <p class="empty-state">今天暂无新增内容。可在<a href="/radar/today">今日雷达</a>点击「更新今日雷达」抓取最新。</p>
+        {% endif %}
+{% endblock %}

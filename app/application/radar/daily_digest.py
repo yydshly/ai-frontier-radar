@@ -19,7 +19,7 @@ from datetime import datetime
 
 from sqlalchemy import or_
 
-from app.models import SourceItem
+from app.models import Source, SourceItem
 
 # Markers that indicate a SourceItem already carries a (Chinese) summary.
 _SUMMARY_MARKERS = ('"zh_one_liner"', '"summary_zh"', '"auto_summary"')
@@ -117,4 +117,117 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
         card_count=card_count,
         source_count=source_count,
         top_items=top_items,
+    )
+
+
+# ── Daily briefing (the readable "今日新增报告") ──────────────────────────────
+# A fuller, read-only view than the sidebar digest: lists ALL of today's newly
+# discovered items (capped), grouped by source, each with its Chinese one-liner
+# (or title), discovery time and read links. No LLM, no writes — this is the
+# deterministic "new-items report" that lets a user actually read what's new.
+
+DEFAULT_BRIEFING_MAX = 80
+
+
+@dataclass(frozen=True)
+class DailyBriefingItem:
+    item_id: int
+    title: str
+    zh_preview: str | None
+    has_summary: bool
+    url: str | None
+    time_label: str
+    insight_card_id: int | None
+
+
+@dataclass(frozen=True)
+class DailyBriefingGroup:
+    source_key: str
+    source_name: str
+    items: list[DailyBriefingItem]
+
+
+@dataclass(frozen=True)
+class DailyBriefingView:
+    date_label: str
+    new_items_count: int   # total new today (may exceed shown if truncated)
+    shown_count: int
+    summarized_count: int  # shown items that have a readable Chinese one-liner
+    source_count: int
+    groups: list[DailyBriefingGroup]
+    truncated: bool
+
+
+def build_daily_briefing(
+    db, *, now: datetime | None = None, max_items: int = DEFAULT_BRIEFING_MAX
+) -> DailyBriefingView:
+    """Build a read-only briefing of today's newly discovered items.
+
+    Groups by source, newest-first within each source. Read-only; no LLM.
+    Unlike the sidebar digest, this includes items that are not yet summarized
+    (falling back to their title) so the user sees everything new.
+    """
+    if now is None:
+        now = datetime.utcnow()
+    day_start = _start_of_utc_day(now)
+
+    base = db.query(SourceItem).filter(SourceItem.first_seen_at >= day_start)
+    new_items_count = base.count()
+
+    rows = (
+        base.order_by(
+            SourceItem.source_key.asc(),
+            SourceItem.first_seen_at.desc(),
+            SourceItem.id.desc(),
+        )
+        .limit(max_items)
+        .all()
+    )
+
+    keys = {r.source_key for r in rows}
+    name_map = {}
+    if keys:
+        name_map = {
+            s.source_key: s.name
+            for s in db.query(Source).filter(Source.source_key.in_(keys)).all()
+        }
+
+    from app.application.candidates.display import build_candidate_display_card
+
+    groups_map: dict[str, list[DailyBriefingItem]] = {}
+    summarized = 0
+    for r in rows:
+        card = build_candidate_display_card(r)
+        zh = card.primary_text if card.uses_zh_one_liner else None
+        if card.uses_zh_one_liner:
+            summarized += 1
+        groups_map.setdefault(r.source_key, []).append(
+            DailyBriefingItem(
+                item_id=r.id,
+                title=card.title,
+                zh_preview=zh,
+                has_summary=card.uses_zh_one_liner,
+                url=r.url,
+                time_label=card.time_label,
+                insight_card_id=r.insight_card_id,
+            )
+        )
+
+    groups = [
+        DailyBriefingGroup(
+            source_key=k,
+            source_name=name_map.get(k, k),
+            items=v,
+        )
+        for k, v in sorted(groups_map.items(), key=lambda kv: kv[0])
+    ]
+
+    return DailyBriefingView(
+        date_label=day_start.strftime("%Y-%m-%d"),
+        new_items_count=new_items_count,
+        shown_count=len(rows),
+        summarized_count=summarized,
+        source_count=len(groups),
+        groups=groups,
+        truncated=new_items_count > len(rows),
     )

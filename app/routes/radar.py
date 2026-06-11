@@ -486,6 +486,30 @@ def _build_radar_today_view_context(
         db.close()
 
 
+@router.get("/today/briefing", response_class=HTMLResponse)
+def radar_today_briefing(request: Request):
+    """Read-only "今日新增简报": today's newly discovered items grouped by source.
+
+    The deterministic new-items report — lists everything new today with its
+    Chinese one-liner (or title), discovery time, and read links. No LLM, no
+    writes, and does not touch the today-radar reading layout.
+    """
+    db = next(get_db())
+    try:
+        from app.application.radar.daily_digest import build_daily_briefing
+        briefing = build_daily_briefing(db)
+        return _radar_templates.TemplateResponse(
+            "radar_briefing.html",
+            {
+                "request": request,
+                "briefing": briefing,
+                "safe_external_url": safe_external_url,
+            },
+        )
+    finally:
+        db.close()
+
+
 @router.get("/today/panel")
 def radar_today_panel(
     request: Request,

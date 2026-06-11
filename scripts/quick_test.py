@@ -7488,6 +7488,55 @@ def main():
     except Exception as e:
         check("sources stale-timeout display checks", False, str(e))
 
+    # ── 51. 今日新增简报 (read-only daily briefing) ──────────────────────────
+    print("\n[51] 今日新增简报 daily briefing")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        digest_py = (project_root / "app" / "application" / "radar" / "daily_digest.py").read_text(encoding="utf-8")
+        radar_route_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        briefing_tpl = project_root / "app" / "templates" / "radar_briefing.html"
+
+        check("daily briefing builder exists and is read-only",
+              "def build_daily_briefing" in digest_py
+              and ".commit(" not in digest_py and ".add(" not in digest_py,
+              "build_daily_briefing should exist and never write")
+        check("briefing route is read-only GET",
+              '@router.get("/today/briefing"' in radar_route_py
+              and "build_daily_briefing" in radar_route_py,
+              "GET /radar/today/briefing should render the read-only briefing")
+        check("briefing template exists",
+              briefing_tpl.exists(),
+              "radar_briefing.html should exist")
+        check("radar today links to the briefing",
+              "/radar/today/briefing" in radar_html,
+              "today radar should link to the daily briefing")
+
+        # Functional: render + read-only.
+        from fastapi.testclient import TestClient
+        from app.main import app as _app
+        from app.db import SessionLocal
+        from app.models import SourceItem, FetchRun
+        _db = SessionLocal()
+        try:
+            _before = (_db.query(SourceItem).count(), _db.query(FetchRun).count())
+        finally:
+            _db.close()
+        _r = TestClient(_app).get("/radar/today/briefing")
+        check("briefing page renders 200",
+              _r.status_code == 200 and "今日新增简报" in _r.text,
+              f"briefing should render, got {_r.status_code}")
+        _db = SessionLocal()
+        try:
+            _after = (_db.query(SourceItem).count(), _db.query(FetchRun).count())
+        finally:
+            _db.close()
+        check("briefing rendering does not write rows",
+              _before == _after,
+              "rendering the briefing must not change row counts")
+    except Exception as e:
+        check("daily briefing checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

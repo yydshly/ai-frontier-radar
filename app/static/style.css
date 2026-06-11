@@ -6141,3 +6141,51 @@ details[open] .radar-compile-candidate-details summary::before {
 .radar-broadcast-empty a {
     color: #1976d2;
 }
+
+/* ── 今日新增简报 (read-only daily briefing page) ───────────────── */
+.briefing-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #3a3f45;
+}
+.briefing-muted { color: #888; font-size: 0.85rem; }
+.briefing-group {
+    background: #fff;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.9rem;
+}
+.briefing-group-title {
+    font-size: 0.95rem;
+    margin: 0 0 0.5rem;
+    color: #24292f;
+}
+.briefing-list { list-style: none; margin: 0; padding: 0; }
+.briefing-item {
+    padding: 0.5rem 0;
+    border-top: 1px solid #f0f2f4;
+}
+.briefing-item:first-child { border-top: none; }
+.briefing-item-main { font-size: 0.9rem; color: #1f2328; line-height: 1.5; }
+.briefing-item-sub { font-size: 0.8rem; color: #6a737d; margin-top: 0.15rem; }
+.briefing-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+}
+.briefing-chip {
+    background: #fff3e0;
+    color: #e65100;
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    font-size: 0.75rem;
+}
+.radar-digest-briefing-link { display: inline-block; margin-top: 0.4rem; }
