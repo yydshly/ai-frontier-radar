@@ -613,8 +613,13 @@ class RadarTodayService:
         if section not in valid_keys:
             section = ALL_KEY
 
+        # Select the candidate set by RELIABLE datetime columns. published_at is
+        # free-text and mostly RFC822 (e.g. "Thu, 04 Jun 2026 ..."), which sorts
+        # lexicographically by weekday — NOT chronologically — so leading the DB
+        # ORDER BY + LIMIT with it would truncate to an arbitrary weekday-ranked
+        # set and drop genuinely newer items. Final display order still prefers
+        # published_at via _radar_sort_key (which parses RFC822/ISO correctly).
         order = desc(func.coalesce(
-            SourceItem.published_at,
             SourceItem.last_seen_at,
             SourceItem.first_seen_at,
         ))

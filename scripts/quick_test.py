@@ -7680,6 +7680,28 @@ def main():
     except Exception as e:
         check("daily report settings single source checks", False, str(e))
 
+    # ── 54. Today radar candidate selection uses reliable datetime (C6 fix) ──
+    print("\n[54] today radar selection order (C6)")
+    try:
+        import re as _re
+        project_root = Path(__file__).resolve().parents[1]
+        today_text = (project_root / "app" / "application" / "radar" / "today.py").read_text(encoding="utf-8")
+        # The DB order/limit must NOT lead with published_at (free-text RFC822 →
+        # sorts by weekday, not date → wrong LIMIT truncation). It must use the
+        # real datetime columns; display order still handled by _radar_sort_key.
+        m = _re.search(r"order\s*=\s*desc\(func\.coalesce\((.*?)\)\)", today_text, _re.S)
+        coalesce_args = m.group(1) if m else ""
+        check("today radar DB order does not lead with published_at",
+              "published_at" not in coalesce_args
+              and "last_seen_at" in coalesce_args
+              and "first_seen_at" in coalesce_args,
+              "candidate selection must order by reliable datetime columns, not text published_at")
+        check("today radar still re-sorts display by _radar_sort_key",
+              "_radar_sort_key" in today_text and "parsedate_to_datetime" in today_text,
+              "display order should still prefer parsed published_at via _radar_sort_key")
+    except Exception as e:
+        check("today radar selection order checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
