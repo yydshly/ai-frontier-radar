@@ -11,12 +11,13 @@
     {# ── Header ─────────────────────────────────────────── #}
     <div class="radar-header">
         <div class="radar-header-top">
-            <h1 class="radar-header-title">今日 AI 前沿核心报告</h1>
+            <h1 class="radar-header-title">今日报告</h1>
+            <span class="radar-header-subtitle">AI 前沿每日概览</span>
             <span class="radar-header-meta">{{ date_label }}</span>
             <div class="radar-quick-links">
                 <a href="/radar/today" class="radar-quick-link">返回今日雷达</a>
                 <a href="/sources" class="radar-quick-link">信息来源</a>
-                <a href="/cards" class="radar-quick-link">InsightCard</a>
+                <a href="/cards" class="radar-quick-link">洞察卡</a>
                 <a href="/radar/daily-report/broadcast" class="radar-quick-link">生成播报文案</a>
             </div>
         </div>
@@ -40,7 +41,7 @@
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.with_insight_card }}</span>
-                <span class="radar-report-stat-label">已生成 InsightCard</span>
+                <span class="radar-report-stat-label">已生成洞察卡</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.covered_sources }}</span>
@@ -48,6 +49,15 @@
             </div>
         </div>
     </div>
+
+    {# ── Summary guidance when Chinese summaries are sparse ── #}
+    {% if overview.total_items > 0 and overview.with_zh_one_liner < overview.total_items %}
+    <div class="radar-report-summary-guidance">
+        <p>今日中文概述覆盖率 {{ (overview.with_zh_one_liner * 100 // overview.total_items) }}%，部分条目仍显示英文原题。</p>
+        <p>返回<a href="/radar/today?section=all&page=1">今日雷达</a>，点击「生成当前页中文摘要」补全后，再回来看报告更完整。</p>
+        <a href="/radar/today?section=all&page=1" class="btn btn-primary">去生成中文摘要</a>
+    </div>
+    {% endif %}
 
     {# ── Empty state ──────────────────────────────────── #}
     {% if not primary_items and not secondary_items %}

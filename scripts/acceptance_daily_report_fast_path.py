@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""
+acceptance_daily_report_fast_path.py
+
+V1.0-beta.25 Daily Report Fast Path Acceptance Script
+
+Checks static / lightweight conditions only — no LLM calls, no DB writes.
+
+Usage:
+    python -m compileall app scripts
+    python scripts/acceptance_daily_report_fast_path.py
+"""
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from pathlib import Path
+
+PASS = 0
+FAIL = 0
+FAILED_CHECKS = []
+
+
+def check(name: str, condition: bool, detail: str = ""):
+    global PASS, FAIL, FAILED_CHECKS
+    if condition:
+        print(f"  [PASS] {name}")
+        PASS += 1
+    else:
+        msg = f"  [FAIL] {name}" + (f" — {detail}" if detail else "")
+        print(msg)
+        FAIL += 1
+        FAILED_CHECKS.append(name)
+
+
+def main():
+    global PASS, FAIL, FAILED_CHECKS
+
+    ROOT = Path(__file__).parent.parent
+    radar_py = ROOT / "app" / "routes" / "radar.py"
+    daily_report_html = ROOT / "app" / "templates" / "radar_daily_report.html"
+    today_html = ROOT / "app" / "templates" / "radar_today.html"
+    daily_report_card_py = ROOT / "app" / "application" / "radar" / "daily_report_card.py"
+
+    print("Daily Report Fast Path Acceptance")
+    print("=" * 50)
+
+    routes = radar_py.read_text(encoding="utf-8")
+    report_html = daily_report_html.read_text(encoding="utf-8")
+    today_html_content = today_html.read_text(encoding="utf-8")
+    card_py = daily_report_card_py.read_text(encoding="utf-8")
+
+    # Route checks
+    print("\n[Routes]")
+    check("GET /radar/daily-report route exists",
+          'router.get("/daily-report"' in routes or 'GET /daily-report' in routes)
+    check("POST /radar/today/daily-report route exists",
+          'router.post("/today/daily-report"' in routes or 'POST /today/daily-report' in routes)
+
+    # Template checks
+    print("\n[Templates]")
+    check("radar_daily_report.html exists",
+          daily_report_html.exists())
+    check("radar_daily_report.html contains '今日报告'",
+          "今日报告" in report_html)
+    check("radar_daily_report.html contains '今日必看'",
+          "今日必看" in report_html)
+    check("radar_daily_report.html contains '返回今日雷达'",
+          "返回今日雷达" in report_html)
+    check("radar_daily_report.html contains '查看洞察卡' or '已有洞察卡'",
+          "查看洞察卡" in report_html or "已有洞察卡" in report_html)
+
+    # Rule-based: no DAILY_REPORT_ENABLED gate for GET page
+    print("\n[Rule-based Report]")
+    check("GET /radar/daily-report does NOT require DAILY_REPORT_ENABLED",
+          "DAILY_REPORT_ENABLED" not in routes[routes.find('def get_daily_report_card'):routes.find('def get_daily_report_card') + 500])
+    check("build_daily_report_card does NOT call LLM",
+          "def build_daily_report_card" in card_py and
+          "os.environ" not in card_py and
+          "OPENAI" not in card_py and
+          "llm_providers" not in card_py)
+    check("radar_daily_report.html does not block when DAILY_REPORT_ENABLED=false",
+          "未启用" not in report_html or
+          ("查看今日报告" in report_html and "规则版" in report_html))
+
+    # Guidance hints
+    print("\n[Guidance]")
+    check("radar_daily_report.html shows summary guidance when coverage is low",
+          "生成当前页中文摘要" in report_html and ("今日雷达" in report_html or "去生成" in report_html))
+    check("radar_today.html shows recommended flow hint",
+          "推荐" in today_html_content and "更新今日新增" in today_html_content and "生成中文摘要" in today_html_content)
+
+    # Summary
+    total = PASS + FAIL
+    print(f"\n{'=' * 50}")
+    print(f"Daily Report Fast Path Acceptance")
+    print(f"Total: {total}")
+    print(f"Passed: {PASS}")
+    print(f"Failed: {FAIL}")
+    if FAIL > 0:
+        print(f"\nFailed checks:")
+        for name in FAILED_CHECKS:
+            print(f"  - {name}")
+    return 0 if FAIL == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

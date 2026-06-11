@@ -108,6 +108,7 @@
                     {# ── 今日操作 ─────────────────────────────────────────── #}
                     <div class="radar-today-actions">
                         <div class="radar-today-actions-title">今日操作</div>
+                        <p class="radar-today-actions-hint">推荐：更新今日新增 → 生成中文摘要 → 查看今日报告</p>
                         <form method="post" action="/radar/today/update" class="radar-update-form">
                             <input type="hidden" name="section" value="{{ view.active_section }}">
                             <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
