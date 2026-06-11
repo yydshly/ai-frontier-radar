@@ -29,6 +29,10 @@ class SourceConfig:
     fetch_strategy: FetchStrategy
     relevance_hint: str
     fetch_interval_hours: int
+    # Reliability annotations (optional; free-text in YAML). For display / review
+    # only — they do NOT affect fetch decisions.
+    strategy_notes: str = ""
+    strategy_status: str = ""
 
     @property
     def is_rss(self) -> bool:

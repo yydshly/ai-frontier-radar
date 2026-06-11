@@ -12,12 +12,17 @@ from app.sources.config_loader import load_sources_config
 from app.sources.models import SourceConfig
 
 
-def sync_sources_config_to_db(db: Session, force_reload: bool = False) -> dict:
+def sync_sources_config_to_db(
+    db: Session,
+    force_reload: bool = False,
+    dry_run: bool = False,
+) -> dict:
     """Sync source configs from YAML to database.
 
     Args:
         db: SQLAlchemy database session.
         force_reload: If True, bypass config cache.
+        dry_run: If True, only compute stats without writing to DB.
 
     Returns:
         dict with keys: total, created, updated, disabled
@@ -32,17 +37,26 @@ def sync_sources_config_to_db(db: Session, force_reload: bool = False) -> dict:
         existing = db.query(Source).filter(Source.source_key == cfg.source_key).first()
 
         if existing is None:
-            # Create new source
-            source = _config_to_source(cfg)
-            db.add(source)
             stats["created"] += 1
         else:
-            # Update existing source fields
-            _update_source_from_config(existing, cfg)
             stats["updated"] += 1
 
         if not cfg.enabled:
             stats["disabled"] += 1
+
+    if dry_run:
+        # No DB write, no commit - just return computed stats
+        return stats
+
+    # Actually apply changes
+    for cfg in configs:
+        existing = db.query(Source).filter(Source.source_key == cfg.source_key).first()
+
+        if existing is None:
+            source = _config_to_source(cfg)
+            db.add(source)
+        else:
+            _update_source_from_config(existing, cfg)
 
     db.commit()
     return stats

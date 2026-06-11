@@ -33,7 +33,7 @@ sources:
     tags: ["OpenAI", "frontier-models", "product", "agent"]
     enabled: true
     fetch_strategy: "rss"
-    # strategy_status: "verified"  # RSS 已确认可用
+    strategy_notes: "RSS feed verified: reachable, ~1000 items. Homepage returns 403 (normal for bot)."
     relevance_hint: "重点关注 OpenAI 模型能力、产品发布、Agent、开发者工具。"
     fetch_interval_hours: 24
 
@@ -47,35 +47,35 @@ sources:
     tags: ["Anthropic", "Claude", "AI安全", "agent"]
     enabled: true
     fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    strategy_notes: "No public RSS found (anthropic.com/feed 404). HTML index fallback."
     relevance_hint: "重点关注 Claude、AI Safety、Agent、企业应用。"
     fetch_interval_hours: 24
 
   deepmind_blog:
     name: "Google DeepMind Blog"
     description: "DeepMind 研究博客，覆盖 AlphaFold、Gemini、围棋 AI 等"
-    type: "html_index"
+    type: "rss"
     homepage_url: "https://deepmind.google/discover/blog/"
-    feed_url: null
+    feed_url: "https://deepmind.google/discover/blog/feed"
     category: "research"
     tags: ["DeepMind", "research", "AlphaFold", "Gemini", "multimodal"]
     enabled: true
-    fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    fetch_strategy: "rss"
+    strategy_notes: "RSS feed verified 2026-06-11: 100 items, stable."
     relevance_hint: "重点关注 Gemini、多模态、AI for Science 相关研究。"
     fetch_interval_hours: 24
 
   huggingface_blog:
     name: "Hugging Face Blog"
     description: "Hugging Face 博客，覆盖开源模型、Transformers、Diffusers 等"
-    type: "html_index"
+    type: "rss"
     homepage_url: "https://huggingface.co/blog"
-    feed_url: null
+    feed_url: "https://huggingface.co/blog/feed.xml"
     category: "open_source"
     tags: ["HuggingFace", "open-source", "LLM", "Transformers", "community"]
     enabled: true
-    fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    fetch_strategy: "rss"
+    strategy_notes: "RSS feed verified 2026-06-11: 797 items, stable."
     relevance_hint: "重点关注开源模型发布、State-of-the-Art 模型、Transformers 更新。"
     fetch_interval_hours: 24
 
@@ -89,7 +89,7 @@ sources:
     tags: ["paper", "research", "agent", "AI", "arXiv"]
     enabled: true
     fetch_strategy: "rss"
-    # strategy_status: "verified"  # RSS 已确认可用
+    strategy_notes: "RSS feed verified 2026-06-11: 407 items, stable."
     relevance_hint: "重点关注 Agent、推理、RAG、文档理解、AI Safety 相关论文。"
     fetch_interval_hours: 24
 
@@ -103,7 +103,7 @@ sources:
     tags: ["paper", "research", "NLP", "LLM", "arXiv"]
     enabled: true
     fetch_strategy: "rss"
-    # strategy_status: "verified"  # RSS 已确认可用
+    strategy_notes: "RSS feed verified 2026-06-11: 181 items, stable."
     relevance_hint: "重点关注大语言模型、NLP 架构、推理优化、对话系统相关论文。"
     fetch_interval_hours: 24
 
@@ -117,7 +117,7 @@ sources:
     tags: ["paper", "research", "ML", "deep-learning", "arXiv"]
     enabled: true
     fetch_strategy: "rss"
-    # strategy_status: "verified"  # RSS 已确认可用
+    strategy_notes: "RSS feed verified 2026-06-11: 396 items, stable."
     relevance_hint: "重点关注深度学习理论、训练方法、优化算法相关论文。"
     fetch_interval_hours: 24
 
@@ -131,7 +131,7 @@ sources:
     tags: ["Stanford", "HAI", "policy", "AI-society", "research"]
     enabled: true
     fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    strategy_notes: "No public RSS found (hai.stanford.edu/news/feed returns HTML). HTML index fallback."
     relevance_hint: "重点关注 AI 政策、AI 社会影响、人机交互研究。"
     fetch_interval_hours: 24
 
@@ -145,7 +145,7 @@ sources:
     tags: ["MIT", "research", "AI", "robotics", "policy"]
     enabled: true
     fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    strategy_notes: "No public RSS found (MIT news RSS paths return 404). HTML index fallback."
     relevance_hint: "重点关注 AI 机器人研究、AI 政策、AI 安全相关报道。"
     fetch_interval_hours: 24
 
@@ -159,21 +159,21 @@ sources:
     tags: ["Meta", "LLaMA", "open-source", "multimodal", "research"]
     enabled: true
     fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    strategy_notes: "No public RSS found (ai.meta.com/blog/feed 404). HTML index fallback."
     relevance_hint: "重点关注开源模型、多模态、Agents 研究。"
     fetch_interval_hours: 24
 
   nvidia_ai_blog:
     name: "NVIDIA AI Blog"
     description: "NVIDIA 官方 AI 博客，覆盖 Agentic AI、Physical AI、GPU、机器人和开发者生态"
-    type: "html_index"
+    type: "rss"
     homepage_url: "https://blogs.nvidia.com/blog/category/generative-ai/"
-    feed_url: null
+    feed_url: "https://blogs.nvidia.com/blog/category/generative-ai/feed"
     category: "company"
     tags: ["NVIDIA", "GPU", "agent", "physical-ai", "robotics", "developer"]
     enabled: true
-    fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    fetch_strategy: "rss"
+    strategy_notes: "RSS feed verified 2026-06-11: 18 items."
     relevance_hint: "重点关注 Agentic AI、Physical AI、AI 基础设施、本地 AI、开发者工具。"
     fetch_interval_hours: 24
 
@@ -187,21 +187,21 @@ sources:
     tags: ["Microsoft", "Copilot", "Azure AI", "enterprise-ai", "agent"]
     enabled: true
     fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    strategy_notes: "No public RSS found (news.microsoft.com/source/topics/ai/ 403). HTML index fallback."
     relevance_hint: "重点关注 Copilot、企业 AI、AI agent、开发者生态和行业应用。"
     fetch_interval_hours: 24
 
   berkeley_bair_blog:
     name: "Berkeley BAIR Blog"
     description: "UC Berkeley BAIR 官方研究博客，覆盖推理、机器人、世界模型、RL 和 AI 安全相关研究"
-    type: "html_index"
+    type: "rss"
     homepage_url: "https://bair.berkeley.edu/blog/"
-    feed_url: null
+    feed_url: "https://bair.berkeley.edu/blog/feed"
     category: "research"
     tags: ["Berkeley", "BAIR", "research", "reasoning", "robotics", "world-model"]
     enabled: true
-    fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    fetch_strategy: "rss"
+    strategy_notes: "RSS feed verified 2026-06-11: 10 items."
     relevance_hint: "重点关注推理、Agent、机器人、世界模型、解释性和前沿研究趋势。"
     fetch_interval_hours: 24
 
@@ -215,7 +215,7 @@ sources:
     tags: ["Mistral", "open-model", "frontier-models", "Europe AI", "LLM"]
     enabled: true
     fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    strategy_notes: "No public RSS found (mistral.ai/news/feed 404). HTML index fallback."
     relevance_hint: "重点关注开源模型、企业 LLM、欧洲 AI 模型生态和产品发布。"
     fetch_interval_hours: 24
 
@@ -229,6 +229,6 @@ sources:
     tags: ["Cohere", "RAG", "enterprise-ai", "retrieval", "LLM"]
     enabled: true
     fetch_strategy: "html_index"
-    # strategy_status: "needs_review"  # 建议验证是否有 RSS feed
+    strategy_notes: "No public RSS found (cohere.com/blog/feed and /rss paths return 404 or non-RSS content). HTML index fallback."
     relevance_hint: "重点关注企业 RAG、检索增强、Command 模型和企业 AI 产品化。"
     fetch_interval_hours: 24

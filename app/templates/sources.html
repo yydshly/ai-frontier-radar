@@ -137,22 +137,13 @@
         <div class="sources-grid">
             {% for s in sources %}
             <div class="source-card" id="src-{{ s.source_key }}">
-                <!-- Card header -->
+                <!-- Card header: name (left) + status badge (right) -->
                 <div class="source-card-header">
-                    <div class="source-card-title">
+                    <div class="source-card-title-block">
                         <span class="source-icon">📡</span>
-                        <div>
-                            <div class="source-name">{{ s.name }}</div>
-                            <div class="source-meta">
-                                <span class="category-tag">{{ s.category }}</span>
-                                <span class="strategy-tag">{{ s.effective_strategy_label }}</span>
-                                {% if s.needs_review %}
-                                <span class="strategy-tag" style="background:#f57c00; color:white;">需补充 RSS</span>
-                                {% endif %}
-                            </div>
-                        </div>
+                        <span class="source-name">{{ s.name }}</span>
                     </div>
-                    <!-- Status badge -->
+                    <!-- Status badge (top-right, flex-shrink) -->
                     <div class="source-status">
                         {% if s.fetch_run_status == 'success' and s.fetch_run_items_new > 0 %}
                         <span class="status-badge status-compiled">成功 +{{ s.fetch_run_items_new }} 新增</span>
@@ -162,6 +153,8 @@
                         <span class="status-badge" style="background:#1976d2; color:white;">运行中</span>
                         {% elif s.fetch_run_status == 'partial_failed' %}
                         <span class="status-badge" style="background:#f57c00; color:white;">部分失败</span>
+                        {% elif s.fetch_run_status == 'failed' and s.is_stale_recovered %}
+                        <span class="status-badge" style="background:#6a737d; color:white;" title="上次探测超时，已自动清理，可重新运行探测">待重抓（上次超时已恢复）</span>
                         {% elif s.fetch_run_status == 'failed' %}
                         <span class="status-badge status-failed">失败：{{ s.readable_error or '未知原因' }}</span>
                         {% elif s.fetch_run_status == 'pending' %}
@@ -170,6 +163,15 @@
                         <span class="muted">从未运行</span>
                         {% endif %}
                     </div>
+                </div>
+
+                <!-- Badge row: category, fetch method, RSS status (wraps on narrow cards) -->
+                <div class="source-badge-row">
+                    <span class="category-tag">{{ s.category }}</span>
+                    <span class="strategy-tag">{{ s.effective_strategy_label }}</span>
+                    {% if s.rss_status_label %}
+                    <span class="strategy-tag {{ s.rss_status_class }}">{{ s.rss_status_label }}</span>
+                    {% endif %}
                 </div>
 
                 <!-- Card stats -->
@@ -183,7 +185,7 @@
                         <span class="stat-key">新增</span>
                     </div>
                     <div class="source-stat">
-                        <span class="stat-val">
+                        <span class="stat-val stat-datetime">
                             {% if s.last_success_at %}
                             {{ s.last_success_at.strftime('%m-%d %H:%M') }}
                             {% else %}
@@ -217,7 +219,12 @@
                         <a href="{{ s.feed_url }}" target="_blank" rel="noopener">{{ s.feed_url[:60] }}{% if s.feed_url|length > 60 %}...{% endif %}</a>
                     </div>
                     {% endif %}
-                    {% if s.last_error_message %}
+                    {% if s.is_stale_recovered %}
+                    <div class="tech-row">
+                        <span class="tech-label">提示：</span>
+                        <span>上次探测超时被自动标记并已清理；该来源此前抓取成功，点击「运行探测」可重新抓取。</span>
+                    </div>
+                    {% elif s.last_error_message %}
                     <div class="tech-row">
                         <span class="tech-label">错误：</span>
                         <span class="error-msg">{{ s.readable_error or s.last_error_message[:80] }}{% if s.last_error_message|length > 80 %}...{% endif %}</span>

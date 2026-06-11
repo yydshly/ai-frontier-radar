@@ -180,6 +180,10 @@ def validate_source_config(source_key: str, raw: dict) -> SourceConfig:
             f"got {fetch_interval_hours}"
         )
 
+    # Reliability annotations (optional, free-text; display/review only).
+    strategy_notes = _parse_str(raw.get("strategy_notes", ""), "strategy_notes", source_key)
+    strategy_status = _parse_str(raw.get("strategy_status", ""), "strategy_status", source_key)
+
     return SourceConfig(
         source_key=source_key,
         name=name,
@@ -193,6 +197,8 @@ def validate_source_config(source_key: str, raw: dict) -> SourceConfig:
         fetch_strategy=fetch_strategy,
         relevance_hint=relevance_hint,
         fetch_interval_hours=fetch_interval_hours,
+        strategy_notes=strategy_notes,
+        strategy_status=strategy_status,
     )
 
 

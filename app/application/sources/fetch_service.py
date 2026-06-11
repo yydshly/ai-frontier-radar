@@ -25,8 +25,11 @@ from app.sources.rss_probe import probe_rss_source
 from app.sources.html_index_probe import probe_html_index_source
 
 
-# Supported fetch strategies
-SUPPORTED_STRATEGIES = {"rss", "html_index"}
+# Supported fetch strategies — single source of truth lives in effective_strategy.
+# Re-exported here so existing `from fetch_service import SUPPORTED_STRATEGIES`
+# importers keep working.
+from app.application.sources.effective_strategy import SUPPORTED_STRATEGIES  # noqa: F401,E402
+
 DEFAULT_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 50
 MIN_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 1
 MAX_SOURCE_FETCH_MAX_ITEMS_PER_RUN = 500
@@ -122,7 +125,10 @@ class SourceFetchService:
         max_items = get_source_fetch_max_items_per_run()
 
         try:
-            strategy = source.fetch_strategy
+            # S2: use the effective (RSS-first) strategy, mirroring the
+            # background fetch path. Identical to configured when no feed_url.
+            from app.application.sources.effective_strategy import compute_effective_strategy
+            strategy = compute_effective_strategy(source.feed_url, source.fetch_strategy)
 
             # Check if strategy is supported
             if strategy not in SUPPORTED_STRATEGIES:

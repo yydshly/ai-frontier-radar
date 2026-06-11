@@ -876,14 +876,15 @@ def main():
             )
             db_session.add(src_rss)
 
-            # Create HTML test source
+            # Create HTML test source. html_index sources have no feed_url —
+            # a feed_url would (correctly) make the effective strategy RSS.
             src_html = Source(
                 source_key=bg_test_key + "_html",
                 name="Test BG HTML",
                 description="Test",
                 source_type="html_index",
                 homepage_url="https://example.com",
-                feed_url="https://example.com/index.html",
+                feed_url=None,
                 category="research",
                 tags_json="[]",
                 enabled=True,
@@ -918,6 +919,11 @@ def main():
                 check("background RSS source_fetch_limit.max_items_per_run == 50",
                       metadata.get("source_fetch_limit", {}).get("max_items_per_run") == 50,
                       f"got {metadata.get('source_fetch_limit')}")
+                # S2: FetchRun records the actual (effective) strategy used.
+                check("background RSS FetchRun records effective strategy",
+                      metadata.get("fetch_strategy", {}).get("effective") == "rss"
+                      and metadata.get("fetch_strategy", {}).get("configured") == "rss",
+                      f"got {metadata.get('fetch_strategy')}")
 
             # Test 2: HTML background run receives max_items
             captured_calls.clear()
@@ -6975,10 +6981,20 @@ def main():
               diagnose_script.exists(),
               "diagnose_data_quality.py should exist")
 
-        # sources.html shows recommended_strategy (needs_review tag)
-        check("sources.html shows 需补充 RSS tag for HTML-index sources",
-              "需补充 RSS" in sources_html,
-              "sources.html should show needs_review tag")
+        # sources.html no longer shows deprecated "需补充 RSS" (V1.0-beta.14)
+        check("sources.html no longer shows 需补充 RSS",
+              "需补充 RSS" not in sources_html,
+              "sources.html should not show the deprecated 需补充 RSS tag")
+
+        # V1.0-beta.14: RSS status labels are dynamic (from s.rss_status_label);
+        # check the rendered page, not the raw template.
+        rendered = client.get("/sources").text
+        rss_ok = "RSS 已验证" in rendered
+        rss_warn = "未发现可靠 RSS" in rendered
+        rss_pending = "待核查 RSS" in rendered
+        check("sources page shows one of the new RSS status labels in rendered HTML",
+              rss_ok or rss_warn or rss_pending,
+              "/sources should show RSS 已验证 / 未发现可靠 RSS / 待核查 RSS")
 
         # sources.html distinguishes success-with-0-new from failure
         check("sources.html distinguishes 成功（无新增） from failure",
@@ -6990,10 +7006,10 @@ def main():
               'tech-label">Feed' in sources_html,
               "sources.html should show Feed URL in tech details")
 
-        # source_detail shows needs_review indicator
-        check("source_detail shows 需补充 RSS",
-              "需补充 RSS" in detail_html,
-              "workspace should show needs_review tag")
+        # source_detail no longer shows deprecated "需补充 RSS" (V1.0-beta.14)
+        check("source_detail no longer shows 需补充 RSS",
+              "需补充 RSS" not in detail_html,
+              "source_detail should not show the deprecated 需补充 RSS")
 
         # source_detail shows homepage_url
         check("source_detail shows homepage_url in basic info",
@@ -7040,6 +7056,276 @@ def main():
 
     except Exception as e:
         check("V1.0-beta.13 Source Experience checks", False, str(e))
+
+    # ── 57. V1.0-beta.14 Source Config & Daily Loop ─────────────────
+    print("\n[57] V1.0-beta.14 Source Config & Daily Loop")
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+        sources_yaml = project_root / "config" / "sources.example.yaml"
+
+        # Load and parse sources.example.yaml
+        import yaml
+        with open(sources_yaml, encoding="utf-8") as f:
+            sources_data = yaml.safe_load(f)
+
+        sources_list = sources_data.get("sources", {})
+        check("15 sources in sources.example.yaml",
+              len(sources_list) == 15,
+              f"expected 15, got {len(sources_list)}")
+
+        # Collect feed_url and strategy per source
+        rss_sources = []
+        html_no_feed = []
+        empty_homepage = []
+        for key, cfg in sources_list.items():
+            if not cfg.get("homepage_url"):
+                empty_homepage.append(key)
+            fs = cfg.get("fetch_strategy", "")
+            feed = cfg.get("feed_url")
+            if feed:
+                rss_sources.append(key)
+                check(f"  {key}: feed_url set → fetch_strategy must be rss",
+                      fs == "rss",
+                      f"got fetch_strategy={fs}")
+                if cfg.get("needs_review") is True:
+                    check(f"  {key}: has feed_url → needs_review should not be True",
+                          False,
+                          f"{key} has feed_url but needs_review=True")
+            else:
+                html_no_feed.append(key)
+
+        check("No source has empty homepage_url",
+              len(empty_homepage) == 0,
+              f"empty homepage: {empty_homepage}")
+
+        # RSS sources should have feed_url; HTML sources should note it
+        check("RSS sources have feed_url (rss_sources: {})".format(len(rss_sources)),
+              len(rss_sources) > 0,
+              f"need at least 1 RSS source with feed_url")
+        check("HTML-index sources have no feed_url ({})".format(len(html_no_feed)),
+              len(html_no_feed) > 0,
+              f"need at least 1 HTML-index source without feed_url")
+
+        # All HTML-index sources should have strategy_notes documenting why
+        all_have_notes = all(
+            sources_list[k].get("strategy_notes")
+            for k in html_no_feed
+        )
+        check("HTML-index sources have strategy_notes",
+              all_have_notes,
+              "all html_index sources should document no-RSS reason in strategy_notes")
+
+        # sync_sources_from_config.py exists
+        sync_script = project_root / "scripts" / "sync_sources_from_config.py"
+        check("scripts/sync_sources_from_config.py exists",
+              sync_script.exists(),
+              "sync script should exist for YAML→DB sync")
+
+        # diagnose_data_quality.py runs dry-run (no crash)
+        diag_script = project_root / "scripts" / "diagnose_data_quality.py"
+        check("scripts/diagnose_data_quality.py exists",
+              diag_script.exists(),
+              "diagnose script should exist")
+        result = subprocess.run(
+            [sys.executable, str(diag_script)],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        check("diagnose_data_quality.py runs without crash",
+              result.returncode == 0,
+              f"exit code {result.returncode}: {result.stderr[:200]}")
+
+        # check_sources_config.py still passes
+        check_script = project_root / "scripts" / "check_sources_config.py"
+        result2 = subprocess.run(
+            [sys.executable, str(check_script)],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("check_sources_config.py validation passes",
+              result2.returncode == 0,
+              result2.stdout[:300])
+
+    except Exception as e:
+        check("V1.0-beta.14 Source Config checks", False, str(e))
+
+    # ── 49. Effective fetch strategy helper + RSS-first guardrail (S1) ───────
+    print("\n[49] Effective fetch strategy + reliability")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        eff_py = project_root / "app" / "application" / "sources" / "effective_strategy.py"
+        analysis_doc = project_root / "docs" / "V1_SOURCE_PIPELINE_ANALYSIS.md"
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+
+        check("effective strategy helper exists",
+              eff_py.exists(),
+              "pure effective-strategy helper should exist")
+        check("source pipeline analysis doc exists",
+              analysis_doc.exists(),
+              "source pipeline analysis doc should exist")
+
+        from app.application.sources.effective_strategy import (
+            compute_effective_strategy,
+            reliability_rank,
+            check_strategy_consistency,
+        )
+        # Behavior identical to the previous inline rule.
+        check("effective strategy applies RSS-first rule",
+              compute_effective_strategy("https://x/rss", "html_index") == "rss"
+              and compute_effective_strategy(None, "html_index") == "html_index",
+              "feed_url present must yield rss; else the configured strategy")
+        check("reliability ordering ranks rss above html_index above crawler",
+              reliability_rank("rss") < reliability_rank("html_index") < reliability_rank("crawler"),
+              "reliability order should rank rss as most reliable")
+        check("consistency flags feed_url with non-rss strategy",
+              check_strategy_consistency("https://x/rss", "html_index").consistent is False
+              and check_strategy_consistency("https://x/rss", "rss").consistent is True,
+              "consistency check should flag a feed_url configured as non-rss")
+
+        # The inline duplication should be gone (centralized into the helper).
+        check("routes use the centralized effective-strategy helper",
+              "compute_effective_strategy(" in main_py
+              and '"rss" if s.feed_url else s.fetch_strategy' not in main_py
+              and '"rss" if source.feed_url else source.fetch_strategy' not in main_py,
+              "inline effective-strategy duplication should be replaced by the helper")
+
+        # Regression guardrail: current config must obey RSS-first (no drift).
+        from app.sources.config_loader import list_sources
+        violations = [
+            s.source_key for s in list_sources(include_disabled=True)
+            if not check_strategy_consistency(s.feed_url, s.fetch_strategy).consistent
+        ]
+        check("config sources obey RSS-first (no strategy drift)",
+              violations == [],
+              f"these sources have feed_url/strategy drift: {violations}")
+
+        # S4(a): the duplicated supported-strategy sets are now one object.
+        from app.application.sources.effective_strategy import SUPPORTED_STRATEGIES as _canon
+        from app.application.sources.fetch_service import SUPPORTED_STRATEGIES as _fs
+        from app.application.sources.due_sources import SUPPORTED_FETCH_STRATEGIES as _ds
+        check("supported strategy set is a single source of truth",
+              _fs is _canon and _ds is _canon and _canon == frozenset({"rss", "html_index"}),
+              "fetch_service / due_sources must reuse the canonical SUPPORTED_STRATEGIES")
+
+        # S4(b): reliability annotations are parsed into SourceConfig.
+        from app.sources.config_loader import list_sources as _ls
+        _cfgs = list(_ls(include_disabled=True))
+        check("SourceConfig carries reliability annotations",
+              all(hasattr(s, "strategy_notes") and hasattr(s, "strategy_status") for s in _cfgs)
+              and any((s.strategy_notes or "").strip() for s in _cfgs),
+              "strategy_notes/strategy_status should be parsed from YAML into SourceConfig")
+        detail_html = (project_root / "app" / "templates" / "source_detail.html").read_text(encoding="utf-8")
+        check("source workspace surfaces strategy notes",
+              "策略说明" in detail_html and "config_source.strategy_notes" in detail_html,
+              "workspace should display config strategy_notes when present")
+
+        # S3: reliability fallback chain planner + orchestrator (pure).
+        from app.application.sources.effective_strategy import (
+            build_strategy_chain,
+            select_succeeding_probe,
+        )
+        check("strategy chain is reliability-ordered with both urls",
+              build_strategy_chain("https://x/rss", "https://x", "html_index") == ["rss", "html_index"]
+              and build_strategy_chain(None, "https://x", "html_index") == ["html_index"]
+              and build_strategy_chain("https://x/rss", None, "rss") == ["rss"],
+              "chain should be rss-first and only include strategies with an available url")
+
+        def _runner(s):
+            return {"items_found": 0, "error_message": "boom"} if s == "rss" else {"items_found": 3, "error_message": None}
+        chosen, _res, attempts = select_succeeding_probe(["rss", "html_index"], _runner)
+        check("orchestrator falls back to next reliable method on failure",
+              chosen == "html_index"
+              and [a["strategy"] for a in attempts] == ["rss", "html_index"]
+              and attempts[0]["ok"] is False and attempts[1]["ok"] is True,
+              "select_succeeding_probe should try weaker methods until one succeeds")
+        chosen2, _r2, att2 = select_succeeding_probe(["rss", "html_index"], lambda s: {"items_found": 5, "error_message": None})
+        check("orchestrator stops at first success (no extra attempts)",
+              chosen2 == "rss" and len(att2) == 1,
+              "a succeeding primary must not trigger fallback attempts")
+
+        # The fetch fallback is gated and default-off (behavior unchanged by default).
+        bg_text = (project_root / "app" / "application" / "sources" / "background_fetch.py").read_text(encoding="utf-8")
+        check("fetch fallback is gated by an opt-in env flag",
+              "RADAR_FETCH_FALLBACK_ENABLED" in bg_text
+              and "select_succeeding_probe" in bg_text,
+              "background fetch should gate the fallback chain behind RADAR_FETCH_FALLBACK_ENABLED")
+        check("fetch fallback isolated acceptance exists",
+              (project_root / "scripts" / "acceptance_fetch_fallback_chain.py").exists(),
+              "S3 isolated fallback acceptance script should exist")
+
+        # S5: feed auto-discovery (pure parser, offline) + read-only CLI.
+        from app.application.sources.feed_discovery import discover_feed_links
+        _sample = (
+            '<html><head>'
+            '<link rel="alternate" type="application/rss+xml" href="/feed.xml">'
+            '<link rel="stylesheet" href="/s.css">'
+            '<link rel="alternate" type="application/atom+xml" href="https://a.example/atom">'
+            '</head></html>'
+        )
+        _feeds = discover_feed_links(_sample, base_url="https://example.com/blog/")
+        check("feed discovery finds rss/atom links and resolves urls",
+              [f.url for f in _feeds] == ["https://example.com/feed.xml", "https://a.example/atom"],
+              "discover_feed_links should extract feed <link> tags and absolutize hrefs")
+        check("feed discovery ignores non-feed links and bad input",
+              discover_feed_links("<p>no feeds</p>", "https://x.com") == []
+              and discover_feed_links(None, None) == [],
+              "non-feed links / empty input must yield no feeds and never raise")
+
+        feed_cli = project_root / "scripts" / "discover_source_feeds.py"
+        check("feed discovery CLI exists and is read-only",
+              feed_cli.exists(),
+              "feed discovery CLI should exist")
+        if feed_cli.exists():
+            _cli_text = feed_cli.read_text(encoding="utf-8")
+            check("feed discovery CLI does not write config/db",
+                  ".commit(" not in _cli_text
+                  and "open(" not in _cli_text
+                  and "sources.yaml" in _cli_text,  # only referenced as manual-edit guidance
+                  "feed discovery must be suggest-only (no config/db writes)")
+
+        # S4(c): lock the type==fetch_strategy convention for supported strategies
+        # (the two fields are redundant today; this catches future drift).
+        from app.sources.config_loader import list_sources as _ls2
+        _type_drift = [
+            s.source_key for s in _ls2(include_disabled=True)
+            if s.fetch_strategy in ("rss", "html_index") and s.type != s.fetch_strategy
+        ]
+        check("config source type matches fetch_strategy (supported strategies)",
+              _type_drift == [],
+              f"these sources have type/fetch_strategy mismatch: {_type_drift}")
+    except Exception as e:
+        check("effective strategy checks", False, str(e))
+
+    # ── 50. /sources display: stale-timeout shown neutrally (no jargon leak) ──
+    print("\n[50] /sources stale-timeout display")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        sources_html = (project_root / "app" / "templates" / "sources.html").read_text(encoding="utf-8")
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+
+        check("sources route flags stale-timeout recovery",
+              "is_stale_recovered" in main_py and "[stale-timeout]" in main_py,
+              "route should detect stale-timeout recovery and pass a flag")
+        check("sources template renders stale-timeout neutrally",
+              "待重抓（上次超时已恢复）" in sources_html
+              and "s.is_stale_recovered" in sources_html,
+              "template should show stale recovery as a neutral status, not red 失败")
+
+        # Render guardrail: the raw English stale-timeout jargon must never leak.
+        from fastapi.testclient import TestClient
+        from app.main import app as _app
+        _resp = TestClient(_app).get("/sources")
+        check("/sources renders 200 without leaking stale-timeout jargon",
+              _resp.status_code == 200
+              and "[stale-timeout]" not in _resp.text
+              and "Marked failed by manual stale recovery" not in _resp.text,
+              "rendered /sources must not surface raw stale-timeout error text")
+    except Exception as e:
+        check("sources stale-timeout display checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

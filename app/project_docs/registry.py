@@ -285,6 +285,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="P-004：自定义来源接入，策略白名单 + dry-run 预览 + 与配置同步共存，写库走显式 gate。",
     ),
+    "source-pipeline-analysis": DocEntry(
+        key="source-pipeline-analysis",
+        title="信息来源链路分析（配置→探测→展示）",
+        path="docs/V1_SOURCE_PIPELINE_ANALYSIS.md",
+        category="优化路线",
+        description="RSS 优先、按可靠性标记、以可靠探测方式展示的现状问题分析与分阶段处理方案。",
+    ),
 }
 
 

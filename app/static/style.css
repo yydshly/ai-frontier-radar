@@ -1312,7 +1312,15 @@ footer {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.source-card-title-block {
+    display: flex;
+    align-items: center;
     gap: 0.5rem;
+    min-width: 0;
+    flex: 1;
 }
 
 .source-card-title {
@@ -1321,6 +1329,21 @@ footer {
     gap: 0.5rem;
     flex: 1;
     min-width: 0;
+}
+
+.source-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.source-badge-row .category-tag,
+.source-badge-row .source-type-tag,
+.source-badge-row .strategy-tag {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
 }
 
 .source-icon {
@@ -1357,6 +1380,22 @@ footer {
     color: #2e7d32;
 }
 
+/* RSS status badge variants (V1.0-beta.14) */
+.strategy-tag.rss-ok {
+    background: #c8e6c9;
+    color: #2e7d32;
+}
+
+.strategy-tag.rss-warn {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.strategy-tag.rss-pending {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
 .source-status .status-badge {
     font-size: 0.75rem;
 }
@@ -1375,12 +1414,20 @@ footer {
     align-items: center;
     gap: 0.15rem;
     flex: 1;
+    min-width: 0;
 }
 
 .stat-val {
     font-size: 1.2rem;
     font-weight: 700;
     color: #2c3e50;
+}
+
+/* V1.0-beta.14: keep datetime on a single line */
+.stat-datetime {
+    white-space: nowrap;
+    font-size: 1.1rem;
+    line-height: 1.2;
 }
 
 .stat-key {
