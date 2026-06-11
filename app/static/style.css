@@ -4494,6 +4494,12 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     margin: 0;
     display: inline-flex;
     align-items: center;
+    gap: 0.4rem;
+}
+
+.radar-summary-hint {
+    color: #57606a;
+    font-size: 0.78rem;
 }
 
 .radar-summary-result {

@@ -699,7 +699,7 @@ def generate_today_summaries(
     limit: int = Form(DEFAULT_LIMIT),
     page: int = Form(1),
     per_page: int = Form(DEFAULT_PER_PAGE),
-    summary_limit: int = Form(5),
+    summary_limit: int = Form(20),
 ):
     """Generate Chinese summaries for items visible on the current radar page."""
     db = next(get_db())
@@ -738,7 +738,7 @@ def generate_today_summaries(
         missing_summary = [item for item in items if not _has_zh_one_liner(item)]
         has_summary = [item for item in items if _has_zh_one_liner(item)]
 
-        max_items = max(1, min(summary_limit, 5))
+        max_items = max(1, min(summary_limit, 20))
         items = (missing_summary + has_summary)[:max_items]
 
         settings = get_one_liner_settings()

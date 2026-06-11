@@ -3124,12 +3124,12 @@ def main():
 
         check("today radar summary route caps current page generation",
               "summary_limit" in radar_route_py
-              and "min(summary_limit, 5)" in radar_route_py,
+              and "min(summary_limit, 20)" in radar_route_py,
               "summary generation should be capped to avoid long requests")
 
         check("today radar toolbar has summary generation form",
               'action="/radar/today/generate-summaries"' in radar_html
-              and "生成本页前 5 条摘要" in radar_html,
+              and "生成当前页中文摘要" in radar_html,
               "toolbar should expose current-page Chinese summary generation")
 
         check("today radar summary form preserves context",
@@ -4392,11 +4392,11 @@ def main():
               and 'return "已有摘要，已跳过"' in radar_py,
               "humanize function should return Chinese labels for all status values")
 
-        # 9. button text mentions 前 5 条 or 最多 5 条.
-        check("button text mentions '前 5 条' or '最多 5 条'",
-              ("前 5 条" in radar_html or "最多 5 条" in radar_html)
-              and "生成本页" in radar_html,
-              "button should say '生成本页前 5 条摘要' or similar")
+        # 9. button text mentions 生成当前页中文摘要.
+        check("button text mentions '生成当前页中文摘要'",
+              "生成当前页中文摘要" in radar_html
+              and "最多处理当前页 20 条" in radar_html,
+              "button should say '生成当前页中文摘要' with 20-item cap")
     except Exception as e:
         check("V1.0-beta.3 Summary fill checks", False, str(e))
 
@@ -4459,10 +4459,10 @@ def main():
               "打开原文" in radar_html,
               "external link must be preserved")
 
-        # 9. radar_today.html still contains "生成本页前 5 条摘要".
-        check("radar_today.html contains '生成本页前 5 条摘要'",
-              "生成本页前 5 条摘要" in radar_html,
-              "summary generation button text must be preserved")
+        # 9. radar_today.html contains "生成当前页中文摘要".
+        check("radar_today.html contains '生成当前页中文摘要'",
+              "生成当前页中文摘要" in radar_html,
+              "summary generation button text must be updated to current-page action")
 
         # 10. radar_today.html still contains "智能阅读面板" (now in partial).
         check("radar_today.html contains '智能阅读面板'",
