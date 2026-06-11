@@ -5374,6 +5374,12 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     margin-bottom: 1rem;
 }
 
+.radar-report-empty-hint {
+    color: #888;
+    font-size: 0.9rem;
+    padding: 0.5rem 0;
+}
+
 .radar-report-footer {
     margin-top: 2rem;
     padding-top: 1rem;

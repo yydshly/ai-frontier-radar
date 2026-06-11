@@ -183,14 +183,6 @@ def generate_daily_report(
     settings = get_daily_report_settings()
     payload = build_daily_report_input(db, now=now)
 
-    if payload.item_count == 0:
-        return DailyReportResult(
-            status="no_input",
-            date_label=payload.date_label,
-            input_item_count=0,
-            message="今日暂无可编译的中文摘要内容。",
-        )
-
     if not apply:
         return DailyReportResult(
             status="dry_run",
@@ -205,6 +197,14 @@ def generate_daily_report(
             date_label=payload.date_label,
             input_item_count=payload.item_count,
             message="--apply 需要 DAILY_REPORT_ENABLED=true 才会调用 LLM。",
+        )
+
+    if payload.item_count == 0:
+        return DailyReportResult(
+            status="no_input",
+            date_label=payload.date_label,
+            input_item_count=0,
+            message="今日暂无可编译的中文摘要内容。",
         )
 
     if provider is None:
