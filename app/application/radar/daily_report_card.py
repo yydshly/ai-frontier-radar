@@ -192,6 +192,9 @@ class DailyReportOverview:
     with_zh_summary: int
     with_insight_card: int
     covered_sources: int
+    # Deduplicated readable and pending item counts
+    readable_items: int = 0
+    pending_items: int = 0
     # Report readiness: "ready" | "partial" | "empty"
     report_status: str = "empty"
 
@@ -347,7 +350,13 @@ def build_daily_report_card(
                 with_zh_summary=0,
                 with_insight_card=0,
                 covered_sources=0,
+                readable_items=0,
+                pending_items=0,
+                report_status="empty",
             ),
+            primary_items=[],
+            secondary_items=[],
+            secondary_all_shown=True,
         )
 
     scored = [(_score_item(r, now), r) for r in rows]
@@ -366,24 +375,6 @@ def build_daily_report_card(
             with_summary += 1
         if item.insight_card_id:
             with_insight += 1
-
-    # ── Report readiness ───────────────────────────────────────────────────────
-    readable_count = with_one_liner + with_summary
-    if readable_count == 0:
-        report_status = "empty"
-    elif readable_count < _READY_THRESHOLD:
-        report_status = "partial"
-    else:
-        report_status = "ready"
-
-    overview = DailyReportOverview(
-        total_items=len(rows),
-        with_zh_one_liner=with_one_liner,
-        with_zh_summary=with_summary,
-        with_insight_card=with_insight,
-        covered_sources=len(source_keys),
-        report_status=report_status,
-    )
 
     # ── Separate readable vs pending items ────────────────────────────────────
     readable: list[tuple[SourceItem, str, str | None, str | None]] = []
@@ -470,9 +461,30 @@ def build_daily_report_card(
     # secondary_all_shown: whether all pending items are displayed
     secondary_all_shown = len(pending) <= secondary_limit
 
+    # Build final overview with deduplicated counts
+    readable_items = len(readable)
+    pending_items = len(pending)
+    if readable_items == 0:
+        report_status = "empty"
+    elif readable_items < _READY_THRESHOLD:
+        report_status = "partial"
+    else:
+        report_status = "ready"
+
+    final_overview = DailyReportOverview(
+        total_items=len(rows),
+        with_zh_one_liner=with_one_liner,
+        with_zh_summary=with_summary,
+        with_insight_card=with_insight,
+        covered_sources=len(source_keys),
+        readable_items=readable_items,
+        pending_items=pending_items,
+        report_status=report_status,
+    )
+
     return DailyReportCard(
         date_label=day_start.strftime("%Y-%m-%d"),
-        overview=overview,
+        overview=final_overview,
         primary_items=primary_items,
         secondary_items=secondary_items,
         secondary_all_shown=secondary_all_shown,

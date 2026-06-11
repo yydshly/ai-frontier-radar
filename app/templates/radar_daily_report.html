@@ -30,8 +30,8 @@
                 <span class="radar-report-stat-label">收录内容</span>
             </div>
             <div class="radar-report-stat">
-                <span class="radar-report-stat-value">{{ overview.with_zh_one_liner }}</span>
-                <span class="radar-report-stat-label">已有中文概述</span>
+                <span class="radar-report-stat-value">{{ overview.readable_items }}</span>
+                <span class="radar-report-stat-label">可读内容</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.with_insight_card }}</span>
@@ -60,7 +60,7 @@
 
     {% elif overview.report_status == "partial" %}
     <div class="radar-report-partial-banner">
-        <p><strong>今日报告尚未完全准备好。</strong> 当前可读摘要 {{ overview.with_zh_one_liner }} 条，建议先补全后再看完整报告。</p>
+        <p><strong>今日报告尚未完全准备好。</strong> 当前可读内容 {{ overview.readable_items }} 条，还有 {{ overview.pending_items }} 条待补全。建议先补全中文摘要后再看完整报告。</p>
         <p>返回<a href="/radar/today?section=all&page=1">今日雷达</a>，点击「生成当前页中文摘要」，再回来看报告。</p>
         <a href="/radar/today?section=all&page=1" class="btn btn-primary">去生成中文摘要</a>
     </div>
@@ -101,8 +101,9 @@
 
                 {# Actions #}
                 <div class="radar-report-primary-actions">
-                    {% if item.url %}
-                    <a href="{{ item.url }}" target="_blank" rel="noopener" class="radar-report-action-link">打开原文</a>
+                    {% set safe_url = safe_external_url(item.url) if item.url else None %}
+                    {% if safe_url %}
+                    <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">打开原文</a>
                     {% endif %}
                     {% if item.insight_card_id %}
                     <a href="/cards/{{ item.insight_card_id }}" class="radar-report-action-link">查看洞察卡</a>
@@ -124,8 +125,8 @@
     <div class="radar-report-section">
         <div class="radar-report-section-header">
             <h2 class="radar-report-section-title">待补全内容</h2>
-            <span class="radar-report-section-count">{{ secondary_items|length }}
-                {% if not secondary_all_shown %}（共 {{ overview.total_items - primary_items|length }} 条）{% endif %}
+            <span class="radar-report-section-count">{{ secondary_items|length }} 条
+                {% if not secondary_all_shown %}（共 {{ overview.pending_items }} 条）{% endif %}
             </span>
         </div>
         <p class="radar-report-secondary-hint">以下条目尚未生成中文摘要，可在今日雷达中补全后再回来看报告。</p>
@@ -144,8 +145,9 @@
                     <h4 class="radar-report-secondary-title">{{ item.title }}</h4>
                 </div>
                 <div class="radar-report-secondary-actions">
-                    {% if item.url %}
-                    <a href="{{ item.url }}" target="_blank" rel="noopener" class="radar-report-action-link">打开原文</a>
+                    {% set safe_url = safe_external_url(item.url) if item.url else None %}
+                    {% if safe_url %}
+                    <a href="{{ safe_url }}" target="_blank" rel="noopener noreferrer" class="radar-report-action-link">打开原文</a>
                     {% endif %}
                     <a href="/source-items/{{ item.item_id }}" class="radar-report-action-link">查看条目</a>
                 </div>
@@ -154,10 +156,13 @@
         </div>
 
         {% if not secondary_all_shown %}
+        {% set remaining = overview.pending_items - secondary_items|length %}
+        {% if remaining > 0 %}
         <p class="radar-report-secondary-hint">
-            还有 {{ overview.total_items - primary_items|length - secondary_items|length }} 条内容待生成中文摘要。
+            还有 {{ remaining }} 条内容待生成中文摘要。
             在今日雷达中点击「生成当前页中文摘要」可继续补全。
         </p>
+        {% endif %}
         {% endif %}
     </div>
     {% endif %}

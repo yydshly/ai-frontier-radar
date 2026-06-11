@@ -987,6 +987,7 @@ def get_daily_report_card(request: Request):
     primary_items = card.primary_items
     secondary_items = card.secondary_items
     date_label = card.date_label
+    secondary_all_shown = card.secondary_all_shown
 
     return _radar_templates.TemplateResponse(
         "radar_daily_report.html",
@@ -996,6 +997,8 @@ def get_daily_report_card(request: Request):
             "overview": overview,
             "primary_items": primary_items,
             "secondary_items": secondary_items,
+            "secondary_all_shown": secondary_all_shown,
+            "safe_external_url": safe_external_url,
         },
     )
 
