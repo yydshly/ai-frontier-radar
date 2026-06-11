@@ -7290,6 +7290,33 @@ def main():
     except Exception as e:
         check("effective strategy checks", False, str(e))
 
+    # ── 50. /sources display: stale-timeout shown neutrally (no jargon leak) ──
+    print("\n[50] /sources stale-timeout display")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        sources_html = (project_root / "app" / "templates" / "sources.html").read_text(encoding="utf-8")
+        main_py = (project_root / "app" / "main.py").read_text(encoding="utf-8")
+
+        check("sources route flags stale-timeout recovery",
+              "is_stale_recovered" in main_py and "[stale-timeout]" in main_py,
+              "route should detect stale-timeout recovery and pass a flag")
+        check("sources template renders stale-timeout neutrally",
+              "待重抓（上次超时已恢复）" in sources_html
+              and "s.is_stale_recovered" in sources_html,
+              "template should show stale recovery as a neutral status, not red 失败")
+
+        # Render guardrail: the raw English stale-timeout jargon must never leak.
+        from fastapi.testclient import TestClient
+        from app.main import app as _app
+        _resp = TestClient(_app).get("/sources")
+        check("/sources renders 200 without leaking stale-timeout jargon",
+              _resp.status_code == 200
+              and "[stale-timeout]" not in _resp.text
+              and "Marked failed by manual stale recovery" not in _resp.text,
+              "rendered /sources must not surface raw stale-timeout error text")
+    except Exception as e:
+        check("sources stale-timeout display checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

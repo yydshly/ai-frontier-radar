@@ -1214,6 +1214,9 @@ def _render_sources_page(
             needs_review = (effective_strategy == "html_index")
             # V1.0-beta.13: readable error message
             raw_error = (health.latest_error_message if health else None) or s.last_error_message
+            # A stale-timeout recovery is not a real fetch failure — the source
+            # had a stuck run cleaned up. Surface it neutrally, not as red 失败.
+            is_stale_recovered = bool(raw_error and "[stale-timeout]" in raw_error)
             readable_error = _humanize_fetch_error(raw_error, effective_strategy)
             sources_data.append({
                 "source_key": s.source_key,
@@ -1243,6 +1246,8 @@ def _render_sources_page(
                 "needs_review": needs_review,
                 # V1.0-beta.13: readable error
                 "readable_error": readable_error,
+                # Stale-timeout recovery is not a real failure (show neutrally).
+                "is_stale_recovered": is_stale_recovered,
             })
 
         return templates.TemplateResponse(
