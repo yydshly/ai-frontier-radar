@@ -1414,12 +1414,20 @@ footer {
     align-items: center;
     gap: 0.15rem;
     flex: 1;
+    min-width: 0;
 }
 
 .stat-val {
     font-size: 1.2rem;
     font-weight: 700;
     color: #2c3e50;
+}
+
+/* V1.0-beta.14: keep datetime on a single line */
+.stat-datetime {
+    white-space: nowrap;
+    font-size: 1.1rem;
+    line-height: 1.2;
 }
 
 .stat-key {
