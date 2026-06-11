@@ -4495,6 +4495,24 @@ def main():
         check("radar_today.html contains '智能阅读面板'",
               "智能阅读面板" in panel_partial,
               "reading panel must be preserved")
+
+        # 11. radar_today.html uses user-friendly "推荐深入分析" heading.
+        check("radar_today.html uses '推荐深入分析' heading",
+              "推荐深入分析" in radar_html,
+              "compile candidates section should use user-friendly heading")
+        check("radar_today.html no longer uses developer-style InsightCard heading",
+              "建议生成 InsightCard 候选" not in radar_html,
+              "developer-style InsightCard heading should be removed")
+
+        # 12. radar_today.html compile candidates section shows summary_preview.
+        check("radar_today.html compile candidates show summary_preview",
+              "radar-compile-candidate-summary" in radar_html,
+              "compile candidates should show summary_preview")
+
+        # 13. radar_today.html compile candidates link to reading panel.
+        check("radar_today.html compile candidates link to reading panel",
+              "item_id={{ c.source_item_id }}" in radar_html,
+              "compile candidates should link to reading panel")
     except Exception as e:
         check("V1.0-beta.3 Compact radar list UI checks", False, str(e))
 

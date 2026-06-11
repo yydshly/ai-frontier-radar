@@ -4760,6 +4760,31 @@ details[open] .radar-compile-candidates-summary::before {
     font-size: 0.7rem;
 }
 
+.radar-compile-candidate-details {
+    font-size: 0.7rem;
+    color: #57606a;
+}
+
+.radar-compile-candidate-details summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: inline;
+}
+
+.radar-compile-candidate-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.radar-compile-candidate-details summary::before {
+    content: "▶ ";
+    font-size: 0.6rem;
+}
+
+details[open] .radar-compile-candidate-details summary::before {
+    content: "▼ ";
+}
+
 /* ── Fetch run summary in today radar sidebar ─────────────────────── */
 .radar-fetch-summary {
     margin-top: 0.9rem;
