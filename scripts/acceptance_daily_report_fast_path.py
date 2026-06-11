@@ -404,15 +404,15 @@ def run_static_checks():
     check("radar_daily_report.html has partial/not-ready guidance",
           "尚未" in report_html or "补全" in report_html)
     check("radar_today.html shows recommended flow hint",
-          "推荐" in today_html_content and "更新今日新增" in today_html_content
-          and "生成中文摘要" in today_html_content)
+          "推荐" in today_html_content and "同步今日新增" in today_html_content
+          and "补全中文摘要" in today_html_content)
     # V1.0-beta.15 naming convention checks
-    check("radar_today.html has '查看今日可读简报' link",
-          "查看今日可读简报" in today_html_content)
-    check("radar_today.html has '生成今日核心报告' button",
-          "生成今日核心报告" in today_html_content)
+    check("radar_today.html has '查看可读简报' link",
+          "查看可读简报" in today_html_content)
+    check("radar_today.html has '生成核心报告' button",
+          "生成核心报告" in today_html_content)
     check("radar_today.html mentions basis for core report",
-          "基于今日已有中文摘要" in today_html_content)
+          "综合今日已有中文摘要" in today_html_content)
     check("radar_today.html exposes recommendation as peer navigation",
           "推荐深入分析" in today_html_content
           and "radar-section-link" in today_html_content)

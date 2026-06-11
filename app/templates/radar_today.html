@@ -85,9 +85,9 @@
                         </li>
                         {% if view.compile_candidates %}
                         <li>
-                            <a href="/radar/today?section=all&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}&panel=recommendations" class="radar-section-link {% if panel_mode == 'recommendations' %}is-active{% endif %}">
+                            <a href="/radar/today?section=recommended&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}&panel=recommendations" class="radar-section-link {% if view.active_section == 'recommended' %}is-active{% endif %}">
                                 <span>推荐深入分析</span>
-                                <span class="radar-section-count">{{ view.compile_candidates|length }}</span>
+                                <span class="radar-section-count">{{ view.section_counts.get('recommended', view.compile_candidates|length) }}</span>
                             </a>
                         </li>
                         {% endif %}
@@ -115,45 +115,75 @@
 
                     {# ── 今日操作 ─────────────────────────────────────────── #}
                     <div class="radar-today-actions">
-                        <div class="radar-today-actions-title">今日操作</div>
-                        <p class="radar-today-actions-hint">从发现、理解到报告，按顺序完成今日信息处理。</p>
-                        <form method="post" action="/radar/today/update" class="radar-update-form">
-                            <input type="hidden" name="section" value="{{ view.active_section }}">
-                            <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
-                            <input type="hidden" name="hours" value="{{ view.hours }}">
-                            <input type="hidden" name="limit" value="{{ view.limit }}">
-                            <input type="hidden" name="page" value="{{ view.page }}">
-                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                            <button type="submit" class="btn-sm btn-primary" title="更新今日雷达：只检查到期来源">更新今日新增</button>
-                        </form>
-                        <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form-inline">
-                            <input type="hidden" name="section" value="{{ view.active_section }}">
-                            <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
-                            <input type="hidden" name="hours" value="{{ view.hours }}">
-                            <input type="hidden" name="limit" value="{{ view.limit }}">
-                            <input type="hidden" name="page" value="{{ view.page }}">
-                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                            <input type="hidden" name="summary_limit" value="20">
-                            <button type="submit" class="btn-sm" title="优先处理推荐候选，再补齐当前页内容；最多处理 20 条，已有中文摘要会自动跳过">生成文章摘要</button>
-                        </form>
-                        {% if view.compile_candidates %}
-                        <form method="post" action="/radar/today/generate-recommended-insights" class="radar-summary-form-inline">
-                            <input type="hidden" name="section" value="all">
-                            <input type="hidden" name="hours" value="{{ view.hours }}">
-                            <input type="hidden" name="limit" value="{{ view.limit }}">
-                            <input type="hidden" name="page" value="1">
-                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                            <input type="hidden" name="insight_limit" value="5">
-                            <button type="submit" class="btn-sm" title="为推荐深入分析候选批量生成洞察卡，最多 5 条">生成推荐洞察卡</button>
-                        </form>
-                        {% endif %}
-                        <a href="/radar/daily-report" class="btn-sm" title="查看今日可读简报：规则筛选今日已有中文摘要内容，无需 LLM">查看今日可读简报</a>
-                        <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
-                            <button type="submit" class="btn-sm {% if not DAILY_REPORT_ENABLED %}btn-secondary{% endif %}" title="基于今日已有中文摘要内容生成，不包含待补全内容。需启用 LLM（DAILY_REPORT_ENABLED=true）。">生成今日核心报告{% if not DAILY_REPORT_ENABLED %}（需启用 LLM）{% endif %}</button>
-                            <span class="radar-digest-form-hint">基于今日已有中文摘要内容生成，不包含待补全内容。</span>
-                        </form>
-                        <a href="/radar/daily-report#daily-core-report" class="btn-sm">查看核心报告</a>
-                        <a href="/radar/daily-report/broadcast" class="btn-sm">查看语音播报</a>
+                        <div class="radar-today-actions-title">今日处理流程</div>
+                        <p class="radar-today-actions-hint">按需执行，不必每天重复处理已有结果。</p>
+                        <details class="radar-workflow-guide">
+                            <summary>如何获得最终报告</summary>
+                            <ol>
+                                <li><strong>同步新增</strong>：收录最近 24 小时的新文章。</li>
+                                <li><strong>补全摘要</strong>：生成报告需要的中文概述与摘要。</li>
+                                <li><strong>推荐洞察</strong>：可选，但能为重点文章补充深度分析。</li>
+                                <li><strong>可读简报</strong>：检查哪些内容会进入报告输入。</li>
+                                <li><strong>核心报告</strong>：生成最终报告，并查看语音文稿。</li>
+                            </ol>
+                            <p>未启用综合报告能力时，仍可查看规则整理的可读简报。</p>
+                        </details>
+
+                        <div class="radar-action-stage">
+                            <div class="radar-action-stage-heading"><span>1</span>同步今日内容</div>
+                            <p>检查已到期的信息源，收录最近 24 小时新增文章。</p>
+                            <form method="post" action="/radar/today/update" class="radar-update-form">
+                                <input type="hidden" name="section" value="{{ view.active_section }}">
+                                <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                                <input type="hidden" name="hours" value="{{ view.hours }}">
+                                <input type="hidden" name="limit" value="{{ view.limit }}">
+                                <input type="hidden" name="page" value="{{ view.page }}">
+                                <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                                <button type="submit" class="btn-sm btn-primary" title="仅检查已到期来源，不重复抓取冷却中的来源">同步今日新增</button>
+                            </form>
+                        </div>
+
+                        <div class="radar-action-stage">
+                            <div class="radar-action-stage-heading"><span>2</span>完善文章理解</div>
+                            <p>补齐中文概述与摘要，并为推荐文章生成深度洞察。</p>
+                            <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form-inline">
+                                <input type="hidden" name="section" value="{{ view.active_section }}">
+                                <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                                <input type="hidden" name="hours" value="{{ view.hours }}">
+                                <input type="hidden" name="limit" value="{{ view.limit }}">
+                                <input type="hidden" name="page" value="{{ view.page }}">
+                                <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                                <input type="hidden" name="summary_limit" value="20">
+                                <button type="submit" class="btn-sm" title="优先处理推荐候选，再补齐当前页；最多 20 条，已有完整摘要自动跳过">补全中文摘要</button>
+                            </form>
+                            {% if view.compile_candidates %}
+                            <form method="post" action="/radar/today/generate-recommended-insights" class="radar-summary-form-inline">
+                                <input type="hidden" name="section" value="all">
+                                <input type="hidden" name="hours" value="{{ view.hours }}">
+                                <input type="hidden" name="limit" value="{{ view.limit }}">
+                                <input type="hidden" name="page" value="1">
+                                <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                                <input type="hidden" name="insight_limit" value="5">
+                                <button type="submit" class="btn-sm" title="为推荐深入分析文章批量生成洞察卡，最多 5 条">生成推荐洞察</button>
+                            </form>
+                            {% endif %}
+                        </div>
+
+                        <div class="radar-action-stage">
+                            <div class="radar-action-stage-heading"><span>3</span>汇总与交付</div>
+                            <p>先查看规则整理的可读简报，再按需生成综合报告。</p>
+                            <a href="/radar/daily-report" class="btn-sm" title="基于已有中文摘要按规则整理，无需调用 LLM">查看可读简报</a>
+                            <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
+                                <button type="submit" class="btn-sm {% if not DAILY_REPORT_ENABLED %}btn-secondary{% endif %}" title="综合今日已有中文摘要生成核心报告" {% if not DAILY_REPORT_ENABLED %}disabled{% endif %}>生成核心报告</button>
+                                {% if not DAILY_REPORT_ENABLED %}
+                                <span class="radar-digest-form-hint">综合报告能力未启用</span>
+                                {% endif %}
+                            </form>
+                            <div class="radar-action-result-links">
+                                <a href="/radar/daily-report#daily-core-report">核心报告</a>
+                                <a href="/radar/daily-report/broadcast">语音文稿</a>
+                            </div>
+                        </div>
                     </div>
 
                     {% if daily_digest %}
@@ -276,6 +306,7 @@
                 {% set active_label = {
                     'all': '全部',
                     'today_focus': '最新发现',
+                    'recommended': '推荐深入分析',
                     'agent_workflow': 'Agent 工作流',
                     'rag_knowledge': 'RAG / 知识库',
                     'doc_understanding': '文档理解 / 资料处理',
@@ -292,7 +323,11 @@
                     {{ active_label.get(view.active_section, view.active_section) }}
                     <small>{{ view.total_items }}</small>
                 </h2>
+                {% if view.active_section == 'recommended' %}
+                <span class="radar-toolbar-context">按主题相关性、来源质量、时效性和内容完整度筛选</span>
+                {% endif %}
 
+                <div class="radar-toolbar-controls">
                 <form method="get" action="/radar/today" class="radar-page-size-form">
                     <input type="hidden" name="section" value="{{ view.active_section }}">
                     <input type="hidden" name="hours" value="{{ view.hours }}">
@@ -322,6 +357,7 @@
                     <span class="btn-sm radar-page-disabled">下一页</span>
                     {% endif %}
                 </nav>
+                </div>
                 </div>{# <!-- /.radar-main-toolbar --> #}
 
                 {% if bootstrap_result %}
@@ -560,27 +596,11 @@
                                 <div class="radar-card-meta">
                                     <code>{{ item.source_key }}</code>
                                     {% if today_card %}
-                                    <span>发现：{{ today_card.first_seen_label }}</span>
-                                    <span>发布：{{ today_card.published_label or '未提供' }}</span>
-                                    <span>获取方式：{{ today_card.fetch_method_label }}</span>
-                                    <span>中文概述：{{ today_card.overview_label }}</span>
-                                    <span>中文摘要：{{ today_card.detailed_summary_label }}</span>
-                                    <span>正文：{{ today_card.content_label }}</span>
-                                    <span>InsightCard：{{ today_card.insight_label }}</span>
+                                    <span>{{ today_card.published_label or today_card.first_seen_label }}</span>
+                                    <span class="radar-card-progress {% if today_card.detailed_summary_state == 'generated' %}is-ready{% endif %}">摘要 {{ today_card.detailed_summary_label }}</span>
+                                    <span class="radar-card-progress {% if today_card.content_state == 'fetched' %}is-ready{% elif today_card.content_state == 'fetch_failed' %}is-failed{% endif %}">正文 {{ today_card.content_label }}</span>
+                                    <span class="radar-card-progress {% if today_card.insight_state in ['generated', 'has_card'] %}is-ready{% endif %}">洞察 {{ today_card.insight_label }}</span>
                                     {% endif %}
-                                    <span>{{ display.time_label if display else '时间未知' }}</span>
-                                    {% if item.status == 'discovered' %}
-                                        <span class="status-badge status-pending">待生成洞察</span>
-                                    {% elif item.status == 'compiling' %}
-                                        <span class="status-badge status-running">生成中</span>
-                                    {% elif item.status == 'compiled' %}
-                                        <span class="status-badge status-completed">已完成</span>
-                                    {% elif item.status == 'failed' %}
-                                        <span class="status-badge status-failed">失败</span>
-                                    {% else %}
-                                        <span class="status-badge">{{ item.status }}</span>
-                                    {% endif %}
-                                    <small class="muted">#{{ item.id }}</small>
                                 </div>
 
                                 <div class="radar-card-actions">
@@ -607,7 +627,7 @@
                                         <input type="hidden" name="limit" value="{{ view.limit }}">
                                         <input type="hidden" name="page" value="{{ view.page }}">
                                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                                        <button type="submit" class="btn-sm" title="获取 HTML 正文并保存文本快照。">获取 HTML 正文</button>
+                                        <button type="submit" class="btn-sm" title="获取网页正文并保存可读文本。">获取正文</button>
                                     </form>
                                     {% endif %}
                                     {% if today_card and today_card.can_generate_summary %}
@@ -617,7 +637,7 @@
                                         <input type="hidden" name="limit" value="{{ view.limit }}">
                                         <input type="hidden" name="page" value="{{ view.page }}">
                                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                                        <button type="submit" class="btn-sm" title="基于 HTML 正文生成中文摘要。">基于正文生成摘要</button>
+                                        <button type="submit" class="btn-sm" title="基于已获取正文生成中文摘要。">生成摘要</button>
                                     </form>
                                     {% endif %}
                                 </div>

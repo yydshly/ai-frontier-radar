@@ -78,55 +78,29 @@
                 <div class="radar-panel-empty">暂无可阅读的内容。</div>
                 {% else %}
                 {% set panel_today_card = today_card_map.get(sel.id) if sel else None %}
-                <div class="radar-panel-label">智能阅读面板</div>
-
-                {% if view.panel_state %}
-                <div class="radar-panel-state-stack">
-                    <div class="radar-panel-state radar-panel-state-summary radar-panel-state-{{ view.panel_state.summary_state }}">
-                        <strong>{{ view.panel_state.summary_label }}</strong>
-                        {% if view.panel_state.summary_note %}
-                        <p>{{ view.panel_state.summary_note }}</p>
-                        {% endif %}
-                    </div>
-
-                    <div class="radar-panel-state radar-panel-state-insight radar-panel-state-{{ view.panel_state.insight_state }}">
-                        <strong>洞察：{{ view.panel_state.insight_label }}</strong>
-                        {% if view.panel_state.insight_note %}
-                        <p>{{ view.panel_state.insight_note }}</p>
-                        {% endif %}
-                    </div>
-
-                    <div class="radar-panel-state radar-panel-state-content radar-panel-state-{{ view.panel_state.content_state }}">
-                        <strong>正文：{{ view.panel_state.content_label }}</strong>
-                        {% if view.panel_state.content_note %}
-                        <p>{{ view.panel_state.content_note }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
+                <div class="radar-panel-label">文章阅读助手</div>
 
                 {% if panel_today_card %}
                 <section class="radar-panel-section radar-panel-chain">
-                    <h3>当前处理链路</h3>
-                    <ol>
-                        <li>已发现 URL：{% if panel_today_card.url %}是{% else %}否{% endif %}</li>
-                        <li>中文概述状态：{{ panel_today_card.overview_label }}</li>
-                        <li>中文摘要状态：{{ panel_today_card.detailed_summary_label }}</li>
-                        <li>正文状态：{{ panel_today_card.content_label }}</li>
-                        <li>洞察卡状态：{{ panel_today_card.insight_label }}</li>
-                    </ol>
-                    <p class="radar-panel-note">
-                        下一步建议：
+                    <h3>阅读准备度</h3>
+                    <div class="radar-panel-readiness">
+                        <span class="{% if panel_today_card.overview_state == 'generated' %}is-ready{% endif %}">中文概述</span>
+                        <span class="{% if panel_today_card.detailed_summary_state == 'generated' %}is-ready{% endif %}">中文摘要</span>
+                        <span class="{% if panel_today_card.content_state == 'fetched' %}is-ready{% elif panel_today_card.content_state == 'fetch_failed' %}is-failed{% endif %}">正文</span>
+                        <span class="{% if panel_today_card.insight_state in ['generated', 'has_card'] %}is-ready{% endif %}">深度洞察</span>
+                    </div>
+                    <p class="radar-panel-next-action">
+                        <strong>建议操作</strong>
                         {% if panel_today_card.can_fetch_content %}
-                        可点击“获取 HTML 正文”抓取页面文本。
+                        获取文章正文，补充更完整的阅读依据。
                         {% elif panel_today_card.can_generate_summary %}
-                        可基于正文生成摘要。
+                        基于已获取正文生成中文摘要。
                         {% elif panel_today_card.can_generate_insight %}
-                        可基于摘要生成洞察卡。
+                        基于现有摘要生成深度洞察。
                         {% elif sel.insight_card_id %}
-                        可查看已有洞察卡。
+                        已完成处理，可查看深度洞察或打开原文。
                         {% else %}
-                        查看已有内容或打开原文继续阅读。
+                        当前信息已可阅读，也可以打开原文核对。
                         {% endif %}
                     </p>
                 </section>
@@ -216,7 +190,7 @@
                     <div class="radar-panel-insight-summary">{{ preview.fallback_summary }}</div>
                     {% endif %}
 
-                    <a href="/cards/{{ insight.id }}" class="btn-sm btn-primary">查看完整 InsightCard</a>
+                    <a href="/cards/{{ insight.id }}" class="btn-sm btn-primary">查看完整洞察</a>
                 </section>
                 {% endif %}
 
@@ -231,14 +205,13 @@
                 <dl class="radar-panel-meta">
                     <dt>来源</dt><dd><code>{{ sel.source_key }}</code></dd>
                     <dt>时间</dt><dd>{{ sel_card.time_label if sel_card else '时间未知' }}</dd>
-                    <dt>状态</dt><dd>
+                    <dt>处理状态</dt><dd>
                         {% if sel.status == 'discovered' %}待生成洞察
                         {% elif sel.status == 'compiling' %}生成中
                         {% elif sel.status == 'compiled' %}已完成
                         {% elif sel.status == 'failed' %}失败
                         {% else %}{{ sel.status }}{% endif %}
                     </dd>
-                    <dt>编号</dt><dd>#{{ sel.id }}</dd>
                 </dl>
 
                 {% set panel_url = safe_external_url(sel_card.url if sel_card else sel.url) %}
@@ -261,7 +234,7 @@
                         <button type="submit" class="btn-sm btn-primary">生成洞察卡</button>
                     </form>
                     {% elif sel.status == 'compiled' and sel.insight_card_id %}
-                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看 InsightCard</a>
+                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看洞察</a>
                     {% endif %}
                     {% if panel_url %}
                     <a href="{{ panel_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
@@ -273,7 +246,7 @@
                         <input type="hidden" name="limit" value="{{ view.limit }}">
                         <input type="hidden" name="page" value="{{ view.page }}">
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                        <button type="submit" class="btn-sm" title="获取 HTML 正文并保存文本快照。">获取 HTML 正文</button>
+                        <button type="submit" class="btn-sm" title="获取网页正文并保存可读文本。">获取正文</button>
                     </form>
                     {% endif %}
                     {% if panel_today_card and panel_today_card.can_generate_summary %}
@@ -283,7 +256,7 @@
                         <input type="hidden" name="limit" value="{{ view.limit }}">
                         <input type="hidden" name="page" value="{{ view.page }}">
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                        <button type="submit" class="btn-sm" title="基于 HTML 正文生成中文摘要。">基于正文生成摘要</button>
+                        <button type="submit" class="btn-sm" title="基于已获取正文生成中文摘要。">生成摘要</button>
                     </form>
                     {% endif %}
                     {% if panel_today_card and panel_today_card.can_generate_insight %}
@@ -293,12 +266,12 @@
                         <input type="hidden" name="limit" value="{{ view.limit }}">
                         <input type="hidden" name="page" value="{{ view.page }}">
                         <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                        <button type="submit" class="btn-sm" title="基于正文摘要生成洞察卡。">生成洞察卡</button>
+                        <button type="submit" class="btn-sm" title="基于中文摘要生成深度洞察。">生成洞察</button>
                     </form>
                     {% elif sel.insight_card_id %}
-                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看洞察卡</a>
+                    <a href="/cards/{{ sel.insight_card_id }}" class="btn-sm btn-primary">查看洞察</a>
                     {% endif %}
-                    <a href="/source-items/{{ sel.id }}" class="btn-sm">详情</a>
+                    <a href="/source-items/{{ sel.id }}" class="btn-sm">文章详情</a>
                 </div>
                 {% endif %}
             </aside>

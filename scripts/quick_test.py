@@ -2519,7 +2519,8 @@ def main():
         check("radar still uses safe_external_url", "safe_external_url" in radar_html)
 
         # Product-friendly status text.
-        check("radar shows '待生成洞察' status text", "待生成洞察" in radar_html)
+        check("radar shows user-friendly insight progress",
+              "radar-card-progress" in radar_html and "洞察" in radar_html)
 
         # Pagination control markup present in template.
         check("radar_today.html has pagination control",
@@ -2586,7 +2587,7 @@ def main():
 
         check("today radar template has update form",
               'action="/radar/today/update"' in radar_html
-              and "更新今日雷达" in radar_html,
+              and "同步今日新增" in radar_html,
               "left control area should expose manual radar update")
 
         check("today radar update form preserves context",
@@ -3080,12 +3081,19 @@ def main():
               and "RadarTodayView" in radar_py,
               "RadarTodayView should expose right panel state")
 
-        check("today radar template renders smart panel state",
-              "智能阅读面板" in (radar_html + panel_partial)
-              and "radar-panel-state-stack" in panel_partial
-              and "view.panel_state.summary_label" in panel_partial
-              and "view.panel_state.insight_label" in panel_partial,
-              "right panel should display summary and insight generation states")
+        check("today radar template renders reading readiness",
+              "文章阅读助手" in (radar_html + panel_partial)
+              and "阅读准备度" in panel_partial
+              and "建议操作" in panel_partial
+              and "radar-panel-state-stack" not in panel_partial,
+              "right panel should consolidate status into readiness and next action")
+
+        check("recommended section filters main article list",
+              "RECOMMENDED_KEY" in radar_py
+              and "recommended_item_ids" in radar_py
+              and "section=recommended" in radar_html
+              and "如何获得最终报告" in radar_html,
+              "recommended deep analysis should be a real article filter with report guidance")
 
         check("today radar template renders insight preview",
               ("宏观洞察" in panel_partial or "InsightCard" in panel_partial)
@@ -3192,7 +3200,7 @@ def main():
 
         check("today radar actions have summary generation form",
               'action="/radar/today/generate-summaries"' in radar_html
-              and "生成文章摘要" in radar_html,
+              and "补全中文摘要" in radar_html,
               "today actions should expose batch Chinese summary generation")
 
         check("today radar summary form preserves context",
@@ -4456,8 +4464,8 @@ def main():
               "humanize function should return Chinese labels for all status values")
 
         # 9. button text explains recommendation-first summary generation.
-        check("button text mentions '生成文章摘要'",
-              "生成文章摘要" in radar_html
+        check("button text mentions '补全中文摘要'",
+              "补全中文摘要" in radar_html
               and "优先处理推荐候选" in radar_html,
               "button should mention compile candidates priority")
     except Exception as e:
@@ -4513,8 +4521,8 @@ def main():
               "Chinese summary badge must be preserved")
 
         # 7. radar_today.html still contains "查看 InsightCard" or "查看洞察卡".
-        check("radar_today.html contains InsightCard entry",
-              "InsightCard" in radar_html or "洞察卡" in radar_html,
+        check("radar_today.html contains insight entry",
+              "洞察" in radar_html,
               "InsightCard link must be preserved")
 
         # 8. radar_today.html still contains "打开原文".
@@ -4523,13 +4531,13 @@ def main():
               "external link must be preserved")
 
         # 9. radar_today.html contains the consolidated summary action.
-        check("radar_today.html contains '生成文章摘要'",
-              "生成文章摘要" in radar_html,
+        check("radar_today.html contains '补全中文摘要'",
+              "补全中文摘要" in radar_html,
               "summary generation should live in today actions")
 
-        # 10. radar_today.html still contains "智能阅读面板" (now in partial).
-        check("radar_today.html contains '智能阅读面板'",
-              "智能阅读面板" in panel_partial,
+        # 10. radar_today.html retains the reading assistant (now in partial).
+        check("radar_today.html contains '文章阅读助手'",
+              "文章阅读助手" in panel_partial,
               "reading panel must be preserved")
 
         # 11. radar_today.html uses user-friendly "推荐深入分析" heading.
@@ -4636,8 +4644,8 @@ def main():
               "main link must not contain nested button")
 
         # 13. InsightCard entry is preserved.
-        check("radar_today.html preserves InsightCard entry",
-              "InsightCard" in radar_html,
+        check("radar_today.html preserves insight entry",
+              "洞察" in radar_html,
               "InsightCard link must be preserved")
 
         # 7. InsightCard enqueue form is preserved (now labeled 生成洞察卡).
@@ -4760,23 +4768,23 @@ def main():
               "运行状态" in radar_html,
               "sidebar should have 运行状态 section (renamed from 最近探测状态)")
 
-        # 10. radar_today.html still contains 智能阅读面板 (now in partial).
-        check("radar_today.html still contains 智能阅读面板",
-              "智能阅读面板" in panel_partial,
+        # 10. radar_today.html still contains the reading assistant.
+        check("radar_today.html still contains 文章阅读助手",
+              "文章阅读助手" in panel_partial,
               "reading panel must be preserved")
 
-        # 11. sidebar reorganized with 今日操作 group.
-        check("radar_today.html uses 今日操作 group",
-              "今日操作" in radar_html,
-              "sidebar should have a 今日操作 action group")
+        # 11. sidebar reorganized with a professional workflow group.
+        check("radar_today.html uses 今日处理流程 group",
+              "今日处理流程" in radar_html,
+              "sidebar should have a staged workflow action group")
         check("radar_today.html no longer has misleading 生成今日报告卡片",
               "生成今日报告卡片" not in radar_html,
               "misleading 生成今日报告卡片 text should be removed")
-        check("radar_today.html has 查看今日可读简报",
-              "查看今日可读简报" in radar_html,
-              "daily-report link should be labeled 查看今日可读简报")
-        check("radar_today.html has 生成今日核心报告",
-              "生成今日核心报告" in radar_html,
+        check("radar_today.html has 查看可读简报",
+              "查看可读简报" in radar_html,
+              "daily-report link should be labeled 查看可读简报")
+        check("radar_today.html has 生成核心报告",
+              "生成核心报告" in radar_html,
               "daily-report generation button should be preserved")
         check("radar_today.html has 生成洞察卡",
               "生成洞察卡" in radar_html,
@@ -4897,9 +4905,9 @@ def main():
               'id="radar-panel"' in partial_html,
               "partial must have radar-panel id")
 
-        # 5. partial contains "智能阅读面板".
-        check("partial contains '智能阅读面板'",
-              "智能阅读面板" in partial_html,
+        # 5. partial contains the reading assistant label.
+        check("partial contains '文章阅读助手'",
+              "文章阅读助手" in partial_html,
               "partial must contain reading panel label")
 
         # 6. radar_today.html includes partial.
@@ -5841,7 +5849,7 @@ def main():
               "route should generate, persist, and reload the daily report")
 
         check("radar template has explicit report button + result banner",
-              "生成今日核心报告" in radar_html
+              "生成核心报告" in radar_html
               and "/radar/today/daily-report" in radar_html
               and "radar-daily-report-result" in radar_html,
               "radar today should expose a POST button and an inline result banner")
@@ -6127,13 +6135,13 @@ def main():
               "中文摘要" in radar_today_text,
               "today cards should show detailed Chinese summary state")
         check("radar today shows content state",
-              "正文：" in radar_today_text or "正文状态" in radar_today_text,
+              "正文 " in radar_today_text or "正文状态" in radar_today_text,
               "today cards should show content state")
         check("radar today has open original entry",
               "打开原文" in radar_today_text,
               "today cards should keep original link")
         check("radar today has fetch content entry",
-              "获取 HTML 正文" in radar_today_text and "fetch-html" in radar_today_text,
+              "获取正文" in radar_today_text and "fetch-html" in radar_today_text,
               "today cards should expose POST fetch-html for real content fetching")
         check("radar today does not claim intent-only",
               "仅记录获取意图" not in radar_today_text and "尚未执行真实抓取" not in radar_today_text,
@@ -6147,12 +6155,12 @@ def main():
               and "fetch_today_item_content" not in radar_route_text.split("def radar_today_page", 1)[1].split("@router.post", 1)[0],
               "GET /radar/today should not trigger content fetching")
         check("panel shows content and InsightCard states",
-              "正文状态" in radar_panel_text
-              and "洞察卡状态" in radar_panel_text
-              and "当前处理链路" in radar_panel_text,
+              "正文" in radar_panel_text
+              and "深度洞察" in radar_panel_text
+              and "阅读准备度" in radar_panel_text,
               "reading panel should show the processing chain")
         check("panel shows Chinese overview and summary states",
-              "中文概述状态" in radar_panel_text and "中文摘要状态" in radar_panel_text,
+              "中文概述" in radar_panel_text and "中文摘要" in radar_panel_text,
               "panel should show both Chinese summary levels")
         check("panel_state passes content_note",
               "content_note=today_card.content_note" in radar_route_text
@@ -6231,7 +6239,7 @@ def main():
               "初始化来源内容" in today_text and "/radar/today/bootstrap" in today_text,
               "today radar should expose bootstrap entry")
         check("radar page shows daily increment entry",
-              "更新今日新增" in today_text and "/radar/today/update" in today_text,
+              "同步今日新增" in today_text and "/radar/today/update" in today_text,
               "today radar should expose daily increment entry")
         check("plan doc mentions recent 20/50 items",
               "最近 20/50 条" in doc_text,
@@ -6794,8 +6802,8 @@ def main():
 
         # Template checks
         panel_html = (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
-        check("Panel template has 获取 HTML 正文 button",
-              "获取 HTML 正文" in panel_html,
+        check("Panel template has 获取正文 button",
+              "获取正文" in panel_html,
               "panel should have real fetch button")
         check("Panel form posts to fetch-html",
               "fetch-html" in panel_html,
@@ -6951,16 +6959,16 @@ def main():
 
         # Templates have summary button
         panel_html = (project_root / "app" / "templates" / "partials" / "radar_today_panel.html").read_text(encoding="utf-8")
-        check("Panel template has 基于正文生成摘要 button",
-              "基于正文生成摘要" in panel_html,
+        check("Panel template has 生成摘要 button",
+              "生成摘要" in panel_html,
               "panel should have generate summary button")
         check("Panel form posts to generate-summary",
               "generate-summary" in panel_html,
               "panel form should post to generate-summary endpoint")
 
         radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
-        check("Radar template has 基于正文生成摘要 button",
-              "基于正文生成摘要" in radar_html,
+        check("Radar template has 生成摘要 button",
+              "生成摘要" in radar_html,
               "radar template should have generate summary button")
 
         # DailyReportCard uses zh_summary
@@ -7083,8 +7091,8 @@ def main():
         check("Panel form posts to generate-insight",
               "generate-insight" in panel_html,
               "panel form should post to generate-insight endpoint")
-        check("Panel shows 查看洞察卡 when card exists",
-              "查看洞察卡" in panel_html,
+        check("Panel shows 查看洞察 when card exists",
+              "查看洞察" in panel_html,
               "panel should show view insight card link when exists")
 
         # DailyReport uses has_insight

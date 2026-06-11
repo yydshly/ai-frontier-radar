@@ -78,8 +78,8 @@ def main():
 
     check("左侧分组包含目录",
           'radar-sidebar-label">目录</span>' in html or 'radar-directory-header' in html)
-    check("左侧分组包含今日操作",
-          "今日操作" in html)
+    check("左侧分组包含今日处理流程",
+          "今日处理流程" in html)
     check("左侧分组包含今日编译概览",
           "今日编译概览" in html)
     check("左侧分组包含运行状态",
@@ -87,12 +87,12 @@ def main():
     check("左侧分组包含高级 / 运维",
           "高级 / 运维" in html)
 
-    check("今日操作区包含'更新今日新增'",
-          "更新今日新增" in html)
-    check("今日操作区包含'查看今日可读简报'",
-          "查看今日可读简报" in html)
-    check("今日操作区包含'生成今日核心报告'",
-          "生成今日核心报告" in html)
+    check("今日流程包含'同步今日新增'",
+          "同步今日新增" in html)
+    check("今日流程包含'查看可读简报'",
+          "查看可读简报" in html)
+    check("今日流程包含'生成核心报告'",
+          "生成核心报告" in html)
 
     check("高级/运维默认折叠",
           "<details class=\"radar-dev-tools\">" in html)
@@ -107,12 +107,12 @@ def main():
     # ── Path B: Summary Generation Chain ─────────────────────────────────────
     print("\n[Path B] Summary Generation Chain")
 
-    check("包含'生成文章摘要'按钮",
-          "生成文章摘要" in html)
+    check("包含'补全中文摘要'按钮",
+          "补全中文摘要" in html)
     check("summary_limit hidden value = 20",
           'name="summary_limit" value="20"' in html)
-    check("按钮说明最多处理20条",
-          "最多处理 20 条" in html)
+    check("按钮说明最多处理 20 条",
+          "最多 20 条" in html)
 
     check("compile_candidates 优先逻辑存在于 generate_today_summaries",
           "_prioritize_compile_candidates" in routes or
@@ -159,7 +159,7 @@ def main():
           ">洞察卡</a>" in html and "InsightCard</a>" not in html)
 
     check("主列表状态使用用户可理解文案",
-          "待生成洞察" in html or "status-badge" in html)
+          "radar-card-progress" in html and "洞察" in html)
     check("主列表状态包含'已完成'",
           "已完成" in html)
     check("主列表状态包含'生成中'",
@@ -170,15 +170,15 @@ def main():
     # ── Path E: Daily Report Chain ───────────────────────────────────────────
     print("\n[Path E] Daily Report Chain")
 
-    check("'查看今日可读简报'入口存在，href=/radar/daily-report",
-          'href="/radar/daily-report"' in html and "查看今日可读简报" in html)
-    check("'生成今日核心报告'入口存在，method=post",
-          'method="post"' in html and "生成今日核心报告" in html and
+    check("'查看可读简报'入口存在，href=/radar/daily-report",
+          'href="/radar/daily-report"' in html and "查看可读简报" in html)
+    check("'生成核心报告'入口存在，method=post",
+          'method="post"' in html and "生成核心报告" in html and
           'action="/radar/today/daily-report"' in html)
     check("未启用提示清楚说明",
-          "今日核心报告未启用" in html and "DAILY_REPORT_ENABLED=true" in html)
+          "综合报告能力未启用" in html)
     check("不把规则版和LLM版混为同一按钮",
-          html.count(">查看今日可读简报</a>") == 1)
+          html.count(">查看可读简报</a>") == 1)
 
     check("POST /today/daily-report 存在于 radar.py",
           'POST /today/daily-report' in routes or
@@ -198,8 +198,8 @@ def main():
           "正文" in panel_html)
     check("右侧面板包含洞察卡状态",
           "洞察" in panel_html and "状态" in panel_html)
-    check("右侧面板包含下一步建议",
-          "下一步建议" in panel_html)
+    check("右侧面板包含建议操作",
+          "建议操作" in panel_html)
 
     # ── Additional Code Checks ────────────────────────────────────────────────
     print("\n[Code] Compile candidates and quality filter stats")

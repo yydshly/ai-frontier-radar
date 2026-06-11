@@ -3951,6 +3951,10 @@ body.app-shell .main-content {
     color: #57606a;
 }
 
+.radar-main-toolbar .radar-pagination-compact {
+    padding: 0;
+}
+
 .radar-fallback-note {
     color: #9a6700;
     background: #fff8c5;
@@ -4121,12 +4125,32 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     background: #fff;
     border: 1px solid #d0d7de;
     border-radius: 8px;
-    padding: 0.6rem 0.75rem;
-    margin-bottom: 0.75rem;
+    padding: 0.42rem 0.65rem;
+    margin-bottom: 0.45rem;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.6rem;
+    flex-wrap: nowrap;
+    min-height: 38px;
+}
+
+.radar-toolbar-controls {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.radar-toolbar-context {
+    min-width: 0;
+    overflow: hidden;
+    color: #57606a;
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .radar-main-scroll {
@@ -4309,9 +4333,50 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     margin-top: 0;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1500px) {
     .radar-card-footer {
         flex-wrap: wrap;
+    }
+
+    .radar-card-footer .radar-card-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+.radar-card-progress {
+    padding: 0.08rem 0.3rem;
+    border-radius: 4px;
+    background: #f6f8fa;
+    color: #57606a;
+}
+
+.radar-card-progress.is-ready {
+    background: #dafbe1;
+    color: #116329;
+}
+
+.radar-card-progress.is-failed {
+    background: #ffebe9;
+    color: #cf222e;
+}
+
+@media (max-width: 1350px) {
+    .radar-layout {
+        grid-template-columns: 200px minmax(0, 1fr) 320px;
+        gap: 0.75rem;
+    }
+
+    .radar-main-toolbar {
+        padding: 0.35rem 0.5rem;
+    }
+
+    .radar-main-toolbar .radar-page-size-form label {
+        display: none;
+    }
+
+    .radar-toolbar-controls {
+        gap: 0.35rem;
     }
 }
 
@@ -4585,7 +4650,7 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     border-top: 1px solid #d0d7de;
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 0.55rem;
 }
 
 .radar-today-actions-title {
@@ -4599,8 +4664,155 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 
 .radar-today-actions-hint {
     font-size: 0.7rem;
-    color: #9e9e9e;
+    color: #6e7781;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.radar-workflow-guide {
+    border: 1px solid #b6d7ff;
+    border-radius: 7px;
+    background: #f0f7ff;
+    font-size: 0.7rem;
+}
+
+.radar-workflow-guide summary {
+    padding: 0.45rem 0.55rem;
+    color: #0969da;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.radar-workflow-guide ol {
+    margin: 0;
+    padding: 0 0.65rem 0.35rem 1.75rem;
+    color: #3d444d;
+    line-height: 1.5;
+}
+
+.radar-workflow-guide p {
+    margin: 0;
+    padding: 0.45rem 0.55rem;
+    border-top: 1px solid #b6d7ff;
+    color: #57606a;
+    line-height: 1.45;
+}
+
+.radar-panel-readiness {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+}
+
+.radar-panel-readiness span {
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #d8dee4;
+    border-radius: 6px;
+    background: #f6f8fa;
+    color: #57606a;
+    font-size: 0.76rem;
+    text-align: center;
+}
+
+.radar-panel-readiness span.is-ready {
+    border-color: #82d49a;
+    background: #dafbe1;
+    color: #116329;
+}
+
+.radar-panel-readiness span.is-failed {
+    border-color: #ff8182;
+    background: #ffebe9;
+    color: #cf222e;
+}
+
+.radar-panel-next-action {
+    margin: 0.55rem 0 0;
+    padding: 0.55rem;
+    border-left: 3px solid #54aeff;
+    background: #f6f8fa;
+    color: #57606a;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.radar-panel-next-action strong {
+    display: block;
+    color: #24292f;
+    margin-bottom: 0.15rem;
+}
+
+.radar-action-stage {
+    padding: 0.55rem;
+    border: 1px solid #d8dee4;
+    border-radius: 7px;
+    background: #fff;
+}
+
+.radar-action-stage-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #24292f;
+    font-size: 0.78rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.radar-action-stage-heading span {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #ddf4ff;
+    color: #0969da;
+    font-size: 0.68rem;
+}
+
+.radar-action-stage > p {
     margin: 0 0 0.4rem;
+    color: #6e7781;
+    font-size: 0.68rem;
+    line-height: 1.45;
+}
+
+.radar-action-stage form,
+.radar-action-stage > .btn-sm {
+    display: block;
+    margin: 0 0 0.35rem;
+}
+
+.radar-action-stage form:last-child,
+.radar-action-stage > .btn-sm:last-child {
+    margin-bottom: 0;
+}
+
+.radar-action-stage .btn-sm {
+    width: 100%;
+    text-align: center;
+}
+
+.radar-action-result-links {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+}
+
+.radar-action-result-links a {
+    flex: 1;
+    padding: 0.25rem 0.35rem;
+    border-radius: 5px;
+    background: #f6f8fa;
+    color: #0969da;
+    text-align: center;
+    text-decoration: none;
+    font-size: 0.7rem;
+}
+
+.radar-action-result-links a:hover {
+    background: #ddf4ff;
 }
 
 .radar-dev-tools {
@@ -4955,7 +5167,7 @@ details[open] .radar-compile-candidate-details summary::before {
 }
 
 .radar-digest-form {
-    margin-top: 0.4rem;
+    margin: 0;
 }
 
 /* P-003-2 — today's core report result banner (additive, reuses banner area) */
@@ -6068,7 +6280,8 @@ details[open] .radar-compile-candidate-details summary::before {
     display: block;
     font-size: 0.7rem;
     color: #999;
-    margin-top: 0.2rem;
+    margin: -0.1rem 0 0.35rem;
+    text-align: center;
 }
 
 /* ── Daily Broadcast ────────────────────────────────────── */

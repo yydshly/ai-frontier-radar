@@ -203,6 +203,8 @@ OTHERS_KEY = "others"
 OTHERS_TITLE = "其他"
 ALL_KEY = "all"
 ALL_TITLE = "全部"
+RECOMMENDED_KEY = "recommended"
+RECOMMENDED_TITLE = "推荐深入分析"
 
 # Keyword categories evaluated in order. Keywords are matched as lowercase
 # substrings against a text blob built from source_key/title/summary/metadata.
@@ -588,7 +590,7 @@ class RadarTodayService:
         page = max(1, int(page))
 
         # Validate section against known keys (unknown → ALL_KEY).
-        valid_keys = {key for key, _ in SECTION_ORDER} | {ALL_KEY}
+        valid_keys = {key for key, _ in SECTION_ORDER} | {ALL_KEY, RECOMMENDED_KEY}
         if section not in valid_keys:
             section = ALL_KEY
 
@@ -636,6 +638,20 @@ class RadarTodayService:
             item.id: build_candidate_display_card(item) for item in items
         }
 
+        compile_candidates = []
+        if page == 1 or section == RECOMMENDED_KEY:
+            compile_candidates = select_compile_candidates(
+                self.db,
+                hours=hours,
+                limit=10,
+                per_source_limit=3,
+                max_scan=300,
+                item_ids={item.id for item in items},
+            )
+        recommended_item_ids = {
+            candidate.source_item_id for candidate in compile_candidates
+        }
+
         # ── Per-section counts over the FULL result set ──────────────────
         section_counts: dict[str, int] = {key: 0 for key, _ in SECTION_ORDER}
         section_counts[TODAY_FOCUS_KEY] = min(len(items), TODAY_FOCUS_SIZE)
@@ -644,12 +660,17 @@ class RadarTodayService:
             section_counts[key] = section_counts.get(key, 0) + 1
         # "all" count is the total items in the candidate set.
         section_counts[ALL_KEY] = len(items)
+        section_counts[RECOMMENDED_KEY] = len(recommended_item_ids)
 
         # ── Filter items to the active section ───────────────────────────
         if section == ALL_KEY:
             filtered_items = items
         elif section == TODAY_FOCUS_KEY:
             filtered_items = items[:TODAY_FOCUS_SIZE]
+        elif section == RECOMMENDED_KEY:
+            filtered_items = [
+                item for item in items if item.id in recommended_item_ids
+            ]
         else:
             filtered_items = [
                 item for item in items[TODAY_FOCUS_SIZE:]
@@ -693,6 +714,12 @@ class RadarTodayService:
             RadarTodaySection(key=key, title=title, items=full_buckets[key])
             for key, title in SECTION_ORDER
         ]
+        if section == RECOMMENDED_KEY:
+            sections.append(RadarTodaySection(
+                key=RECOMMENDED_KEY,
+                title=RECOMMENDED_TITLE,
+                items=page_items,
+            ))
 
         # ── Selected item resolution ──────────────────────────────────────
         # Selected item should always be in full_display_map (so panel renders).
@@ -721,20 +748,6 @@ class RadarTodayService:
             else None
         )
 
-        # ── Compile candidates: available across first-page views ───────────
-        # This keeps recommendation navigation and card badges visible when
-        # users switch between "all", "latest", and topic sections.
-        compile_candidates = []
-        if page == 1:
-            compile_candidates = select_compile_candidates(
-                self.db,
-                hours=hours,
-                limit=10,
-                per_source_limit=3,
-                max_scan=300,
-                item_ids={item.id for item in items},
-            )
-
         return RadarTodayView(
             total_items=total_items_in_section,
             selected_item_id=selected_item_id,
@@ -757,9 +770,7 @@ class RadarTodayService:
             fetch_run_summary=fetch_run_summary,
             quality_filter_stats=quality_filter_stats,
             compile_candidates=compile_candidates,
-            recommended_item_ids={
-                candidate.source_item_id for candidate in compile_candidates
-            },
+            recommended_item_ids=recommended_item_ids,
         )
 
     def _build_sections(
