@@ -2264,7 +2264,7 @@ def main():
               "radar route should pass configured source keys to the view builder")
 
         check("radar_today.html renders fetch status summary",
-              "最近探测状态" in radar_html and "radar-fetch-summary" in radar_html,
+              "运行状态" in radar_html and "radar-fetch-summary" in radar_html,
               "template should show recent fetch status module")
         check("radar_today.html shows /fetch-runs link in summary",
               "/fetch-runs" in radar_html and "radar-fetch-summary" in radar_html,
@@ -4604,10 +4604,10 @@ def main():
               "InsightCard" in radar_html,
               "InsightCard link must be preserved")
 
-        # 7. "加入生成" entry is preserved.
-        check("radar_today.html preserves '加入生成'",
-              "加入生成" in radar_html,
-              "enqueue action must be preserved")
+        # 7. InsightCard enqueue form is preserved (now labeled 生成洞察卡).
+        check("radar_today.html preserves insight card generation form",
+              "enqueue-compile" in radar_html and "生成洞察卡" in radar_html,
+              "insight card generation form must be preserved with renamed button")
 
         # 8. "打开原文" entry is preserved.
         check("radar_today.html preserves '打开原文'",
@@ -4716,17 +4716,56 @@ def main():
               ".radar-layout {" not in style_css or "grid-template-columns" in _layout_block,
               "radar-layout grid-template-columns must be preserved")
 
-        # 9. radar_today.html still contains 全部, 今日重点, and 最近探测状态.
-        check("radar_today.html still contains 全部 / 今日重点 / 最近探测状态",
-              ("全部" in radar_html and "今日重点" in radar_html and "最近探测状态" in radar_html),
-              "existing sidebar content must be preserved")
+        # 9. radar_today.html still contains 全部 and 今日重点.
+        check("radar_today.html still contains 全部 / 今日重点",
+              ("全部" in radar_html and "今日重点" in radar_html),
+              "existing sidebar section links must be preserved")
+        check("radar_today.html has 运行状态 section",
+              "运行状态" in radar_html,
+              "sidebar should have 运行状态 section (renamed from 最近探测状态)")
 
         # 10. radar_today.html still contains 智能阅读面板 (now in partial).
         check("radar_today.html still contains 智能阅读面板",
               "智能阅读面板" in panel_partial,
               "reading panel must be preserved")
 
-        # 11. style.css has .radar-directory-collapsed .radar-layout (or equivalent).
+        # 11. sidebar reorganized with 今日操作 group.
+        check("radar_today.html uses 今日操作 group",
+              "今日操作" in radar_html,
+              "sidebar should have a 今日操作 action group")
+        check("radar_today.html no longer has misleading 生成今日报告卡片",
+              "生成今日报告卡片" not in radar_html,
+              "misleading 生成今日报告卡片 text should be removed")
+        check("radar_today.html has 查看今日报告",
+              "查看今日报告" in radar_html,
+              "daily-report link should be labeled 查看今日报告")
+        check("radar_today.html has 生成今日核心报告",
+              "生成今日核心报告" in radar_html,
+              "daily-report generation button should be preserved")
+        check("radar_today.html has 生成洞察卡",
+              "生成洞察卡" in radar_html,
+              "insight card generation button should be labeled 生成洞察卡")
+        check("radar_today.html no longer has 加入生成",
+              "加入生成" not in radar_html,
+              "加入生成 button text should be replaced")
+        check("radar_today.html has 高级 / 运维 section",
+              "高级" in radar_html and "运维" in radar_html,
+              "advanced/dev tools should be in a separate section")
+        check("radar_today.html uses 洞察卡 in top quick links",
+              "洞察卡" in radar_html and "/cards" in radar_html,
+              "top quick link should use 洞察卡 not InsightCard")
+        check("radar_today.html uses 洞察卡 in card actions",
+              "查看洞察卡" in radar_html,
+              "card action should say 查看洞察卡")
+
+        # 12. profile_today_radar.py aligns quality_filter_stats guard with production.
+        profile_py = (project_root / "scripts" / "profile_today_radar.py").read_text(encoding="utf-8")
+        check("profile_today_radar.py guards quality_filter_stats with section==all and page==1",
+              "section == \"all\" and page == 1" in profile_py
+              and "compute_quality_filter_stats" in profile_py,
+              "profile script should guard quality_filter_stats computation like production")
+
+        # 13. style.css has .radar-directory-collapsed .radar-layout (or equivalent).
         check("style.css has collapsed .radar-layout selector",
               "radar-directory-collapsed" in style_css
               and ".radar-layout" in style_css,

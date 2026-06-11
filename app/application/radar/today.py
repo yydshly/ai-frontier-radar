@@ -502,15 +502,15 @@ def _build_panel_state(
 
     if item.status == "discovered":
         insight_state = "discovered"
-        insight_label = "待生成 InsightCard"
-        insight_note: str | None = "可点击「加入生成」生成结构化洞察卡。"
+        insight_label = "待生成洞察卡"
+        insight_note: str | None = "可点击「生成洞察卡」生成结构化洞察卡。"
     elif item.status == "compiling":
         insight_state = "compiling"
-        insight_label = "InsightCard 生成中"
+        insight_label = "洞察卡生成中"
         insight_note = "后台正在生成结构化洞察卡，稍后刷新查看结果。"
     elif item.status == "failed":
         insight_state = "failed"
-        insight_label = "InsightCard 生成失败"
+        insight_label = "洞察卡生成失败"
         insight_note = item.error_message or "未记录错误原因。"
     elif item.status == "compiled":
         if item.insight_card_id:
@@ -521,12 +521,12 @@ def _build_panel_state(
             )
         if selected_insight_card is not None:
             insight_state = "compiled"
-            insight_label = "已生成 InsightCard"
+            insight_label = "已生成洞察卡"
             insight_note = None
         else:
             insight_state = "compiled_missing_card"
-            insight_label = "InsightCard 关联缺失"
-            insight_note = "当前条目标记为已生成，但未找到关联 InsightCard。"
+            insight_label = "洞察卡关联缺失"
+            insight_note = "当前条目标记为已生成，但未找到关联洞察卡。"
     else:
         insight_state = "unknown"
         insight_label = item.status or "状态未知"

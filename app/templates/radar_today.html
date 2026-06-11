@@ -24,7 +24,7 @@
                     <a href="/sources" class="radar-quick-link">信息来源</a>
                     <a href="/candidate-pool" class="radar-quick-link">候选池</a>
                     <a href="/generation-queue" class="radar-quick-link">生成队列</a>
-                    <a href="/cards" class="radar-quick-link">InsightCard</a>
+                    <a href="/cards" class="radar-quick-link">洞察卡</a>
                 </div>
             </div>
             {# ── Data quality filter stats ───────────────────────────────────── #}
@@ -105,19 +105,9 @@
                         {% endif %}
                     </ul>
 
-                    <div class="radar-sidebar-actions">
-                        <form method="post" action="/radar/today/bootstrap" class="radar-update-form">
-                            <input type="hidden" name="section" value="{{ view.active_section }}">
-                            <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
-                            <input type="hidden" name="hours" value="{{ view.hours }}">
-                            <input type="hidden" name="limit" value="{{ view.limit }}">
-                            <input type="hidden" name="page" value="{{ view.page }}">
-                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
-                            <input type="hidden" name="max_items_per_source" value="20">
-                            <input type="hidden" name="max_sources" value="15">
-                            <input type="hidden" name="action" value="dry_run">
-                            <button type="submit" class="btn-sm" title="初始化来源内容：预览已有 YAML 来源最近 20 条，不写库">初始化来源内容</button>
-                        </form>
+                    {# ── 今日操作 ─────────────────────────────────────────── #}
+                    <div class="radar-today-actions">
+                        <div class="radar-today-actions-title">今日操作</div>
                         <form method="post" action="/radar/today/update" class="radar-update-form">
                             <input type="hidden" name="section" value="{{ view.active_section }}">
                             <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
@@ -127,65 +117,11 @@
                             <input type="hidden" name="per_page" value="{{ view.per_page }}">
                             <button type="submit" class="btn-sm btn-primary" title="更新今日雷达：只检查到期来源">更新今日新增</button>
                         </form>
-                        <a href="/radar/daily-report" class="btn-sm" title="生成今日报告卡片：规则筛选今日重点内容，无需 LLM">生成今日报告卡片</a>
+                        <a href="/radar/daily-report" class="btn-sm" title="查看今日报告：规则筛选今日重点内容，无需 LLM">查看今日报告</a>
+                        <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
+                            <button type="submit" class="btn-sm" title="基于今日已摘要内容生成中文核心报告（需显式启用）">生成今日核心报告</button>
+                        </form>
                     </div>
-
-                    {% if view.fetch_run_summary %}
-                    <div class="radar-fetch-summary">
-                        <div class="radar-fetch-summary-title">最近探测状态</div>
-
-                        {% if view.fetch_run_summary.total %}
-                        <div class="radar-fetch-summary-grid">
-                            <span>运行中 <strong>{{ view.fetch_run_summary.running }}</strong></span>
-                            <span>成功 <strong>{{ view.fetch_run_summary.success }}</strong></span>
-                            <span>失败 <strong>{{ view.fetch_run_summary.failed }}</strong></span>
-                            <span>部分失败 <strong>{{ view.fetch_run_summary.partial_failed }}</strong></span>
-                        </div>
-                        <div class="radar-fetch-summary-meta">
-                            新增 {{ view.fetch_run_summary.items_new }}，
-                            更新 {{ view.fetch_run_summary.items_updated }}，
-                            发现 {{ view.fetch_run_summary.items_found }}
-                        </div>
-                        {% if view.fetch_run_summary.latest_started_at %}
-                        <div class="radar-fetch-summary-meta">
-                            最近启动：{{ view.fetch_run_summary.latest_started_at }}
-                        </div>
-                        {% endif %}
-                        {% else %}
-                        <div class="radar-fetch-summary-empty">暂无探测记录</div>
-                        {% endif %}
-
-                        {% if scheduler_status %}
-                        <div class="radar-scheduler-status">
-                            <div class="radar-scheduler-title">调度状态</div>
-                            <div class="radar-scheduler-row">
-                                <span class="radar-scheduler-label">待检查来源</span>
-                                <span class="radar-scheduler-value">{{ scheduler_status.due_count }}</span>
-                            </div>
-                            <div class="radar-scheduler-row">
-                                <span class="radar-scheduler-label">冷却中</span>
-                                <span class="radar-scheduler-value">{{ scheduler_status.not_due_count }}</span>
-                            </div>
-                            <div class="radar-scheduler-row">
-                                <span class="radar-scheduler-label">疑似卡住</span>
-                                <span class="radar-scheduler-value">{{ scheduler_status.stale_count }}</span>
-                            </div>
-                            <div class="radar-scheduler-row">
-                                <span class="radar-scheduler-label">来源缺失</span>
-                                <span class="radar-scheduler-value">{{ scheduler_status.missing_count }}</span>
-                            </div>
-                            <div class="radar-scheduler-hint">自动调度：{{ scheduler_status.scheduler_mode_label }}</div>
-                        </div>
-                        {% else %}
-                        <div class="radar-scheduler-hint">调度状态暂不可用</div>
-                        {% endif %}
-
-                        <a href="/fetch-runs" class="btn-sm">查看运行记录</a>
-                        {% if scheduler_status %}
-                        <a href="/project-docs/v1-beta-2-scheduler-operations" class="btn-sm">自动调度说明</a>
-                        {% endif %}
-                    </div>
-                    {% endif %}
 
                     {% if daily_digest %}
                     <div class="radar-digest">
@@ -217,11 +153,81 @@
                         {% else %}
                         <div class="radar-scheduler-hint">今日暂无已摘要的新内容</div>
                         {% endif %}
-                        <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
-                            <button type="submit" class="btn-sm" title="基于今日已摘要内容生成中文核心报告（需显式启用）">生成今日核心报告</button>
-                        </form>
                     </div>
                     {% endif %}
+
+                    {% if view.fetch_run_summary or scheduler_status %}
+                    <div class="radar-fetch-summary">
+                        <div class="radar-fetch-summary-title">运行状态</div>
+
+                        {% if view.fetch_run_summary %}
+                        {% if view.fetch_run_summary.total %}
+                        <div class="radar-fetch-summary-grid">
+                            <span>运行中 <strong>{{ view.fetch_run_summary.running }}</strong></span>
+                            <span>成功 <strong>{{ view.fetch_run_summary.success }}</strong></span>
+                            <span>失败 <strong>{{ view.fetch_run_summary.failed }}</strong></span>
+                            <span>部分失败 <strong>{{ view.fetch_run_summary.partial_failed }}</strong></span>
+                        </div>
+                        <div class="radar-fetch-summary-meta">
+                            新增 {{ view.fetch_run_summary.items_new }}，
+                            更新 {{ view.fetch_run_summary.items_updated }}，
+                            发现 {{ view.fetch_run_summary.items_found }}
+                        </div>
+                        {% if view.fetch_run_summary.latest_started_at %}
+                        <div class="radar-fetch-summary-meta">
+                            最近启动：{{ view.fetch_run_summary.latest_started_at }}
+                        </div>
+                        {% endif %}
+                        {% else %}
+                        <div class="radar-fetch-summary-empty">暂无探测记录</div>
+                        {% endif %}
+                        {% endif %}
+
+                        {% if scheduler_status %}
+                        <div class="radar-scheduler-status">
+                            <div class="radar-scheduler-title">调度状态</div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">待检查来源</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.due_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">冷却中</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.not_due_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">疑似卡住</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.stale_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">来源缺失</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.missing_count }}</span>
+                            </div>
+                            <div class="radar-scheduler-hint">自动调度：{{ scheduler_status.scheduler_mode_label }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {# ── 高级 / 运维 ──────────────────────────────────────── #}
+                    <details class="radar-dev-tools">
+                        <summary class="radar-dev-tools-summary">高级 / 运维</summary>
+                        <form method="post" action="/radar/today/bootstrap" class="radar-update-form">
+                            <input type="hidden" name="section" value="{{ view.active_section }}">
+                            <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                            <input type="hidden" name="hours" value="{{ view.hours }}">
+                            <input type="hidden" name="limit" value="{{ view.limit }}">
+                            <input type="hidden" name="page" value="{{ view.page }}">
+                            <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                            <input type="hidden" name="max_items_per_source" value="20">
+                            <input type="hidden" name="max_sources" value="15">
+                            <input type="hidden" name="action" value="dry_run">
+                            <button type="submit" class="btn-sm" title="初始化来源内容：预览已有 YAML 来源最近 20 条，不写库">初始化来源内容</button>
+                        </form>
+                        <a href="/fetch-runs" class="btn-sm">查看运行记录</a>
+                        {% if scheduler_status %}
+                        <a href="/project-docs/v1-beta-2-scheduler-operations" class="btn-sm">自动调度说明</a>
+                        {% endif %}
+                    </details>
                 </div>
             </nav>
 
@@ -464,7 +470,7 @@
                     </ul>
                     {% endif %}
                     {% elif daily_report_result.status == 'disabled' %}
-                    <div class="radar-daily-report-note">今日核心报告未启用：需设置 DAILY_REPORT_ENABLED=true 后再生成（避免误触 LLM 调用）。</div>
+                    <div class="radar-daily-report-note">今日核心报告未启用。<br>这是会调用 LLM 的生成动作，需要在环境变量 DAILY_REPORT_ENABLED=true 后启用。</div>
                     {% elif daily_report_result.status == 'no_input' %}
                     <div class="radar-daily-report-note">今日暂无可编译的中文摘要内容，无法生成核心报告。</div>
                     {% else %}
@@ -542,10 +548,10 @@
                                             name="return_to"
                                             value="/radar/today?section={{ view.active_section }}&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
                                         >
-                                        <button type="submit" class="btn-sm">加入生成</button>
+                                        <button type="submit" class="btn-sm">生成洞察卡</button>
                                     </form>
                                     {% elif item.insight_card_id %}
-                                    <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看 InsightCard</a>
+                                    <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看洞察卡</a>
                                     {% endif %}
                                     {% set card_url = safe_external_url(display.url if display else item.url) %}
                                     {% if card_url %}

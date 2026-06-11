@@ -4579,6 +4579,61 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     gap: 0.45rem;
 }
 
+.radar-today-actions {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #d0d7de;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.radar-today-actions-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #57606a;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.15rem;
+}
+
+.radar-dev-tools {
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #d0d7de;
+}
+
+.radar-dev-tools-summary {
+    font-size: 0.75rem;
+    color: #57606a;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.radar-dev-tools-summary::-webkit-details-marker {
+    display: none;
+}
+
+.radar-dev-tools-summary::before {
+    content: "▶";
+    font-size: 0.6rem;
+    color: #57606a;
+    transition: transform 0.15s;
+}
+
+details[open] .radar-dev-tools-summary::before {
+    transform: rotate(90deg);
+}
+
+.radar-dev-tools form,
+.radar-dev-tools a {
+    margin-top: 0.35rem;
+}
+
 .radar-update-result {
     margin: 0 0 0.75rem;
     padding: 0.55rem 0.7rem;

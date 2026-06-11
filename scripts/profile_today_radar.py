@@ -242,9 +242,11 @@ def profile_build_today_view(
     fetch_run_summary = service.build_fetch_run_summary(None)
     result.fetch_run_summary_ms = (time.perf_counter() - q0) * 1000
 
-    # ── Quality filter stats ─────────────────────────────────────────
+    # ── Quality filter stats (only when section=all && page=1, matching production) ──
     q0 = time.perf_counter()
-    quality_filter_stats = service.compute_quality_filter_stats(hours)
+    quality_filter_stats = None
+    if section == "all" and page == 1:
+        quality_filter_stats = service.compute_quality_filter_stats(hours)
     result.quality_filter_stats_ms = (time.perf_counter() - q0) * 1000
 
     # ── Compile candidates ───────────────────────────────────────────
