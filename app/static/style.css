@@ -1418,42 +1418,43 @@ footer {
 
 .source-card-stats {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
-    padding: 0.65rem 0.75rem;
+    grid-template-rows: auto auto;
+    gap: 0.2rem;
+    padding: 0.6rem 0.75rem;
     background: #f8f9fa;
     border-radius: 8px;
 }
 
-.source-stat {
-    display: flex;
-    flex-direction: column;
+.source-stats-values,
+.source-stats-labels {
+    display: grid;
+    grid-template-columns: 0.85fr 0.85fr 1.3fr;
     align-items: center;
-    gap: 0.1rem;
-    min-width: 0;
+    column-gap: 0.3rem;
+    text-align: center;
 }
 
 .stat-val {
     display: block;
-    font-size: 1.2rem;
+    font-size: 1.08rem;
     font-weight: 700;
     color: #2c3e50;
-    line-height: 1.25;
+    line-height: 1.2;
+    white-space: nowrap;
 }
 
-/* V1.0-beta.14: keep datetime on a single line */
-.stat-datetime {
-    display: block;
+.stat-val.stat-datetime {
+    font-size: 1.08rem;
     white-space: nowrap;
-    font-size: 1.05rem;
-    line-height: 1.2;
+    letter-spacing: -0.01em;
 }
 
 .stat-key {
     display: block;
     font-size: 0.72rem;
     color: #888;
-    margin-top: 0.1rem;
+    line-height: 1.2;
+    white-space: nowrap;
 }
 
 .source-card-actions {
