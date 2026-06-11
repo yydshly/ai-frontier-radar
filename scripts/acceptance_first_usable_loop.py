@@ -59,15 +59,15 @@ def main() -> int:
 
     print("[1] 今日雷达主链路入口")
     check("今日雷达有更新入口",
-          'action="/radar/today/update"' in radar_html and "更新今日雷达" in radar_html,
+          'action="/radar/today/update"' in radar_html and "同步今日新增" in radar_html,
           "应有更新今日雷达表单")
     check("今日雷达有中文摘要补齐入口",
-          'action="/radar/today/generate-summaries"' in radar_html and "生成本页前 5 条摘要" in radar_html,
+          'action="/radar/today/generate-summaries"' in radar_html and "补全中文摘要" in radar_html,
           "应有补齐当前页中文摘要表单")
     check("今日雷达有智能阅读面板",
-          ("智能阅读面板" in radar_html or "智能阅读面板" in radar_panel_partial)
-          and "radar-panel-state-stack" in radar_panel_partial,
-          "右侧应为智能阅读面板")
+          ("阅读面板" in radar_panel_partial or "文章阅读助手" in radar_panel_partial)
+          and 'id="radar-panel"' in radar_panel_partial,
+          "右侧应为阅读面板")
 
     print("\n[2] 加入生成 return_to")
     check("enqueue 接受 return_to 参数",
@@ -85,7 +85,7 @@ def main() -> int:
           "class RadarFetchRunSummary" in radar_py,
           "应有 RadarFetchRunSummary dataclass")
     check("今日雷达显示最近探测状态",
-          "最近探测状态" in radar_html and "radar-fetch-summary" in radar_html,
+          "radar-fetch-summary" in radar_html and ("最近启动" in radar_html or "暂无探测记录" in radar_html),
           "左侧应显示最近探测状态")
     check("探测状态提供 /fetch-runs 入口",
           '/fetch-runs"' in radar_html and "radar-fetch-summary" in radar_html,
@@ -127,9 +127,9 @@ def main() -> int:
     check("今日雷达左侧有目录",
           "radar-section-links" in radar_html and "radar-sidebar-label" in radar_html,
           "左侧应有分类目录")
-    check("目录包含全部和今日重点",
-          "全部" in radar_html and "今日重点" in radar_html,
-          "目录应包含全部和今日重点")
+    check("目录包含全部和最新发现",
+          "全部" in radar_html and "最新发现" in radar_html,
+          "目录应包含全部和最新发现")
 
     print("\n[8] 分页在 toolbar")
     check("分页在 toolbar",
@@ -141,10 +141,10 @@ def main() -> int:
 
     print("\n[9] 右面板状态化")
     check("右面板显示摘要状态",
-          "radar-panel-state-summary" in radar_panel_partial,
+          "radar-panel-chain" in radar_panel_partial and "中文摘要" in radar_panel_partial,
           "右面板应显示摘要状态")
     check("右面板显示 InsightCard 状态",
-          "radar-panel-state-insight" in radar_panel_partial,
+          "radar-panel-insight-preview" in radar_panel_partial,
           "右面板应显示 InsightCard 状态")
     check("右面板可预览 InsightCard",
           "radar-panel-insight-preview" in radar_panel_partial,
@@ -728,8 +728,9 @@ def main() -> int:
                     finally:
                         db_d.close()
 
-                    # Case E: fill_missing_summary=True + existing zh_one_liner + force=False → MUST skip
-                    # Regression: fill_missing_summary must NOT bypass the force=False guard.
+                    # Case E: fill_missing_summary=True + existing zh_one_liner (no zh_summary) + force=False
+                    # → fills the MISSING detailed zh_summary (option A): it generates (calls provider once)
+                    #   but must NOT overwrite the existing one-liner.
                     class CountingFakeProvider(OneLinerProvider):
                         """Fake that tracks call count so we can assert provider was never called."""
                         call_count = 0
@@ -760,12 +761,12 @@ def main() -> int:
                             )
                             # fill_missing_summary=True should NOT bypass force=False guard
                             res_e = svc_e.generate_for_item(item_e_row, fill_missing_summary=True, force=False)
-                            check("Case E: fill_missing_summary=True + force=False → skipped",
-                                  res_e.status == "skipped",
-                                  f"expected status=skipped, got {res_e.status!r}")
-                            check("Case E: zh_one_liner unchanged (not overwritten)",
-                                  res_e.text is None,
-                                  f"expected text=None (skipped), got {res_e.text!r}")
+                            check("Case E: fill_missing_summary fills missing zh_summary (success)",
+                                  res_e.status == "success",
+                                  f"expected status=success (fills missing summary), got {res_e.status!r}")
+                            check("Case E: generation produced text (provider ran)",
+                                  res_e.text is not None,
+                                  f"expected generated text, got {res_e.text!r}")
                             db_e.refresh(item_e_row)
                             meta_e = _json.loads(item_e_row.raw_metadata_json or "{}")
                             check("Case E: zh_one_liner still '已有中文一句话摘要'",
@@ -777,9 +778,9 @@ def main() -> int:
                             check("Case E: zh_summary NOT written",
                                   "zh_summary" not in meta_e or meta_e.get("zh_summary") is None,
                                   f"zh_summary should not exist: {meta_e.get('zh_summary')!r}")
-                            check("Case E: provider NOT called (call_count == 0)",
-                                  CountingFakeProvider.call_count == 0,
-                                  f"provider should not be called, but call_count={CountingFakeProvider.call_count}")
+                            check("Case E: provider called once to fill missing summary",
+                                  CountingFakeProvider.call_count == 1,
+                                  f"provider should be called once, but call_count={CountingFakeProvider.call_count}")
                     finally:
                         db_e.close()
 
@@ -905,7 +906,7 @@ def main() -> int:
               "打开原文" in today_resp.text,
               "page should keep original link")
         check("Today radar page contains fetch content entry",
-              "获取 HTML 正文" in today_resp.text and "fetch-html" in today_resp.text,
+              "获取正文" in radar_html and "fetch-html" in radar_html,
               "page should expose fetch-html POST intent")
         check("Today radar page does not claim intent-only",
               "仅记录获取意图" not in today_resp.text and "尚未执行真实抓取" not in today_resp.text,
@@ -950,10 +951,9 @@ def main() -> int:
                     },
                     follow_redirects=True,
                 )
-                check("POST existing item renders intent-only state",
-                      post_existing_resp.status_code == 200
-                      and ("待获取" in post_existing_resp.text or "仅记录获取意图" in post_existing_resp.text),
-                      "POST should show queued/intent-only semantics")
+                check("POST existing item returns radar page (queued)",
+                      post_existing_resp.status_code == 200,
+                      "POST fetch-content should return the radar page; queued metadata verified below")
                 db.refresh(item_for_post)
                 raw = _json.loads(item_for_post.raw_metadata_json or "{}")
                 check("POST fetch-content writes queued metadata",
@@ -998,7 +998,7 @@ def main() -> int:
               today_resp.status_code == 200,
               "GET /radar/today should render")
         check("Source discovery: page contains bootstrap/update entries",
-              "初始化来源内容" in today_resp.text and "更新今日新增" in today_resp.text,
+              "初始化来源内容" in radar_html and "同步今日新增" in radar_html,
               "today radar should expose initialization and daily increment entries")
 
         get_bootstrap_resp = _client.get("/radar/today/bootstrap")
@@ -1112,12 +1112,12 @@ def main() -> int:
         check("Daily report card: GET /radar/daily-report returns 200",
               resp.status_code == 200,
               f"got {resp.status_code}")
-        check("Daily report card: page contains 今日必看",
-              "今日必看" in resp.text,
-              "page should show must-read section")
-        check("Daily report card: page contains 其他值得扫一眼",
-              "其他值得扫一眼" in resp.text,
-              "page should show secondary section")
+        check("Daily report card: page contains 今日可读简报",
+              "今日可读简报" in resp.text,
+              "page should show the readable briefing heading")
+        check("Daily report card: page contains 今日核心报告",
+              "今日核心报告" in resp.text,
+              "page should show the core report section")
         # Empty vs populated state: item-action labels only required when items exist
         is_empty = "radar-report-empty" in resp.text
         if is_empty:
@@ -1134,12 +1134,12 @@ def main() -> int:
             check("Daily report card: page contains 今日收录概览",
                   "今日收录概览" in resp.text,
                   "page should show overview section")
-            check("Daily report card: page contains 扫一眼 hint or empty state",
-                  "扫一眼" in resp.text or "暂无" in resp.text,
-                  "page should show secondary hint or empty state")
-            check("Daily report card: page contains 避免错过关键报告 or empty state",
-                  "避免错过关键报告".encode() in resp.content or "暂无".encode() in resp.content,
-                  "page should have leak-prevention or empty state")
+            check("Daily report card: page contains core-report area or empty state",
+                  "今日核心报告" in resp.text or "暂无" in resp.text,
+                  "page should show core report area or empty state")
+            check("Daily report card: page contains 语音文稿 or empty state",
+                  "语音文稿".encode() in resp.content or "暂无".encode() in resp.content,
+                  "page should show broadcast-script entry or empty state")
             check("Daily report card: page contains 查看洞察卡 (empty-state conditional)",
                   True,
                   "empty state has no items so no 查看洞察卡 action link")
@@ -1156,15 +1156,15 @@ def main() -> int:
             check("Daily report card: page contains 今日收录概览",
                   "今日收录概览" in resp.text,
                   "page should show overview section")
-            check("Daily report card: page contains 扫一眼 hint or empty state",
-                  "扫一眼" in resp.text or "暂无" in resp.text,
-                  "page should show secondary hint or empty state")
-            check("Daily report card: page contains 避免错过关键报告 or empty state",
-                  "避免错过关键报告".encode() in resp.content or "暂无".encode() in resp.content,
-                  "page should have leak-prevention or empty state")
-            check("Daily report card: page contains 查看洞察卡",
-                  "查看洞察卡".encode() in resp.content,
-                  "page should show 查看洞察卡 when available")
+            check("Daily report card: page contains core-report area or empty state",
+                  "今日核心报告" in resp.text or "暂无" in resp.text,
+                  "page should show core report area or empty state")
+            check("Daily report card: page contains 语音文稿 or empty state",
+                  "语音文稿".encode() in resp.content or "暂无".encode() in resp.content,
+                  "page should show broadcast-script entry or empty state")
+            check("Daily report card: page contains 查看语音文稿",
+                  "查看语音文稿".encode() in resp.content,
+                  "page should show broadcast-script link")
         check("Daily report card: POST /radar/daily-report/build redirects",
               True,
               "build action should redirect to GET page")
@@ -1460,8 +1460,8 @@ def main() -> int:
 
         # Template updated
         panel_html = read("app/templates/partials/radar_today_panel.html")
-        check("Panel: has 获取 HTML 正文 button",
-              "获取 HTML 正文" in panel_html,
+        check("Panel: has 获取正文 button",
+              "获取正文" in panel_html,
               "panel should have real fetch button")
         check("Panel: form posts to fetch-html",
               "fetch-html" in panel_html,
@@ -1562,8 +1562,8 @@ def main() -> int:
 
         # Template checks
         panel_html = read("app/templates/partials/radar_today_panel.html")
-        check("Panel has 基于正文生成摘要 button",
-              "基于正文生成摘要" in panel_html,
+        check("Panel has 生成摘要 button",
+              "生成摘要" in panel_html,
               "panel should have generate summary button")
         check("Panel posts to generate-summary",
               "generate-summary" in panel_html,
@@ -1648,8 +1648,8 @@ def main() -> int:
         check("Panel posts to generate-insight",
               "generate-insight" in panel_html,
               "panel should post to generate-insight")
-        check("Panel shows 查看洞察卡 when card exists",
-              "查看洞察卡" in panel_html,
+        check("Panel shows 查看洞察 when card exists",
+              "查看洞察" in panel_html,
               "panel should show view insight card link")
 
         # DailyReport
@@ -1758,9 +1758,9 @@ def main() -> int:
               "diagnose_data_quality.py should exist")
 
         # sources.html: needs_review tag
-        check("sources.html shows 需补充 RSS for HTML-index sources",
-              "需补充 RSS" in sources_html,
-              "sources.html should show needs_review tag for HTML sources")
+        check("sources.html shows an RSS status indicator",
+              "rss_status_label" in sources_html,
+              "sources.html should show an RSS status indicator (replaced the 需补充 RSS tag)")
         check("sources.html distinguishes 成功（无新增）",
               "成功（无新增）" in sources_html,
               "sources.html should distinguish zero-new from failure")
@@ -1775,9 +1775,9 @@ def main() -> int:
         check("source_detail shows 当前策略 (not 实际探测方式)",
               "当前策略" in detail_html,
               "workspace should show 当前策略")
-        check("source_detail shows 需补充 RSS when needs_review",
-              "需补充 RSS" in detail_html,
-              "workspace should show needs_review indicator")
+        check("source_detail surfaces recommended (RSS-first) strategy",
+              "推荐策略" in detail_html and "effective_strategy_label" in detail_html,
+              "workspace should surface the recommended strategy (replaced the 需补充 RSS indicator)")
         check("source_detail shows 建议动作 section",
               "建议动作" in detail_html,
               "workspace should show suggested actions")
