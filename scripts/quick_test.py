@@ -6712,9 +6712,9 @@ def main():
         check("Template identifies MiMo V2.5 TTS",
               "MiMo V2.5" in broadcast_html,
               "broadcast template should identify the configured TTS provider")
-        check("Template embeds generated audio player",
-              "<audio controls" in broadcast_html and "下载 WAV" in broadcast_html,
-              "broadcast template should support playback and download")
+        check("Template embeds audio playback UI",
+              "radar-custom-player" in broadcast_html and "下载 WAV" in broadcast_html,
+              "broadcast template must support playback and download")
         check("Template exposes voice, style, progress and history",
               "播报音色" in broadcast_html
               and "播报风格" in broadcast_html
@@ -6727,31 +6727,78 @@ def main():
         check("Template has 返回今日报告",
               "返回今日报告" in broadcast_html,
               "broadcast template should have back link")
-        check("Template uses inline player card (not playback link)",
-              "radar-broadcast-player-card" in broadcast_html,
-              "generated audio section must use inline player card, not a jump link")
-        check("Template audio player has radar-broadcast-audio-player class",
-              'class="radar-broadcast-audio-player"' in broadcast_html
-              or "class='radar-broadcast-audio-player'" in broadcast_html,
-              "audio element must carry radar-broadcast-audio-player class")
-        check("History play button uses radar-broadcast-history-play",
-              "radar-broadcast-history-play" in broadcast_html,
-              "history play action must be a button, not a jump link")
+        check("Template uses unified broadcast-card layout",
+              "radar-broadcast-card" in broadcast_html,
+              "broadcast must use radar-broadcast-card base class")
+        check("Template has radar-broadcast-page class on root",
+              "radar-broadcast-page" in broadcast_html,
+              "broadcast page root must carry radar-broadcast-page class")
+        check("Template has subtitle text",
+              "radar-broadcast-subtitle" in broadcast_html,
+              "broadcast must have a subtitle paragraph")
+        check("Template uses custom player radar-custom-player",
+              "radar-custom-player" in broadcast_html,
+              "broadcast must use radar-custom-player div")
+        check("Template audio element has radar-custom-player-audio class",
+              "radar-custom-player-audio" in broadcast_html,
+              "audio element must carry radar-custom-player-audio class")
+        check("Template has radar-player-play-toggle button",
+              "radar-player-play-toggle" in broadcast_html,
+              "broadcast must have a radar-player-play-toggle button")
+        check("Template has radar-player-progress range input",
+              "radar-player-progress" in broadcast_html,
+              "broadcast must have a radar-player-progress range input")
+        check("Template has radar-player-current-time display",
+              "radar-player-current-time" in broadcast_html,
+              "broadcast must display current time")
+        check("Template has radar-player-duration display",
+              "radar-player-duration" in broadcast_html,
+              "broadcast must display total duration")
+        check("Template JS uses formatTime helper",
+              "formatTime" in broadcast_html,
+              "broadcast JS must define a formatTime helper")
+        check("Template JS calls audio.play()",
+              "audio.play()" in broadcast_html,
+              "broadcast JS must call audio.play() on play action")
+        check("Template JS calls audio.pause()",
+              "audio.pause()" in broadcast_html,
+              "broadcast JS must call audio.pause() on pause action")
+        check("Template JS listens to timeupdate event",
+              "timeupdate" in broadcast_html,
+              "broadcast JS must listen to audio timeupdate event")
+        check("Template JS listens to loadedmetadata event",
+              "loadedmetadata" in broadcast_html,
+              "broadcast JS must listen to audio loadedmetadata event")
+        check("Template JS listens to ended event",
+              "ended" in broadcast_html,
+              "broadcast JS must listen to audio ended event")
         check("History play button has data-audio-url attribute",
               "data-audio-url=" in broadcast_html,
-              "history play button must carry the audio URL as a data attribute")
-        check("History inline player uses radar-broadcast-history-player",
-              "radar-broadcast-history-player" in broadcast_html,
-              "history inline player must use radar-broadcast-history-player class")
-        check("Style sheet contains radar-broadcast-player-card",
-              "radar-broadcast-player-card" in style_text,
-              "style.css must define radar-broadcast-player-card")
-        check("Style sheet contains radar-broadcast-audio-player",
-              "radar-broadcast-audio-player" in style_text,
-              "style.css must define radar-broadcast-audio-player")
-        check("Style sheet contains radar-broadcast-history-player",
-              "radar-broadcast-history-player" in style_text,
-              "style.css must define radar-broadcast-history-player")
+              "history play button must carry audio URL as data attribute")
+        check("History item supports is-active class",
+              "is-active" in broadcast_html,
+              "history item must support is-active class for highlighting")
+        check("Template does not use playback jump links",
+              ">播放</a>" not in broadcast_html and "播放音频</a>" not in broadcast_html,
+              "broadcast must not have >播放</a> or 播放音频</a> as main playback entry")
+        check("Style sheet defines radar-broadcast-page",
+              "radar-broadcast-page" in style_text,
+              "style.css must define radar-broadcast-page")
+        check("Style sheet defines radar-broadcast-card",
+              "radar-broadcast-card" in style_text,
+              "style.css must define radar-broadcast-card base class")
+        check("Style sheet defines radar-custom-player",
+              "radar-custom-player" in style_text,
+              "style.css must define radar-custom-player")
+        check("Style sheet defines radar-player-play-toggle",
+              "radar-player-play-toggle" in style_text,
+              "style.css must define radar-player-play-toggle")
+        check("Style sheet defines radar-player-progress",
+              "radar-player-progress" in style_text,
+              "style.css must define radar-player-progress")
+        check("Style sheet defines radar-broadcast-history-item.is-active",
+              "is-active" in style_text,
+              "style.css must define is-active state for history items")
 
         from app.application.radar.daily_broadcast import (
             DailyBroadcastScript,

@@ -7,7 +7,8 @@
 {% block body_class %}radar-document-shell{% endblock %}
 
 {% block content %}
-<div class="radar-page radar-readable-page">
+<div class="radar-page radar-readable-page radar-broadcast-page">
+
     {# ── Header ─────────────────────────────────────────── #}
     <div class="radar-header">
         <div class="radar-header-top">
@@ -21,68 +22,119 @@
         </div>
     </div>
 
-    {# ── Audio status banner ─────────────────────────────── #}
+    {# ── Subtitle ─────────────────────────────────────────── #}
+    <p class="radar-broadcast-subtitle">
+        将今日核心报告转换为可收听的中文语音播报。你可以先阅读文稿，也可以生成音频后直接在本页播放。
+    </p>
+
+    {# ── Error banner ─────────────────────────────────────── #}
     {% if audio_error or tts_config_error %}
-    <div class="radar-broadcast-audio-status">
-        <div class="radar-broadcast-audio-failed">
-            <span class="radar-broadcast-audio-icon">!</span>
+    <div class="radar-broadcast-card radar-broadcast-error-card">
+        <div class="radar-broadcast-error-inner">
+            <span class="radar-broadcast-error-icon">!</span>
             <span>{{ audio_error or tts_config_error }}</span>
         </div>
     </div>
     {% endif %}
 
+    {# ── Current player / status banner ────────────────────── #}
     {% if audio_job %}
-    <div class="radar-broadcast-audio-status">
         {% if audio_job.status == "generated" %}
-        <div class="radar-broadcast-player-card">
-            <div class="radar-broadcast-player-title">{{ audio_job.voice }} 音色的语音报告已生成</div>
-            <audio class="radar-broadcast-audio-player" controls preload="metadata" src="{{ audio_job.audio_url }}">
-                当前浏览器不支持音频播放。
-            </audio>
+    <section class="radar-broadcast-card radar-broadcast-now-playing"
+             data-current-audio-url="{{ audio_job.audio_url }}">
+        <div class="radar-broadcast-card-header">
+            <div>
+                <h2>当前语音报告</h2>
+                <p>{{ audio_job.voice }} 音色 · {{ audio_job.date_label or script.date_label }}</p>
+            </div>
             <div class="radar-broadcast-player-actions">
                 <a href="{{ audio_job.audio_url }}" download class="radar-report-action-link">下载 WAV</a>
-                <a href="{{ audio_job.audio_url }}" target="_blank" rel="noopener" class="radar-report-action-link">在新标签打开</a>
+                <a href="{{ audio_job.audio_url }}" target="_blank" rel="noopener" class="radar-report-action-link">新标签打开</a>
             </div>
         </div>
+
+        <div class="radar-custom-player"
+             data-audio-url="{{ audio_job.audio_url }}"
+             data-audio-title="{{ audio_job.date_label or script.date_label }} · {{ audio_job.voice }}">
+            <audio class="radar-custom-player-audio" preload="metadata" src="{{ audio_job.audio_url }}"></audio>
+
+            <button type="button" class="radar-player-play-toggle" aria-label="播放或暂停">播放</button>
+
+            <div class="radar-player-main">
+                <div class="radar-player-title">{{ audio_job.date_label or script.date_label }} · {{ audio_job.voice }}</div>
+                <input type="range"
+                       class="radar-player-progress"
+                       min="0" max="100" value="0" step="0.1"
+                       aria-label="播放进度">
+                <div class="radar-player-time">
+                    <span class="radar-player-current-time">00:00</span>
+                    <span class="radar-player-duration">00:00</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
         {% elif audio_job.status == "failed" %}
-        <div class="radar-broadcast-audio-failed">
+    <section class="radar-broadcast-card radar-broadcast-status-card">
+        <div class="radar-broadcast-status-inner radar-broadcast-audio-failed">
             <span class="radar-broadcast-audio-icon">失败</span>
             <span>音频生成失败：{{ audio_job.error or "未知错误" }}</span>
             <form method="post" action="/radar/daily-report/broadcast/audio/{{ audio_job.job_id }}/retry">
                 <button type="submit" class="btn btn-secondary">重新生成</button>
             </form>
         </div>
+    </section>
+
         {% else %}
-        <div class="radar-broadcast-audio-processing">
+    <section class="radar-broadcast-card radar-broadcast-status-card">
+        <div class="radar-broadcast-status-inner radar-broadcast-audio-processing">
             <span class="radar-broadcast-audio-icon">处理中</span>
             <span>
                 {% if audio_job.status == "queued" %}任务已进入后台队列{% else %}正在生成语音{% endif %}
-                {% if audio_job.chunk_count %}
-                （{{ audio_job.completed_chunks }}/{{ audio_job.chunk_count }} 段）
-                {% endif %}
+                {% if audio_job.chunk_count %}({{ audio_job.completed_chunks }}/{{ audio_job.chunk_count }} 段){% endif %}
             </span>
             <a href="/radar/daily-report/broadcast?job_id={{ audio_job.job_id }}" class="radar-report-action-link">刷新状态</a>
         </div>
         <script>
           window.setTimeout(function () { window.location.reload(); }, 2500);
         </script>
+    </section>
         {% endif %}
-    </div>
     {% endif %}
 
-    {# ── Broadcast script ─────────────────────────────────── #}
-    <div class="radar-broadcast-section">
-        <div class="radar-broadcast-section-header">
-            <h2 class="radar-broadcast-section-title">播报文案</h2>
-            <span class="radar-report-stat-note">内容来源：{{ script_basis }}</span>
-            <div class="radar-broadcast-toolbar">
-                <button type="button" id="copy-btn" class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').innerText).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">复制文案</button>
-                <span class="radar-broadcast-tts-note">MiMo V2.5 TTS · 后台分段生成</span>
+    {# ── Script card ──────────────────────────────────────── #}
+    <section class="radar-broadcast-card radar-broadcast-script-card">
+        <div class="radar-broadcast-card-header">
+            <div>
+                <h2>播报文稿</h2>
+                <p>内容来源：{{ script_basis }}</p>
             </div>
+            <button type="button" id="copy-btn" class="btn btn-secondary"
+                    onclick="navigator.clipboard.writeText(document.getElementById('broadcast-script').innerText).then(function(){var btn=document.getElementById('copy-btn');btn.textContent='已复制';setTimeout(function(){btn.textContent='复制文案'},2000);})">
+                复制文案
+            </button>
         </div>
 
         {% if script.full_text %}
         <div id="broadcast-script" class="radar-broadcast-script-readable">{{ script.full_text }}</div>
+        {% else %}
+        <div class="radar-broadcast-empty">
+            <p>暂无播报内容。</p>
+            <p>请先在<a href="/radar/daily-report">今日报告</a>中查看今日内容后，再生成播报文案。</p>
+        </div>
+        {% endif %}
+    </section>
+
+    {# ── Generate card ─────────────────────────────────────── #}
+    {% if script.full_text %}
+    <section class="radar-broadcast-card radar-broadcast-generate-card">
+        <div class="radar-broadcast-card-header">
+            <div>
+                <h2>生成语音报告</h2>
+                <p>长文会自动分段；相同文稿、音色和风格会复用已有音频。<span class="radar-broadcast-tts-note">MiMo V2.5 TTS</span></p>
+            </div>
+        </div>
+
         <form method="post" action="/radar/daily-report/broadcast/audio"
               class="radar-broadcast-generation-form"
               onsubmit="var btn=document.getElementById('audio-btn');btn.disabled=true;btn.textContent='任务提交中';">
@@ -101,46 +153,42 @@
             <button type="submit" class="btn btn-primary" id="audio-btn" {% if tts_config_error %}disabled{% endif %}>
                 生成语音报告
             </button>
-            <span class="radar-broadcast-tts-note">长文自动分段；相同文稿、音色和风格会复用已有音频。</span>
         </form>
-        {% else %}
-        <div class="radar-broadcast-empty">
-            <p>暂无播报内容。</p>
-            <p>请先在<a href="/radar/daily-report">今日报告</a>中查看今日内容后，再生成播报文案。</p>
-        </div>
-        {% endif %}
-    </div>
+    </section>
+    {% endif %}
 
+    {# ── History card ─────────────────────────────────────── #}
     {% if audio_jobs %}
-    <div class="radar-broadcast-section">
-        <div class="radar-broadcast-section-header">
-            <h2 class="radar-broadcast-section-title">语音报告历史</h2>
-            <span class="radar-report-stat-note">最近 {{ audio_jobs|length }} 条</span>
+    <section class="radar-broadcast-card radar-broadcast-history-card">
+        <div class="radar-broadcast-card-header">
+            <div>
+                <h2>语音报告历史</h2>
+                <p>最近 {{ audio_jobs|length }} 条</p>
+            </div>
         </div>
+
         <div class="radar-broadcast-history">
             {% for job in audio_jobs %}
-            <div class="radar-broadcast-history-item">
-                <div>
+            <article class="radar-broadcast-history-item {% if audio_job and job.job_id == audio_job.job_id %}is-active{% endif %}">
+                <div class="radar-broadcast-history-main">
                     <strong>{{ job.date_label }} · {{ job.voice }}</strong>
-                    <span class="radar-report-stat-note">
-                        {{ job.updated_at|replace('T', ' ') }} ·
+                    <span>{{ job.updated_at|replace('T', ' ') }} ·
                         {% if job.status == "generated" %}已完成
                         {% elif job.status == "failed" %}失败
                         {% elif job.status == "running" %}生成中
                         {% else %}排队中{% endif %}
                     </span>
-                    <div class="radar-report-stat-note">{{ job.script_basis }} · {{ job.title }}</div>
-                    {% if job.report_version %}
-                    <div class="radar-report-stat-note">报告版本：{{ job.report_version }}</div>
-                    {% endif %}
+                    <span>{{ job.script_basis }} · {{ job.title }}</span>
+                    {% if job.report_version %}<span>报告版本：{{ job.report_version }}</span>{% endif %}
                 </div>
+
                 <div class="radar-broadcast-history-actions">
                     <a href="/radar/daily-report/broadcast?job_id={{ job.job_id }}" class="radar-report-action-link">查看</a>
-                    {% if job.audio_url %}
+                    {% if job.audio_url and job.status == "generated" %}
                     <button type="button"
                             class="radar-broadcast-history-play"
                             data-audio-url="{{ job.audio_url }}"
-                            data-target="broadcast-audio-{{ loop.index }}">
+                            data-title="{{ job.date_label }} · {{ job.voice }}">
                         播放
                     </button>
                     {% endif %}
@@ -150,42 +198,111 @@
                     </form>
                     {% endif %}
                 </div>
-                <div id="broadcast-audio-{{ loop.index }}" class="radar-broadcast-history-player" hidden>
-                    <audio controls preload="metadata" src="{{ job.audio_url }}"></audio>
-                </div>
-            </div>
+            </article>
             {% endfor %}
         </div>
-    </div>
+    </section>
     {% endif %}
 
     {# ── Footer ─────────────────────────────────────────── #}
-    <script>
-    document.addEventListener("click", function (event) {
-        var btn = event.target.closest(".radar-broadcast-history-play");
-        if (!btn) return;
-
-        var targetId = btn.getAttribute("data-target");
-        var panel = document.getElementById(targetId);
-        if (!panel) return;
-
-        var isHidden = panel.hasAttribute("hidden");
-        panel.toggleAttribute("hidden", !isHidden);
-        btn.textContent = isHidden ? "收起" : "播放";
-
-        if (isHidden) {
-            var audio = panel.querySelector("audio");
-            if (audio) {
-                audio.play().catch(function () {
-                    // 浏览器可能阻止自动播放，不视为错误，用户可手动点播放。
-                });
-            }
-        }
-    });
-    </script>
     <div class="radar-report-footer">
         <a href="/radar/daily-report" class="btn btn-secondary">返回今日报告</a>
         <a href="/radar/today" class="btn btn-secondary">返回今日雷达</a>
     </div>
+
+    <script>
+    (function () {
+        function formatTime(seconds) {
+            if (!isFinite(seconds) || seconds < 0) return "00:00";
+            var m = Math.floor(seconds / 60);
+            var s = Math.floor(seconds % 60);
+            return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+        }
+
+        var player = document.querySelector(".radar-custom-player");
+        if (!player) return;
+
+        var audio        = player.querySelector(".radar-custom-player-audio");
+        var toggle      = player.querySelector(".radar-player-play-toggle");
+        var progress    = player.querySelector(".radar-player-progress");
+        var currentEl   = player.querySelector(".radar-player-current-time");
+        var durationEl  = player.querySelector(".radar-player-duration");
+        var titleEl     = player.querySelector(".radar-player-title");
+
+        function pauseAudio() {
+            audio.pause();
+            toggle.textContent = "播放";
+            player.classList.remove("is-playing");
+        }
+
+        function playAudio() {
+            audio.play().then(function () {
+                toggle.textContent = "暂停";
+                player.classList.add("is-playing");
+            }).catch(function () {
+                toggle.textContent = "播放";
+            });
+        }
+
+        toggle.addEventListener("click", function () {
+            if (audio.paused) {
+                playAudio();
+            } else {
+                pauseAudio();
+            }
+        });
+
+        audio.addEventListener("loadedmetadata", function () {
+            durationEl.textContent = formatTime(audio.duration);
+        });
+
+        audio.addEventListener("timeupdate", function () {
+            currentEl.textContent = formatTime(audio.currentTime);
+            if (audio.duration) {
+                progress.value = String((audio.currentTime / audio.duration) * 100);
+            }
+        });
+
+        audio.addEventListener("ended", function () {
+            toggle.textContent = "播放";
+            player.classList.remove("is-playing");
+            progress.value = "100";
+        });
+
+        progress.addEventListener("input", function () {
+            if (audio.duration) {
+                audio.currentTime = (Number(progress.value) / 100) * audio.duration;
+            }
+        });
+
+        // History play — switch main player
+        document.addEventListener("click", function (event) {
+            var btn = event.target.closest(".radar-broadcast-history-play");
+            if (!btn) return;
+
+            var audioUrl  = btn.getAttribute("data-audio-url");
+            var audioTitle = btn.getAttribute("data-title") || "历史语音报告";
+            if (!audioUrl) return;
+
+            pauseAudio();
+
+            audio.src = audioUrl;
+            if (titleEl) titleEl.textContent = audioTitle;
+            progress.value = "0";
+            currentEl.textContent = "00:00";
+            durationEl.textContent = "00:00";
+
+            document.querySelectorAll(".radar-broadcast-history-item.is-active").forEach(function (el) {
+                el.classList.remove("is-active");
+            });
+
+            var item = btn.closest(".radar-broadcast-history-item");
+            if (item) item.classList.add("is-active");
+
+            player.scrollIntoView({ behavior: "smooth", block: "center" });
+            playAudio();
+        });
+    })();
+    </script>
 </div>
 {% endblock %}
