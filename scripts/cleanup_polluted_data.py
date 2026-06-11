@@ -4,25 +4,30 @@
 Safety model:
 - Default mode is DRY-RUN: prints a cleanup plan, writes nothing.
 - --apply flag is required to modify the database.
-- --apply --delete-safe-snapshot-gaps is required to delete B-class snapshot gap candidates.
+- --apply --delete-safe-snapshot-gaps is required to delete B-class snapshot gap candidates (48h protection).
+- --apply --delete-b-without-card-now is for establishing a clean detection environment;
+  removes B-class without InsightCard without 48h protection.
 - Before applying, auto-backups SQLite DB to data/backups/.
 - This script handles ONLY safe, reversible operations.
 
 Allowed in safe_to_apply_now (auto-handled on --apply --delete-safe-snapshot-gaps):
   1. stale running FetchRun → failed (with [stale-timeout] marker)
-  2. B-class snapshot gap safe-delete candidates
+  2. B-class snapshot gap safe-delete candidates (48h protection)
+
+Allowed on --apply --delete-b-without-card-now:
+  3. B-class without InsightCard, no 48h protection (for clean detection environment)
 
 Listed in manual_review_required (plan only, NOT auto-deleted):
-  3. orphan SourceItem (source_id is None or references non-existent Source)
-  4. SourceItem with empty url
-  5. SourceItem with empty title AND empty url
-  6. orphan InsightCard (card exists but no SourceItem links to it)
+  4. orphan SourceItem (source_id is None or references non-existent Source)
+  5. SourceItem with empty url
+  6. SourceItem with empty title AND empty url
+  7. orphan InsightCard (card exists but no SourceItem links to it)
 
 Listed in do_not_touch_in_phase_2 (plan only):
-  A. snapshot_missing_items — A-class, ALL protected (with_card=20/20)
+  A. snapshot_missing_items — A-class, ALL protected (with_card)
   F. duplicate_url_items — would require dedup logic
 
-B-class safe-delete candidate criteria (ALL must be true):
+B-class safe-delete candidate criteria (--delete-safe-snapshot-gaps, ALL must be true):
   - Belongs to B-class (has zh_summary in raw_metadata_json but no snapshot)
   - snapshot file is actually missing
   - raw_metadata_json has zh_summary or summary_zh
@@ -33,10 +38,21 @@ B-class safe-delete candidate criteria (ALL must be true):
   - insight_card_id is NULL (no linked InsightCard)
   - first_seen_at AND last_seen_at are both older than 48 hours
 
+B without card now criteria (--delete-b-without-card-now, ALL must be true):
+  - Belongs to B-class (has zh_summary in raw_metadata_json but no snapshot)
+  - snapshot file is actually missing
+  - insight_card_id is NULL
+  - url is non-empty
+  - title is non-empty
+  - source_id can join to a real Source
+  - Source.enabled = True
+  (no 48h requirement — for clean detection environment)
+
 Usage:
-    python scripts/cleanup_polluted_data.py                                  # dry-run
-    python scripts/cleanup_polluted_data.py --apply                          # apply safe cleanup (FetchRun only)
-    python scripts/cleanup_polluted_data.py --apply --delete-safe-snapshot-gaps  # also delete B-class candidates
+    python scripts/cleanup_polluted_data.py                                    # dry-run
+    python scripts/cleanup_polluted_data.py --apply                            # apply safe cleanup (FetchRun only)
+    python scripts/cleanup_polluted_data.py --apply --delete-safe-snapshot-gaps # delete 48h-protected B-class
+    python scripts/cleanup_polluted_data.py --apply --delete-b-without-card-now # delete all B without card
 """
 from __future__ import annotations
 
@@ -87,7 +103,20 @@ def backup_sqlite_db(db_path: Path, suffix: str = "cleanup") -> Path:
 
 @dataclass
 class SnapshotGapCandidate:
-    """A single B-class snapshot gap safe-delete candidate."""
+    """A single B-class snapshot gap safe-delete candidate (48h protected)."""
+    source_item_id: int
+    source_key: str
+    url: str
+    title: str
+    insight_card_id: int | None
+    first_seen_at: datetime
+    last_seen_at: datetime
+    reason: str
+
+
+@dataclass
+class BWithoutCardCandidate:
+    """A B-class SourceItem with no InsightCard — for clean detection environment."""
     source_item_id: int
     source_key: str
     url: str
@@ -103,6 +132,7 @@ class CleanupPlan:
     """Holds the results of analyzing the database."""
     # snapshot_gap_cleanup_candidates
     b_safe_delete_candidates: list[SnapshotGapCandidate] = field(default_factory=list)
+    b_without_card_candidates: list[BWithoutCardCandidate] = field(default_factory=list)
 
     # protected categories
     protected_a_with_card: int = 0       # A-class with insight_card_id
@@ -255,6 +285,37 @@ def analyze_database(db) -> CleanupPlan:
     plan.protected_recent_items = recent_items
     plan.protected_invalid_metadata = invalid_metadata_count
 
+    # ── 0b. B-class without InsightCard (no 48h requirement) ───────────────────
+    # These are B-class items with no linked InsightCard that can be removed
+    # to establish a clean detection environment. They may or may not be old.
+    b_without_card: list[BWithoutCardCandidate] = []
+    for item in missing_snap_B:
+        # Already filtered: has zh_summary, no snapshot, not A-class
+        # Must have no insight_card_id
+        if item.insight_card_id:
+            continue  # protected — B with card
+        # Must have url and title
+        if not (item.url and item.url.strip()):
+            continue
+        if not (item.title and item.title.strip()):
+            continue
+        # Must have valid source
+        if item.source_id not in valid_sources:
+            continue
+
+        b_without_card.append(BWithoutCardCandidate(
+            source_item_id=item.id,
+            source_key=item.source_key,
+            url=item.url or "",
+            title=item.title or "",
+            insight_card_id=item.insight_card_id,
+            first_seen_at=item.first_seen_at or datetime.utcnow(),
+            last_seen_at=item.last_seen_at or datetime.utcnow(),
+            reason="b_without_card_for_clean_detection",
+        ))
+
+    plan.b_without_card_candidates = b_without_card
+
     # ── 1. stale running FetchRun ─────────────────────────────────
     try:
         threshold = get_stale_running_threshold_minutes()
@@ -402,6 +463,21 @@ def format_plan(plan: CleanupPlan, mode: str) -> str:
             lines.append(f"      reason={c.reason}")
     lines.append("")
 
+    # ── Section 0b: B-class without card (clean detection environment) ─────
+    lines.append("## b_without_card_candidates")
+    lines.append(f"  count: {len(plan.b_without_card_candidates)}")
+    lines.append("  (B-class without InsightCard — eligible for --delete-b-without-card-now)")
+    if plan.b_without_card_candidates:
+        lines.append("  Samples (up to 5):")
+        for c in plan.b_without_card_candidates[:5]:
+            lines.append(f"    id={c.source_item_id} source_key={c.source_key}")
+            lines.append(f"      title={c.title[:50]} url={c.url[:60]}")
+            lines.append(f"      first_seen_at={_fmt_dt(c.first_seen_at)} "
+                         f"last_seen_at={_fmt_dt(c.last_seen_at)} "
+                         f"insight_card_id={c.insight_card_id}")
+            lines.append(f"      reason={c.reason}")
+    lines.append("")
+
     # ── Section 1: safe_to_apply_now ──────────────────────────────
     lines.append("## safe_to_apply_now")
     lines.append("")
@@ -530,7 +606,7 @@ def export_audit(
     exports_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    filename = f"snapshot_gap_cleanup_plan_{timestamp}.jsonl"
+    filename = f"cleanup_plan_{timestamp}.jsonl"
     export_path = exports_dir / filename
 
     with open(export_path, "w", encoding="utf-8") as f:
@@ -540,6 +616,7 @@ def export_audit(
             "timestamp": datetime.utcnow().isoformat(),
             "mode": mode,
             "b_safe_delete_candidates": len(plan.b_safe_delete_candidates),
+            "b_without_card_candidates": len(plan.b_without_card_candidates),
             "protected_a_with_card": plan.protected_a_with_card,
             "protected_b_with_card": plan.protected_b_with_card,
             "protected_recent_items": plan.protected_recent_items,
@@ -549,7 +626,7 @@ def export_audit(
         }
         f.write(json.dumps(meta, ensure_ascii=False) + "\n")
 
-        # Write B-class candidates
+        # Write B-class 48h-protected candidates
         for c in plan.b_safe_delete_candidates:
             record = {
                 "type": "b_safe_delete_candidate",
@@ -558,6 +635,22 @@ def export_audit(
                 "url": c.url,
                 "title": c.title,
                 "category": "b_safe_delete_candidate",
+                "reason": c.reason,
+                "insight_card_id": c.insight_card_id,
+                "first_seen_at": c.first_seen_at.isoformat() if c.first_seen_at else None,
+                "last_seen_at": c.last_seen_at.isoformat() if c.last_seen_at else None,
+            }
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+        # Write B-class without-card candidates
+        for c in plan.b_without_card_candidates:
+            record = {
+                "type": "b_without_card_candidate",
+                "source_item_id": c.source_item_id,
+                "source_key": c.source_key,
+                "url": c.url,
+                "title": c.title,
+                "category": "b_without_card_candidate",
                 "reason": c.reason,
                 "insight_card_id": c.insight_card_id,
                 "first_seen_at": c.first_seen_at.isoformat() if c.first_seen_at else None,
@@ -635,6 +728,25 @@ def delete_snapshot_gap_candidates(db, candidates: list[SnapshotGapCandidate]) -
     return deleted
 
 
+def delete_b_without_card_candidates(db, candidates: list[BWithoutCardCandidate]) -> int:
+    """Delete B-class SourceItems that have no InsightCard.
+
+    Returns the number of SourceItems deleted.
+    """
+    from app.models import SourceItem
+
+    deleted = 0
+    for c in candidates:
+        item = db.query(SourceItem).filter(SourceItem.id == c.source_item_id).first()
+        if item is None:
+            continue
+        db.delete(item)
+        deleted += 1
+
+    db.commit()
+    return deleted
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -653,10 +765,19 @@ def main() -> int:
         help="Also delete B-class snapshot gap safe-delete candidates. "
              "Requires --apply. Will not delete without this flag.",
     )
+    parser.add_argument(
+        "--delete-b-without-card-now",
+        action="store_true",
+        help="Delete ALL B-class without InsightCard to establish clean detection environment. "
+             "Requires --apply. No 48h protection.",
+    )
     args = parser.parse_args()
 
     if args.delete_safe_snapshot_gaps and not args.apply:
         print("[ERROR] --delete-safe-snapshot-gaps requires --apply")
+        return 1
+    if args.delete_b_without_card_now and not args.apply:
+        print("[ERROR] --delete-b-without-card-now requires --apply")
         return 1
 
     mode = "apply" if args.apply else "dry-run"
@@ -702,7 +823,10 @@ def main() -> int:
             print()
             print(f"[BACKUP] Backing up SQLite DB: {db_file_path}")
             try:
-                backup_path = backup_sqlite_db(db_file_path, suffix="snapshot_gap_cleanup")
+                suffix = ("b_without_card_cleanup"
+                          if args.delete_b_without_card_now
+                          else "snapshot_gap_cleanup")
+                backup_path = backup_sqlite_db(db_file_path, suffix=suffix)
                 print(f"[BACKUP] Created: {backup_path}")
             except FileNotFoundError:
                 print("[ERROR] SQLite DB file not found. Cannot apply cleanup without a backup.")
@@ -720,7 +844,7 @@ def main() -> int:
         updated = apply_safe_cleanup(db)
         print(f"[APPLY] Updated {updated} stale running FetchRun(s) to failed.")
 
-        # Step 2: B-class snapshot gap candidates
+        # Step 2: B-class snapshot gap candidates (48h protected)
         deleted_snapshot_gap = 0
         if args.delete_safe_snapshot_gaps and plan.b_safe_delete_candidates:
             print()
@@ -730,9 +854,22 @@ def main() -> int:
             )
             print(f"[APPLY] Deleted {deleted_snapshot_gap} SourceItem(s).")
 
+        # Step 3: B-class without InsightCard (no 48h protection)
+        deleted_b_without_card = 0
+        if args.delete_b_without_card_now and plan.b_without_card_candidates:
+            print()
+            print(f"[APPLY] Deleting {len(plan.b_without_card_candidates)} B-class without-card items...")
+            deleted_b_without_card = delete_b_without_card_candidates(
+                db, plan.b_without_card_candidates
+            )
+            print(f"[APPLY] Deleted {deleted_b_without_card} B-class SourceItem(s).")
+
         print("[APPLY] Done. Manual review items were NOT deleted (as designed).")
         print()
-        print(f"deleted_source_items: {deleted_snapshot_gap}")
+        total_deleted = deleted_snapshot_gap + deleted_b_without_card
+        print(f"deleted_source_items: {total_deleted}")
+        print(f"  b_snapshot_gap_deleted: {deleted_snapshot_gap}")
+        print(f"  b_without_card_deleted: {deleted_b_without_card}")
         print(f"backup_path: {backup_path}")
         print(f"audit_export_path: {audit_path}")
         return 0

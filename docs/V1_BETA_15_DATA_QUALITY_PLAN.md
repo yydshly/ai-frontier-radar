@@ -587,4 +587,94 @@ Snapshot 补全探针验证成功：
 
 后续可以继续用相同方法修复剩余 15 条 A-class 候选。
 
+---
+
+## 十三、Phase 4.2 清理旧工作集并重新拉取干净探测数据
+
+> 执行时间：2026-06-11
+> 执行分支：`feature/v1-beta-15-data-quality-diagnosis`
+
+### 13.1 目标
+
+1. 修完剩余 A-class with_card snapshot
+2. 删除 B-class without_card 旧工作集数据
+3. 重新探测来源，生成干净 SourceItem
+4. 验证主链路完整性
+
+### 13.2 Step 1：修完剩余 A-class with_card
+
+```bash
+python scripts/repair_snapshot_gaps.py --apply --limit 15 --prefer A
+```
+
+结果：repaired=8, failed=7
+- 成功：mistral_small_4, cohere_blog, meta_ai_blog (2), huggingface_blog, arxiv (3)
+- 失败：openai.com 403（5条）, example.com 404（1条）, test_v10_demo（1条）
+
+### 13.3 Step 2：新增 --delete-b-without-card-now 参数
+
+`scripts/cleanup_polluted_data.py` 新增：
+```bash
+--delete-b-without-card-now  # 无 48 小时保护期
+```
+
+删除条件（B-class without InsightCard）：
+- 属于 B 类（zh_summary 存在但 snapshot 缺失）
+- snapshot 缺失
+- insight_card_id 为空
+- url 非空
+- title 非空
+- source_id 有效
+- Source.enabled=True
+
+### 13.4 Step 3：删除 B-class without_card
+
+```bash
+python scripts/cleanup_polluted_data.py --apply --delete-b-without-card-now
+```
+
+结果：**删除 37 条 B-class without_card SourceItem**
+
+### 13.5 Step 4：重新探测干净来源
+
+使用 `scripts/run_source_probe.py`（新增）探测 3 个来源：
+
+| 来源 | FetchRun | items_found | items_new | items_updated | items_failed |
+|---|---|---|---|---|---|
+| openai_news | 3069 success | 1000 | 947 | 53 | 0 |
+| huggingface_blog | 3070 success | 797 | 782 | 15 | 0 |
+| arxiv_cs_ai | 3071 success | 332 | 332 | 0 | 0 |
+| **合计** | | **2129** | **2061** | **68** | **0** |
+
+### 13.6 清理前后对比
+
+| 指标 | 清理前 | 清理后 |
+|---|---|---|
+| SourceItem 总数 | 525 | 2549 |
+| A-class snapshot 缺失 | 20 | 7（剩余 7 条 openai 403） |
+| B-class snapshot 缺失 | 41 | 0 |
+| Actionable issues | 61 | 7 |
+| orphan InsightCard | 12 | 12（未处理） |
+
+### 13.7 新增脚本
+
+- `scripts/run_source_probe.py` — 单来源探测脚本，支持 RSS 和 HTML index 策略
+
+### 13.8 测试通过情况
+
+```
+acceptance_today_radar_logic.py: 10 passed, 0 failed ✅
+quick_test.py: 1181 passed, 0 failed ✅
+diagnose_data_quality.py: A=7, B=0 ✅
+```
+
+### 13.9 Phase 4.2 结论
+
+主链路已建立干净工作环境：
+- 删除了 37 条无价值的 B-class 旧数据
+- 新增 2061 条干净 SourceItem
+- B-class 全部清零（A-class 残留 7 条因目标站点了 403）
+- 探测链路健康：3 个来源全部成功，无失败
+- 所有验收测试通过
+
 
