@@ -106,7 +106,10 @@ def _complete_missing_summaries(
 
     settings = get_one_liner_settings()
     service = CandidateOneLinerService(db, settings=settings)
-    targets = targets[:min(limit, settings.max_per_run, settings.max_per_day)]
+    # Finalization deliberately settles the WHOLE period (LLM cost accepted), so
+    # it is bounded only by `limit` above — NOT the per-run/per-day caps that
+    # throttle incidental background auto-summary. Otherwise a busy day would
+    # freeze a report that references only the first ~20 summarized articles.
     completed = failed = 0
     for item in targets:
         try:
@@ -193,10 +196,16 @@ def finalize_daily_report(
     *,
     provider=None,
     generate_audio: bool = True,
-    summary_limit: int = 50,
+    summary_limit: int | None = None,
     root_dir=None,
 ) -> DailyFinalizationResult:
-    """Finalize one completed period. Existing final reports are never overwritten."""
+    """Finalize one completed period. Existing final reports are never overwritten.
+
+    ``summary_limit`` defaults to DAILY_REPORT_MAX_ITEMS (the report's own
+    reference count) so a normal day is summarized in full before freezing,
+    without spending LLM calls beyond what the report can reference on an
+    abnormally large backfill day.
+    """
     from app.application.radar.daily_report import generate_daily_report
     from app.application.radar.daily_report_store import (
         load_final_daily_report,
@@ -247,6 +256,14 @@ def finalize_daily_report(
             message="该周期没有可结算文章。",
         )
 
+    if summary_limit is None:
+        # Align with how many articles the report actually references
+        # (DAILY_REPORT_MAX_ITEMS, recency-ordered like the report): this covers a
+        # normal day in full while bounding cost on a pathological backfill day —
+        # summarizing beyond the report cap would be wasted (the report can't use
+        # it) yet still cost an LLM call each.
+        from app.application.radar.settings import get_daily_report_max_items
+        summary_limit = get_daily_report_max_items()
     summary_completed, summary_failed = _complete_missing_summaries(
         db,
         items,
