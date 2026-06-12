@@ -1161,9 +1161,9 @@ def main() -> int:
         check("Daily broadcast: page contains 今日 AI 前沿播报",
               "今日 AI 前沿播报" in resp.text,
               "broadcast page should show title")
-        check("Daily broadcast: page contains 播报文案",
-              "播报文案" in resp.text,
-              "broadcast page should show script section")
+        check("Daily broadcast: page shows the script section",
+              "播报文稿" in resp.text,
+              "broadcast page should show the script section (播报文稿)")
         check("Daily broadcast: page contains 返回今日报告",
               "返回今日报告" in resp.text,
               "broadcast page should have back link")
@@ -1221,8 +1221,8 @@ def main() -> int:
         # MiMo provider and audio player in broadcast template
         broadcast_html = read("app/templates/radar_daily_broadcast.html")
         check("Daily broadcast: template identifies MiMo V2.5",
-              "MiMo V2.5" in broadcast_html and "<audio controls" in broadcast_html,
-              "broadcast template should identify MiMo and embed an audio player")
+              "MiMo V2.5" in broadcast_html and "radar-custom-player-audio" in broadcast_html,
+              "broadcast template should identify MiMo and embed the (custom) audio player")
         audio_jobs_text = read("app/application/radar/daily_audio_jobs.py")
         check("Daily broadcast: persistent background audio jobs exist",
               "class DailyAudioJob" in audio_jobs_text
