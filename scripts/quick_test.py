@@ -8849,6 +8849,52 @@ def main():
     except Exception as e:
         check("daily increment anchor checks", False, str(e))
 
+    # ── 64. P1-2 radar shows the anchored increment + count integrity ────────
+    print("\n[64] radar increment + count integrity (P1-2)")
+    try:
+        from app.db import SessionLocal as _SL64
+        from app.application.radar.today import (
+            RadarTodayService as _RTS64, TODAY_FOCUS_KEY as _FK, ALL_KEY as _AK,
+            OTHERS_KEY as _OK, SECTION_ORDER as _SO,
+        )
+        from app.application.radar.daily_scope import daily_anchor as _anc64
+        import app.application.radar.today as _tmod
+
+        # selection switched off the legacy window/limit to the anchored increment
+        check("today uses _select_increment_items (no legacy window selector)",
+              hasattr(_RTS64, "_select_increment_items")
+              and not hasattr(_RTS64, "_select_window_items"),
+              "the view must select the anchored increment, not a capped rolling window")
+
+        _db = _SL64()
+        try:
+            anchor = _anc64()
+            v = _RTS64(_db).build_today_view(section="all", per_page=20)
+            sc = v.section_counts
+            # every shown item is at-or-after the anchor (true increment)
+            shown = [it for sec in v.sections for it in sec.items]
+            check("all radar items are at-or-after the daily anchor",
+                  all((it.first_seen_at is None) or (it.first_seen_at >= anchor) for it in shown),
+                  "radar must only show items first seen since the anchor")
+            # §4.7 mutually-exclusive identity: 全部 == 最新发现 + Σ分区 + 其他
+            cat_keys = [k for k, _ in _SO if k not in (_FK, _OK)]
+            partition = sc.get(_FK, 0) + sum(sc.get(k, 0) for k in cat_keys) + sc.get(_OK, 0)
+            check("count integrity: ALL == 最新发现 + Σ categories + 其他 (§4.7)",
+                  partition == sc.get(_AK, 0),
+                  f"partition {partition} != ALL {sc.get(_AK)}")
+            # cross-view: 今日速览 badge shares the ALL scope (no 24h vs anchor drift)
+            check("今日速览 badge matches ALL scope (no scope drift)",
+                  sc.get("briefing") == sc.get(_AK, 0),
+                  f"briefing {sc.get('briefing')} != ALL {sc.get(_AK)}")
+            # no fallback-to-old-items under the increment model
+            check("empty increment does not fall back to old items",
+                  v.fallback_used is False,
+                  "increment model should show an empty state, not older items")
+        finally:
+            _db.close()
+    except Exception as e:
+        check("radar increment + count integrity checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

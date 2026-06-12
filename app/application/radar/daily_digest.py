@@ -19,7 +19,11 @@ from datetime import datetime
 import json
 
 from app.models import Source, SourceItem
-from app.application.radar.daily_scope import recent_valid_items_query, SUMMARY_MARKERS
+from app.application.radar.daily_scope import (
+    recent_valid_items_query,
+    daily_anchor,
+    SUMMARY_MARKERS,
+)
 from app.application.radar.settings import get_daily_scope_settings
 
 # Single source of truth for summary markers lives in daily_scope (was a local
@@ -176,7 +180,9 @@ def build_daily_briefing(
         now = datetime.utcnow()
     day_start = _start_of_utc_day(now)
 
-    base = recent_valid_items_query(db, now=now)
+    # 今日速览 = today's increment (since the daily anchor), matching the radar
+    # ALL/categories scope so the catalog counts agree (§4.7).
+    base = recent_valid_items_query(db, now=now, since=daily_anchor(now))
     new_items_count = base.count()
 
     rows = (

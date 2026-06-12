@@ -40,7 +40,7 @@ from app.application.radar.today_item_card import (
     TodayItemCard,
     build_today_item_card,
 )
-from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.daily_scope import recent_valid_items_query, daily_anchor
 from app.application.radar.settings import (
     get_daily_scope_settings,
     get_recommendation_settings,
@@ -519,57 +519,36 @@ class RadarTodayService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _select_window_items(
-        self,
-        hours: int,
-        limit: int,
-    ) -> tuple[list[SourceItem], bool]:
-        """Select the recent-window item set, with empty-window fallback.
+    def _select_increment_items(self) -> tuple[list[SourceItem], bool]:
+        """Select today's *increment*: valid items first seen at-or-after the most
+        recent daily anchor (08:00 local by default), newest-first.
 
-        Returns ``(items_sorted_for_display, fallback_used)``. This is the single
-        source for the item set used by both ``build_today_view`` and the
-        recommendation-only path, so they can never diverge.
+        Replaces the legacy "rolling Nh window + item_limit cap". The set is now
+        anchored and UNtruncated (capped only by a defensive ceiling), so the
+        sidebar counts can be computed over the full set (count-integrity, §4.7)
+        and no source is dropped by an arbitrary limit. An empty increment is a
+        valid "nothing new since the anchor" state — there is no fallback to
+        older items.
 
-        Candidates are selected by RELIABLE datetime columns. published_at is
-        free-text and mostly RFC822 (e.g. "Thu, 04 Jun 2026 ..."), which sorts
-        lexicographically by weekday — NOT chronologically — so leading the DB
-        ORDER BY + LIMIT with it would truncate to an arbitrary weekday-ranked
-        set and drop genuinely newer items. Final display order still prefers
-        published_at via _radar_sort_key (which parses RFC822/ISO correctly).
+        published_at is free-text/unreliable and not SQL-sortable, so selection
+        uses first_seen_at/last_seen_at; final display order still prefers
+        published_at via _radar_sort_key. Returns ``(items, fallback_used=False)``.
         """
+        anchor = daily_anchor()
+        ceiling = get_daily_scope_settings().increment_ceiling
         order = desc(func.coalesce(
             SourceItem.last_seen_at,
             SourceItem.first_seen_at,
         ))
-
         items = (
-            recent_valid_items_query(self.db, hours=hours)
+            recent_valid_items_query(self.db, since=anchor)
             .order_by(order)
-            .limit(limit)
+            .limit(ceiling)
             .all()
         )
-
-        fallback_used = False
-        if not items:
-            fallback_used = True
-            items = (
-                self.db.query(SourceItem)
-                .join(Source, Source.id == SourceItem.source_id)
-                .filter(
-                    Source.enabled.is_(True),
-                    SourceItem.url.isnot(None),
-                    SourceItem.url != "",
-                    SourceItem.title.isnot(None),
-                    SourceItem.title != "",
-                )
-                .order_by(order)
-                .limit(limit)
-                .all()
-            )
-
         # Re-sort by display-layer datetime (handles mixed ISO/RFC822).
         items = sorted(items, key=_radar_sort_key, reverse=True)
-        return items, fallback_used
+        return items, False
 
     def select_recommended_candidates(
         self,
@@ -586,7 +565,7 @@ class RadarTodayService:
         """
         hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
         limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
-        items, _ = self._select_window_items(hours, limit)
+        items, _ = self._select_increment_items()
         return select_compile_candidates(
             self.db,
             hours=hours,
@@ -594,6 +573,7 @@ class RadarTodayService:
             per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
             max_scan=RECOMMENDED_MAX_SCAN,
             item_ids={item.id for item in items},
+            include_processed=True,
         )
 
     def build_summary_target_ids(
@@ -616,7 +596,7 @@ class RadarTodayService:
         limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
         per_page = _clamp(int(per_page), MIN_PER_PAGE, MAX_PER_PAGE)
 
-        items, _ = self._select_window_items(hours, limit)
+        items, _ = self._select_increment_items()
         full_display_map: dict[int, CandidateDisplayCard] = {
             item.id: build_candidate_display_card(item) for item in items
         }
@@ -627,6 +607,7 @@ class RadarTodayService:
             per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
             max_scan=RECOMMENDED_MAX_SCAN,
             item_ids={item.id for item in items},
+            include_processed=True,
         )
 
         # section=all, page=1 → the first per_page window items, grouped exactly
@@ -673,7 +654,7 @@ class RadarTodayService:
 
         # Recent-window item set (with empty-window fallback), via the shared
         # selector so the recommendation-only path computes the identical set.
-        items, fallback_used = self._select_window_items(hours, limit)
+        items, fallback_used = self._select_increment_items()
 
         # ── Build display cards for the FULL result set (not just page) ──
         # This is needed to compute per-section counts over the full set
@@ -690,6 +671,7 @@ class RadarTodayService:
             per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
             max_scan=RECOMMENDED_MAX_SCAN,
             item_ids={item.id for item in items},
+            include_processed=True,
         )
         recommended_item_ids = {
             candidate.source_item_id for candidate in compile_candidates
@@ -716,7 +698,10 @@ class RadarTodayService:
             section_counts[BRIEFING_KEY] = briefing.new_items_count
         else:
             briefing = None
-            section_counts[BRIEFING_KEY] = recent_valid_items_query(self.db).count()
+            # Anchor-based so the 今日速览 badge matches ALL/categories (§4.7).
+            section_counts[BRIEFING_KEY] = recent_valid_items_query(
+                self.db, since=daily_anchor()
+            ).count()
 
         # ── Filter items to the active section ───────────────────────────
         if section == ALL_KEY:

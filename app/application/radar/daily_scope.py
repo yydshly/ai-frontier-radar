@@ -56,10 +56,16 @@ def recent_valid_items_query(
     *,
     hours: int = DEFAULT_DAILY_HOURS,
     now: datetime | None = None,
+    since: datetime | None = None,
 ):
-    """Return valid items first discovered inside the rolling daily window."""
+    """Return valid items first discovered at-or-after the lower bound.
+
+    Lower bound is ``since`` when given (e.g. the daily increment anchor),
+    otherwise the rolling ``hours`` window (legacy). All other validity filters
+    (enabled source, non-empty url/title) are unchanged.
+    """
     current = now or datetime.utcnow()
-    cutoff = current - timedelta(hours=hours)
+    cutoff = since if since is not None else (current - timedelta(hours=hours))
     return (
         db.query(SourceItem)
         .join(Source, Source.id == SourceItem.source_id)
