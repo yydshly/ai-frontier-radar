@@ -1029,33 +1029,15 @@ def generate_today_summaries(
 
     db = next(get_db())
     try:
-        service = RadarTodayService(db)
-        view = service.build_today_view(
-            selected_item_id=item_id,
+        # Only the ordered batch-target ids are needed (recommended first, then
+        # today's items in section order). Compute them directly instead of
+        # building the whole today-view (reading panel, today-cards, quality-stats
+        # full scan). The ordering is identical to the old derivation.
+        target_ids = RadarTodayService(db).build_summary_target_ids(
             hours=hours,
             limit=limit,
-            page=1,
             per_page=MAX_PER_PAGE,
-            section=ALL_KEY,
         )
-
-        # Prioritize recommended items, then the rest of today's radar.
-        target_ids = []
-        seen_ids = set()
-
-        # 1. Compile candidates first (only exists on section=all && page=1)
-        if view.compile_candidates:
-            for candidate in view.compile_candidates:
-                if candidate.source_item_id not in seen_ids:
-                    target_ids.append(candidate.source_item_id)
-                    seen_ids.add(candidate.source_item_id)
-
-        # 2. Then add all today items (the radar scope is capped at 50).
-        for section_view in view.sections:
-            for item in section_view.items:
-                if item.id not in seen_ids:
-                    target_ids.append(item.id)
-                    seen_ids.add(item.id)
 
         requested_ids = _parse_item_ids(
             summary_item_ids,

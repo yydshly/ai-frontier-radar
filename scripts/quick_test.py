@@ -8599,6 +8599,47 @@ def main():
     except Exception as e:
         check("source importance single source checks", False, str(e))
 
+    # ── 59. POST handlers share build_today_view's selection (no drift) ──────
+    print("\n[59] today-view-derived POST helpers parity (P2)")
+    try:
+        from app.db import SessionLocal
+        from app.application.radar.today import (
+            RadarTodayService, DEFAULT_HOURS, DEFAULT_LIMIT, MAX_PER_PAGE,
+        )
+        _db = SessionLocal()
+        try:
+            svc = RadarTodayService(_db)
+            view = svc.build_today_view(
+                selected_item_id=None, hours=DEFAULT_HOURS, limit=DEFAULT_LIMIT,
+                page=1, per_page=MAX_PER_PAGE, section="all",
+            )
+            # (a) recommended-candidate ids match view.compile_candidates.
+            rec_new = [c.source_item_id for c in
+                       svc.select_recommended_candidates(hours=DEFAULT_HOURS, limit=DEFAULT_LIMIT)]
+            rec_old = [c.source_item_id for c in view.compile_candidates]
+            check("select_recommended_candidates == view.compile_candidates",
+                  rec_new == rec_old,
+                  "recommended-insight POST must select the same ids as the view")
+
+            # (b) summary target ids match the old section-grouped derivation.
+            tgt_old, seen = [], set()
+            for c in view.compile_candidates:
+                if c.source_item_id not in seen:
+                    tgt_old.append(c.source_item_id); seen.add(c.source_item_id)
+            for sv in view.sections:
+                for it in sv.items:
+                    if it.id not in seen:
+                        tgt_old.append(it.id); seen.add(it.id)
+            tgt_new = svc.build_summary_target_ids(
+                hours=DEFAULT_HOURS, limit=DEFAULT_LIMIT, per_page=MAX_PER_PAGE)
+            check("build_summary_target_ids == old section-grouped order",
+                  tgt_new == tgt_old,
+                  "batch-summary POST must keep the same ordered target ids")
+        finally:
+            _db.close()
+    except Exception as e:
+        check("today-view-derived POST helpers parity", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

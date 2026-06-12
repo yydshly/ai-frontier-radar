@@ -588,6 +588,63 @@ class RadarTodayService:
             item_ids={item.id for item in items},
         )
 
+    def build_summary_target_ids(
+        self,
+        hours: int = DEFAULT_HOURS,
+        limit: int = DEFAULT_LIMIT,
+        per_page: int = MAX_PER_PAGE,
+    ) -> list[int]:
+        """Ordered de-duplicated id list for the batch-summary POST.
+
+        Reproduces exactly the order the batch-summary handler used to derive
+        from ``build_today_view(section=all, page=1)``: recommended candidates
+        first (rank order), then the first ``per_page`` window items grouped in
+        SECTION_ORDER (today_focus, then each category, then others). Uses the
+        same shared selector + categorization helpers as ``build_today_view`` so
+        the ordering cannot diverge — but skips the display panel, today-card
+        map, and quality-stats full scan, none of which the handler needs.
+        """
+        hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
+        limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
+        per_page = _clamp(int(per_page), MIN_PER_PAGE, MAX_PER_PAGE)
+
+        items, _ = self._select_window_items(hours, limit)
+        full_display_map: dict[int, CandidateDisplayCard] = {
+            item.id: build_candidate_display_card(item) for item in items
+        }
+        candidates = select_compile_candidates(
+            self.db,
+            hours=hours,
+            limit=RECOMMENDED_LIMIT,
+            per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
+            max_scan=RECOMMENDED_MAX_SCAN,
+            item_ids={item.id for item in items},
+        )
+
+        # section=all, page=1 → the first per_page window items, grouped exactly
+        # as build_today_view groups them into SECTION_ORDER buckets.
+        page_items = items[:per_page]
+        today_focus_ids = {i.id for i in items[:TODAY_FOCUS_SIZE]}
+        buckets: dict[str, list] = {key: [] for key, _ in SECTION_ORDER}
+        for item in page_items:
+            if item.id in today_focus_ids:
+                buckets[TODAY_FOCUS_KEY].append(item)
+            else:
+                buckets[_categorize_item(item, full_display_map.get(item.id))].append(item)
+
+        target_ids: list[int] = []
+        seen: set[int] = set()
+        for candidate in candidates:
+            if candidate.source_item_id not in seen:
+                target_ids.append(candidate.source_item_id)
+                seen.add(candidate.source_item_id)
+        for key, _ in SECTION_ORDER:
+            for item in buckets[key]:
+                if item.id not in seen:
+                    target_ids.append(item.id)
+                    seen.add(item.id)
+        return target_ids
+
     def build_today_view(
         self,
         selected_item_id: int | None = None,
