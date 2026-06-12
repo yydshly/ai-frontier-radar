@@ -151,7 +151,10 @@ def get_daily_report_enabled() -> bool:
 
 def get_daily_report_max_items() -> int:
     """Return the max items included in one daily report LLM call."""
-    return _env_int("DAILY_REPORT_MAX_ITEMS", default=50, minimum=1, maximum=50)
+    # The core report should reference the WHOLE day's new articles, not an
+    # arbitrary slice — so default high enough to cover a typical daily increment
+    # (LLM cost is acceptable). The increment ceiling is the real safety bound.
+    return _env_int("DAILY_REPORT_MAX_ITEMS", default=200, minimum=1, maximum=2000)
 
 
 def get_daily_broadcast_tts_enabled() -> bool:

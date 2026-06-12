@@ -2354,9 +2354,9 @@ def main():
         check(".env.example contains DAILY_REPORT_ENABLED=false",
               "DAILY_REPORT_ENABLED=false" in env_example,
               "DAILY_REPORT_ENABLED should default to false for safety")
-        check(".env.example contains DAILY_REPORT_MAX_ITEMS=50",
-              "DAILY_REPORT_MAX_ITEMS=50" in env_example,
-              "DAILY_REPORT_MAX_ITEMS should be 50")
+        check(".env.example sets DAILY_REPORT_MAX_ITEMS to cover the increment",
+              "DAILY_REPORT_MAX_ITEMS=200" in env_example,
+              "DAILY_REPORT_MAX_ITEMS should be high enough to reference the whole daily increment")
         check(".env.example contains DAILY_BROADCAST_TTS_ENABLED=false",
               "DAILY_BROADCAST_TTS_ENABLED=false" in env_example,
               "TTS should default to false")
@@ -8478,10 +8478,10 @@ def main():
               s.enabled == get_daily_report_enabled()
               and s.max_items == get_daily_report_max_items(),
               "daily_report settings must match radar.settings (single source)")
-        check("daily report default input cap is 50",
-              s.max_items == 50
+        check("daily report references the full daily increment (not an arbitrary small cap)",
+              s.max_items >= 100
               and ".limit(max_items)" in dr_text,
-              "daily report query must enforce the configured max_items cap (DAILY_REPORT_MAX_ITEMS)")
+              "report input must cover the whole day's new articles (DAILY_REPORT_MAX_ITEMS high enough), capped via max_items")
     except Exception as e:
         check("daily report settings single source checks", False, str(e))
 
