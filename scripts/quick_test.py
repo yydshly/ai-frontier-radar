@@ -9039,6 +9039,29 @@ def main():
     except Exception as e:
         check("daily cycle orchestration checks", False, str(e))
 
+    # ── 67. published_at staleness guard in recommendations (§8.8) ───────────
+    print("\n[67] published_at staleness guard")
+    try:
+        from datetime import datetime as _dt67
+        from app.application.candidates.compile_candidates import (
+            _published_age_days as _pad, _stale_published_days as _spd,
+        )
+        _now67 = _dt67(2026, 6, 12, 12, 0, 0)
+        check("staleness: old RFC822 publish date is flagged stale",
+              (_pad("Mon, 01 Jun 2026 00:00:00 +0000", _now67) or 0) > _spd(),
+              "an item published >7d ago should be detectable as stale")
+        check("staleness: today's publish date is NOT stale",
+              (_pad("2026-06-12T08:00:00", _now67) or 0) <= _spd(),
+              "a same-day item must not be penalized")
+        check("staleness: unparseable/empty published_at -> no penalty",
+              _pad("garbage", _now67) is None and _pad("", _now67) is None
+              and _pad(None, _now67) is None,
+              "unparseable publish time must yield None (no penalty)")
+        check("staleness threshold defaults to 7 days",
+              _spd() == 7, f"got {_spd()}")
+    except Exception as e:
+        check("published_at staleness guard checks", False, str(e))
+
     # ── Leave the working DB clean ───────────────────────────────────────────
     # Several checks (and the app under test) seed throwaway sources via the real
     # SessionLocal; without cleanup these accumulate in the dev DB run after run

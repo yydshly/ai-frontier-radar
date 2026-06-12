@@ -12,15 +12,58 @@ Used by:
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 # ── Scoring constants ───────────────────────────────────────────────────────────
 
 # Source priority comes from the single source-importance table (C1 Phase C).
 from app.application.radar.relevance import source_priority
+
+
+def _stale_published_days() -> int:
+    """Items published more than this many days ago are down-ranked (staleness
+    guard). Defaults to 7 (design §8.8); override with RADAR_RECOMMEND_STALE_DAYS."""
+    raw = os.getenv("RADAR_RECOMMEND_STALE_DAYS")
+    try:
+        value = int(raw) if raw is not None else 7
+    except (TypeError, ValueError):
+        return 7
+    return value if 1 <= value <= 365 else 7
+
+
+def _published_age_days(published_at, now: datetime) -> float | None:
+    """Age in days from a SourceItem.published_at, or None if unparseable.
+
+    published_at is free-text (RFC822 or ISO, ~90% parseable, ~9% missing); when
+    it can't be parsed we return None and apply no penalty (fetch time stays the
+    primary signal — see the increment model design, time-basis decision).
+    """
+    if not published_at:
+        return None
+    parsed: datetime | None = None
+    if isinstance(published_at, datetime):
+        parsed = published_at
+    elif isinstance(published_at, str) and published_at.strip():
+        text = published_at.strip()
+        try:
+            parsed = parsedate_to_datetime(text)
+        except (TypeError, ValueError):
+            parsed = None
+        if parsed is None:
+            try:
+                parsed = datetime.fromisoformat(text)
+            except (TypeError, ValueError):
+                parsed = None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return (now - parsed).total_seconds() / 86400.0
 
 # Keywords that suggest high-value content (in title or URL)
 _TOPIC_KEYWORDS = [
@@ -210,6 +253,16 @@ def select_compile_candidates(
             elif age_hours < 6:
                 score += 6
                 reasons.append("fresh(<6h)")
+
+        # Staleness guard (design §8.8): down-rank items whose PUBLISH time is
+        # clearly old, so a freshly-fetched backlog (newly-added source / bootstrap)
+        # can't masquerade as fresh in the recommendations. Fetch time stays the
+        # primary signal; this only applies when published_at is parseable.
+        _stale_days = _stale_published_days()
+        _age_days = _published_age_days(item.published_at, now)
+        if _age_days is not None and _age_days > _stale_days:
+            score -= 15
+            reasons.append(f"stale_published(>{_stale_days}d)")
 
         # Title quality penalties
         if _is_weak_title(item.title):
