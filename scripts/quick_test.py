@@ -8817,6 +8817,38 @@ def main():
     except Exception as e:
         check("storage foundation checks", False, str(e))
 
+    # ── 63. P1-1 daily increment anchor (pure, deterministic) ────────────────
+    print("\n[63] daily increment anchor (P1-1)")
+    try:
+        from datetime import datetime as _dt
+        from app.application.radar.daily_scope import daily_anchor as _anchor
+        from app.application.radar.settings import get_daily_scope_settings as _gss
+
+        # CST(+8) 08:00 == UTC 00:00; after-anchor -> today, before -> yesterday,
+        # exact boundary -> today. Result is naive UTC.
+        a_after = _anchor(_dt(2026, 6, 12, 3, 0, 0), anchor_hour=8, tz_offset_hours=8)
+        a_before = _anchor(_dt(2026, 6, 11, 23, 0, 0), anchor_hour=8, tz_offset_hours=8)
+        a_exact = _anchor(_dt(2026, 6, 12, 0, 0, 0), anchor_hour=8, tz_offset_hours=8)
+        check("anchor: after local 08:00 -> today's UTC-midnight",
+              a_after == _dt(2026, 6, 12, 0, 0, 0) and a_after.tzinfo is None,
+              f"got {a_after}")
+        check("anchor: before local 08:00 -> yesterday's anchor",
+              a_before == _dt(2026, 6, 11, 0, 0, 0), f"got {a_before}")
+        check("anchor: exactly at anchor -> today (>= boundary)",
+              a_exact == _dt(2026, 6, 12, 0, 0, 0), f"got {a_exact}")
+        # Non-midnight-aligned config: 09:00 CST == 01:00 UTC.
+        a9 = _anchor(_dt(2026, 6, 12, 3, 0, 0), anchor_hour=9, tz_offset_hours=8)
+        check("anchor: respects configurable hour/tz (09:00 CST == 01:00 UTC)",
+              a9 == _dt(2026, 6, 12, 1, 0, 0), f"got {a9}")
+        # Settings expose the new knobs with sane defaults.
+        s = _gss()
+        check("scope settings expose anchor_hour / tz_offset / increment_ceiling",
+              s.anchor_hour == 8 and s.anchor_tz_offset_hours == 8
+              and s.increment_ceiling >= 50,
+              f"got hour={s.anchor_hour} tz={s.anchor_tz_offset_hours} ceil={s.increment_ceiling}")
+    except Exception as e:
+        check("daily increment anchor checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

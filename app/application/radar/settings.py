@@ -64,11 +64,14 @@ def _env_int(
 class DailyScopeSettings:
     """Run-time limits for the user-facing daily radar."""
 
-    window_hours: int           # rolling time window (hours)
+    window_hours: int           # rolling time window (hours) — legacy/secondary
     item_limit: int            # max candidate items in the radar
     briefing_limit: int         # max items in the daily briefing
     today_focus_size: int      # top-N items shown as "最新发现"
     report_ready_threshold: int # min readable items before report_status="ready"
+    anchor_hour: int            # daily increment anchor hour (local), default 08:00
+    anchor_tz_offset_hours: int # local timezone offset from UTC for the anchor
+    increment_ceiling: int      # safety cap on the increment set size (defensive)
 
 
 def get_daily_scope_settings() -> DailyScopeSettings:
@@ -80,6 +83,13 @@ def get_daily_scope_settings() -> DailyScopeSettings:
         today_focus_size=_env_int("RADAR_TODAY_FOCUS_SIZE", default=5, minimum=1, maximum=20),
         report_ready_threshold=_env_int(
             "RADAR_DAILY_REPORT_READY_THRESHOLD", default=5, minimum=1, maximum=50
+        ),
+        anchor_hour=_env_int("RADAR_DAILY_ANCHOR_HOUR", default=8, minimum=0, maximum=23),
+        anchor_tz_offset_hours=_env_int(
+            "RADAR_DAILY_ANCHOR_TZ_OFFSET", default=8, minimum=-12, maximum=14
+        ),
+        increment_ceiling=_env_int(
+            "RADAR_INCREMENT_CEILING", default=2000, minimum=50, maximum=20000
         ),
     )
 
