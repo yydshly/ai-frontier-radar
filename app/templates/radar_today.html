@@ -468,6 +468,7 @@
                 </div>
                 </div>{# <!-- /.radar-main-toolbar --> #}
 
+                <div id="radar-action-results">
                 {% if bootstrap_result %}
                 <div class="radar-update-result">
                     <div class="radar-update-result-title">初始化来源内容
@@ -571,7 +572,7 @@
                     </ul>
                     {% endif %}
                     {% if summary_result.background and (summary_result.running or summary_result.pending) %}
-                    <a href="{{ request.url }}" class="btn-sm">刷新处理状态</a>
+                    <a href="{{ request.url }}" class="btn-sm" data-radar-autorefresh>刷新处理状态</a>
                     {% endif %}
                     {% if summary_result.retry_ids %}
                     <form method="post" action="/radar/today/generate-summaries" class="radar-summary-form-inline">
@@ -638,7 +639,7 @@
                     </ul>
                     {% endif %}
                     {% if insight_batch_result.running or insight_batch_result.pending %}
-                    <a href="{{ request.url }}" class="btn-sm">刷新处理状态</a>
+                    <a href="{{ request.url }}" class="btn-sm" data-radar-autorefresh>刷新处理状态</a>
                     {% endif %}
                     {% if insight_batch_result.retry_ids %}
                     <form method="post" action="/radar/today/generate-recommended-insights" class="radar-summary-form-inline">
@@ -677,6 +678,7 @@
                     {% endif %}
                 </div>
                 {% endif %}
+                </div>{# <!-- /#radar-action-results --> #}
                 <div class="radar-main-scroll">
                 {% if view.active_section == 'recommended' and view.recommended_items %}
                 {# ── Recommended items (virtual section — not in view.sections) ── #}
@@ -1116,5 +1118,86 @@
             }
           });
         });
+        </script>
+        <script>
+        (function () {
+          // D1 — prevent double-clicks on heavy POST actions. Delegated on the
+          // document so retry forms swapped in by the D2 refresh are covered too.
+          // The form still posts normally (the button carries no name/value the
+          // backend needs); GET forms (e.g. page-size) are excluded.
+          document.addEventListener("submit", function (event) {
+            var form = event.target;
+            if (!(form instanceof HTMLFormElement)) {
+              return;
+            }
+            if ((form.getAttribute("method") || "").toLowerCase() !== "post") {
+              return;
+            }
+            var btn = form.querySelector(
+              'button[type="submit"], button:not([type])'
+            );
+            if (!btn || btn.disabled) {
+              return;
+            }
+            btn.disabled = true;
+            btn.classList.add("is-loading");
+            btn.setAttribute("aria-busy", "true");
+            if (!btn.dataset.originalText) {
+              btn.dataset.originalText = btn.textContent;
+              btn.textContent = "处理中…";
+            }
+          }, true);
+
+          // D2 — while a background batch is still running, refresh only the
+          // result-banner region in place (no full-page reload, matching the
+          // partial-refresh pattern used elsewhere). Reuses the same URL the
+          // manual "刷新处理状态" link points to. Bounded so a stuck task can't
+          // poll forever; resets once the in-progress marker is gone.
+          var AR_KEY = "radarAutoRefreshCount";
+          var AR_MAX = 12;          // ~1 minute at 5s intervals
+          var AR_INTERVAL_MS = 5000;
+
+          function hasPending() {
+            return !!document.querySelector("[data-radar-autorefresh]");
+          }
+
+          async function refreshResults() {
+            try {
+              var resp = await fetch(window.location.href, {
+                headers: { "X-Requested-With": "fetch" }
+              });
+              if (!resp.ok) {
+                throw new Error("status fetch failed");
+              }
+              var doc = new DOMParser().parseFromString(
+                await resp.text(), "text/html"
+              );
+              var fresh = doc.getElementById("radar-action-results");
+              var current = document.getElementById("radar-action-results");
+              if (fresh && current) {
+                current.innerHTML = fresh.innerHTML;
+              }
+            } catch (error) {
+              // Ignore; reschedule below and retry while still pending.
+            }
+            scheduleRefresh();
+          }
+
+          function scheduleRefresh() {
+            if (!hasPending()) {
+              sessionStorage.removeItem(AR_KEY);
+              return;
+            }
+            var count = parseInt(sessionStorage.getItem(AR_KEY) || "0", 10);
+            if (count >= AR_MAX) {
+              sessionStorage.removeItem(AR_KEY);
+              return;
+            }
+            sessionStorage.setItem(AR_KEY, String(count + 1));
+            setTimeout(refreshResults, AR_INTERVAL_MS);
+          }
+
+          scheduleRefresh();
+        })();
         </script>
 {% endblock %}

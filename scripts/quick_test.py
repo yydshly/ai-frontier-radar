@@ -2560,6 +2560,21 @@ def main():
               and "initializeTodaySummaryAudio(incomingSummary)" in radar_html
               and "window.location.reload()" not in radar_html,
               "pending audio should update the summary card without a full-page reload")
+        # D1 — heavy POST actions disable their submit button on submit (anti
+        # double-click), delegated so swapped-in retry forms are covered.
+        check("today radar disables POST action buttons on submit (D1)",
+              'document.addEventListener("submit"' in radar_html
+              and "btn.disabled = true" in radar_html
+              and "处理中" in radar_html,
+              "POST action buttons should show a busy state and block double submits")
+        # D2 — in-progress batch banners auto-refresh the result region in place
+        # (bounded, no full-page reload).
+        check("today radar auto-refreshes in-progress results locally (D2)",
+              "data-radar-autorefresh" in radar_html
+              and 'id="radar-action-results"' in radar_html
+              and "radar-action-results" in radar_html
+              and "window.location.reload()" not in radar_html,
+              "running batches should refresh the banner region without a full reload")
 
         # per_page bounds + total_pages math (service level).
         db3 = _SL2()
