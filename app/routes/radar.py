@@ -1516,6 +1516,38 @@ def radar_history_day(request: Request, date_label: str):
     )
 
 
+def _render_share(request: Request, date_label: str):
+    from app.application.radar.share import build_share_view
+
+    db = next(get_db())
+    try:
+        view = build_share_view(db, date_label)
+    finally:
+        db.close()
+    return _radar_templates.TemplateResponse(
+        "radar_share.html",
+        {"request": request, "view": view, "safe_external_url": safe_external_url},
+    )
+
+
+@router.get("/share/today", response_class=HTMLResponse)
+def radar_share_today(request: Request):
+    """Public read-only share page (H5) for today's anchor period."""
+    from app.application.radar.daily_scope import daily_anchor
+
+    return _render_share(request, daily_anchor().strftime("%Y-%m-%d"))
+
+
+@router.get("/share/{date_label}", response_class=HTMLResponse)
+def radar_share_day(request: Request, date_label: str):
+    """Public read-only share page (H5) for a given day."""
+    import re as _re
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+    return _render_share(request, date_label)
+
+
 @router.get("/daily-report", response_class=HTMLResponse)
 def get_daily_report_card(
     request: Request,

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    {% set _title = (view.report.title if view.report else None) or 'AI 前沿情报' %}
+    {% set _desc = (view.report.overview if view.report else None) or ('今日新增 ' ~ (view.stats.new_items if view.stats else 0) ~ ' 篇,重要 ' ~ (view.stats.important if view.stats else 0) ~ ' 篇。') %}
+    <title>{{ _title }} · {{ view.date_label }}</title>
+    <meta property="og:title" content="{{ _title }} · {{ view.date_label }}">
+    <meta property="og:description" content="{{ _desc[:140] }}">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta name="description" content="{{ _desc[:140] }}">
+    <style>
+        :root { --fg:#1a1a1a; --muted:#6b6b6b; --line:#ececec; --accent:#0b66c3; --chip:#f2f5f8; --bg:#fff; }
+        * { box-sizing: border-box; }
+        body { margin:0; background:#f6f7f9; color:var(--fg); font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+        .wrap { max-width:680px; margin:0 auto; background:var(--bg); min-height:100vh; }
+        .pad { padding:18px 18px; }
+        header { padding:22px 18px 14px; border-bottom:1px solid var(--line); }
+        h1 { font-size:21px; line-height:1.4; margin:0 0 6px; font-weight:600; }
+        .date { color:var(--muted); font-size:13px; }
+        .stats { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+        .stat { background:var(--chip); color:var(--muted); font-size:12px; padding:3px 9px; border-radius:20px; }
+        .stat strong { color:var(--fg); font-weight:600; }
+        section { padding:18px; border-bottom:8px solid #f6f7f9; }
+        .sec-title { font-size:14px; font-weight:600; color:var(--accent); margin:0 0 12px; }
+        .overview { font-size:16px; margin:0 0 14px; }
+        ul.highlights { margin:0; padding-left:20px; }
+        ul.highlights li { margin:0 0 8px; }
+        audio { width:100%; margin:6px 0; }
+        .voice { font-size:12px; color:var(--muted); margin-bottom:2px; }
+        .article { padding:12px 0; border-bottom:1px solid var(--line); }
+        .article:last-child { border-bottom:none; }
+        .a-main { font-size:15.5px; margin:0 0 3px; }
+        .a-sub { font-size:13px; color:var(--muted); margin:0 0 5px; }
+        .a-meta { font-size:12.5px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+        .a-meta a { color:var(--accent); text-decoration:none; }
+        .src { font-weight:600; color:var(--fg); font-size:13px; margin:14px 0 4px; }
+        .src:first-child { margin-top:0; }
+        .empty { color:var(--muted); font-size:14px; }
+        footer { padding:18px; color:var(--muted); font-size:12px; text-align:center; }
+        .imp-badge { display:inline-block; background:#fff4e5; color:#a85b00; font-size:11px; padding:1px 7px; border-radius:10px; margin-left:6px; vertical-align:1px; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <h1>{{ _title }}</h1>
+        <div class="date">{{ view.date_label }} · AI Frontier Radar</div>
+        {% if view.stats %}
+        <div class="stats">
+            <span class="stat">新增 <strong>{{ view.stats.new_items }}</strong></span>
+            <span class="stat">已识别 <strong>{{ view.stats.summarized }}</strong></span>
+            <span class="stat">待补 <strong>{{ view.stats.pending }}</strong></span>
+            <span class="stat">重要 <strong>{{ view.stats.important }}</strong></span>
+            <span class="stat">来源 <strong>{{ view.stats.sources }}</strong></span>
+        </div>
+        {% endif %}
+    </header>
+
+    {# ── 核心报告 ── #}
+    <section>
+        <div class="sec-title">核心报告</div>
+        {% if view.report and view.report.status == 'generated' %}
+        {% if view.report.overview %}<p class="overview">{{ view.report.overview }}</p>{% endif %}
+        {% if view.report.highlights %}
+        <ul class="highlights">
+            {% for h in view.report.highlights %}<li>{{ h }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+        {% else %}
+        <p class="empty">当日核心报告尚未生成。</p>
+        {% endif %}
+    </section>
+
+    {# ── 音频 ── #}
+    {% if view.audio_jobs %}
+    <section>
+        <div class="sec-title">语音播报</div>
+        {% for j in view.audio_jobs %}
+        <div class="voice">{{ j.voice }} 音色</div>
+        <audio controls preload="none" src="{{ j.audio_url }}"></audio>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {# ── 重要文章 ── #}
+    {% if view.important %}
+    <section>
+        <div class="sec-title">重要文章 · {{ view.important|length }}</div>
+        {% for a in view.important %}
+        <div class="article">
+            <div class="a-main">{{ a.zh_preview or a.title }}<span class="imp-badge">重要</span></div>
+            {% if a.zh_preview and a.title and a.title != a.zh_preview %}<div class="a-sub">{{ a.title }}</div>{% endif %}
+            <div class="a-meta">
+                <span>{{ a.source_name }}</span>
+                {% set u = safe_external_url(a.url) %}
+                {% if u %}<a href="{{ u }}" target="_blank" rel="noopener">原文</a>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {# ── 其他文章(按来源) ── #}
+    <section>
+        <div class="sec-title">其他文章</div>
+        {% if view.other_groups %}
+        {% for g in view.other_groups %}
+        <div class="src">{{ g.source_name }} · {{ g.items|length }}</div>
+        {% for a in g.items %}
+        <div class="article">
+            <div class="a-main">{{ a.zh_preview or a.title }}</div>
+            {% if a.zh_preview and a.title and a.title != a.zh_preview %}<div class="a-sub">{{ a.title }}</div>{% endif %}
+            <div class="a-meta">
+                {% set u = safe_external_url(a.url) %}
+                {% if u %}<a href="{{ u }}" target="_blank" rel="noopener">原文</a>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endfor %}
+        {% else %}
+        <p class="empty">当日无其他新增文章。</p>
+        {% endif %}
+    </section>
+
+    <footer>AI Frontier Radar · {{ view.date_label }} · 仅展示当日公开内容</footer>
+</div>
+</body>
+</html>

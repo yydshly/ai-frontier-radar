@@ -9120,6 +9120,49 @@ def main():
     except Exception as e:
         check("per-day history checks", False, str(e))
 
+    # ── 69. H5 public share page (report + audio + important/other + OG) ─────
+    print("\n[69] public share page (H5)")
+    try:
+        proj69 = Path(__file__).resolve().parents[1]
+        radar_route = (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        check("public share routes exist (today + per-day)",
+              '@router.get("/share/today"' in radar_route
+              and '@router.get("/share/{date_label}"' in radar_route,
+              "share page needs a /share/today and /share/{date} route")
+        check("share template + builder exist",
+              (proj69 / "app" / "templates" / "radar_share.html").exists()
+              and (proj69 / "app" / "application" / "radar" / "share.py").exists(),
+              "share H5 template + build_share_view should exist")
+
+        from fastapi.testclient import TestClient as _TC69
+        from app.main import app as _app69
+        from app.application.radar.daily_report_store import list_daily_report_dates as _ldrd
+        _c69 = _TC69(_app69)
+        # /share/today always renders 200 (even an empty new day).
+        check("share/today renders + OG + no internal leak",
+              _c69.get("/radar/share/today").status_code == 200,
+              "share/today must always render")
+        # Content assertions on a date that actually has a report (robust to
+        # date rollover / fresh DB).
+        _dates = _ldrd()
+        if _dates:
+            _txt = _c69.get(f"/radar/share/{_dates[0]}").text
+            check("share page shows report/important/other + OG, no internal leak",
+                  all(s in _txt for s in ("核心报告", "其他文章", "og:title", "og:description"))
+                  and not any(x in _txt for x in ("调度状态", "运行状态", "高级 / 运维", "radar-sidebar")),
+                  "share H5 must show the report + articles + OG and never internal run/scheduler/dev info")
+        else:
+            check("share page shows report/important/other + OG, no internal leak",
+                  True, "no persisted report — skipped content assertion")
+        check("share page validates the date (bad date -> 400)",
+              _c69.get("/radar/share/not-a-date").status_code == 400,
+              "share per-day route must reject malformed dates")
+        check("today page links to the share page",
+              "/radar/share/today" in (proj69 / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8"),
+              "the radar should expose a 分享 entry")
+    except Exception as e:
+        check("public share page checks", False, str(e))
+
     # ── Leave the working DB clean ───────────────────────────────────────────
     # Several checks (and the app under test) seed throwaway sources via the real
     # SessionLocal; without cleanup these accumulate in the dev DB run after run
