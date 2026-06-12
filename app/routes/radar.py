@@ -22,6 +22,7 @@ from app.db import get_db
 from app.context_processors import inject_sources_nav
 from app.application.radar.today import (
     RadarTodayService,
+    normalize_section_key,
     DEFAULT_HOURS,
     DEFAULT_LIMIT,
     DEFAULT_PER_PAGE,
@@ -1293,20 +1294,10 @@ def update_today_radar(
         else:
             failed += 1
 
-    # Build safe section via RadarTodayService
-    db = next(get_db())
-    try:
-        view = RadarTodayService(db).build_today_view(
-            selected_item_id=item_id,
-            hours=hours,
-            limit=limit,
-            page=page,
-            per_page=per_page,
-            section=section,
-        )
-        safe_section = view.active_section
-    finally:
-        db.close()
+    # The redirect only needs the validated section. active_section is a pure
+    # function of the input string, so normalize it directly instead of building
+    # a full today-view (which would also run a 300-item candidate scan here).
+    safe_section = normalize_section_key(section)
 
     reason_summary = _build_due_source_reason_summary(plan)
 

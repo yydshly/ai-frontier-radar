@@ -280,6 +280,20 @@ class RadarTodayView:
     # ── Compile candidates (top N recommended items for InsightCard generation) ──
     compile_candidates: list[CompileCandidate] = field(default_factory=list)
     recommended_item_ids: set[int] = field(default_factory=set)
+    # ── Recommended items for the current page (used when active_section == 'recommended') ──
+    recommended_items: list = field(default_factory=list)
+
+def normalize_section_key(section: str) -> str:
+    """Clamp an incoming section string to a known sidebar key.
+
+    Pure function of the input string (independent of any data): unknown keys
+    fall back to ALL_KEY. This is the SAME rule build_today_view applies to set
+    ``active_section``; callers that only need the validated section (e.g. a
+    redirect target) can use this instead of building the whole view.
+    """
+    valid_keys = {key for key, _ in SECTION_ORDER} | {ALL_KEY, RECOMMENDED_KEY}
+    return section if section in valid_keys else ALL_KEY
+
 
 def _clamp(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
@@ -513,9 +527,7 @@ class RadarTodayService:
         page = max(1, int(page))
 
         # Validate section against known keys (unknown → ALL_KEY).
-        valid_keys = {key for key, _ in SECTION_ORDER} | {ALL_KEY, RECOMMENDED_KEY}
-        if section not in valid_keys:
-            section = ALL_KEY
+        section = normalize_section_key(section)
 
         # Select the candidate set by RELIABLE datetime columns. published_at is
         # free-text and mostly RFC822 (e.g. "Thu, 04 Jun 2026 ..."), which sorts
@@ -668,6 +680,11 @@ class RadarTodayService:
             else None
         )
 
+        # recommended_items: the page of recommended items to render in the main area
+        # when active_section == 'recommended'. Always computed so the template can
+        # render recommended items on any page (not just page=1).
+        recommended_items = page_items if section == RECOMMENDED_KEY else []
+
         return RadarTodayView(
             total_items=total_items_in_section,
             selected_item_id=selected_item_id,
@@ -691,6 +708,7 @@ class RadarTodayService:
             quality_filter_stats=quality_filter_stats,
             compile_candidates=compile_candidates,
             recommended_item_ids=recommended_item_ids,
+            recommended_items=recommended_items,
         )
 
     def _build_sections(
