@@ -8,6 +8,7 @@ Does NOT call any LLM. Does NOT generate audio. Does NOT write anything.
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.application.radar.daily_scope import daily_date_label
 from app.application.radar.daily_audio_jobs import (
     JOB_STATUS_FAILED,
     JOB_STATUS_QUEUED,
@@ -25,8 +26,8 @@ class TodaySummaryHighlight:
 
 
 def _today_date_label() -> str:
-    """Return the UTC date label used by the daily report builders."""
-    return datetime.utcnow().strftime("%Y-%m-%d")
+    """Return the local date label for the current daily anchor period."""
+    return daily_date_label()
 
 
 def _compact_report_text(*parts: str | None, max_chars: int = 240) -> str | None:

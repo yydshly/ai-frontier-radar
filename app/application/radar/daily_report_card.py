@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from app.models import SourceItem
-from app.application.radar.daily_scope import recent_valid_items_query, daily_anchor
+from app.application.radar.daily_scope import recent_valid_items_query, daily_anchor, daily_date_label
 from app.application.radar.settings import get_daily_scope_settings
 
 
@@ -318,20 +318,24 @@ def build_daily_report_card(
     """
     if now is None:
         now = datetime.utcnow()
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     settings = get_daily_scope_settings()
+    base = recent_valid_items_query(db, now=now, since=daily_anchor(now))
+    # total_items comes from count() — NOT limited by item_limit (50).
+    # This ensures DailyReportCard.overview.total_items reflects the true
+    # daily increment, not a truncated display ceiling.
+    total_items = base.count()
+
     rows = (
-        # Anchored to the daily increment (same scope as the radar).
-        recent_valid_items_query(db, now=now, since=daily_anchor(now))
-        .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(settings.item_limit)
+        # Load items for scoring/ranking, bounded by increment_ceiling for safety.
+        base.order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
+        .limit(settings.increment_ceiling)
         .all()
     )
 
     if not rows:
         return DailyReportCard(
-            date_label=day_start.strftime("%Y-%m-%d"),
+            date_label=daily_date_label(now),
             overview=DailyReportOverview(
                 total_items=0,
                 with_zh_one_liner=0,
@@ -460,7 +464,7 @@ def build_daily_report_card(
         report_status = "ready"
 
     final_overview = DailyReportOverview(
-        total_items=len(rows),
+        total_items=total_items,
         with_zh_one_liner=with_one_liner,
         with_zh_summary=with_summary,
         with_insight_card=with_insight,
@@ -471,7 +475,7 @@ def build_daily_report_card(
     )
 
     return DailyReportCard(
-        date_label=day_start.strftime("%Y-%m-%d"),
+        date_label=daily_date_label(now),
         overview=final_overview,
         primary_items=primary_items,
         secondary_items=secondary_items,

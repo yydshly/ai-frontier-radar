@@ -29,6 +29,7 @@ from app.models import CardStatus, InsightCard, SourceItem
 from app.application.radar.daily_scope import (
     recent_valid_items_query,
     daily_anchor,
+    daily_date_label,
     SUMMARY_MARKERS,
 )
 from app.application.radar.settings import get_daily_scope_settings
@@ -199,16 +200,15 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
         now = datetime.utcnow()
     if max_items is None:
         max_items = get_daily_report_settings().max_items
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    scope_settings = get_daily_scope_settings()
     rows = (
         # Anchored to the daily increment (same scope as the radar), capped to
         # max_items as a report-synthesis ceiling (top-N), not a display limit.
+        # RADAR_DAILY_ITEM_LIMIT does NOT affect core report input.
         recent_valid_items_query(db, now=now, since=daily_anchor(now))
         .filter(or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS]))
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(min(scope_settings.item_limit, max_items))
+        .limit(max_items)
         .all()
     )
     insight_ids = {
@@ -263,7 +263,7 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
             ))
 
     return DailyReportInput(
-        date_label=day_start.strftime("%Y-%m-%d"),
+        date_label=daily_date_label(now),
         item_count=len(bullets),
         bullet_sources=bullets,
         sources=sources,

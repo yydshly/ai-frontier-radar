@@ -22,6 +22,7 @@ from app.models import Source, SourceItem
 from app.application.radar.daily_scope import (
     recent_valid_items_query,
     daily_anchor,
+    daily_date_label,
     SUMMARY_MARKERS,
 )
 from app.application.radar.settings import get_daily_scope_settings
@@ -57,10 +58,6 @@ class DailyDigestView:
     top_items: list[DailyDigestItem]
 
 
-def _start_of_utc_day(now: datetime) -> datetime:
-    return now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
 def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestView:
     """Aggregate today's newly discovered SourceItems. Read-only, no LLM.
 
@@ -70,7 +67,6 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
     """
     if now is None:
         now = datetime.utcnow()
-    day_start = _start_of_utc_day(now)
 
     settings = get_daily_scope_settings()
     rows = (
@@ -119,7 +115,7 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
         )
 
     return DailyDigestView(
-        date_label=day_start.strftime("%Y-%m-%d"),
+        date_label=daily_date_label(now),
         new_items_count=new_items_count,
         summarized_count=summarized_count,
         card_count=card_count,
@@ -179,7 +175,6 @@ def build_daily_briefing(
     """
     if now is None:
         now = datetime.utcnow()
-    day_start = _start_of_utc_day(now)
 
     # 今日速览 = today's increment (since the daily anchor), matching the radar
     # ALL/categories scope so the catalog counts agree (§4.7).
@@ -232,7 +227,7 @@ def build_daily_briefing(
     ]
 
     return DailyBriefingView(
-        date_label=day_start.strftime("%Y-%m-%d"),
+        date_label=daily_date_label(now),
         new_items_count=new_items_count,
         shown_count=len(rows),
         summarized_count=summarized,

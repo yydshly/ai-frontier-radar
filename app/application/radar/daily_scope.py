@@ -104,3 +104,31 @@ def recent_valid_items_query(
             SourceItem.title != "",
         )
     )
+
+
+def daily_window(now: datetime | None = None) -> tuple[datetime, datetime]:
+    """Return the current daily increment [start, end) as naive UTC datetimes.
+
+    The window starts at ``daily_anchor(now)`` and ends 24 hours later.
+    ``now`` is treated as naive UTC (matching ``SourceItem.first_seen_at``).
+    """
+    start = daily_anchor(now)
+    end = start + timedelta(hours=24)
+    return start, end
+
+
+def daily_date_label(now: datetime | None = None) -> str:
+    """Return the local date label of the current daily anchor period.
+
+    Example with default anchor_hour=8, tz_offset=+8:
+    - local 2026-06-13 07:30 belongs to label 2026-06-12
+    - local 2026-06-13 08:30 belongs to label 2026-06-13
+
+    ``now`` is treated as naive UTC (matching ``SourceItem.first_seen_at``).
+    """
+    from app.application.radar.settings import get_daily_scope_settings
+
+    start = daily_anchor(now)
+    settings = get_daily_scope_settings()
+    local_start = start + timedelta(hours=settings.anchor_tz_offset_hours)
+    return local_start.strftime("%Y-%m-%d")
