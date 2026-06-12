@@ -469,6 +469,30 @@
                 </div>{# <!-- /.radar-main-toolbar --> #}
 
                 <div id="radar-action-results">
+                {% if resume_result %}
+                <div class="radar-update-result">
+                    <div>已重新启动被中断的后台任务：中文摘要 {{ resume_result.summary }} 个，推荐洞察 {{ resume_result.insight }} 个。稍后刷新查看进度。</div>
+                </div>
+                {% endif %}
+                {% if interrupted_batches and interrupted_batches.any %}
+                <div class="radar-update-result">
+                    <div class="radar-update-result-title">检测到被中断的后台任务</div>
+                    <div>
+                        进程上次重启可能中断了正在处理的批量任务：
+                        {% if interrupted_batches.summary %}中文摘要 {{ interrupted_batches.summary }} 个{% endif %}
+                        {% if interrupted_batches.summary and interrupted_batches.insight %}，{% endif %}
+                        {% if interrupted_batches.insight %}推荐洞察 {{ interrupted_batches.insight }} 个{% endif %}。
+                    </div>
+                    <form method="post" action="/radar/today/resume-interrupted" class="radar-summary-form-inline">
+                        <input type="hidden" name="section" value="{{ view.active_section }}">
+                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                        <input type="hidden" name="page" value="{{ view.page }}">
+                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                        <button type="submit" class="btn-sm btn-primary" title="重新运行被进程重启中断的摘要 / 洞察任务">恢复中断任务</button>
+                    </form>
+                </div>
+                {% endif %}
                 {% if bootstrap_result %}
                 <div class="radar-update-result">
                     <div class="radar-update-result-title">初始化来源内容

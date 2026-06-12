@@ -8655,6 +8655,64 @@ def main():
     except Exception as e:
         check("today-view-derived POST helpers parity", False, str(e))
 
+    # ── 60. P4: interrupted-batch recovery ───────────────────────────────────
+    print("\n[60] interrupted batch recovery (P4)")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        radar_py = (project_root / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        radar_html = (project_root / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        check("resume-interrupted POST route exists",
+              '@router.post("/today/resume-interrupted")' in radar_py,
+              "P4 needs an explicit resume endpoint")
+        check("today page wires interrupted-batch count + resume banner",
+              "interrupted_batches" in radar_py
+              and "/radar/today/resume-interrupted" in radar_html
+              and "恢复中断任务" in radar_html,
+              "today page should surface a recovery banner with a resume button")
+
+        # Detection semantics, proven on a rolled-back transaction (real DB safe):
+        # stale in-progress is caught; a fresh in-progress item is NOT (so a live
+        # worker is never preempted).
+        import json as _json
+        from datetime import datetime as _dt, timedelta as _td
+        from app.db import SessionLocal as _SL
+        from app.models import SourceItem as _SI
+        from app.application.radar.background_summary import (
+            SUMMARY_BATCH_STATUS_KEY as _SK, SUMMARY_BATCH_UPDATED_AT_KEY as _UK,
+        )
+        from app.application.radar.batch_recovery import (
+            find_interrupted_summary_ids, find_interrupted_insight_ids,
+        )
+        _db = _SL()
+        try:
+            a = _db.query(_SI).first()
+            b = _db.query(_SI).offset(1).first()
+            if a is not None and b is not None:
+                ra = _json.loads(a.raw_metadata_json or "{}")
+                ra[_SK] = "running"
+                ra[_UK] = (_dt.utcnow() - _td(minutes=60)).isoformat()
+                a.raw_metadata_json = _json.dumps(ra, ensure_ascii=False)
+                rb = _json.loads(b.raw_metadata_json or "{}")
+                rb[_SK] = "running"
+                rb[_UK] = _dt.utcnow().isoformat()
+                b.raw_metadata_json = _json.dumps(rb, ensure_ascii=False)
+                b.status = "compiling"
+                b.updated_at = _dt.utcnow() - _td(minutes=60)
+                _db.flush()
+                sids = find_interrupted_summary_ids(_db, stale_minutes=15)
+                iids = find_interrupted_insight_ids(_db, stale_minutes=15)
+                check("recovery detects stale, excludes fresh, finds compiling",
+                      a.id in sids and b.id not in sids and b.id in iids,
+                      "stale in-progress should be recoverable; fresh must be left alone")
+            else:
+                check("recovery detects stale, excludes fresh, finds compiling",
+                      True, "insufficient seed data — skipped")
+        finally:
+            _db.rollback()
+            _db.close()
+    except Exception as e:
+        check("interrupted batch recovery checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:

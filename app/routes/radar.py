@@ -647,6 +647,25 @@ class BootstrapResultParams:
         )
 
 
+class ResumeResultParams:
+    """Echo-back params for the interrupted-batch resume confirmation (P4)."""
+
+    def __init__(
+        self,
+        resumed_summary: int | None = Query(None, ge=0),
+        resumed_insight: int | None = Query(None, ge=0),
+    ):
+        self.resumed_summary = resumed_summary
+        self.resumed_insight = resumed_insight
+
+    def build(self) -> dict | None:
+        if self.resumed_summary is None and self.resumed_insight is None:
+            return None
+        summary = self.resumed_summary or 0
+        insight = self.resumed_insight or 0
+        return {"summary": summary, "insight": insight, "total": summary + insight}
+
+
 @router.get("/today", response_class=HTMLResponse)
 def radar_today_page(
     request: Request,
@@ -661,6 +680,7 @@ def radar_today_page(
     insight_params: InsightResultParams = Depends(),
     update_params: UpdateResultParams = Depends(),
     bootstrap_params: BootstrapResultParams = Depends(),
+    resume_params: ResumeResultParams = Depends(),
 ):
     """Render today's AI frontier radar reading view."""
     # Build base context using shared helper
@@ -679,6 +699,7 @@ def radar_today_page(
     context["insight_batch_result"] = insight_params.build_batch_result()
     context["update_result"] = update_params.build()
     context["bootstrap_result"] = bootstrap_params.build()
+    context["resume_result"] = resume_params.build()
     context["panel_mode"] = panel
 
     return _radar_templates.TemplateResponse(
@@ -874,6 +895,18 @@ def _build_radar_today_view_context(
                 logger.exception("Unable to build today summary panel")
                 today_summary_panel = None
 
+        # P4: interrupted background batches (summary/insight left in-progress by
+        # a process restart). Read-only count for the recovery banner.
+        interrupted_batches = None
+        if include_sidebar:
+            try:
+                from app.application.radar.batch_recovery import (
+                    count_interrupted_batches,
+                )
+                interrupted_batches = count_interrupted_batches(db)
+            except Exception:
+                interrupted_batches = None
+
         sel = view.selected_item
         sel_card = view.display_map.get(sel.id) if sel else None
 
@@ -886,6 +919,7 @@ def _build_radar_today_view_context(
             "scheduler_status": scheduler_status,
             "daily_digest": daily_digest,
             "today_summary_panel": today_summary_panel,
+            "interrupted_batches": interrupted_batches,
             "sel": sel,
             "sel_card": sel_card,
             "DAILY_REPORT_ENABLED": get_daily_report_enabled(),
@@ -1265,6 +1299,39 @@ def generate_recommended_insights(
         "insight_batch_total": total_candidates,
         "insight_batch_hard_cap": RECOMMENDED_INSIGHT_HARD_CAP if hard_cap_triggered else 0,
     }
+    return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
+
+
+@router.post("/today/resume-interrupted")
+def resume_interrupted_today_batches(
+    background_tasks: BackgroundTasks,
+    section: str = Form(ALL_KEY),
+    item_id: int | None = Form(None),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Re-run background batches (summary/insight) interrupted by a restart (P4).
+
+    Detection is read-only; re-running dispatches to the same background runners
+    the original enqueue paths use. Does not call the LLM directly.
+    """
+    from app.application.radar.batch_recovery import resume_interrupted_batches
+
+    result = resume_interrupted_batches(background_tasks)
+
+    params = {
+        "section": normalize_section_key(section),
+        "hours": hours,
+        "limit": limit,
+        "page": page,
+        "per_page": per_page,
+        "resumed_summary": result.summary,
+        "resumed_insight": result.insight,
+    }
+    if item_id is not None:
+        params["item_id"] = item_id
     return RedirectResponse(url="/radar/today?" + urlencode(params), status_code=303)
 
 
