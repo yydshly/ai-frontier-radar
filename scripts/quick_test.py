@@ -6128,7 +6128,18 @@ def main():
         from app.db import SessionLocal
         from app.models import FetchRun, SourceItem, InsightCard
 
-        _prev = _os.environ.pop("DAILY_REPORT_ENABLED", None)
+        import tempfile as _tempfile
+        import shutil as _shutil
+        # Reliably disable: SETTING "false" sticks (dotenv load_dotenv won't
+        # override an already-set value; popping it gets re-added from .env on the
+        # next import). Also isolate the report store to an empty temp dir so a
+        # pre-existing report (normal daily operation) can't be reused — the
+        # disabled-generate path is then deterministic ("未启用").
+        _prev_enabled = _os.environ.get("DAILY_REPORT_ENABLED")
+        _prev_dir = _os.environ.get("DAILY_REPORT_RUNTIME_DIR")
+        _tmp_report_dir = _tempfile.mkdtemp(prefix="qt_daily_report_")
+        _os.environ["DAILY_REPORT_ENABLED"] = "false"
+        _os.environ["DAILY_REPORT_RUNTIME_DIR"] = _tmp_report_dir
         try:
             _client = TestClient(_app)
             _db = SessionLocal()
@@ -6163,8 +6174,15 @@ def main():
                   _before == _after,
                   "disabled report POST must not write FetchRun / SourceItem / InsightCard")
         finally:
-            if _prev is not None:
-                _os.environ["DAILY_REPORT_ENABLED"] = _prev
+            if _prev_enabled is None:
+                _os.environ.pop("DAILY_REPORT_ENABLED", None)
+            else:
+                _os.environ["DAILY_REPORT_ENABLED"] = _prev_enabled
+            if _prev_dir is None:
+                _os.environ.pop("DAILY_REPORT_RUNTIME_DIR", None)
+            else:
+                _os.environ["DAILY_REPORT_RUNTIME_DIR"] = _prev_dir
+            _shutil.rmtree(_tmp_report_dir, ignore_errors=True)
     except Exception as e:
         check("P-003-2 daily report UI checks", False, str(e))
 
@@ -8945,6 +8963,50 @@ def main():
             _db.close()
     except Exception as e:
         check("increment summary targeting checks", False, str(e))
+
+    # ── 66. P3 daily cycle orchestration (dry-run, no LLM/side effects) ──────
+    print("\n[66] daily cycle orchestration (P3)")
+    try:
+        proj = Path(__file__).resolve().parents[1]
+        cli = proj / "scripts" / "run_daily_cycle.py"
+        check("run_daily_cycle CLI exists", cli.exists(),
+              "scripts/run_daily_cycle.py should exist for an external scheduler")
+
+        from app.db import SessionLocal as _SL66
+        from app.application.radar.daily_cycle import run_daily_cycle as _rdc, DailyCycleResult as _DCR
+        _db = _SL66()
+        try:
+            res = _rdc(_db, dry_run=True)  # dry-run: no fetch/LLM/writes
+            check("dry-run cycle is side-effect-free and structured",
+                  isinstance(res, _DCR) and res.dry_run is True
+                  and res.report_status == "would_generate"
+                  and res.summary_targets >= 0
+                  and not res.errors,
+                  f"unexpected dry-run result: status={res.report_status} errors={res.errors}")
+            check("dry-run reports a fetch + summary + report plan",
+                  any(s.startswith("fetch:") for s in res.steps)
+                  and any(s.startswith("summary:") for s in res.steps)
+                  and any(s.startswith("report:") for s in res.steps),
+                  "dry-run should describe the fetch/summary/report steps")
+        finally:
+            _db.close()
+
+        # last-cycle marker round-trips (atomic JSON), without disturbing prod state
+        import tempfile as _tf
+        from pathlib import Path as _P
+        from app.application.radar import cycle_state as _cs
+        from datetime import datetime as _dt66
+        with _tf.TemporaryDirectory() as _d:
+            _root = _P(_d)
+            check("cycle-state marker is empty before first run",
+                  _cs.get_last_cycle_run(root_dir=_root) is None,
+                  "no marker should exist initially")
+            _cs.set_last_cycle_run(_dt66(2026, 6, 12, 8, 0, 0), root_dir=_root)
+            check("cycle-state marker round-trips",
+                  _cs.get_last_cycle_run(root_dir=_root) == _dt66(2026, 6, 12, 8, 0, 0),
+                  "marker should persist and reload the last run time")
+    except Exception as e:
+        check("daily cycle orchestration checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
