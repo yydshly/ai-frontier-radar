@@ -27,13 +27,17 @@
         .sec-title { font-size:14px; font-weight:600; color:var(--accent); margin:0 0 12px; }
         .overview { font-size:16px; margin:0 0 14px; }
         ul.highlights { margin:0; padding-left:20px; }
-        ul.highlights li { margin:0 0 8px; }
+        ul.highlights li { margin:0 0 12px; }
+        .refs { color:var(--muted); font-size:12px; margin-top:3px; }
+        .refs a { color:var(--accent); text-decoration:none; margin-right:8px; }
         audio { width:100%; margin:6px 0; }
         .voice { font-size:12px; color:var(--muted); margin-bottom:2px; }
+        .article-anchor { scroll-margin-top:12px; }
         .article { padding:12px 0; border-bottom:1px solid var(--line); }
         .article:last-child { border-bottom:none; }
         .a-main { font-size:15.5px; margin:0 0 3px; }
         .a-sub { font-size:13px; color:var(--muted); margin:0 0 5px; }
+        .a-desc { font-size:14px; color:#404040; margin:8px 0; line-height:1.75; }
         .a-meta { font-size:12.5px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
         .a-meta a { color:var(--accent); text-decoration:none; }
         .src { font-weight:600; color:var(--fg); font-size:13px; margin:14px 0 4px; }
@@ -64,9 +68,26 @@
         <div class="sec-title">核心报告</div>
         {% if view.report and view.report.status == 'generated' %}
         {% if view.report.overview %}<p class="overview">{{ view.report.overview }}</p>{% endif %}
-        {% if view.report.highlights %}
+        {% if view.highlights %}
         <ul class="highlights">
-            {% for h in view.report.highlights %}<li>{{ h }}</li>{% endfor %}
+            {% for h in view.highlights %}
+            <li>
+                {{ h.text }}
+                {% if h.references %}
+                <div class="refs">
+                    依据：
+                    {% for ref in h.references %}
+                        {% if ref.is_on_page %}
+                        <a href="#article-{{ ref.item_id }}" title="{{ ref.title }}">依据 {{ loop.index }}</a>
+                        {% else %}
+                            {% set ref_url = safe_external_url(ref.url) %}
+                            {% if ref_url %}<a href="{{ ref_url }}" target="_blank" rel="noopener" title="{{ ref.title }}">依据 {{ loop.index }}</a>{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </li>
+            {% endfor %}
         </ul>
         {% endif %}
         {% else %}
@@ -75,13 +96,11 @@
     </section>
 
     {# ── 音频 ── #}
-    {% if view.audio_jobs %}
+    {% if view.audio_job %}
     <section>
         <div class="sec-title">语音播报</div>
-        {% for j in view.audio_jobs %}
-        <div class="voice">{{ j.voice }} 音色</div>
-        <audio controls preload="none" src="{{ j.audio_url }}"></audio>
-        {% endfor %}
+        <div class="voice">{{ view.audio_job.voice }} 音色</div>
+        <audio controls preload="none" src="{{ view.audio_job.audio_url }}"></audio>
     </section>
     {% endif %}
 
@@ -90,9 +109,10 @@
     <section>
         <div class="sec-title">重要文章 · {{ view.important|length }}</div>
         {% for a in view.important %}
-        <div class="article">
+        <div class="article article-anchor" id="article-{{ a.item_id }}">
             <div class="a-main">{{ a.zh_preview or a.title }}<span class="imp-badge">重要</span></div>
             {% if a.zh_preview and a.title and a.title != a.zh_preview %}<div class="a-sub">{{ a.title }}</div>{% endif %}
+            {% if a.description %}<div class="a-desc">{{ a.description }}</div>{% endif %}
             <div class="a-meta">
                 <span>{{ a.source_name }}</span>
                 {% set u = safe_external_url(a.url) %}
@@ -110,9 +130,10 @@
         {% for g in view.other_groups %}
         <div class="src">{{ g.source_name }} · {{ g.items|length }}</div>
         {% for a in g.items %}
-        <div class="article">
+        <div class="article article-anchor" id="article-{{ a.item_id }}">
             <div class="a-main">{{ a.zh_preview or a.title }}</div>
             {% if a.zh_preview and a.title and a.title != a.zh_preview %}<div class="a-sub">{{ a.title }}</div>{% endif %}
+            {% if a.description %}<div class="a-desc">{{ a.description }}</div>{% endif %}
             <div class="a-meta">
                 {% set u = safe_external_url(a.url) %}
                 {% if u %}<a href="{{ u }}" target="_blank" rel="noopener">原文</a>{% endif %}
