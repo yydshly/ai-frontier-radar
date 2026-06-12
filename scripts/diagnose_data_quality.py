@@ -334,6 +334,15 @@ def format_diagnosis_report(
 
 
 def main():
+    # The report contains source-derived text (titles/URLs) that can include
+    # non-GBK characters (e.g. \xa0). Default Windows console encoding (GBK) then
+    # raises UnicodeEncodeError on print. Force UTF-8 stdout where supported.
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
     parser = argparse.ArgumentParser(
         description="Diagnose data quality issues in SourceItem pipeline. Read-only."
     )

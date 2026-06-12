@@ -125,15 +125,16 @@ class SourceItem(Base):
     raw_metadata_json = Column(Text, nullable=True)
 
     # Processing state
-    status = Column(String(32), nullable=False, default="discovered")
+    status = Column(String(32), nullable=False, default="discovered", index=True)
     error_message = Column(Text, nullable=True)
 
     # InsightCard linkage
     insight_card_id = Column(Integer, ForeignKey("insight_cards.id"), nullable=True, index=True)
 
-    # Timestamps
-    first_seen_at = Column(DateTime, default=datetime.utcnow)
-    last_seen_at = Column(DateTime, default=datetime.utcnow)
+    # Timestamps — first_seen_at/last_seen_at drive the today-radar window &
+    # increment queries (and their ordering), so both are indexed.
+    first_seen_at = Column(DateTime, default=datetime.utcnow, index=True)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -134,7 +134,9 @@ def main():
     try:
         from app.sources.html_index_probe import (
             _is_weak_title, _make_url_slug_fallback, choose_candidate_title,
-            _should_update_title, MAX_DETAIL_FETCHES_PER_SOURCE, DEFAULT_HTML_HEADERS,
+            _should_update_title, _headers_for_url, _get_html_response,
+            MAX_DETAIL_FETCHES_PER_SOURCE, DEFAULT_HTML_HEADERS,
+            META_AI_USER_AGENT,
         )
     except Exception as e:
         check("html_index_probe imports for weak title helpers", False, str(e))
@@ -217,6 +219,23 @@ def main():
               bool(DEFAULT_HTML_HEADERS.get("Accept")))
         check("DEFAULT_HTML_HEADERS contains Accept-Language",
               bool(DEFAULT_HTML_HEADERS.get("Accept-Language")))
+        check("Meta AI probe uses explicit crawler identity",
+              _headers_for_url("https://ai.meta.com/blog/").get("User-Agent")
+              == META_AI_USER_AGENT)
+        check("other HTML probes retain default browser-compatible headers",
+              _headers_for_url("https://example.com/blog/") == DEFAULT_HTML_HEADERS)
+        import httpx
+        from unittest.mock import patch, MagicMock
+        transient = httpx.ConnectError("temporary disconnect")
+        recovered = MagicMock()
+        recovered.raise_for_status.return_value = None
+        with patch(
+            "app.sources.html_index_probe.httpx.get",
+            side_effect=[transient, recovered],
+        ) as retry_get:
+            check("HTML probe retries one transient transport failure",
+                  _get_html_response("https://ai.meta.com/blog/", 5) is recovered
+                  and retry_get.call_count == 2)
 
         # ── _should_update_title existing-item title protection ─────────────
         # a) url_slug must NOT overwrite a good existing title
@@ -8747,6 +8766,56 @@ def main():
               "the workbench should render the briefing inline under 今日速览")
     except Exception as e:
         check("briefing merge checks", False, str(e))
+
+    # ── 62. P1-0 storage foundation: indexes + migration + WAL ───────────────
+    print("\n[62] storage foundation: indexes / migration / WAL (P1-0)")
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        models_py = (project_root / "app" / "models.py").read_text(encoding="utf-8")
+        db_py = (project_root / "app" / "db.py").read_text(encoding="utf-8")
+        migrate_cli = project_root / "scripts" / "apply_db_migrations.py"
+
+        check("hot columns declare index=True (first_seen_at/last_seen_at/status)",
+              'first_seen_at = Column(DateTime, default=datetime.utcnow, index=True)' in models_py
+              and 'last_seen_at = Column(DateTime, default=datetime.utcnow, index=True)' in models_py
+              and 'status = Column(String(32), nullable=False, default="discovered", index=True)' in models_py,
+              "increment/window hot columns must be indexed")
+        check("db.py has idempotent migration runner + WAL pragma",
+              "def apply_runtime_migrations" in db_py
+              and "CREATE INDEX IF NOT EXISTS" in db_py
+              and "PRAGMA journal_mode=WAL" in db_py
+              and "busy_timeout" in db_py,
+              "db.py should run idempotent index migrations and enable WAL + busy_timeout")
+        check("init_db applies migrations + CLI migration script exists",
+              "apply_runtime_migrations()" in db_py.split("def init_db")[1]
+              if "def init_db" in db_py else False,
+              "init_db must converge existing DBs; CLI script should exist")
+        check("apply_db_migrations CLI exists", migrate_cli.exists(),
+              "scripts/apply_db_migrations.py should exist for manual convergence")
+
+        # Functional: migrations are idempotent and the indexes really exist.
+        from app.db import apply_runtime_migrations as _arm, engine as _eng
+        ensured = _arm()
+        check("apply_runtime_migrations ensures the 3 source_items indexes",
+              set(ensured) == {
+                  "ix_source_items_first_seen_at",
+                  "ix_source_items_last_seen_at",
+                  "ix_source_items_status",
+              },
+              f"unexpected ensured indexes: {ensured}")
+        if _eng.dialect.name == "sqlite":
+            with _eng.begin() as _c:
+                names = {
+                    r[0] for r in _c.exec_driver_sql(
+                        "SELECT name FROM sqlite_master WHERE type='index' "
+                        "AND tbl_name='source_items'"
+                    ).fetchall()
+                }
+            check("the migration indexes exist on source_items",
+                  {"ix_source_items_first_seen_at", "ix_source_items_status"} <= names,
+                  f"missing indexes; have: {sorted(names)}")
+    except Exception as e:
+        check("storage foundation checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
