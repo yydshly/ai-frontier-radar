@@ -135,7 +135,9 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
 # (or title), discovery time and read links. No LLM, no writes — this is the
 # deterministic "new-items report" that lets a user actually read what's new.
 
-DEFAULT_BRIEFING_MAX = get_daily_scope_settings().briefing_limit
+# 今日速览 shows the WHOLE increment (no "latest 50" cap) — bounded only by the
+# defensive increment ceiling so a pathological day can't blow up memory.
+DEFAULT_BRIEFING_MAX = get_daily_scope_settings().increment_ceiling
 
 
 @dataclass(frozen=True)

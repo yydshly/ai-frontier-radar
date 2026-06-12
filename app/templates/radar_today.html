@@ -730,11 +730,16 @@
                     <h3 class="briefing-group-title">{{ group.source_name }} <span class="briefing-muted">（{{ group.items|length }} 条）</span></h3>
                     <ul class="briefing-list">
                         {% for it in group.items %}
-                        <li class="briefing-item">
-                            <div class="briefing-item-main">{{ it.zh_preview or it.title }}</div>
-                            {% if it.zh_preview and it.title and it.title != it.zh_preview %}
-                            <div class="briefing-item-sub">{{ it.title }}</div>
-                            {% endif %}
+                        {% set b_view_url = '/radar/today?section=briefing&item_id=' ~ it.item_id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page ~ '#radar-item-' ~ it.item_id %}
+                        {% set b_panel_url = '/radar/today/panel?section=briefing&item_id=' ~ it.item_id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page %}
+                        <li class="briefing-item {% if sel and it.item_id == sel.id %}is-selected{% endif %}">
+                            {# Clicking the item loads its summary/info into the right reading panel (reuses the card→panel handler). #}
+                            <a class="radar-card-main-link briefing-item-link" href="{{ b_view_url }}" data-radar-panel-url="{{ b_panel_url }}">
+                                <div class="briefing-item-main">{{ it.zh_preview or it.title }}</div>
+                                {% if it.zh_preview and it.title and it.title != it.zh_preview %}
+                                <div class="briefing-item-sub">{{ it.title }}</div>
+                                {% endif %}
+                            </a>
                             <div class="briefing-item-meta">
                                 <span class="briefing-muted">{{ it.time_label }}</span>
                                 {% if not it.has_summary %}<span class="briefing-chip">待生成摘要</span>{% endif %}

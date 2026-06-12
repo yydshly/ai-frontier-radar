@@ -8782,6 +8782,18 @@ def main():
               "section=briefing" in _h and _h.count("今日速览") >= 2
               and (("briefing-group-title" in _h) or ("今天暂无新增内容" in _h)),
               "the workbench should render the briefing inline under 今日速览")
+        # 今日速览 items are panel-clickable (load summary into the right panel),
+        # and the list is no longer capped at "latest 50".
+        proj61 = Path(__file__).resolve().parents[1]
+        digest_src = (proj61 / "app" / "application" / "radar" / "daily_digest.py").read_text(encoding="utf-8")
+        check("今日速览 items open the reading panel on click",
+              ("briefing-item-link" in _h and "radar-card-main-link" in _h
+               and "data-radar-panel-url=\"/radar/today/panel?section=briefing" in _h)
+              or ("今天暂无新增内容" in _h),
+              "clicking a 速览 item should load its summary into the right panel")
+        check("今日速览 is not capped at latest-50 (uses increment ceiling)",
+              "DEFAULT_BRIEFING_MAX = get_daily_scope_settings().increment_ceiling" in digest_src,
+              "the briefing should show the whole increment, bounded only by the ceiling")
     except Exception as e:
         check("briefing merge checks", False, str(e))
 
