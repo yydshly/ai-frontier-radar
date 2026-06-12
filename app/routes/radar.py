@@ -1530,6 +1530,22 @@ def _render_share(request: Request, date_label: str):
     )
 
 
+@router.get("/share", response_class=HTMLResponse)
+def radar_share_history(request: Request):
+    """Index of formal daily reports linking to their public share pages."""
+    from app.application.radar.history import list_history_days
+
+    db = next(get_db())
+    try:
+        days = list_history_days(db)
+    finally:
+        db.close()
+    return _radar_templates.TemplateResponse(
+        "radar_share_history.html",
+        {"request": request, "days": days},
+    )
+
+
 @router.get("/share/today", response_class=HTMLResponse)
 def radar_share_today(request: Request):
     """Public share page for the most recent formal daily report."""

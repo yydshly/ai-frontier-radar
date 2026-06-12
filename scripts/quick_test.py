@@ -9131,6 +9131,7 @@ def main():
               "share page needs a /share/today and /share/{date} route")
         check("share template + builder exist",
               (proj69 / "app" / "templates" / "radar_share.html").exists()
+              and (proj69 / "app" / "templates" / "radar_share_history.html").exists()
               and (proj69 / "app" / "application" / "radar" / "share.py").exists(),
               "share H5 template + build_share_view should exist")
 
@@ -9142,6 +9143,11 @@ def main():
         check("share/today renders + OG + no internal leak",
               _c69.get("/radar/share/today").status_code == 200,
               "share/today must always render")
+        check("share history index renders and links from today",
+              _c69.get("/radar/share").status_code == 200
+              and "/radar/share" in (proj69 / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+              and "每日共享历史" in _c69.get("/radar/today").text,
+              "share history should render and be linked from today radar")
         # Content assertions on a date that actually has a report (robust to
         # date rollover / fresh DB).
         _dates = _ldrd()

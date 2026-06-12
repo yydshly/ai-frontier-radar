@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}每日共享历史 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>每日共享历史</h1>
+            <p>按日期打开已保存的完整分享页，包含核心报告、依据、语音和文章介绍。</p>
+            <a href="/radar/today" class="btn-link">← 返回今日雷达</a>
+            <a href="/radar/history" class="btn-link">查看内部每日历史</a>
+        </div>
+
+        {% if days %}
+        <ul class="history-list">
+            {% for d in days %}
+            <li class="history-day">
+                <a href="/radar/share/{{ d.date_label }}"
+                   class="history-day-link"
+                   target="_blank"
+                   rel="noopener">
+                    <span class="history-day-date">{{ d.date_label }}</span>
+                    <span class="history-day-meta">
+                        {% if d.report_title %}{{ d.report_title }}{% else %}（当日无核心报告）{% endif %}
+                        · 文章 {{ d.item_count }} · 语音 {{ d.audio_count }}
+                    </span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty-state">暂无可共享的每日正式报告。</p>
+        {% endif %}
+{% endblock %}
