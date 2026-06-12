@@ -5803,10 +5803,11 @@ def main():
               and "InsightCardGenerator" not in digest_text,
               "daily digest must only aggregate, never write or call LLM")
 
-        check("daily digest uses a bounded database query",
-              ".limit(settings.item_limit)" in digest_text
+        check("daily digest is anchored to the increment (bounded)",
+              "since=daily_anchor(now)" in digest_text
+              and ".limit(settings.increment_ceiling)" in digest_text
               and ".all()" in digest_text,
-              "daily digest may inspect only the capped radar/report input set")
+              "daily digest must use the daily-anchor increment scope (consistent with the catalog), bounded by the ceiling")
 
         check("radar route wires daily_digest",
               "daily_digest" in radar_route_py
@@ -8304,10 +8305,10 @@ def main():
               "def build_daily_briefing" in digest_py
               and ".commit(" not in digest_py and ".add(" not in digest_py,
               "build_daily_briefing should exist and never write")
-        check("daily summary metrics use the configured radar cap",
-              ".limit(settings.item_limit)" in digest_py
+        check("daily summary metrics use the anchored increment scope",
+              "since=daily_anchor(now)" in digest_py
               and "new_items_count = len(rows)" in digest_py,
-              "summary counts must match the capped set used by radar and report input")
+              "summary counts must match the anchored increment used by the radar catalog and report input")
         check("briefing route is read-only GET",
               '@router.get("/today/briefing"' in radar_route_py
               and "build_daily_briefing" in radar_route_py,

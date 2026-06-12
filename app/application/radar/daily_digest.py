@@ -74,13 +74,12 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
 
     settings = get_daily_scope_settings()
     rows = (
-        recent_valid_items_query(
-            db,
-            now=now,
-            hours=settings.window_hours,
-        )
+        # Anchored to the daily increment (same scope as the radar catalog), so
+        # the sidebar 今日动态 counts agree with 全部 / 今日速览 (§4.7). Bounded by
+        # the increment ceiling instead of item_limit, so it isn't capped at 50.
+        recent_valid_items_query(db, now=now, since=daily_anchor(now))
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(settings.item_limit)
+        .limit(settings.increment_ceiling)
         .all()
     )
 
