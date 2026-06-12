@@ -40,7 +40,7 @@
     {# ── Player section — always rendered when any audio exists ── #}
     {# Determine initial player state: prefer audio_job, fall back to first playable history item #}
     {% set player_audio_url = audio_job.audio_url if (audio_job and audio_job.status == "generated") else "" %}
-    {% set player_audio_title = (audio_job.date_label or script.date_label ~ " · " ~ audio_job.voice) if (audio_job and audio_job.status == "generated") else "" %}
+    {% set player_audio_title = ((audio_job.date_label or script.date_label) ~ " · " ~ audio_job.voice) if (audio_job and audio_job.status == "generated") else "" %}
     {% set player_has_initial_audio = (player_audio_url | length) > 0 %}
     {% set any_playable = player_has_initial_audio or (audio_jobs | selectattr("status", "equalto", "generated") | selectattr("audio_url") | list | length > 0) %}
 
@@ -123,6 +123,9 @@
                 {% if audio_job.chunk_count %}({{ audio_job.completed_chunks }}/{{ audio_job.chunk_count }} 段){% endif %}
             </span>
             <a href="/radar/daily-report/broadcast?job_id={{ audio_job.job_id }}" class="radar-report-action-link">刷新状态</a>
+            <form method="post" action="/radar/daily-report/broadcast/audio/{{ audio_job.job_id }}/resume">
+                <button type="submit" class="btn btn-secondary btn-sm">恢复任务</button>
+            </form>
         </div>
         <script>
           window.setTimeout(function () { window.location.reload(); }, 2500);
@@ -166,6 +169,7 @@
         <form method="post" action="/radar/daily-report/broadcast/audio"
               class="radar-broadcast-generation-form"
               onsubmit="var btn=document.getElementById('audio-btn');btn.disabled=true;btn.textContent='任务提交中';">
+            {% if report_version %}<input type="hidden" name="report_version" value="{{ report_version }}">{% endif %}
             <label>
                 <span>播报音色</span>
                 <select name="voice">

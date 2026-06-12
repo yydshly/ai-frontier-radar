@@ -16,8 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-
-from sqlalchemy import or_
+import json
 
 from app.models import Source, SourceItem
 from app.application.radar.daily_scope import recent_valid_items_query, SUMMARY_MARKERS
@@ -69,36 +68,39 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
         now = datetime.utcnow()
     day_start = _start_of_utc_day(now)
 
-    base = recent_valid_items_query(db, now=now)
-
-    new_items_count = base.count()
-
-    summarized_count = (
-        base.filter(
-            or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS])
-        ).count()
-    )
-
-    card_count = base.filter(SourceItem.insight_card_id.isnot(None)).count()
-
-    source_count = (
-        recent_valid_items_query(db, now=now)
-        .with_entities(SourceItem.source_key)
-        .distinct()
-        .count()
-    )
-
-    # Top items: prefer those that already have a Chinese one-liner, newest first.
-    from app.application.candidates.display import build_candidate_display_card
-
-    candidate_rows = (
-        base.filter(
-            or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS])
+    settings = get_daily_scope_settings()
+    rows = (
+        recent_valid_items_query(
+            db,
+            now=now,
+            hours=settings.window_hours,
         )
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(_TOP_ITEMS_LIMIT)
+        .limit(settings.item_limit)
         .all()
     )
+
+    def has_summary(item: SourceItem) -> bool:
+        try:
+            metadata = json.loads(item.raw_metadata_json or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return False
+        return any(
+            isinstance(metadata.get(marker.strip('"')), str)
+            and bool(metadata.get(marker.strip('"')).strip())
+            for marker in _SUMMARY_MARKERS
+        )
+
+    new_items_count = len(rows)
+    summarized_rows = [item for item in rows if has_summary(item)]
+    summarized_count = len(summarized_rows)
+    card_count = sum(item.insight_card_id is not None for item in rows)
+    source_count = len({item.source_key for item in rows})
+
+    # Top items: use the same capped scope as today's radar and report input.
+    from app.application.candidates.display import build_candidate_display_card
+
+    candidate_rows = summarized_rows[:_TOP_ITEMS_LIMIT]
 
     top_items: list[DailyDigestItem] = []
     for it in candidate_rows:

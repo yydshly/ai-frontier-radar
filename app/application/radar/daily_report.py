@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+import hashlib
+import json
 from typing import Any, Protocol
 
 from sqlalchemy import or_
@@ -83,6 +85,7 @@ class DailyReportResult:
     overview: str | None = None
     highlights: list[str] = field(default_factory=list)
     highlight_references: list[list[dict[str, Any]]] = field(default_factory=list)
+    input_fingerprint: str | None = None
 
 
 class DailyReportProvider(Protocol):
@@ -270,6 +273,27 @@ def build_daily_report_user_prompt(payload: DailyReportInput) -> str:
     )
 
 
+def daily_report_input_fingerprint(payload: DailyReportInput) -> str:
+    """Build a stable fingerprint for report inputs and attached insight context."""
+    canonical = [
+        {
+            "item_id": source.item_id,
+            "title": source.title,
+            "summary": source.summary,
+            "insight_card_id": source.insight_card_id,
+            "insight_context": source.insight_context,
+        }
+        for source in payload.sources
+    ]
+    encoded = json.dumps(
+        canonical,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def normalize_daily_report_highlights(
     raw_highlights: Any,
     sources: list[DailyReportSource],
@@ -321,6 +345,7 @@ def generate_daily_report(
     """Generate the core report. Dry-run by default; LLM only behind gates."""
     settings = get_daily_report_settings()
     payload = build_daily_report_input(db, now=now)
+    input_fingerprint = daily_report_input_fingerprint(payload)
 
     if not apply:
         return DailyReportResult(
@@ -328,6 +353,7 @@ def generate_daily_report(
             date_label=payload.date_label,
             input_item_count=payload.item_count,
             message="dry-run：仅组装编译输入，未调用 LLM。使用 --apply 且 DAILY_REPORT_ENABLED=true 才会生成。",
+            input_fingerprint=input_fingerprint,
         )
 
     if not settings.enabled:
@@ -336,6 +362,7 @@ def generate_daily_report(
             date_label=payload.date_label,
             input_item_count=payload.item_count,
             message="--apply 需要 DAILY_REPORT_ENABLED=true 才会调用 LLM。",
+            input_fingerprint=input_fingerprint,
         )
 
     if payload.item_count == 0:
@@ -344,6 +371,7 @@ def generate_daily_report(
             date_label=payload.date_label,
             input_item_count=0,
             message="今日暂无可编译的中文摘要内容。",
+            input_fingerprint=input_fingerprint,
         )
 
     if provider is None:
@@ -368,4 +396,5 @@ def generate_daily_report(
         overview=_normalize(data.get("overview")),
         highlights=highlights,
         highlight_references=highlight_references,
+        input_fingerprint=input_fingerprint,
     )

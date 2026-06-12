@@ -110,6 +110,7 @@ def save_daily_report(
         "overview": result.overview,
         "highlights": list(result.highlights),
         "highlight_references": list(result.highlight_references),
+        "input_fingerprint": result.input_fingerprint,
         "generated_at": generated_at.isoformat(timespec="seconds"),
         "version_id": version_id,
     }

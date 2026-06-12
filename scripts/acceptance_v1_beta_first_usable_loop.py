@@ -96,8 +96,8 @@ def main():
 
     check("今日流程包含'同步今日新增'",
           "同步今日新增" in html)
-    check("今日流程包含'查看可读简报'",
-          "查看可读简报" in html)
+    check("今日流程包含'查看报告依据'",
+          "查看报告依据" in html)
     check("今日流程包含'生成核心报告'",
           "生成核心报告" in html)
 
@@ -146,8 +146,9 @@ def main():
 
     check("区块标题为'推荐深入分析'",
           "推荐深入分析" in html)
-    check("推荐深入分析使用独立右侧面板",
-          "panel=recommendations" in html and "radar-panel-recommendations" in panel_html)
+    check("推荐深入分析展示带推荐标记的相关文章",
+          "section=recommended" in html
+          and "radar-card-recommended-badge" in html)
     check("副说明解释推荐依据",
           "今日推荐" in panel_html and "主题相关性" in panel_html)
     check("每条候选优先展示 summary_preview",
@@ -183,15 +184,16 @@ def main():
     # ── Path E: Daily Report Chain ───────────────────────────────────────────
     print("\n[Path E] Daily Report Chain")
 
-    check("'查看可读简报'入口存在，href=/radar/daily-report",
-          'href="/radar/daily-report"' in html and "查看可读简报" in html)
+    check("'查看报告依据'入口存在，href=/radar/daily-report",
+          'href="/radar/daily-report"' in html and "查看报告依据" in html)
     check("'生成核心报告'入口存在，method=post",
           'method="post"' in html and "生成核心报告" in html and
           'action="/radar/today/daily-report"' in html)
     check("未启用提示清楚说明",
           "综合报告能力未启用" in html)
-    check("不把规则版和LLM版混为同一按钮",
-          html.count(">查看可读简报</a>") == 1)
+    check("不把报告依据和LLM核心报告混为同一按钮",
+          html.count(">查看报告依据</a>") == 1
+          and ">生成核心报告</button>" in html)
 
     check("POST /today/daily-report 存在于 radar.py",
           'POST /today/daily-report' in routes or

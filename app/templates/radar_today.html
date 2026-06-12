@@ -14,48 +14,48 @@
         {# ── Compact header: title + meta on one row ─────────────────────── #}
         <div class="radar-header">
             <div class="radar-header-top">
-                <h1 class="radar-header-title">今日 AI 前沿雷达</h1>
-                {% if view.fallback_used %}
-                <span class="radar-header-meta radar-header-meta-warn">最近 {{ view.hours }} 小时暂无新内容 · 显示最近 {{ view.total_items }} 条</span>
-                {% else %}
-                <span class="radar-header-meta">最近 {{ view.hours }} 小时 · {{ view.total_items }} 条内容</span>
-                {% endif %}
-                <div class="radar-quick-links">
-                    <a href="/sources" class="radar-quick-link">信息来源</a>
-                    <a href="/candidate-pool" class="radar-quick-link">候选池</a>
-                    <a href="/generation-queue" class="radar-quick-link">生成队列</a>
-                    <a href="/cards" class="radar-quick-link">洞察卡</a>
+                <div class="radar-title-main">
+                    <h1 class="radar-header-title">今日 AI 前沿雷达</h1>
+                    {% if view.fallback_used %}
+                    <span class="radar-header-meta radar-header-meta-warn">最近 {{ view.hours }} 小时暂无新内容 · 显示最近 {{ view.total_items }} 条</span>
+                    {% else %}
+                    <span class="radar-header-meta">最近 {{ view.hours }} 小时 · {{ view.total_items }} 条内容</span>
+                    {% endif %}
+                </div>
+                <div class="radar-header-right">
+                    {# ── Data quality chip (inline in title row) ── #}
+                    {% if view.quality_filter_stats and view.quality_filter_stats.total_filtered > 0 %}
+                    <span class="radar-data-quality-chip has-issues">
+                        数据质量：已隐藏 {{ view.quality_filter_stats.total_filtered }} 条
+                    </span>
+                    <details class="radar-data-quality-detail">
+                        <summary>查看详情</summary>
+                        <ul class="radar-filter-list">
+                            {% if view.quality_filter_stats.orphan_source > 0 %}
+                            <li>无有效来源：{{ view.quality_filter_stats.orphan_source }}</li>
+                            {% endif %}
+                            {% if view.quality_filter_stats.disabled_source > 0 %}
+                            <li>来源已停用：{{ view.quality_filter_stats.disabled_source }}</li>
+                            {% endif %}
+                            {% if view.quality_filter_stats.missing_url > 0 %}
+                            <li>缺少链接：{{ view.quality_filter_stats.missing_url }}</li>
+                            {% endif %}
+                            {% if view.quality_filter_stats.missing_title > 0 %}
+                            <li>缺少标题：{{ view.quality_filter_stats.missing_title }}</li>
+                            {% endif %}
+                        </ul>
+                    </details>
+                    {% elif view.quality_filter_stats and view.quality_filter_stats.total_filtered == 0 %}
+                    <span class="radar-data-quality-chip is-ok">数据质量：正常</span>
+                    {% endif %}
+                    <div class="radar-quick-links">
+                        <a href="/sources" class="radar-quick-link">信息来源</a>
+                        <a href="/candidate-pool" class="radar-quick-link">候选池</a>
+                        <a href="/generation-queue" class="radar-quick-link">生成队列</a>
+                        <a href="/cards" class="radar-quick-link">洞察卡</a>
+                    </div>
                 </div>
             </div>
-            {# ── Data quality filter stats ───────────────────────────────────── #}
-            {% if view.quality_filter_stats and view.quality_filter_stats.total_filtered > 0 %}
-            <div class="radar-header-filter-stats">
-                <span class="radar-filter-badge">
-                    数据质量：已隐藏 {{ view.quality_filter_stats.total_filtered }} 条无效内容
-                </span>
-                <details class="radar-filter-details">
-                    <summary>查看详情</summary>
-                    <ul class="radar-filter-list">
-                        {% if view.quality_filter_stats.orphan_source > 0 %}
-                        <li>无有效来源：{{ view.quality_filter_stats.orphan_source }}</li>
-                        {% endif %}
-                        {% if view.quality_filter_stats.disabled_source > 0 %}
-                        <li>来源已停用：{{ view.quality_filter_stats.disabled_source }}</li>
-                        {% endif %}
-                        {% if view.quality_filter_stats.missing_url > 0 %}
-                        <li>缺少链接：{{ view.quality_filter_stats.missing_url }}</li>
-                        {% endif %}
-                        {% if view.quality_filter_stats.missing_title > 0 %}
-                        <li>缺少标题：{{ view.quality_filter_stats.missing_title }}</li>
-                        {% endif %}
-                    </ul>
-                </details>
-            </div>
-            {% elif view.quality_filter_stats and view.quality_filter_stats.total_filtered == 0 %}
-            <div class="radar-header-filter-stats">
-                <span class="radar-filter-badge radar-filter-badge-ok">数据质量：正常</span>
-            </div>
-            {% endif %}
         </div>
 
         <div class="radar-layout">
@@ -85,11 +85,8 @@
                         </li>
                         {% if view.section_counts.get('recommended', 0) > 0 %}
                         <li>
-                            <a href="/radar/today?section=recommended&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}&panel=recommendations" class="radar-section-link radar-section-link-recommended {% if view.active_section == 'recommended' %}is-active{% endif %}">
-                                <span>
-                                    <span class="radar-section-kicker">重点推荐</span>
-                                    推荐深入分析
-                                </span>
+                            <a href="/radar/today?section=recommended&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link radar-section-link-recommended {% if view.active_section == 'recommended' %}is-active{% endif %}">
+                                <span>推荐深入分析</span>
                                 <span class="radar-section-count">{{ view.section_counts.get('recommended', 0) }}</span>
                             </a>
                         </li>
@@ -115,6 +112,114 @@
                         </li>
                         {% endif %}
                     </ul>
+
+                    {# ── 今日总结：每日了解新增内容的第一入口 ─────────────── #}
+                    {% if today_summary_panel %}
+                    <details class="radar-sidebar-summary-compact" id="today-summary" open{% if today_summary_panel.audio_status in ["queued", "running"] %} data-audio-pending="true"{% endif %}>
+                        <summary class="radar-sidebar-summary-compact-title">
+                            <span>今日总结</span>
+                            <span class="radar-sidebar-summary-date">{{ today_summary_panel.date_label }}</span>
+                        </summary>
+                        <div class="radar-sidebar-summary-compact-body">
+                            {% if daily_digest %}
+                            <div class="radar-sidebar-summary-stats">
+                                <span><strong>{{ daily_digest.new_items_count }}</strong><small>今日纳入</small></span>
+                                <span><strong>{{ daily_digest.source_count }}</strong><small>覆盖来源</small></span>
+                                <span><strong>{{ daily_digest.summarized_count }}</strong><small>可读内容</small></span>
+                            </div>
+                            <div class="radar-sidebar-summary-scope-note">最近 24 小时有效内容，最多纳入 50 条。</div>
+                            {% endif %}
+
+                            {% if today_summary_panel.has_core_report %}
+                            {% if today_summary_panel.report_is_stale %}
+                            <div class="radar-sidebar-summary-stale">今日内容已更新，当前报告尚未包含最新信息。</div>
+                            {% endif %}
+                            <div class="radar-sidebar-summary-report-title">{{ today_summary_panel.core_report_title }}</div>
+                            {% if today_summary_panel.core_report_overview %}
+                            <p class="radar-sidebar-summary-report-text">{{ today_summary_panel.core_report_overview }}</p>
+                            {% endif %}
+                            {% if today_summary_panel.core_report_highlights %}
+                            <ul class="radar-sidebar-summary-highlights">
+                                {% for highlight in today_summary_panel.core_report_highlights[:3] %}
+                                <li>
+                                    <span>{{ highlight.text }}</span>
+                                    {% if highlight.references %}
+                                    <span class="radar-sidebar-summary-reference-links">
+                                        {% for ref in highlight.references[:2] %}
+                                        <a href="/source-items/{{ ref.item_id }}">依据{{ loop.index }}</a>
+                                        {% endfor %}
+                                    </span>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% if today_summary_panel.generated_at %}
+                            <div class="radar-sidebar-summary-generated">报告生成于 {{ today_summary_panel.generated_at }}</div>
+                            {% endif %}
+                            {% elif daily_digest and daily_digest.top_items %}
+                            <p class="radar-sidebar-summary-empty">核心报告尚未生成，先查看今日新增重点：</p>
+                            <ul class="radar-sidebar-summary-fallback-list">
+                                {% for item in daily_digest.top_items[:3] %}
+                                <li><a href="/source-items/{{ item.item_id }}">{{ (item.zh_preview or item.title)[:52] }}</a></li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="radar-sidebar-summary-empty">今日暂无可总结的新增内容。</p>
+                            {% endif %}
+
+                            {% if today_summary_panel.has_audio %}
+                            <div class="radar-sidebar-summary-section-label">语音报告</div>
+                            <div class="radar-sidebar-summary-audio-row">
+                                <button type="button" class="radar-sidebar-summary-play">播放当前音频</button>
+                                <audio preload="metadata" src="{{ today_summary_panel.audio_url }}"></audio>
+                                <span class="radar-sidebar-summary-audio-time">00:00 / 00:00</span>
+                            </div>
+                            {% elif today_summary_panel.audio_status in ["queued", "running"] %}
+                            <div class="radar-sidebar-summary-section-label">语音报告</div>
+                            <div class="radar-sidebar-summary-audio-pending">
+                                正在生成当前音频播报
+                                {% if today_summary_panel.audio_chunk_count %}
+                                （{{ today_summary_panel.audio_completed_chunks }}/{{ today_summary_panel.audio_chunk_count }} 段）
+                                {% endif %}
+                                ，完成后将自动更新。
+                            </div>
+                            {% elif today_summary_panel.has_core_report %}
+                            <div class="radar-sidebar-summary-section-label">语音报告</div>
+                            {% if today_summary_panel.audio_status == "failed" and today_summary_panel.audio_error %}
+                            <div class="radar-sidebar-summary-audio-error">{{ today_summary_panel.audio_error }}</div>
+                            {% endif %}
+                            <form method="post" action="/radar/today/audio" class="radar-sidebar-summary-audio-form">
+                                {% if today_summary_panel.report_version %}
+                                <input type="hidden" name="report_version" value="{{ today_summary_panel.report_version }}">
+                                {% endif %}
+                                <button type="submit" class="radar-sidebar-summary-generate-audio">
+                                    {% if today_summary_panel.audio_status == "failed" %}重新生成当前音频播报{% else %}生成当前音频播报{% endif %}
+                                </button>
+                            </form>
+                            {% else %}
+                            <div class="radar-sidebar-summary-no-audio">生成核心报告后，可直接生成对应的音频播报。</div>
+                            {% endif %}
+
+                            <div class="radar-sidebar-summary-links">
+                                {% if today_summary_panel.has_core_report %}
+                                <a href="{{ today_summary_panel.core_report_url }}" class="is-primary">阅读完整报告</a>
+                                {% if today_summary_panel.report_is_stale %}
+                                <form method="post" action="/radar/today/daily-report">
+                                    <button type="submit">更新核心报告</button>
+                                </form>
+                                {% endif %}
+                                {% else %}
+                                <a href="/radar/today/briefing" class="is-primary">查看今日新增</a>
+                                <form method="post" action="/radar/today/daily-report">
+                                    <button type="submit">生成核心报告</button>
+                                </form>
+                                {% endif %}
+                                <a href="{{ today_summary_panel.audio_page_url }}">查看语音详情</a>
+                            </div>
+                        </div>
+                    </details>
+                    {% endif %}
 
                     {# ── 今日操作 ─────────────────────────────────────────── #}
                     <div class="radar-today-actions">
@@ -337,7 +442,7 @@
                     <input type="hidden" name="limit" value="{{ view.limit }}">
                     <input type="hidden" name="page" value="1">
                     <label for="radar-per-page">每页</label>
-                    <select id="radar-per-page" name="per_page" onchange="this.form.submit()">
+                    <select id="radar-per-page" name="per_page">
                         <option value="5" {% if view.per_page == 5 %}selected{% endif %}>5</option>
                         <option value="10" {% if view.per_page == 10 %}selected{% endif %}>10</option>
                         <option value="20" {% if view.per_page == 20 %}selected{% endif %}>20</option>
@@ -573,6 +678,100 @@
                 </div>
                 {% endif %}
                 <div class="radar-main-scroll">
+                {% if view.active_section == 'recommended' and view.recommended_items %}
+                {# ── Recommended items (virtual section — not in view.sections) ── #}
+                <section class="radar-section" id="section-recommended">
+                    <div class="radar-card-list">
+                        {% for item in view.recommended_items %}
+                        {% set display = display_map.get(item.id) %}
+                        {% set today_card = today_card_map.get(item.id) %}
+                        {% set is_recommended = item.id in view.recommended_item_ids %}
+                        {% set is_selected = sel and item.id == sel.id %}
+                        {% set view_url = '/radar/today?section=recommended&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page ~ '#radar-item-' ~ item.id %}
+                        {% set panel_url = '/radar/today/panel?section=recommended&item_id=' ~ item.id ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&page=' ~ view.page ~ '&per_page=' ~ view.per_page %}
+                        <article id="radar-item-{{ item.id }}" class="radar-card {% if is_selected %}radar-selected-card is-selected{% endif %}">
+                            <a class="radar-card-main-link" href="{{ view_url }}" data-radar-panel-url="{{ panel_url }}">
+                                {# Card body: Chinese summary priority, English title demoted #}
+                                {% if display and display.uses_zh_one_liner %}
+                                {# Has Chinese one-liner: line1=Chinese summary, line2=English title #}
+                                <div class="radar-card-title">
+                                    {{ display.primary_text }}
+                                    <span class="radar-card-zh-badge">中文概述</span>
+                                    {% if is_recommended %}<span class="radar-card-recommended-badge">推荐深入分析</span>{% endif %}
+                                </div>
+                                {% if display.secondary_text %}
+                                <div class="radar-card-original-title">{{ display.secondary_text }}</div>
+                                {% endif %}
+                                {% elif display %}
+                                {# No Chinese one-liner: line1=placeholder, line2=English title #}
+                                <div class="radar-card-title">
+                                    <span class="radar-card-summary-placeholder">待生成中文摘要</span>
+                                    {% if is_recommended %}<span class="radar-card-recommended-badge">推荐深入分析</span>{% endif %}
+                                </div>
+                                <div class="radar-card-original-title">{{ display.primary_text or item.title or '无标题' }}</div>
+                                {% else %}
+                                <div class="radar-card-title">
+                                    {{ item.title or '无标题' }}
+                                    {% if is_recommended %}<span class="radar-card-recommended-badge">推荐深入分析</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </a>
+
+                            <div class="radar-card-footer">
+                                <div class="radar-card-meta">
+                                    <code>{{ item.source_key }}</code>
+                                    {% if today_card %}
+                                    <span>{{ today_card.published_label or today_card.first_seen_label }}</span>
+                                    <span class="radar-card-progress {% if today_card.detailed_summary_state == 'generated' %}is-ready{% endif %}">摘要 {{ today_card.detailed_summary_label }}</span>
+                                    <span class="radar-card-progress {% if today_card.content_state == 'fetched' %}is-ready{% elif today_card.content_state == 'fetch_failed' %}is-failed{% endif %}">正文 {{ today_card.content_label }}</span>
+                                    <span class="radar-card-progress {% if today_card.insight_state in ['generated', 'has_card'] %}is-ready{% endif %}">洞察 {{ today_card.insight_label }}</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="radar-card-actions">
+                                    {% if item.status == 'discovered' %}
+                                    <form method="post" action="/source-items/{{ item.id }}/enqueue-compile" class="radar-card-action-form">
+                                        <input
+                                            type="hidden"
+                                            name="return_to"
+                                            value="/radar/today?section=recommended&item_id={{ item.id }}&hours={{ view.hours }}&limit={{ view.limit }}&page={{ view.page }}&per_page={{ view.per_page }}"
+                                        >
+                                        <button type="submit" class="btn-sm">生成洞察卡</button>
+                                    </form>
+                                    {% elif item.insight_card_id %}
+                                    <a href="/cards/{{ item.insight_card_id }}" class="btn-sm">查看洞察卡</a>
+                                    {% endif %}
+                                    {% set card_url = safe_external_url(display.url if display else item.url) %}
+                                    {% if card_url %}
+                                    <a href="{{ card_url }}" target="_blank" rel="noopener noreferrer" class="btn-sm">打开原文</a>
+                                    {% endif %}
+                                    {% if today_card and today_card.can_fetch_content %}
+                                    <form method="post" action="/radar/today/items/{{ item.id }}/fetch-html" class="radar-card-action-form">
+                                        <input type="hidden" name="section" value="recommended">
+                                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                                        <input type="hidden" name="page" value="{{ view.page }}">
+                                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                                        <button type="submit" class="btn-sm" title="获取网页正文并保存可读文本。">获取正文</button>
+                                    </form>
+                                    {% endif %}
+                                    {% if today_card and today_card.can_generate_summary %}
+                                    <form method="post" action="/radar/today/items/{{ item.id }}/generate-summary" class="radar-card-action-form">
+                                        <input type="hidden" name="section" value="recommended">
+                                        <input type="hidden" name="hours" value="{{ view.hours }}">
+                                        <input type="hidden" name="limit" value="{{ view.limit }}">
+                                        <input type="hidden" name="page" value="{{ view.page }}">
+                                        <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                                        <button type="submit" class="btn-sm" title="基于已获取正文生成中文摘要。">生成摘要</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% else %}
                 {% for section in view.sections %}
                 {% if section.items and (view.active_section == 'all' or view.active_section == section.key) %}
                 <section class="radar-section" id="section-{{ section.key }}">
@@ -670,6 +869,7 @@
                 {% endif %}
                 {% endfor %}
                 {% endif %}
+                {% endif %}
                 </div>{# <!-- /.radar-main-scroll --> #}
             </div>
 
@@ -683,7 +883,49 @@
         {# Keep the selected card visible inside the middle column without
            scrolling the whole page back to the top. #}
         <script>
+        // ── Left sidebar compact audio player ──────────────────────
+        function initializeTodaySummaryAudio(root) {
+            function formatTime(seconds) {
+                if (!isFinite(seconds) || seconds < 0) return "00:00";
+                var m = Math.floor(seconds / 60);
+                var s = Math.floor(seconds % 60);
+                return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+            }
+            (root || document).querySelectorAll(".radar-sidebar-summary-audio-row").forEach(function (row) {
+                if (row.dataset.audioBound === "true") return;
+                row.dataset.audioBound = "true";
+                var audio = row.querySelector("audio");
+                var btn = row.querySelector(".radar-sidebar-summary-play");
+                var time = row.querySelector(".radar-sidebar-summary-audio-time");
+                if (!audio || !btn || !time) return;
+                function syncTime() {
+                    time.textContent = formatTime(audio.currentTime) + " / " + formatTime(audio.duration);
+                }
+                btn.addEventListener("click", function () {
+                    if (audio.paused) {
+                        audio.play().then(function () {
+                            btn.textContent = "暂停播放";
+                            row.classList.add("is-playing");
+                        }).catch(function () {});
+                    } else {
+                        audio.pause();
+                        btn.textContent = "播放当前音频";
+                        row.classList.remove("is-playing");
+                    }
+                });
+                audio.addEventListener("loadedmetadata", syncTime);
+                audio.addEventListener("timeupdate", syncTime);
+                audio.addEventListener("ended", function () {
+                    btn.textContent = "播放当前音频";
+                    row.classList.remove("is-playing");
+                    syncTime();
+                });
+            });
+        }
+        initializeTodaySummaryAudio(document);
+
         document.addEventListener("DOMContentLoaded", function () {
+          var radarViewRequest = null;
           var selected = document.querySelector(".radar-card.is-selected");
           var main = document.querySelector(".radar-main");
           if (selected && main) {
@@ -709,6 +951,119 @@
               toggle.title = collapsed ? "展开目录" : "收起目录";
             });
           }
+
+          async function loadRadarView(href, options) {
+            options = options || {};
+            var currentMain = document.querySelector(".radar-main");
+            var currentPanel = document.getElementById("radar-panel");
+            if (!currentMain || !currentPanel) {
+              window.location.href = href;
+              return;
+            }
+
+            currentMain.classList.add("is-loading");
+            currentPanel.classList.add("is-loading");
+            if (radarViewRequest) radarViewRequest.abort();
+            var request = new AbortController();
+            radarViewRequest = request;
+            try {
+              var response = await fetch(href, {
+                headers: { "X-Requested-With": "fetch" },
+                signal: request.signal
+              });
+              if (!response.ok) throw new Error("radar view fetch failed");
+
+              var documentText = await response.text();
+              var incoming = new DOMParser().parseFromString(documentText, "text/html");
+              var incomingMain = incoming.querySelector(".radar-main");
+              var incomingPanel = incoming.getElementById("radar-panel");
+              if (!incomingMain || !incomingPanel) {
+                throw new Error("radar view fragments missing");
+              }
+
+              currentMain.replaceWith(incomingMain);
+              currentPanel.replaceWith(incomingPanel);
+
+              var targetUrl = new URL(href, window.location.origin);
+              var activeSection = targetUrl.searchParams.get("section") || "all";
+              document.querySelectorAll(".radar-section-link").forEach(function (link) {
+                var linkUrl = new URL(link.href, window.location.origin);
+                var linkSection = linkUrl.searchParams.get("section") || "all";
+                link.classList.toggle("is-active", linkSection === activeSection);
+              });
+
+              var pageSize = document.getElementById("radar-per-page");
+              if (pageSize && targetUrl.searchParams.get("per_page")) {
+                pageSize.value = targetUrl.searchParams.get("per_page");
+              }
+
+              var mainScroll = document.querySelector(".radar-main-scroll");
+              if (mainScroll) mainScroll.scrollTop = 0;
+              if (options.push !== false) {
+                window.history.pushState({ radarView: true }, "", targetUrl);
+              }
+            } catch (error) {
+              if (error.name === "AbortError") return;
+              window.location.href = href;
+            } finally {
+              if (radarViewRequest === request) radarViewRequest = null;
+            }
+          }
+
+          async function refreshTodaySummary() {
+            var currentSummary = document.getElementById("today-summary");
+            if (!currentSummary || currentSummary.dataset.audioPending !== "true") return;
+            try {
+              var response = await fetch(window.location.href, {
+                headers: { "X-Requested-With": "fetch" }
+              });
+              if (!response.ok) throw new Error("today summary fetch failed");
+              var documentText = await response.text();
+              var incoming = new DOMParser().parseFromString(documentText, "text/html");
+              var incomingSummary = incoming.getElementById("today-summary");
+              if (!incomingSummary) throw new Error("today summary fragment missing");
+              currentSummary.replaceWith(incomingSummary);
+              initializeTodaySummaryAudio(incomingSummary);
+              if (incomingSummary.dataset.audioPending === "true") {
+                window.setTimeout(refreshTodaySummary, 4000);
+              }
+            } catch (error) {
+              window.setTimeout(refreshTodaySummary, 8000);
+            }
+          }
+          window.setTimeout(refreshTodaySummary, 4000);
+
+          // Directory filters and pagination update only the content workspace.
+          document.addEventListener("click", function (event) {
+            var link = event.target.closest(
+              ".radar-section-link, .radar-pagination a"
+            );
+            if (!link) return;
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) return;
+            event.preventDefault();
+            loadRadarView(link.href);
+          });
+
+          document.addEventListener("change", function (event) {
+            if (event.target.id !== "radar-per-page") return;
+            var form = event.target.closest("form");
+            if (!form) return;
+            var targetUrl = new URL(form.action, window.location.origin);
+            new FormData(form).forEach(function (value, key) {
+              targetUrl.searchParams.set(key, value);
+            });
+            loadRadarView(targetUrl.href);
+          });
+
+          window.addEventListener("popstate", function () {
+            loadRadarView(window.location.href, { push: false });
+          });
 
           // Card click: partial panel refresh instead of full page reload
           document.addEventListener("click", async function (event) {

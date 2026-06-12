@@ -15,6 +15,8 @@ from typing import Any
 from app.application.radar.daily_broadcast import (
     DailyBroadcastScript,
     get_daily_broadcast_audio_dir,
+    get_daily_broadcast_audio_path,
+    is_valid_daily_broadcast_audio_file,
 )
 from app.application.radar.mimo_tts import (
     MiMoTTSClient,
@@ -93,11 +95,12 @@ def enqueue_daily_audio_job(
     )
     existing = load_daily_audio_job(job_id, root_dir=root_dir)
     if existing and not force:
-        if existing.status in {
-            JOB_STATUS_QUEUED,
-            JOB_STATUS_RUNNING,
-            JOB_STATUS_GENERATED,
-        }:
+        if existing.status in {JOB_STATUS_QUEUED, JOB_STATUS_RUNNING}:
+            return DailyAudioEnqueueResult(existing, should_start=False)
+        if (
+            existing.status == JOB_STATUS_GENERATED
+            and is_daily_audio_job_playable(existing, root_dir=root_dir)
+        ):
             return DailyAudioEnqueueResult(existing, should_start=False)
 
     now = datetime.utcnow().isoformat(timespec="seconds")
@@ -173,7 +176,9 @@ def run_daily_audio_job(
         tts_client = client or MiMoTTSClient(settings)
         wav_parts: list[bytes] = []
         for index, chunk in enumerate(chunks, start=1):
+            _touch_lock(lock_path)
             wav_parts.append(tts_client.synthesize(chunk))
+            _touch_lock(lock_path)
             job = _update_job(
                 job,
                 completed_chunks=index,
@@ -195,12 +200,15 @@ def run_daily_audio_job(
         cleanup_daily_audio_jobs(root_dir=root_dir)
     except (MiMoTTSError, OSError, ValueError, wave.Error) as exc:
         latest = load_daily_audio_job(job_id, root_dir=root_dir) or job
-        _update_job(
-            latest,
-            status=JOB_STATUS_FAILED,
-            error=str(exc)[:500],
-            root_dir=root_dir,
-        )
+        try:
+            _update_job(
+                latest,
+                status=JOB_STATUS_FAILED,
+                error=str(exc)[:500],
+                root_dir=root_dir,
+            )
+        except OSError:
+            pass
     finally:
         if lock_fd is not None:
             os.close(lock_fd)
@@ -241,6 +249,52 @@ def list_daily_audio_jobs(
             jobs.append(job)
     jobs.sort(key=lambda value: value.updated_at, reverse=True)
     return jobs[: max(1, limit)]
+
+
+def is_daily_audio_job_playable(
+    job: DailyAudioJob,
+    *,
+    root_dir: str | Path | None = None,
+) -> bool:
+    """Return whether a generated job points to an existing valid WAV file."""
+    if job.status != JOB_STATUS_GENERATED or not job.audio_filename:
+        return False
+    audio_path = get_daily_broadcast_audio_path(
+        job.audio_filename,
+        root_dir=root_dir,
+    )
+    return bool(
+        audio_path
+        and audio_path.is_file()
+        and is_valid_daily_broadcast_audio_file(audio_path)
+    )
+
+
+def select_daily_audio_job(
+    audio_jobs: list[DailyAudioJob],
+    *,
+    date_label: str,
+    report_version: str | None,
+    root_dir: str | Path | None = None,
+    require_file: bool = True,
+) -> DailyAudioJob | None:
+    """Select today's newest playable audio, preferring the report version."""
+    candidates = [
+        job
+        for job in audio_jobs
+        if job.status == JOB_STATUS_GENERATED
+        and job.audio_url
+        and job.date_label == date_label
+        and (
+            not require_file
+            or is_daily_audio_job_playable(job, root_dir=root_dir)
+        )
+    ]
+    if report_version:
+        for job in candidates:
+            if job.report_version == report_version:
+                return job
+    return candidates[0] if candidates else None
 
 
 def delete_daily_audio_job(
@@ -528,6 +582,14 @@ def _remove_stale_lock(path: Path) -> None:
         modified_at = datetime.utcfromtimestamp(path.stat().st_mtime)
         if modified_at < datetime.utcnow() - timedelta(minutes=stale_minutes):
             path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _touch_lock(path: Path) -> None:
+    """Refresh the task lease while a long-running synthesis is active."""
+    try:
+        path.touch(exist_ok=True)
     except OSError:
         pass
 

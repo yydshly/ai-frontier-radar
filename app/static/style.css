@@ -3844,6 +3844,324 @@ body.app-shell .main-content {
     color: #856404;
 }
 
+/* ── Data quality chip in title row ──────────────────────────── */
+.radar-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.radar-title-main {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.radar-data-quality-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 0.6rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.radar-data-quality-chip.is-ok {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.radar-data-quality-chip.has-issues {
+    background: #fff8e1;
+    color: #856404;
+    border: 1px solid #ffe69c;
+}
+
+.radar-data-quality-detail {
+    font-size: 0.78rem;
+    color: #57606a;
+}
+
+.radar-data-quality-detail summary {
+    cursor: pointer;
+    color: #57606a;
+    user-select: none;
+}
+
+/* ── Left sidebar today summary (compact) ───────────────────── */
+.radar-sidebar-summary-compact {
+    margin-top: 0.8rem;
+    border: 1px solid #b6d7ff;
+    border-radius: 8px;
+    background: #f6fbff;
+    overflow: hidden;
+}
+
+.radar-sidebar-summary-compact-title {
+    cursor: pointer;
+    padding: 0.55rem 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #1f4f8f;
+    background: #eef6ff;
+}
+
+.radar-sidebar-summary-date {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.radar-sidebar-summary-compact-body {
+    padding: 0.65rem 0.7rem 0.75rem;
+    border-top: 1px solid #d8e8ff;
+}
+
+.radar-sidebar-summary-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-bottom: 0.6rem;
+}
+
+.radar-sidebar-summary-stats span {
+    min-width: 0;
+    padding: 0.38rem 0.3rem;
+    border-radius: 6px;
+    background: #ffffff;
+    text-align: center;
+}
+
+.radar-sidebar-summary-stats strong {
+    display: block;
+    font-size: 0.88rem;
+    line-height: 1.2;
+    color: #1d4ed8;
+}
+
+.radar-sidebar-summary-stats small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.66rem;
+    line-height: 1.2;
+    color: #64748b;
+}
+
+.radar-sidebar-summary-scope-note {
+    margin: -0.2rem 0 0.6rem;
+    font-size: 0.66rem;
+    line-height: 1.35;
+    color: #94a3b8;
+}
+
+.radar-sidebar-summary-stale {
+    margin-bottom: 0.55rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    background: #fffbeb;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: #92400e;
+}
+
+.radar-sidebar-summary-report-title {
+    font-size: 0.84rem;
+    font-weight: 700;
+    line-height: 1.45;
+    color: #1f2937;
+    margin-bottom: 0.35rem;
+}
+
+.radar-sidebar-summary-report-text {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: #374151;
+}
+
+.radar-sidebar-summary-highlights,
+.radar-sidebar-summary-fallback-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1rem;
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: #334155;
+}
+
+.radar-sidebar-summary-highlights li + li,
+.radar-sidebar-summary-fallback-list li + li {
+    margin-top: 0.28rem;
+}
+
+.radar-sidebar-summary-reference-links {
+    display: inline-flex;
+    gap: 0.3rem;
+    margin-left: 0.25rem;
+}
+
+.radar-sidebar-summary-reference-links a {
+    color: #2563eb;
+    font-size: 0.68rem;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.radar-sidebar-summary-reference-links a:hover {
+    text-decoration: underline;
+}
+
+.radar-sidebar-summary-fallback-list a {
+    color: #334155;
+    text-decoration: none;
+}
+
+.radar-sidebar-summary-fallback-list a:hover {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.radar-sidebar-summary-generated {
+    margin-top: 0.45rem;
+    font-size: 0.68rem;
+    color: #94a3b8;
+}
+
+.radar-sidebar-summary-empty {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: #64748b;
+}
+
+.radar-sidebar-summary-no-audio {
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.radar-sidebar-summary-section-label {
+    margin-top: 0.65rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.radar-sidebar-summary-audio-row {
+    margin-top: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.5rem;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.radar-sidebar-summary-audio-row.is-playing {
+    background: #eef6ff;
+    border-color: #93c5fd;
+}
+
+.radar-sidebar-summary-play {
+    border: none;
+    border-radius: 999px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 0.25rem 0.55rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.radar-sidebar-summary-audio-time {
+    font-size: 0.74rem;
+    color: #475569;
+    white-space: nowrap;
+}
+
+.radar-sidebar-summary-audio-form {
+    margin-top: 0.35rem;
+}
+
+.radar-sidebar-summary-generate-audio {
+    width: 100%;
+    border: 1px solid #2563eb;
+    border-radius: 7px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 0.45rem 0.6rem;
+    cursor: pointer;
+}
+
+.radar-sidebar-summary-generate-audio:hover {
+    background: #1d4ed8;
+}
+
+.radar-sidebar-summary-audio-pending {
+    margin-top: 0.35rem;
+    padding: 0.45rem 0.5rem;
+    border: 1px solid #fde68a;
+    border-radius: 7px;
+    background: #fffbeb;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: #92400e;
+}
+
+.radar-sidebar-summary-audio-error {
+    margin-top: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #fecaca;
+    border-radius: 7px;
+    background: #fef2f2;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: #b91c1c;
+    overflow-wrap: anywhere;
+}
+
+.radar-sidebar-summary-links {
+    margin-top: 0.55rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.radar-sidebar-summary-links a,
+.radar-sidebar-summary-links button {
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.radar-sidebar-summary-links a:hover,
+.radar-sidebar-summary-links button:hover {
+    text-decoration: underline;
+}
+
+.radar-sidebar-summary-links .is-primary {
+    font-weight: 700;
+}
+
 .radar-quick-links {
     display: flex;
     flex-wrap: wrap;
@@ -4204,31 +4522,20 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
 }
 
 .radar-section-link-recommended {
-    background: #eef6ff;
-    border: 1px solid #b6d7ff;
-    color: #0969da;
-    font-weight: 700;
+    background: #f3f8ff;
+    border-left: 3px solid #3b82f6;
+    color: inherit;
+    font-weight: 600;
 }
 
 .radar-section-link-recommended:hover {
-    background: #dbeafe;
+    background: #eaf3ff;
 }
 
 .radar-section-link-recommended.is-active {
-    background: #dbeafe;
-    border-color: #3b82f6;
-    color: #0759b8;
-}
-
-.radar-section-kicker {
-    display: inline-block;
-    margin-right: 0.35rem;
-    padding: 0.05rem 0.35rem;
-    border-radius: 999px;
-    background: #dbeafe;
-    color: #1d4ed8;
-    font-size: 0.68rem;
-    font-weight: 700;
+    background: #eaf3ff;
+    border-color: #2563eb;
+    color: inherit;
 }
 
 .radar-section {
@@ -4432,9 +4739,11 @@ body.app-shell.radar-workbench-shell .main-content.radar-workbench-page {
     background: #fafbfc;
 }
 
-.radar-panel.is-loading {
+.radar-panel.is-loading,
+.radar-main.is-loading {
     opacity: 0.65;
     transition: opacity 0.2s;
+    pointer-events: none;
 }
 
 .radar-panel-empty,
