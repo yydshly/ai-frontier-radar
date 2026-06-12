@@ -306,6 +306,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="统一分类/报告排序/推荐三处的来源权重与主题词表，分阶段并对会改行为的步骤先出 diff 再实施。",
     ),
+    "today-surface-consolidation": DocEntry(
+        key="today-surface-consolidation",
+        title="今日信息消费面收敛设计（B1）",
+        path="docs/V1_TODAY_SURFACE_CONSOLIDATION_DESIGN.md",
+        category="优化路线",
+        description="把 5 个今日 X 面按速览/工作台/精炼/收听的心智模型统一导航与命名，分阶段并保留各消费模式；不合并为单页。",
+    ),
 }
 
 
