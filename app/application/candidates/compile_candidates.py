@@ -81,6 +81,7 @@ def select_compile_candidates(
     per_source_limit: int = 3,
     max_scan: int = 300,
     item_ids: set[int] | None = None,
+    include_processed: bool = False,
 ) -> list[CompileCandidate]:
     """Select and rank top compile candidates. Read-only.
 
@@ -91,6 +92,9 @@ def select_compile_candidates(
         per_source_limit: Max candidates per source_key (default 3).
         max_scan: Maximum SourceItems to fetch from DB for scoring (default 300).
                   Filtering happens in the SQL layer to avoid loading all items.
+        include_processed: Include items that are compiling, compiled, or failed.
+                           Use this for a stable recommendation view; generation
+                           queues should keep the default pending-only behavior.
 
     Returns:
         List of CompileCandidate sorted by score descending, capped by per_source_limit.
@@ -112,13 +116,16 @@ def select_compile_candidates(
     # Blocked sources/domains and weak titles are checked in Python (lightweight).
     # Result is ordered by first_seen_at desc and limited to max_scan.
     query = db.query(SourceItem).filter(
-            SourceItem.status.in_(("discovered", "fetched")),
-            SourceItem.insight_card_id.is_(None),
             SourceItem.title.isnot(None),
             SourceItem.title != "",
             SourceItem.url.isnot(None),
             SourceItem.url != "",
             (SourceItem.first_seen_at >= cutoff) | (SourceItem.last_seen_at >= cutoff),
+        )
+    if not include_processed:
+        query = query.filter(
+            SourceItem.status.in_(("discovered", "fetched")),
+            SourceItem.insight_card_id.is_(None),
         )
     if item_ids is not None:
         if not item_ids:

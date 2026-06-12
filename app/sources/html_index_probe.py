@@ -83,6 +83,37 @@ DEFAULT_HTML_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8",
 }
 
+META_AI_USER_AGENT = "AI-Frontier-Radar/1.0"
+
+
+def _headers_for_url(url: str) -> dict[str, str]:
+    """Return source-compatible headers without changing global probe behavior."""
+    headers = dict(DEFAULT_HTML_HEADERS)
+    hostname = (urlparse(url).hostname or "").lower()
+    if hostname == "ai.meta.com":
+        # Meta rejects non-browser clients that claim a full browser UA, but
+        # accepts a clear crawler identity.
+        headers["User-Agent"] = META_AI_USER_AGENT
+    return headers
+
+
+def _get_html_response(url: str, timeout_seconds: float) -> httpx.Response:
+    """Fetch HTML, retrying one transient transport failure."""
+    for attempt in range(2):
+        try:
+            response = httpx.get(
+                url,
+                timeout=timeout_seconds,
+                follow_redirects=True,
+                headers=_headers_for_url(url),
+            )
+            response.raise_for_status()
+            return response
+        except httpx.RequestError:
+            if attempt == 1:
+                raise
+    raise RuntimeError("unreachable")
+
 
 def _is_weak_title(title: str) -> bool:
     """Return True if title is a weak/CTA string (case-insensitive).
@@ -148,13 +179,7 @@ def fetch_article_metadata(url: str, timeout_seconds: float = 5.0) -> dict:
     }
 
     try:
-        response = httpx.get(
-            url,
-            timeout=timeout_seconds,
-            follow_redirects=True,
-            headers=DEFAULT_HTML_HEADERS,
-        )
-        response.raise_for_status()
+        response = _get_html_response(url, timeout_seconds)
     except Exception as exc:
         result["fetch_error"] = str(exc)
         return result
@@ -488,13 +513,7 @@ def probe_html_index_source(
 
     # Fetch homepage
     try:
-        response = httpx.get(
-            source.homepage_url,
-            timeout=timeout_seconds,
-            follow_redirects=True,
-            headers=DEFAULT_HTML_HEADERS,
-        )
-        response.raise_for_status()
+        response = _get_html_response(source.homepage_url, timeout_seconds)
     except httpx.TimeoutException:
         result["error_message"] = f"Timeout fetching homepage after {timeout_seconds}s"
         result["error_kind"] = "timeout"
