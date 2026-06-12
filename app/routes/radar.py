@@ -45,6 +45,7 @@ from app.application.radar.settings import (
     get_recommendation_settings,
     get_daily_report_enabled,
 )
+from app.application.source_items.item_state import summary_state_from_raw
 from app.application.sources.background_fetch import SourceFetchBackgroundService
 from app.application.sources.discovery_runs import (
     BOOTSTRAP_MODE,
@@ -309,10 +310,11 @@ def _build_summary_batch_status(raw_item_ids: str | None) -> dict | None:
                 if not isinstance(raw, dict):
                     raw = {}
 
-            complete = bool(
-                str(raw.get("zh_one_liner") or "").strip()
-                and str(raw.get("zh_summary") or "").strip()
-            )
+            # "Complete" = has both the one-liner and the detailed Chinese
+            # summary, judged by the shared summary-state rule (single source of
+            # truth) instead of re-deriving it here.
+            _summary = summary_state_from_raw(raw)
+            complete = _summary.has_one_liner and _summary.has_zh_summary
             batch_status = str(raw.get(SUMMARY_BATCH_STATUS_KEY) or "")
             error = str(raw.get(SUMMARY_BATCH_ERROR_KEY) or "")
 

@@ -127,6 +127,17 @@ def _insight_state(item, raw: dict[str, Any]) -> ItemInsightState:
     return ItemInsightState("missing", "未生成", None)
 
 
+def summary_state_from_raw(raw: dict[str, Any]) -> ItemSummaryState:
+    """Summary state from an already-parsed raw_metadata dict.
+
+    For callers that have parsed ``raw_metadata_json`` themselves and only need
+    the summary tier (so they can share the one definition of "has one-liner" /
+    "has Chinese summary" instead of re-deriving it). Same rule as the accessor
+    used by the reading panel and item cards.
+    """
+    return _summary_state(raw)
+
+
 def read_item_state(item) -> ItemState:
     """Parse a SourceItem's metadata once and return its structured state."""
     raw = _read_raw_metadata(item)

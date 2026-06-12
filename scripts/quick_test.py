@@ -4475,13 +4475,13 @@ def main():
               if "def generate_today_summaries" in radar_py else False,
               "generate_today_summaries must not re-sort items by last_seen_at.desc()")
 
-        # 2. route detects summary completeness via the canonical zh keys.
-        # (The old _has_zh_one_liner/_has_zh_summary/_needs_chinese_summary
-        # helpers were dead code, superseded by read_item_state; removed.)
-        check("route checks summary completeness via zh keys",
-              '"zh_one_liner"' in radar_py and '"zh_summary"' in radar_py
+        # 2. route detects summary completeness via the shared summary-state
+        # accessor (single source of truth), not hand-rolled key parsing or the
+        # old dead _has_zh_*/_needs_chinese_summary helpers.
+        check("route checks summary completeness via shared accessor",
+              "summary_state_from_raw" in radar_py
               and "_needs_chinese_summary" not in radar_py,
-              "route should detect summary completeness via zh_one_liner + zh_summary, not dead helpers")
+              "route should detect summary completeness via summary_state_from_raw, not dead helpers")
 
         # 3. route has _humanize_summary_detail_message or equivalent.
         check("route has _humanize_summary_detail_message helper",
