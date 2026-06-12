@@ -674,7 +674,7 @@ def radar_today_page(
     limit: int = Query(DEFAULT_LIMIT, ge=MIN_LIMIT, le=MAX_LIMIT),
     page: int = Query(1, ge=1),
     per_page: int = Query(DEFAULT_PER_PAGE, ge=MIN_PER_PAGE, le=MAX_PER_PAGE),
-    section: str = Query(ALL_KEY),
+    section: str = Query("auto"),
     panel: str | None = Query(None),
     summary_params: SummaryResultParams = Depends(),
     insight_params: InsightResultParams = Depends(),

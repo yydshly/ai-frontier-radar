@@ -8957,6 +8957,22 @@ def main():
               "since=daily_anchor(now)" in drc
               and "hours=settings.window_hours" not in drc,
               "build_daily_report_card must use the daily-anchor increment scope")
+
+        # 首屏推荐为主: the default landing ("auto") resolves to 推荐 when it has
+        # items, else 全部 (so the first screen leads with meaningful articles).
+        _db2 = _SL64()
+        try:
+            _va = _RTS64(_db2).build_today_view(section="auto", per_page=20)
+            _recn = _va.section_counts.get("recommended", 0)
+            check("default landing leads with 推荐 (auto → recommended/all)",
+                  (_va.active_section == "recommended") if _recn > 0
+                  else (_va.active_section == "all"),
+                  f"auto landed on {_va.active_section} with recommended={_recn}")
+            check("explicit section=all still lands on all",
+                  _RTS64(_db2).build_today_view(section="all", per_page=20).active_section == "all",
+                  "explicit section must be respected (only the default is auto)")
+        finally:
+            _db2.close()
     except Exception as e:
         check("radar increment + count integrity checks", False, str(e))
 

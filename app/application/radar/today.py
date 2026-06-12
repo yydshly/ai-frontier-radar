@@ -681,7 +681,11 @@ class RadarTodayService:
         per_page = _clamp(int(per_page), MIN_PER_PAGE, MAX_PER_PAGE)
         page = max(1, int(page))
 
-        # Validate section against known keys (unknown → ALL_KEY).
+        # Validate section against known keys (unknown → ALL_KEY). The default
+        # landing value "auto" resolves below (once recommendations are known) to
+        # 推荐 when it has items, else 全部 — so the first screen leads with the
+        # recommended / meaningful articles.
+        _auto_section = section == "auto"
         section = normalize_section_key(section)
 
         # Recent-window item set (with empty-window fallback), via the shared
@@ -708,6 +712,9 @@ class RadarTodayService:
         recommended_item_ids = {
             candidate.source_item_id for candidate in compile_candidates
         }
+        # Resolve the "auto" default landing now that recommendations are known.
+        if _auto_section:
+            section = RECOMMENDED_KEY if recommended_item_ids else ALL_KEY
 
         # ── 最新发现: balanced across sources (round-robin), not a prefix ──
         focus_items = _balanced_focus_items(items, TODAY_FOCUS_SIZE)
