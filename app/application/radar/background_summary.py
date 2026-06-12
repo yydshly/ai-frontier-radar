@@ -114,6 +114,37 @@ def enqueue_summary_batch(item_ids: list[int], *, hard_cap: int = 50) -> Summary
         db.close()
 
 
+def select_increment_summary_targets(db, *, limit: int | None = None) -> list[int]:
+    """Ids of today's *increment* items that still need a Chinese summary.
+
+    The increment = valid items first seen since the daily anchor (same scope as
+    the radar). Returns only items that are eligible and not yet completely
+    summarized, newest-first, bounded by the increment ceiling. This is the
+    canonical "summarize the whole increment" target set — idempotent input for
+    enqueue_summary_batch (re-running skips items already completed), and the
+    unit a daily scheduler (P3) can call to guarantee full coverage.
+    """
+    from app.application.radar.daily_scope import recent_valid_items_query, daily_anchor
+    from app.application.radar.settings import get_daily_scope_settings
+
+    ceiling = limit if limit is not None else get_daily_scope_settings().increment_ceiling
+    rows = (
+        recent_valid_items_query(db, since=daily_anchor())
+        .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
+        .limit(ceiling)
+        .all()
+    )
+    targets: list[int] = []
+    for item in rows:
+        raw = _metadata(item)
+        if _has_complete_summary(raw):
+            continue
+        if item.status not in ELIGIBLE_STATUSES or not item.url:
+            continue
+        targets.append(item.id)
+    return targets
+
+
 def run_summary_batch_in_background(item_ids: list[int]) -> None:
     """Generate summaries sequentially in an isolated background DB session."""
     if not item_ids:

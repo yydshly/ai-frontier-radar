@@ -8909,6 +8909,43 @@ def main():
     except Exception as e:
         check("radar increment + count integrity checks", False, str(e))
 
+    # ── 65. P2 increment summary targeting (no LLM in this check) ────────────
+    print("\n[65] increment summary targeting (P2)")
+    try:
+        import json as _json65
+        from app.db import SessionLocal as _SL65
+        from app.models import SourceItem as _SI65
+        from app.application.candidates.one_liner import ELIGIBLE_STATUSES as _ES65
+        from app.application.radar.daily_scope import (
+            recent_valid_items_query as _rvq65, daily_anchor as _anc65b,
+        )
+        from app.application.radar.background_summary import (
+            select_increment_summary_targets as _sist,
+        )
+        _db = _SL65()
+        try:
+            anchor = _anc65b()
+            increment_ids = {it.id for it in _rvq65(_db, since=anchor).all()}
+            targets = _sist(_db)
+            tset = set(targets)
+            # every target is within the increment
+            check("summary targets are all within the increment",
+                  tset <= increment_ids, "targets must be a subset of the increment")
+            # every target is eligible + actually missing a complete summary
+            def _missing_eligible(iid):
+                it = _db.get(_SI65, iid)
+                raw = _json65.loads(it.raw_metadata_json or "{}")
+                complete = bool(str(raw.get("zh_one_liner") or "").strip()
+                                and str(raw.get("zh_summary") or "").strip())
+                return (not complete) and it.status in _ES65 and bool(it.url)
+            check("targets are eligible and missing a complete summary (idempotent)",
+                  all(_missing_eligible(i) for i in targets),
+                  "targets must exclude completed/ineligible items so re-runs are idempotent")
+        finally:
+            _db.close()
+    except Exception as e:
+        check("increment summary targeting checks", False, str(e))
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
