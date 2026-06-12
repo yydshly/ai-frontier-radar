@@ -77,6 +77,25 @@ def _stale_minutes() -> int:
     return value if 0 <= value <= 1440 else DEFAULT_STALE_MINUTES
 
 
+# Recovery only looks back this many days. Interrupted summary/insight tasks are
+# always enqueued for the increment / recent fetches, so bounding by
+# first_seen_at (indexed) lets the detection use the index instead of scanning
+# the whole table with json_extract on every page load. A task older than this is
+# effectively abandoned (re-summarized via the normal increment flow).
+_RECOVERY_LOOKBACK_DAYS = 7
+
+
+def _recovery_lookback_cutoff() -> datetime:
+    raw = os.getenv("RADAR_BATCH_RECOVERY_LOOKBACK_DAYS")
+    try:
+        days = int(raw) if raw is not None else _RECOVERY_LOOKBACK_DAYS
+    except (TypeError, ValueError):
+        days = _RECOVERY_LOOKBACK_DAYS
+    if not (1 <= days <= 365):
+        days = _RECOVERY_LOOKBACK_DAYS
+    return datetime.utcnow() - timedelta(days=days)
+
+
 def _summary_status_expr():
     return func.json_extract(
         SourceItem.raw_metadata_json, f"$.{SUMMARY_BATCH_STATUS_KEY}"
@@ -100,6 +119,9 @@ def find_interrupted_summary_ids(db, *, stale_minutes: int) -> list[int]:
     cutoff_iso = (datetime.utcnow() - timedelta(minutes=stale_minutes)).isoformat()
     rows = (
         db.query(SourceItem.id, _summary_updated_expr())
+        # Bound by the indexed first_seen_at FIRST so json_extract only runs on
+        # recent rows, not the whole table (this runs on every page load).
+        .filter(SourceItem.first_seen_at >= _recovery_lookback_cutoff())
         .filter(_summary_status_expr().in_(_SUMMARY_IN_PROGRESS))
         .all()
     )
@@ -117,6 +139,7 @@ def find_interrupted_insight_ids(db, *, stale_minutes: int) -> list[int]:
     rows = (
         db.query(SourceItem.id)
         .filter(
+            SourceItem.first_seen_at >= _recovery_lookback_cutoff(),
             SourceItem.status == "compiling",
             (SourceItem.updated_at.is_(None)) | (SourceItem.updated_at < cutoff),
         )
