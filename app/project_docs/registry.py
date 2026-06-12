@@ -313,6 +313,13 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
         category="优化路线",
         description="把 5 个今日 X 面按速览/工作台/精炼/收听的心智模型统一导航与命名，分阶段并保留各消费模式；不合并为单页。",
     ),
+    "today-incremental-model": DocEntry(
+        key="today-incremental-model",
+        title="今日雷达增量与多源展示模型设计",
+        path="docs/V1_TODAY_RADAR_INCREMENTAL_MODEL_DESIGN.md",
+        category="优化路线",
+        description="把今日雷达集合层从『滚动24h窗口+50条截断』重构为『首次首批/后续增量（按水位线）』，修复单源刷屏、硬上限、计数不准等问题；分阶段落地。",
+    ),
 }
 
 
