@@ -2535,6 +2535,31 @@ def main():
         # Pagination control markup present in template.
         check("radar_today.html has pagination control",
               "radar-pagination" in radar_html and "上一页" in radar_html and "下一页" in radar_html)
+        check("today radar filters use partial workspace refresh",
+              "async function loadRadarView" in radar_html
+              and '".radar-section-link, .radar-pagination a"' in radar_html
+              and "new DOMParser()" in radar_html,
+              "section and pagination links should replace only main + panel")
+        check("today radar page size uses partial workspace refresh",
+              'id="radar-per-page" name="per_page"' in radar_html
+              and 'onchange="this.form.submit()"' not in radar_html
+              and 'event.target.id !== "radar-per-page"' in radar_html,
+              "page-size changes should not force a full reload")
+        check("today radar partial navigation supports browser history",
+              'window.addEventListener("popstate"' in radar_html
+              and "window.history.pushState({ radarView: true }" in radar_html,
+              "back and forward should restore radar workspace state")
+        check("today radar partial navigation cancels stale requests",
+              "new AbortController()" in radar_html
+              and "radarViewRequest.abort()" in radar_html
+              and 'error.name === "AbortError"' in radar_html,
+              "rapid filter changes should not let an older response overwrite the latest view")
+        check("today summary audio status refresh is local",
+              'data-audio-pending="true"' in radar_html
+              and "async function refreshTodaySummary()" in radar_html
+              and "initializeTodaySummaryAudio(incomingSummary)" in radar_html
+              and "window.location.reload()" not in radar_html,
+              "pending audio should update the summary card without a full-page reload")
 
         # per_page bounds + total_pages math (service level).
         db3 = _SL2()
@@ -4450,10 +4475,13 @@ def main():
               if "def generate_today_summaries" in radar_py else False,
               "generate_today_summaries must not re-sort items by last_seen_at.desc()")
 
-        # 2. route has _has_zh_one_liner or equivalent.
-        check("route has _has_zh_one_liner helper",
-              "_has_zh_one_liner" in radar_py,
-              "route should check zh_one_liner presence via _has_zh_one_liner")
+        # 2. route detects summary completeness via the canonical zh keys.
+        # (The old _has_zh_one_liner/_has_zh_summary/_needs_chinese_summary
+        # helpers were dead code, superseded by read_item_state; removed.)
+        check("route checks summary completeness via zh keys",
+              '"zh_one_liner"' in radar_py and '"zh_summary"' in radar_py
+              and "_needs_chinese_summary" not in radar_py,
+              "route should detect summary completeness via zh_one_liner + zh_summary, not dead helpers")
 
         # 3. route has _humanize_summary_detail_message or equivalent.
         check("route has _humanize_summary_detail_message helper",
@@ -4826,9 +4854,72 @@ def main():
         check("radar_today.html uses radar-section-link-recommended",
               "radar-section-link-recommended" in radar_html,
               "recommended sidebar link must use radar-section-link-recommended class")
-        check("radar_today.html shows 重点推荐 kicker",
-              "重点推荐" in radar_html,
-              "recommended sidebar link must have a kicker label")
+        check("radar_today.html does not show 重点推荐 kicker",
+              "重点推荐" not in radar_html,
+              "recommended sidebar link must not have a 重点推荐 kicker — single-line only")
+        check("radar_today.html shows 推荐深入分析 (single-line, no kicker)",
+              "推荐深入分析" in radar_html and 'radar-section-link-recommended' in radar_html,
+              "recommended sidebar link must show 推荐深入分析 without kicker")
+
+        # ── V1.0-beta-15: data quality chip in title row + today summary sidebar ─
+        check("radar_today.html has data quality chip in title row",
+              "radar-data-quality-chip" in radar_html,
+              "data quality chip must be in the title row")
+        check("radar_today.html has compact today summary block",
+              "radar-sidebar-summary-compact" in radar_html,
+              "today summary must use compact single-block style")
+        check("radar_today.html has radar-sidebar-summary-report-text",
+              "radar-sidebar-summary-report-text" in radar_html,
+              "today summary must show core report excerpt text")
+        check("radar_today.html has radar-sidebar-summary-audio-row",
+              "radar-sidebar-summary-audio-row" in radar_html,
+              "today summary must have inline audio row")
+        check("radar_today.html has radar-sidebar-summary-play",
+              "radar-sidebar-summary-play" in radar_html,
+              "today summary must have play button")
+        check("today summary appears before processing workflow",
+              radar_html.index("radar-sidebar-summary-compact")
+              < radar_html.index("radar-today-actions"),
+              "today summary must be the first daily information entry")
+        check("today summary exposes daily content metrics",
+              "radar-sidebar-summary-stats" in radar_html
+              and "daily_digest.new_items_count" in radar_html
+              and "daily_digest.source_count" in radar_html,
+              "today summary must explain the scope of today's new content")
+        check("today summary exposes report highlights and fallback items",
+              "core_report_highlights" in radar_html
+              and "radar-sidebar-summary-fallback-list" in radar_html,
+              "today summary must stay useful before and after report generation")
+        check("today summary separates reading and listening actions",
+              "阅读完整报告" in radar_html
+              and "播放当前音频" in radar_html
+              and "生成当前音频播报" in radar_html,
+              "today summary must support text-first and audio-first consumption")
+        check("today summary audio generation uses POST",
+              'method="post" action="/radar/today/audio"' in radar_html,
+              "audio generation must be an explicit side-effecting action")
+        check("radar_today.html no longer has radar-sidebar-summary-block",
+              "radar-sidebar-summary-block" not in radar_html,
+              "old two-card style must be removed")
+        check("radar_today.html still has 今日编译概览",
+              "今日编译概览" in radar_html,
+              "今日编译概览 must not be removed")
+        check("radar_today.html still has 运行状态",
+              "运行状态" in radar_html,
+              "运行状态 must not be removed")
+        check("radar_today.html still has 调度状态",
+              "调度状态" in radar_html,
+              "调度状态 must not be removed")
+        check("style.css has radar-data-quality-chip",
+              "radar-data-quality-chip" in style_css,
+              "style.css must define radar-data-quality-chip")
+        check("style.css has radar-sidebar-summary-compact",
+              "radar-sidebar-summary-compact" in style_css,
+              "style.css must define radar-sidebar-summary-compact")
+        check("style.css has radar-sidebar-summary-audio-row",
+              "radar-sidebar-summary-audio-row" in style_css,
+              "style.css must define radar-sidebar-summary-audio-row")
+
         check("radar_today.html has 生成洞察卡",
               "生成洞察卡" in radar_html,
               "insight card generation button should be labeled 生成洞察卡")
@@ -5678,10 +5769,10 @@ def main():
               and "InsightCardGenerator" not in digest_text,
               "daily digest must only aggregate, never write or call LLM")
 
-        check("daily digest counts in SQL, not full scan",
-              "for item in" not in digest_text
-              and ".count()" in digest_text,
-              "daily digest should count via SQL, not Python full scans")
+        check("daily digest uses a bounded database query",
+              ".limit(settings.item_limit)" in digest_text
+              and ".all()" in digest_text,
+              "daily digest may inspect only the capped radar/report input set")
 
         check("radar route wires daily_digest",
               "daily_digest" in radar_route_py
@@ -5750,9 +5841,11 @@ def main():
         from app.db import SessionLocal
         from app.models import FetchRun, SourceItem
         from app.application.radar.daily_report import (
+            DailyReportInput,
             DailyReportSource,
             DailyReportResult,
             _build_insight_context,
+            daily_report_input_fingerprint,
             normalize_daily_report_highlights,
             generate_daily_report,
             MockDailyReportProvider,
@@ -5786,6 +5879,41 @@ def main():
             check("daily report mock apply yields structured result",
                   mock.status in ("generated", "no_input"),
                   "mock-provider apply should produce a structured (or no_input) result")
+
+            fingerprint_input = DailyReportInput(
+                date_label="2026-06-11",
+                item_count=1,
+                bullet_sources=["测试"],
+                sources=[
+                    DailyReportSource(
+                        item_id=1,
+                        title="标题",
+                        summary="摘要",
+                        url="https://example.com/1",
+                        insight_card_id=None,
+                    )
+                ],
+            )
+            changed_fingerprint_input = DailyReportInput(
+                date_label="2026-06-11",
+                item_count=1,
+                bullet_sources=["测试"],
+                sources=[
+                    DailyReportSource(
+                        item_id=1,
+                        title="标题",
+                        summary="更新后的摘要",
+                        url="https://example.com/1",
+                        insight_card_id=None,
+                    )
+                ],
+            )
+            check("daily report input fingerprint is stable and content-sensitive",
+                  daily_report_input_fingerprint(fingerprint_input)
+                  == daily_report_input_fingerprint(fingerprint_input)
+                  and daily_report_input_fingerprint(fingerprint_input)
+                  != daily_report_input_fingerprint(changed_fingerprint_input),
+                  "identical inputs must reuse; changed summaries must invalidate")
 
             _prev_disabled_check = _os.environ.pop("DAILY_REPORT_ENABLED", None)
             try:
@@ -5947,8 +6075,12 @@ def main():
         check("daily report route reuses gated generate (apply=True)",
               "generate_daily_report(db, apply=True)" in radar_route_py
               and "save_daily_report(report)" in radar_route_py
-              and "load_daily_report(date_label)" in radar_route_py,
+              and "load_daily_report(payload.date_label)" in radar_route_py,
               "route should generate, persist, and reload the daily report")
+        check("daily report route reuses unchanged generated report",
+              'existing.get("input_fingerprint") == fingerprint' in radar_route_py
+              and "not force" in radar_route_py,
+              "unchanged report input must not call the LLM again")
 
         check("radar template has explicit report button + result banner",
               "生成核心报告" in radar_html
@@ -6711,8 +6843,13 @@ def main():
               and "def merge_wav_parts" in audio_jobs_text
               and "def retry_daily_audio_job" in audio_jobs_text
               and "def cleanup_daily_audio_jobs" in audio_jobs_text
-              and "os.O_EXCL" in audio_jobs_text,
+              and "os.O_EXCL" in audio_jobs_text
+              and "_touch_lock(lock_path)" in audio_jobs_text,
               "audio jobs should cover long reports and operational lifecycle")
+        check("Daily audio validates generated WAV files",
+              "def is_daily_audio_job_playable" in audio_jobs_text
+              and "is_valid_daily_broadcast_audio_file" in audio_jobs_text,
+              "generated job records must not be treated as playable without a valid file")
 
         # Template checks
         broadcast_template_path = project_root / "app" / "templates" / "radar_daily_broadcast.html"
@@ -6930,6 +7067,79 @@ def main():
         os.environ["DAILY_BROADCAST_TTS_ENABLED"] = "true"
         try:
             with TemporaryDirectory() as temp_dir:
+                from app.application.radar.daily_audio_jobs import (
+                    DailyAudioJob,
+                    enqueue_daily_audio_job,
+                    is_daily_audio_job_playable,
+                    select_daily_audio_job,
+                )
+
+                first_enqueue = enqueue_daily_audio_job(
+                    sample_script,
+                    script_basis="今日核心报告",
+                    voice="冰糖",
+                    style="",
+                    report_version="v1",
+                    root_dir=temp_dir,
+                )
+                repeated_enqueue = enqueue_daily_audio_job(
+                    sample_script,
+                    script_basis="今日核心报告",
+                    voice="冰糖",
+                    style="",
+                    report_version="v1",
+                    root_dir=temp_dir,
+                )
+                check("Daily audio enqueue is idempotent for the same report",
+                      first_enqueue.should_start
+                      and not repeated_enqueue.should_start
+                      and first_enqueue.job.job_id == repeated_enqueue.job.job_id,
+                      "repeated clicks must reuse one queued/generated task")
+
+                valid_audio_name = (
+                    "daily_broadcast_2026-06-11_"
+                    "000000000000000000000000.wav"
+                )
+                (Path(temp_dir) / valid_audio_name).write_bytes(mock_wav)
+                valid_job = DailyAudioJob(
+                    job_id="0" * 24,
+                    status="generated",
+                    date_label="2026-06-11",
+                    title="测试报告",
+                    script_basis="今日核心报告",
+                    script_text="测试",
+                    voice="冰糖",
+                    style="",
+                    model="mimo-v2.5-tts",
+                    created_at="2026-06-11T00:00:00",
+                    updated_at="2026-06-11T00:01:00",
+                    report_version="v1",
+                    audio_filename=valid_audio_name,
+                )
+                missing_job = DailyAudioJob(
+                    **{
+                        **valid_job.__dict__,
+                        "job_id": "1" * 24,
+                        "updated_at": "2026-06-11T00:02:00",
+                        "audio_filename": (
+                            "daily_broadcast_2026-06-11_"
+                            "111111111111111111111111.wav"
+                        ),
+                    }
+                )
+                check("Daily audio playable check requires a valid file",
+                      is_daily_audio_job_playable(valid_job, root_dir=temp_dir)
+                      and not is_daily_audio_job_playable(missing_job, root_dir=temp_dir),
+                      "stale generated job metadata must not expose a missing WAV")
+                check("Daily audio selector ignores missing files",
+                      select_daily_audio_job(
+                          [missing_job, valid_job],
+                          date_label="2026-06-11",
+                          report_version="v1",
+                          root_dir=temp_dir,
+                      ).job_id == valid_job.job_id,
+                      "selector should return the valid report-version match")
+
                 fake_client = FakeMiMoClient()
                 result = generate_daily_broadcast_audio(
                     sample_script,
@@ -7009,11 +7219,65 @@ def main():
         route_text = (project_root / "app" / "routes" / "radar.py").read_text(
             encoding="utf-8"
         )
+        broadcast_get_block = route_text.split(
+            'def get_daily_broadcast(', 1
+        )[1].split(
+            '@router.post("/daily-report/broadcast/audio")', 1
+        )[0]
+        check("Daily broadcast GET has no generation side effect",
+              "resume_daily_audio_job" not in broadcast_get_block
+              and "background_tasks.add_task" not in broadcast_get_block,
+              "GET status page must not resume or start a billable TTS task")
         check("Daily audio routes expose retry and delete",
               "/daily-report/broadcast/audio/{job_id}/retry" in route_text
+              and "/daily-report/broadcast/audio/{job_id}/resume" in route_text
               and "/daily-report/broadcast/audio/{job_id}/delete" in route_text
               and "background_tasks.add_task(run_daily_audio_job" in route_text,
               "audio route should queue work and support lifecycle actions")
+        check("Broadcast route supports historical report versions",
+              "load_daily_report_version(card.date_label, report_version)" in route_text
+              and "report_version: str | None = Form(None)" in route_text,
+              "selected report version must flow into script and audio generation")
+
+        from unittest.mock import patch
+        from app.application.radar.today_summary_panel import (
+            build_today_summary_panel_view,
+        )
+        with patch(
+            "app.application.radar.today_summary_panel.load_daily_report",
+            return_value={
+                "status": "generated",
+                "date_label": "2026-06-12",
+                "title": "测试核心报告",
+                "overview": "概览",
+                "highlights": ["重点一", "重点二"],
+                "highlight_references": [
+                    [{"item_id": 1, "title": "文章一", "url": None, "insight_card_id": None}],
+                    [],
+                ],
+                "input_fingerprint": "old-fingerprint",
+                "version_id": "20260612T000000000000Z",
+            },
+        ), patch(
+            "app.application.radar.today_summary_panel.list_daily_audio_jobs",
+            return_value=[],
+        ):
+            summary_panel = build_today_summary_panel_view(
+                date_label="2026-06-12",
+                current_input_fingerprint="new-fingerprint",
+            )
+        check("Today summary supports stored string highlights",
+              summary_panel.core_report_excerpt == "概览 重点一；重点二"
+              and tuple(
+                  highlight.text
+                  for highlight in summary_panel.core_report_highlights
+              ) == ("重点一", "重点二")
+              and summary_panel.report_is_stale
+              and summary_panel.core_report_highlights[0].references[0]["item_id"] == 1
+              and summary_panel.audio_status == "missing"
+              and "version=20260612T000000000000Z"
+              in summary_panel.audio_page_url,
+              "sidebar must show persisted highlights and preserve report version")
 
         # Empty broadcast text is natural (no "共发现 0 条")
         check("Empty broadcast does not say 共发现 0 条",
@@ -7988,6 +8252,10 @@ def main():
               "def build_daily_briefing" in digest_py
               and ".commit(" not in digest_py and ".add(" not in digest_py,
               "build_daily_briefing should exist and never write")
+        check("daily summary metrics use the configured radar cap",
+              ".limit(settings.item_limit)" in digest_py
+              and "new_items_count = len(rows)" in digest_py,
+              "summary counts must match the capped set used by radar and report input")
         check("briefing route is read-only GET",
               '@router.get("/today/briefing"' in radar_route_py
               and "build_daily_briefing" in radar_route_py,

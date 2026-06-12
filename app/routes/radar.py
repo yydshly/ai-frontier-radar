@@ -9,6 +9,7 @@ today's items.
 from collections import Counter
 from datetime import datetime
 import json
+import logging
 from pathlib import Path
 from urllib.parse import urlencode
 import os
@@ -55,6 +56,8 @@ from app.application.sources.fetch_service import SUPPORTED_STRATEGIES
 from app.models import SourceItem, Source
 from app.sources.config_loader import list_sources
 from app.routes.fetch_runs import safe_external_url
+
+logger = logging.getLogger(__name__)
 
 
 def _dedupe_sources_by_key(sources: list[Source]) -> tuple[list[Source], int]:
@@ -390,31 +393,6 @@ def _humanize_insight_error(message: str | None) -> str:
     return "生成失败，可稍后重试"
 
 
-def _has_zh_one_liner(item: SourceItem) -> bool:
-    """Return True if the item already has a Chinese one-liner in raw_metadata_json."""
-    import json
-    try:
-        raw = json.loads(item.raw_metadata_json or "{}")
-        return bool(raw.get("zh_one_liner", "").strip())
-    except Exception:
-        return False
-
-
-def _has_zh_summary(item: SourceItem) -> bool:
-    """Return True if the item already has a Chinese detailed summary in raw_metadata_json."""
-    import json
-    try:
-        raw = json.loads(item.raw_metadata_json or "{}")
-        return bool(raw.get("zh_summary", "").strip())
-    except Exception:
-        return False
-
-
-def _needs_chinese_summary(item: SourceItem) -> bool:
-    """Return True if the item is missing zh_one_liner or zh_summary."""
-    return not (_has_zh_one_liner(item) and _has_zh_summary(item))
-
-
 def _humanize_summary_detail_message(status: str, message: str | None) -> str:
     """Convert a raw summary status + technical message to user-facing Chinese."""
     if status == "success":
@@ -613,7 +591,10 @@ def radar_today_page(
 
 
 @router.post("/today/daily-report", response_class=HTMLResponse)
-def generate_daily_core_report(request: Request):
+def generate_daily_core_report(
+    request: Request,
+    force: bool = Form(False),
+):
     """Explicitly generate today's core report (P-003-2).
 
     POST only — side-effecting (may call the LLM). Gated: the LLM is only
@@ -622,27 +603,46 @@ def generate_daily_core_report(request: Request):
     persisted as runtime JSON so they remain available after refresh.
     """
     from app.db import get_db
-    from app.application.radar.daily_report import generate_daily_report
-    from app.application.radar.daily_report_store import save_daily_report
+    from app.application.radar.daily_report import (
+        build_daily_report_input,
+        daily_report_input_fingerprint,
+        generate_daily_report,
+    )
+    from app.application.radar.daily_report_store import (
+        load_daily_report,
+        save_daily_report,
+    )
 
     db = next(get_db())
     try:
         try:
-            report = generate_daily_report(db, apply=True)
-            daily_report_result = {
-                "status": report.status,
-                "date_label": report.date_label,
-                "input_item_count": report.input_item_count,
-                "message": report.message,
-                "title": report.title,
-                "overview": report.overview,
-                "highlights": report.highlights,
-                "highlight_references": report.highlight_references,
-            }
-            if report.status == "generated":
-                stored_result = save_daily_report(report)
-                if stored_result is not None:
-                    daily_report_result = stored_result
+            payload = build_daily_report_input(db)
+            fingerprint = daily_report_input_fingerprint(payload)
+            existing = load_daily_report(payload.date_label)
+            if (
+                not force
+                and existing is not None
+                and existing.get("input_fingerprint") == fingerprint
+            ):
+                daily_report_result = existing
+                daily_report_result["message"] = "今日内容未变化，已复用现有核心报告。"
+            else:
+                report = generate_daily_report(db, apply=True)
+                daily_report_result = {
+                    "status": report.status,
+                    "date_label": report.date_label,
+                    "input_item_count": report.input_item_count,
+                    "input_fingerprint": report.input_fingerprint,
+                    "message": report.message,
+                    "title": report.title,
+                    "overview": report.overview,
+                    "highlights": report.highlights,
+                    "highlight_references": report.highlight_references,
+                }
+                if report.status == "generated":
+                    stored_result = save_daily_report(report)
+                    if stored_result is not None:
+                        daily_report_result = stored_result
         except Exception:
             daily_report_result = {
                 "status": "error",
@@ -658,6 +658,45 @@ def generate_daily_core_report(request: Request):
         return _radar_templates.TemplateResponse("radar_daily_report.html", context)
     finally:
         db.close()
+
+
+@router.post("/today/audio")
+def generate_today_audio(
+    background_tasks: BackgroundTasks,
+    report_version: str | None = Form(None),
+):
+    """Generate or reuse the current report's default audio narration."""
+    from app.application.radar.daily_audio_jobs import (
+        enqueue_daily_audio_job,
+        run_daily_audio_job,
+    )
+    from app.application.radar.mimo_tts import MiMoTTSSettings
+
+    try:
+        settings = MiMoTTSSettings.from_env()
+        script, script_basis, resolved_version = _build_daily_broadcast_page_data(
+            report_version,
+        )
+        result = enqueue_daily_audio_job(
+            script,
+            script_basis=script_basis,
+            voice=settings.voice,
+            style=settings.style,
+            report_version=resolved_version,
+        )
+    except Exception as exc:
+        return RedirectResponse(
+            url="/radar/daily-report/broadcast?"
+            + urlencode({"audio_error": str(exc)[:300]}),
+            status_code=303,
+        )
+
+    if result.should_start:
+        background_tasks.add_task(run_daily_audio_job, result.job.job_id)
+    return RedirectResponse(
+        url="/radar/today#today-summary",
+        status_code=303,
+    )
 
 
 def _build_radar_today_view_context(
@@ -696,6 +735,7 @@ def _build_radar_today_view_context(
         # Left-sidebar-only aggregates — skipped for the panel partial refresh.
         scheduler_status = None
         daily_digest = None
+        today_summary_panel = None
         if include_sidebar:
             # V1.0-beta.3: read-only scheduler status for the sidebar block.
             try:
@@ -713,6 +753,30 @@ def _build_radar_today_view_context(
             except Exception:
                 daily_digest = None
 
+            # Today summary panel: core report + latest audio for the sidebar module.
+            try:
+                from app.application.radar.daily_report import (
+                    build_daily_report_input,
+                    daily_report_input_fingerprint,
+                )
+                from app.application.radar.today_summary_panel import (
+                    build_today_summary_panel_view,
+                )
+                report_input = build_daily_report_input(db)
+                today_summary_panel = build_today_summary_panel_view(
+                    date_label=(
+                        daily_digest.date_label
+                        if daily_digest is not None
+                        else None
+                    ),
+                    current_input_fingerprint=daily_report_input_fingerprint(
+                        report_input
+                    ),
+                )
+            except Exception:
+                logger.exception("Unable to build today summary panel")
+                today_summary_panel = None
+
         sel = view.selected_item
         sel_card = view.display_map.get(sel.id) if sel else None
 
@@ -724,6 +788,7 @@ def _build_radar_today_view_context(
             "safe_external_url": safe_external_url,
             "scheduler_status": scheduler_status,
             "daily_digest": daily_digest,
+            "today_summary_panel": today_summary_panel,
             "sel": sel,
             "sel_card": sel_card,
             "DAILY_REPORT_ENABLED": get_daily_report_enabled(),
@@ -1350,14 +1415,19 @@ def _build_daily_report_page_context(
     }
 
 
-def _build_daily_broadcast_page_data() -> tuple[object, str, str | None]:
+def _build_daily_broadcast_page_data(
+    report_version: str | None = None,
+) -> tuple[object, str, str | None]:
     """Build today's script, preferring the persisted core report."""
     from app.application.radar.daily_broadcast import (
         build_core_report_broadcast_script,
         build_daily_broadcast_script,
     )
     from app.application.radar.daily_report_card import build_daily_report_card
-    from app.application.radar.daily_report_store import load_daily_report
+    from app.application.radar.daily_report_store import (
+        load_daily_report,
+        load_daily_report_version,
+    )
 
     db = next(get_db())
     try:
@@ -1365,7 +1435,13 @@ def _build_daily_broadcast_page_data() -> tuple[object, str, str | None]:
     finally:
         db.close()
 
-    core_report = load_daily_report(card.date_label)
+    core_report = (
+        load_daily_report_version(card.date_label, report_version)
+        if report_version
+        else load_daily_report(card.date_label)
+    )
+    if report_version and core_report is None:
+        core_report = load_daily_report(card.date_label)
     if core_report is not None:
         return (
             build_core_report_broadcast_script(core_report),
@@ -1419,40 +1495,33 @@ def _select_default_daily_audio_job(
     2. generated + same date_label (list is already sorted by updated_at desc)
     3. None  (don't fall back to yesterday or older)
     """
-    playable_today = [
-        job
-        for job in audio_jobs
-        if getattr(job, "status", None) == "generated"
-        and getattr(job, "audio_url", None)
-        and getattr(job, "date_label", None) == date_label
-    ]
-    if not playable_today:
-        return None
-    if report_version:
-        for job in playable_today:
-            if getattr(job, "report_version", None) == report_version:
-                return job
-    return playable_today[0]
+    from app.application.radar.daily_audio_jobs import select_daily_audio_job
+
+    return select_daily_audio_job(
+        audio_jobs,
+        date_label=date_label,
+        report_version=report_version,
+        require_file=False,
+    )
 
 
 @router.get("/daily-report/broadcast", response_class=HTMLResponse)
 def get_daily_broadcast(
     request: Request,
-    background_tasks: BackgroundTasks,
     job_id: str | None = Query(None),
+    version: str | None = Query(None),
     audio_error: str | None = Query(None),
 ):
     """Render the DailyBroadcastScript for today.
 
     Read-only page. Builds the broadcast script from the DailyReportCard without LLM.
     """
-    script, script_basis, report_version = _build_daily_broadcast_page_data()
     from app.application.radar.daily_audio_jobs import (
         VOICE_OPTIONS,
+        is_daily_audio_job_playable,
         list_daily_audio_jobs,
         load_daily_audio_job,
-        resume_daily_audio_job,
-        run_daily_audio_job,
+        select_daily_audio_job,
     )
     from app.application.radar.mimo_tts import MiMoTTSSettings, MiMoTTSError
 
@@ -1466,22 +1535,34 @@ def get_daily_broadcast(
         default_style = os.getenv("MIMO_TTS_STYLE", "").strip()
         tts_config_error = str(exc)
     audio_job = load_daily_audio_job(job_id) if job_id else None
+    requested_version = version or (
+        audio_job.report_version if audio_job is not None else None
+    )
+    script, script_basis, report_version = _build_daily_broadcast_page_data(
+        requested_version,
+    )
     audio_job_is_default = False
-    if audio_job is not None:
-        resume_result = resume_daily_audio_job(audio_job.job_id)
-        if resume_result and resume_result.should_start:
-            audio_job = resume_result.job
-            background_tasks.add_task(run_daily_audio_job, audio_job.job_id)
-    else:
+    if (
+        audio_job is not None
+        and audio_job.status == "generated"
+        and not is_daily_audio_job_playable(audio_job)
+    ):
+        audio_error = audio_error or "语音任务记录存在，但音频文件已丢失或损坏，请重新生成。"
+        audio_job = None
+    if audio_job is None and not job_id:
         # No explicit job_id: auto-select today's latest generated audio
         audio_jobs = list_daily_audio_jobs(limit=20)
-        audio_job = _select_default_daily_audio_job(
+        audio_job = select_daily_audio_job(
             audio_jobs,
             date_label=script.date_label,
             report_version=report_version,
         )
         audio_job_is_default = audio_job is not None
-    audio_jobs = list_daily_audio_jobs(limit=20)
+    audio_jobs = [
+        job
+        for job in list_daily_audio_jobs(limit=20)
+        if job.status != "generated" or is_daily_audio_job_playable(job)
+    ]
 
     return _radar_templates.TemplateResponse(
         "radar_daily_broadcast.html",
@@ -1507,13 +1588,16 @@ def generate_daily_broadcast_audio(
     background_tasks: BackgroundTasks,
     voice: str = Form("冰糖"),
     style: str = Form(""),
+    report_version: str | None = Form(None),
 ):
     """Queue MiMo TTS audio for today's broadcast script."""
     from app.application.radar.daily_audio_jobs import (
         enqueue_daily_audio_job,
         run_daily_audio_job,
     )
-    script, script_basis, report_version = _build_daily_broadcast_page_data()
+    script, script_basis, report_version = _build_daily_broadcast_page_data(
+        report_version,
+    )
 
     try:
         result = enqueue_daily_audio_job(
@@ -1525,6 +1609,8 @@ def generate_daily_broadcast_audio(
         )
     except Exception as exc:
         params = {"audio_error": str(exc)[:300]}
+        if report_version:
+            params["version"] = report_version
         return RedirectResponse(
             url="/radar/daily-report/broadcast?" + urlencode(params),
             status_code=303,
@@ -1533,7 +1619,37 @@ def generate_daily_broadcast_audio(
         background_tasks.add_task(run_daily_audio_job, result.job.job_id)
     return RedirectResponse(
         url="/radar/daily-report/broadcast?"
-        + urlencode({"job_id": result.job.job_id}),
+        + urlencode(
+            {
+                "job_id": result.job.job_id,
+                **({"version": report_version} if report_version else {}),
+            }
+        ),
+        status_code=303,
+    )
+
+
+@router.post("/daily-report/broadcast/audio/{job_id}/resume")
+def resume_daily_broadcast_audio(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+):
+    """Explicitly resume an interrupted queued or running audio task."""
+    from app.application.radar.daily_audio_jobs import (
+        resume_daily_audio_job,
+        run_daily_audio_job,
+    )
+
+    result = resume_daily_audio_job(job_id)
+    if result is None:
+        return HTMLResponse("语音任务不存在。", status_code=404)
+    if result.should_start:
+        background_tasks.add_task(run_daily_audio_job, job_id)
+    params = {"job_id": job_id}
+    if result.job.report_version:
+        params["version"] = result.job.report_version
+    return RedirectResponse(
+        url="/radar/daily-report/broadcast?" + urlencode(params),
         status_code=303,
     )
 
@@ -1552,8 +1668,11 @@ def retry_daily_broadcast_audio(
         return HTMLResponse("语音任务不存在。", status_code=404)
     if result.should_start:
         background_tasks.add_task(run_daily_audio_job, job_id)
+    params = {"job_id": job_id}
+    if result.job.report_version:
+        params["version"] = result.job.report_version
     return RedirectResponse(
-        url="/radar/daily-report/broadcast?" + urlencode({"job_id": job_id}),
+        url="/radar/daily-report/broadcast?" + urlencode(params),
         status_code=303,
     )
 
