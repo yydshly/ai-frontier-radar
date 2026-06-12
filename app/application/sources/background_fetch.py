@@ -70,6 +70,7 @@ def _auto_generate_summaries_for_fetch_run(
     db,
     fetch_run: FetchRun,
     item_ids: list[int],
+    max_items: int | None = None,
 ) -> None:
     """Generate Chinese summaries for new/updated SourceItems after fetch.
 
@@ -77,7 +78,8 @@ def _auto_generate_summaries_for_fetch_run(
     """
     import json as _json
 
-    max_items = get_auto_summary_max_per_fetch_run()
+    if max_items is None:
+        max_items = get_auto_summary_max_per_fetch_run()
 
     if max_items <= 0:
         _write_auto_summary_metadata(
@@ -226,6 +228,9 @@ class SourceFetchBackgroundService:
         self,
         source_key: str,
         background_tasks=None,
+        *,
+        max_items_per_run: int | None = None,
+        auto_summary_max_items: int | None = None,
     ) -> SourceFetchEnqueueResult:
         """Enqueue a source for background fetching.
 
@@ -236,6 +241,8 @@ class SourceFetchBackgroundService:
             source_key: The source key to fetch.
             background_tasks: Optional BackgroundTasks instance from FastAPI.
                              If None, runs synchronously (suitable for scripts/tests).
+            max_items_per_run: Optional per-task fetch limit override.
+            auto_summary_max_items: Optional per-task auto-summary limit override.
 
         Returns:
             SourceFetchEnqueueResult describing what happened.
@@ -290,10 +297,16 @@ class SourceFetchBackgroundService:
                 background_tasks.add_task(
                     run_source_fetch_in_background,
                     fetch_run.id,
+                    max_items_per_run,
+                    auto_summary_max_items,
                 )
             else:
                 # Synchronous execution when no BackgroundTasks available (scripts/tests)
-                run_source_fetch_in_background(fetch_run.id)
+                run_source_fetch_in_background(
+                    fetch_run.id,
+                    max_items_per_run,
+                    auto_summary_max_items,
+                )
 
             return SourceFetchEnqueueResult(
                 accepted=True,
@@ -306,7 +319,11 @@ class SourceFetchBackgroundService:
             db.close()
 
 
-def run_source_fetch_in_background(run_id: int) -> None:
+def run_source_fetch_in_background(
+    run_id: int,
+    max_items_per_run: int | None = None,
+    auto_summary_max_items: int | None = None,
+) -> None:
     """Background task: perform the actual source fetch.
 
     Creates its own DB session. Loads the FetchRun and Source, calls the
@@ -363,7 +380,11 @@ def run_source_fetch_in_background(run_id: int) -> None:
             return
 
         # Call the appropriate probe for a given strategy.
-        max_items = get_source_fetch_max_items_per_run()
+        max_items = (
+            max_items_per_run
+            if max_items_per_run is not None
+            else get_source_fetch_max_items_per_run()
+        )
 
         def _run_probe(strat: str) -> dict:
             if strat == "rss":
@@ -487,6 +508,7 @@ def run_source_fetch_in_background(run_id: int) -> None:
             db,
             fetch_run,
             new_ids + updated_ids,
+            max_items=auto_summary_max_items,
         )
 
     except Exception as e:

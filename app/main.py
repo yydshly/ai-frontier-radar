@@ -26,6 +26,7 @@ from app.logging_config import setup_logging, get_logger
 from app.exports.markdown_task import build_action_markdown
 from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
+from app.url_safety import is_safe_external_url
 from app.routes.project_docs import router as project_docs_router
 from app.routes.candidate_pool import router as candidate_pool_router
 from app.routes.fetch_runs import router as fetch_runs_router, is_test_source_key
@@ -479,7 +480,7 @@ def compile_source(url: str = Form(...)):
     logger.info(f"Received compile request for URL: {url}")
 
     # Basic URL validation
-    if not url.startswith(("http://", "https://")):
+    if not is_safe_external_url(url):
         return RedirectResponse(url="/", status_code=303)
 
     # ── Intake classification gate ─────────────────────────────────
@@ -1843,4 +1844,4 @@ app.include_router(radar_router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -7,7 +7,6 @@ phase.
 """
 from __future__ import annotations
 
-import ipaddress
 import os
 import re
 import unicodedata
@@ -16,6 +15,7 @@ from urllib.parse import urlparse
 
 from app.models import Source
 from app.sources.config_loader import list_sources
+from app.url_safety import is_safe_external_url
 
 USER_SOURCE_TAG = "user-source"
 
@@ -64,32 +64,8 @@ def _restricted_allowed() -> bool:
 
 
 def _is_public_http_url(value: str | None) -> bool:
-    """Allow only public http(s) URLs using static checks, without DNS lookup."""
-    if not value:
-        return False
-    try:
-        parsed = urlparse(value.strip())
-    except Exception:
-        return False
-
-    if parsed.scheme not in {"http", "https"}:
-        return False
-
-    host = (parsed.hostname or "").strip().lower()
-    if not host:
-        return False
-
-    if host in {"localhost", "127.0.0.1", "0.0.0.0", "::1", "169.254.169.254"}:
-        return False
-    if host.endswith(".local"):
-        return False
-
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        return True
-
-    return bool(ip.is_global)
+    """Block localhost, 127.0.0.1, and 169.254.169.254 via shared ipaddress checks."""
+    return is_safe_external_url(value)
 
 
 def _is_safe_url(value: str | None) -> bool:

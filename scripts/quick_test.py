@@ -21,6 +21,7 @@ Usage:
 """
 import sys
 import os
+import tempfile
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -6624,9 +6625,12 @@ def main():
         check("CLI prints execution_mode",
               "execution_mode:" in script_text,
               "CLI should display execution_mode in output")
-        check("discovery_apply_environment sets AUTO_SUMMARY_MAX_PER_FETCH_RUN=0",
-              'AUTO_SUMMARY_MAX_PER_FETCH_RUN"] = "0"' in discovery_text,
-              "apply path must disable auto-summary to prevent LLM calls")
+        check("discovery passes explicit no-summary task override",
+              "auto_summary_max_items=0" in discovery_text,
+              "apply path must disable auto-summary on the background task")
+        check("discovery passes explicit per-source fetch limit",
+              "max_items_per_run=settings.max_items_per_source" in discovery_text,
+              "apply path must preserve its fetch limit in the background task")
         check("discovery does not continue P-004 F-2",
               "CustomSourceDraft" not in discovery_text
               and "custom_source" not in script_text.lower(),
@@ -9158,4 +9162,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with tempfile.TemporaryDirectory(prefix="ai_frontier_radar_quick_test_") as temp_dir:
+        db_path = Path(temp_dir) / "quick_test.db"
+        os.environ["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
+        try:
+            main()
+        finally:
+            try:
+                from app.db import engine
+                engine.dispose()
+            except Exception:
+                pass

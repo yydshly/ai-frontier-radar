@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Source, SourceItem, FetchRun
 from app.sources.quality import classify_source_item_url
+from app.url_safety import is_safe_external_url
 
 # Extensions to skip (static assets)
 SKIP_EXTENSIONS = {
@@ -72,6 +73,8 @@ YEAR_PATTERN = re.compile(r"/\d{4}/|" r"-\d{4}/|" r"/\d{4}$")
 # Maximum number of candidates per source that trigger a detail-page fetch.
 # Beyond this limit candidates use URL slug fallback without fetching the article.
 MAX_DETAIL_FETCHES_PER_SOURCE = 15
+MAX_REDIRECTS = 5
+REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 
 DEFAULT_HTML_HEADERS = {
     "User-Agent": (
@@ -101,14 +104,28 @@ def _get_html_response(url: str, timeout_seconds: float) -> httpx.Response:
     """Fetch HTML, retrying one transient transport failure."""
     for attempt in range(2):
         try:
-            response = httpx.get(
-                url,
-                timeout=timeout_seconds,
-                follow_redirects=True,
-                headers=_headers_for_url(url),
-            )
-            response.raise_for_status()
-            return response
+            current_url = url
+            for redirect_count in range(MAX_REDIRECTS + 1):
+                if not is_safe_external_url(current_url):
+                    raise ValueError(f"Unsafe external URL: {current_url}")
+
+                response = httpx.get(
+                    current_url,
+                    timeout=timeout_seconds,
+                    follow_redirects=False,
+                    headers=_headers_for_url(current_url),
+                )
+                if response.status_code not in REDIRECT_STATUS_CODES:
+                    response.raise_for_status()
+                    return response
+
+                location = response.headers.get("location")
+                if not location or redirect_count >= MAX_REDIRECTS:
+                    raise httpx.TooManyRedirects(
+                        "Redirect limit exceeded",
+                        request=response.request,
+                    )
+                current_url = urljoin(current_url, location)
         except httpx.RequestError:
             if attempt == 1:
                 raise

@@ -21,8 +21,10 @@ Validates:
 - POST /compile creates failed card when API key is missing
 - Profile config loading works without real API key
 """
+import atexit
 import os
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -58,10 +60,23 @@ check_dependency_compat()
 from fastapi.testclient import TestClient
 
 # Set test database before importing app
-os.environ["DATABASE_URL"] = "sqlite:///./data/test_smoke.db"
+_SMOKE_TEMP_DIR = tempfile.TemporaryDirectory(prefix="ai_frontier_radar_smoke_")
+_SMOKE_DB_PATH = Path(_SMOKE_TEMP_DIR.name) / "smoke.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{_SMOKE_DB_PATH.as_posix()}"
 os.environ["LLM_PROFILE"] = "minimax_m27_highspeed_anthropic"
 
 from app.main import app
+from app.db import engine
+
+
+def _cleanup_smoke_database():
+    try:
+        engine.dispose()
+    finally:
+        _SMOKE_TEMP_DIR.cleanup()
+
+
+atexit.register(_cleanup_smoke_database)
 from app.models import SourceType
 
 client = TestClient(app)
@@ -3314,6 +3329,9 @@ def test_v05_export_preview_page():
 
 def test_v05_export_download_route():
     """Test GET /cards/{id}/export-markdown/download returns .md file."""
+    from urllib.parse import quote
+
+    from app.main import _build_markdown_download_filename
     from app.db import SessionLocal
     from app.models import InsightCard, CardStatus, SourceType, CardDecision
 
@@ -3352,7 +3370,8 @@ def test_v05_export_download_route():
         response = client.get(f"/cards/{card.id}/export-markdown/download")
         assert response.status_code == 200
         assert "attachment" in response.headers.get("Content-Disposition", "")
-        assert f"insightcard-{card.id}-task.md" in response.headers["Content-Disposition"]
+        expected_filename = _build_markdown_download_filename(card, export_kind="task")
+        assert quote(expected_filename) in response.headers["Content-Disposition"]
         text = response.text
         assert "# 行动任务" in text, "Download should contain Markdown heading"
         assert "下载测试摘要" in text
@@ -4554,8 +4573,10 @@ def test_v09_export_report_routes_exist():
 
 def test_v09_export_report_download_response():
     """Test that GET /cards/{id}/export-report/download returns .md file."""
+    from urllib.parse import quote
+
     from fastapi.testclient import TestClient
-    from app.main import app
+    from app.main import app, _build_markdown_download_filename
     from app.db import SessionLocal
     from app.models import InsightCard, CardStatus, SourceType
 
@@ -4594,8 +4615,9 @@ def test_v09_export_report_download_response():
         content_disp = response.headers.get("Content-Disposition", "")
         assert "attachment" in content_disp, \
             "Content-Disposition should contain 'attachment'"
-        assert f"insightcard-{card_id}-report.md" in content_disp, \
-            f"Filename should be insightcard-{card_id}-report.md"
+        expected_filename = _build_markdown_download_filename(card, export_kind="report")
+        assert quote(expected_filename) in content_disp, \
+            f"Filename should include the current readable report filename: {expected_filename}"
 
         assert "AI 前沿资料编译报告" in response.text, \
             "Response should contain report heading"
@@ -4639,8 +4661,10 @@ def test_v09_cards_list_has_full_report_link():
 
 def test_v10_alpha_85_export_report_reading_mode():
     """Test that GET /cards/{id}/export-report shows structured HTML reading mode."""
+    from urllib.parse import quote
+
     from fastapi.testclient import TestClient
-    from app.main import app
+    from app.main import app, _build_markdown_download_filename
     from app.db import SessionLocal
     from app.models import InsightCard, CardStatus, SourceType
 
@@ -4716,7 +4740,8 @@ def test_v10_alpha_85_export_report_reading_mode():
         assert dl_response.status_code == 200
         content_disp = dl_response.headers.get("Content-Disposition", "")
         assert "attachment" in content_disp
-        assert f"insightcard-{card_id}-report.md" in content_disp
+        expected_filename = _build_markdown_download_filename(card, export_kind="report")
+        assert quote(expected_filename) in content_disp
         print(f"[OK] Download route still works: returns .md file")
 
     finally:
@@ -6384,8 +6409,10 @@ def test_candidate_pool_page_has_required_elements():
     assert "标记为待编译" in text or "待编译" in text, \
         "Page should have '标记为待编译' button"
 
-    # Should have table headers
-    assert "ID" in text, "Page should have ID column"
+    # Card layout should expose selectable items and their metadata.
+    assert 'class="candidate-list"' in text, "Page should have candidate list"
+    assert 'class="candidate-card"' in text, "Page should have candidate cards"
+    assert 'class="candidate-meta"' in text, "Cards should expose item metadata"
     assert "来源" in text, "Page should have source column"
 
     # Should have form with both formaction targets
@@ -6706,6 +6733,14 @@ def test_safe_external_url_strict_allowlist():
     assert is_safe_external_url("https://example.com") is True
     assert is_safe_external_url("http://example.com") is True
     assert is_safe_external_url("https://example.com/path?query=1") is True
+
+    # Blocked: local, private, metadata, and credential-bearing targets
+    assert is_safe_external_url("http://localhost/path") is False
+    assert is_safe_external_url("http://127.0.0.1/path") is False
+    assert is_safe_external_url("http://10.0.0.1/path") is False
+    assert is_safe_external_url("http://169.254.169.254/latest/meta-data") is False
+    assert is_safe_external_url("http://[::1]/path") is False
+    assert is_safe_external_url("https://user:pass@example.com/path") is False
 
     # Blocked: dangerous schemes
     assert is_safe_external_url("javascript:alert(1)") is False
@@ -7682,7 +7717,7 @@ def test_v10_beta4_safe_external_url_helper():
     assert is_safe_external_url("http://example.com"), "http should be allowed"
     assert is_safe_external_url("https://example.com"), "https should be allowed"
     assert is_safe_external_url("https://example.com/path?q=1"), "https with path should be allowed"
-    assert is_safe_external_url("https://user:pass@example.com"), "https with auth should be allowed"
+    assert not is_safe_external_url("https://user:pass@example.com"), "embedded credentials rejected"
 
     # Invalid schemes
     assert not is_safe_external_url("javascript:alert(1)"), "javascript: rejected"
@@ -10665,7 +10700,7 @@ def test_v10_beta8_background_fetch_passes_max_items_and_writes_source_fetch_lim
             description="Test",
             source_type="html_index",
             homepage_url="https://example.com",
-            feed_url="https://example.com/index.html",
+            feed_url=None,
             category="research",
             tags_json="[]",
             enabled=True,

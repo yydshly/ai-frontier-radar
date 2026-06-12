@@ -409,6 +409,17 @@
                 <div class="radar-main-toolbar">
                 {% if view.total_items == 0 and view.active_section != 'briefing' %}
                 <p class="radar-empty">暂无候选内容。</p>
+                {% if bootstrap_result %}
+                <div class="radar-update-result">
+                    <div class="radar-update-result-title">
+                        初始化来源内容{% if bootstrap_result.dry_run %} · dry-run{% endif %}
+                    </div>
+                    <div>
+                        已启动 {{ bootstrap_result.started }} 个，跳过 {{ bootstrap_result.skipped }} 个。
+                        {{ bootstrap_result.message }}
+                    </div>
+                </div>
+                {% endif %}
                 </div>{# <!-- /.radar-main-toolbar --> #}
                 {% else %}
                 {# Active-section heading: shows the current filter name + total count #}

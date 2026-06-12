@@ -10,6 +10,7 @@ from app.application.source_items.background_compile import (
     run_source_item_compile_in_background,
 )
 from app.context_processors import inject_sources_nav
+from app.url_safety import is_safe_external_url as _is_safe_external_url
 
 router = APIRouter(prefix="/fetch-runs", tags=["fetch-runs"])
 
@@ -112,58 +113,8 @@ def get_fetch_run_error_hint(error_message: str | None) -> str | None:
 
 
 def is_safe_external_url(url: str | None) -> bool:
-    """Check if a URL is a safe external URL (http/https only, strict allowlist).
-
-    Uses urllib.parse.urlsplit for proper URL parsing and strict scheme allowlist.
-
-    Allows:
-    - http://example.com
-    - https://example.com
-
-    Rejects:
-    - javascript:, data:, vbscript:, file:, blob:, about:, mailto:, tel:, urn:
-    - Scheme-relative URLs (//evil.com)
-    - Empty or None URLs
-    - URLs with ASCII control characters
-    - Any non-http/https scheme
-    """
-    from urllib.parse import urlsplit
-
-    if not url:
-        return False
-
-    # Check for ASCII control characters (0x00–0x1F and 0x7F DEL) on the
-    # ORIGINAL input. We do this BEFORE .strip() because Python's default
-    # str.strip() removes 0x1F (Unicode whitespace) which would otherwise
-    # let attackers bypass the control-char check by suffixing their payload
-    # with 0x1F. No exceptions: tab, newline, carriage return are also rejected.
-    for c in url:
-        if ord(c) < 32 or ord(c) == 127:
-            return False
-
-    # Now strip only ASCII space (0x20); tab/newline/CR were already rejected.
-    url = url.strip(" ")
-
-    # Empty after strip
-    if not url:
-        return False
-
-    # Parse URL using urlsplit
-    try:
-        parsed = urlsplit(url)
-    except Exception:
-        return False
-
-    # Strict scheme allowlist: only http and https
-    scheme = parsed.scheme.lower()
-    if scheme not in ('http', 'https'):
-        return False
-
-    # Reject empty netloc (e.g., "http:" or "http:///path")
-    if not parsed.netloc:
-        return False
-
-    return True
+    """Return whether a URL is safe to expose or fetch externally."""
+    return _is_safe_external_url(url)
 
 
 def safe_external_url(url: str | None) -> str | None:

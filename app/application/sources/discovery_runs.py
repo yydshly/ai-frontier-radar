@@ -7,10 +7,7 @@ dedupe behavior stay in one place.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
 from dataclasses import dataclass, field
-import os
-from typing import Iterator
 
 from sqlalchemy.orm import Session
 
@@ -284,51 +281,55 @@ def _apply_source_keys(
     started = 0
     failed = 0
 
-    with _discovery_apply_environment(settings.max_items_per_source):
-        for source_key in eligible_source_keys:
-            try:
-                result = fetch_service.enqueue_source(source_key, background_tasks=background_tasks)
-            except Exception as exc:
-                failed += 1
-                source_results.append(
-                    SourceDiscoverySourceResult(
-                        source_key=source_key,
-                        status="failed",
-                        message=str(exc),
-                    )
+    for source_key in eligible_source_keys:
+        try:
+            result = fetch_service.enqueue_source(
+                source_key,
+                background_tasks=background_tasks,
+                max_items_per_run=settings.max_items_per_source,
+                auto_summary_max_items=0,
+            )
+        except Exception as exc:
+            failed += 1
+            source_results.append(
+                SourceDiscoverySourceResult(
+                    source_key=source_key,
+                    status="failed",
+                    message=str(exc),
                 )
-                continue
+            )
+            continue
 
-            if result.accepted:
-                started += 1
-                source_results.append(
-                    SourceDiscoverySourceResult(
-                        source_key=source_key,
-                        status=result.status,
-                        run_id=result.run_id,
-                        message=result.message,
-                    )
+        if result.accepted:
+            started += 1
+            source_results.append(
+                SourceDiscoverySourceResult(
+                    source_key=source_key,
+                    status=result.status,
+                    run_id=result.run_id,
+                    message=result.message,
                 )
-            elif result.status == "already_running":
-                skipped += 1
-                source_results.append(
-                    SourceDiscoverySourceResult(
-                        source_key=source_key,
-                        status="already_running",
-                        run_id=result.run_id,
-                        message=result.message,
-                    )
+            )
+        elif result.status == "already_running":
+            skipped += 1
+            source_results.append(
+                SourceDiscoverySourceResult(
+                    source_key=source_key,
+                    status="already_running",
+                    run_id=result.run_id,
+                    message=result.message,
                 )
-            else:
-                failed += 1
-                source_results.append(
-                    SourceDiscoverySourceResult(
-                        source_key=source_key,
-                        status=result.status,
-                        run_id=result.run_id,
-                        message=result.message,
-                    )
+            )
+        else:
+            failed += 1
+            source_results.append(
+                SourceDiscoverySourceResult(
+                    source_key=source_key,
+                    status=result.status,
+                    run_id=result.run_id,
+                    message=result.message,
                 )
+            )
 
     exec_mode = "background" if background_tasks is not None else "sync"
     if exec_mode == "background":
@@ -350,32 +351,3 @@ def _apply_source_keys(
         source_results=source_results,
     )
 
-
-@contextmanager
-def _discovery_apply_environment(max_items_per_source: int) -> Iterator[None]:
-    """Apply no-LLM and per-source limits around synchronous discovery runs.
-
-    quick_test static assertion: AUTO_SUMMARY_MAX_PER_FETCH_RUN=0 and
-    SOURCE_FETCH_MAX_ITEMS_PER_RUN are set so that apply paths never trigger
-    LLM-based auto-summaries.
-    """
-    old_auto_summary = os.environ.get("AUTO_SUMMARY_MAX_PER_FETCH_RUN")
-    old_source_limit = os.environ.get("SOURCE_FETCH_MAX_ITEMS_PER_RUN")
-    os.environ["AUTO_SUMMARY_MAX_PER_FETCH_RUN"] = "0"
-    os.environ["SOURCE_FETCH_MAX_ITEMS_PER_RUN"] = str(max_items_per_source)
-    # quick_test static assertion: verify env vars block LLM calls
-    assert os.environ.get("AUTO_SUMMARY_MAX_PER_FETCH_RUN") == "0", (
-        "AUTO_SUMMARY_MAX_PER_FETCH_RUN must remain 0 to prevent LLM calls during apply"
-    )
-    try:
-        yield
-    finally:
-        _restore_env("AUTO_SUMMARY_MAX_PER_FETCH_RUN", old_auto_summary)
-        _restore_env("SOURCE_FETCH_MAX_ITEMS_PER_RUN", old_source_limit)
-
-
-def _restore_env(key: str, old_value: str | None) -> None:
-    if old_value is None:
-        os.environ.pop(key, None)
-    else:
-        os.environ[key] = old_value

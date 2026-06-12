@@ -10,12 +10,12 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Optional
+from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
 
-# Reuse URL safety check from existing codebase
-from app.routes.fetch_runs import is_safe_external_url
+from app.url_safety import is_safe_external_url
 
 
 # ── Default settings ────────────────────────────────────────
@@ -185,51 +185,59 @@ def fetch_html(url: str, settings: Optional[HtmlFetchSettings] = None) -> HtmlFe
     timeout = httpx.Timeout(timeout=settings.timeout_seconds, connect=5.0)
 
     try:
-        # Use streaming to avoid loading large content into memory at once
-        with httpx.stream("GET", url, headers=headers, timeout=timeout, follow_redirects=True) as response:
-            http_status = response.status_code
-            final_url = str(response.url)
+        current_url = url
+        with httpx.Client(headers=headers, timeout=timeout, follow_redirects=False) as client:
+            for redirect_count in range(6):
+                if not is_safe_external_url(current_url):
+                    return _build_error_result(url, FetchError.INVALID_URL)
 
-            # Check status code
-            if response.status_code >= 400:
-                return _build_error_result(
-                    url, FetchError.HTTP_ERROR, f"status={response.status_code}"
-                )
+                with client.stream("GET", current_url) as response:
+                    if response.is_redirect:
+                        location = response.headers.get("location")
+                        if not location or redirect_count >= 5:
+                            return _build_error_result(url, FetchError.HTTP_ERROR, "redirect_limit")
+                        current_url = urljoin(current_url, location)
+                        continue
 
-            # Step 3: Content-type check (can check from headers without reading body)
-            content_type_raw = response.headers.get("content-type", "")
-            content_type = content_type_raw.split(";")[0].strip().lower() if content_type_raw else None
-            if not content_type or not any(ct in content_type for ct in settings.allowed_content_types):
-                return _build_error_result(
-                    url, FetchError.UNSUPPORTED_CONTENT_TYPE, f"type={content_type or 'unknown'}"
-                )
-
-            # Step 4: Content-Length check BEFORE reading body
-            content_length = response.headers.get("content-length")
-            if content_length is not None:
-                try:
-                    cl = int(content_length)
-                    if cl > settings.max_bytes:
+                    http_status = response.status_code
+                    final_url = str(response.url)
+                    if response.status_code >= 400:
                         return _build_error_result(
-                            url, FetchError.CONTENT_TOO_LARGE,
-                            f"Content-Length={cl} exceeds max_bytes={settings.max_bytes}"
+                            url, FetchError.HTTP_ERROR, f"status={response.status_code}"
                         )
-                except ValueError:
-                    pass  # Invalid Content-Length, will check during streaming
 
-            # Step 5: Stream content with max_bytes guard
-            raw_chunks: list[bytes] = []
-            total_bytes = 0
-            for chunk in response.iter_bytes():
-                total_bytes += len(chunk)
-                if total_bytes > settings.max_bytes:
-                    return _build_error_result(
-                        url, FetchError.CONTENT_TOO_LARGE,
-                        f"content_too_large={total_bytes} exceeds max_bytes={settings.max_bytes}"
-                    )
-                raw_chunks.append(chunk)
+                    content_type_raw = response.headers.get("content-type", "")
+                    content_type = content_type_raw.split(";")[0].strip().lower() if content_type_raw else None
+                    if not content_type or not any(ct in content_type for ct in settings.allowed_content_types):
+                        return _build_error_result(
+                            url, FetchError.UNSUPPORTED_CONTENT_TYPE, f"type={content_type or 'unknown'}"
+                        )
 
-            raw_content = b"".join(raw_chunks)
+                    content_length = response.headers.get("content-length")
+                    if content_length is not None:
+                        try:
+                            cl = int(content_length)
+                            if cl > settings.max_bytes:
+                                return _build_error_result(
+                                    url, FetchError.CONTENT_TOO_LARGE,
+                                    f"Content-Length={cl} exceeds max_bytes={settings.max_bytes}"
+                                )
+                        except ValueError:
+                            pass
+
+                    raw_chunks: list[bytes] = []
+                    total_bytes = 0
+                    for chunk in response.iter_bytes():
+                        total_bytes += len(chunk)
+                        if total_bytes > settings.max_bytes:
+                            return _build_error_result(
+                                url, FetchError.CONTENT_TOO_LARGE,
+                                f"content_too_large={total_bytes} exceeds max_bytes={settings.max_bytes}"
+                            )
+                        raw_chunks.append(chunk)
+
+                    raw_content = b"".join(raw_chunks)
+                    break
 
     except httpx.TimeoutException:
         return _build_error_result(url, FetchError.TIMEOUT)

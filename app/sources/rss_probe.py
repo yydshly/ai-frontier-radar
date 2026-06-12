@@ -4,12 +4,45 @@ Does NOT fetch article body, does NOT call LLM.
 """
 import json
 from datetime import datetime
+from urllib.parse import urljoin
 
 import feedparser
 import httpx
 from sqlalchemy.orm import Session
 
 from app.models import Source, SourceItem, FetchRun
+from app.url_safety import is_safe_external_url
+
+
+MAX_REDIRECTS = 5
+REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+
+
+def _get_rss_response(url: str, timeout_seconds: float) -> httpx.Response:
+    """Fetch a feed while validating every redirect target."""
+    current_url = url
+    for redirect_count in range(MAX_REDIRECTS + 1):
+        if not is_safe_external_url(current_url):
+            raise ValueError(f"Unsafe external URL: {current_url}")
+
+        response = httpx.get(
+            current_url,
+            timeout=timeout_seconds,
+            follow_redirects=False,
+        )
+        if response.status_code not in REDIRECT_STATUS_CODES:
+            response.raise_for_status()
+            return response
+
+        location = response.headers.get("location")
+        if not location or redirect_count >= MAX_REDIRECTS:
+            raise httpx.TooManyRedirects(
+                "Redirect limit exceeded",
+                request=response.request,
+            )
+        current_url = urljoin(current_url, location)
+
+    raise RuntimeError("unreachable")
 
 
 def probe_rss_source(
@@ -49,8 +82,7 @@ def probe_rss_source(
 
     # Fetch feed
     try:
-        response = httpx.get(source.feed_url, timeout=timeout_seconds, follow_redirects=True)
-        response.raise_for_status()
+        response = _get_rss_response(source.feed_url, timeout_seconds)
     except httpx.TimeoutException:
         result["error_message"] = f"Timeout fetching feed after {timeout_seconds}s"
         return result
