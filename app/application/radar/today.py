@@ -937,9 +937,15 @@ class RadarTodayService:
         """
         cutoff = datetime.utcnow() - timedelta(hours=hours)
 
-        # Get ALL items in the time window (no quality filters yet)
+        # Only the 3 columns the guards actually read — avoids hydrating full ORM
+        # rows (notably the large raw_metadata_json blob) for every windowed item.
+        # The classification below is byte-for-byte the same as before.
         raw_items = (
-            self.db.query(SourceItem)
+            self.db.query(
+                SourceItem.source_id,
+                SourceItem.url,
+                SourceItem.title,
+            )
             .filter(SourceItem.first_seen_at >= cutoff)
             .all()
         )
@@ -949,27 +955,28 @@ class RadarTodayService:
         missing_url = 0
         missing_title = 0
 
-        # Pre-fetch source rows for efficiency
+        # Pre-fetch source id sets (ids only — no full Source rows needed).
         all_source_ids = {s.id for s in self.db.query(Source.id).all()}
         enabled_source_ids = {
-            s.id for s in self.db.query(Source).filter(Source.enabled.is_(True)).all()
+            s.id
+            for s in self.db.query(Source.id).filter(Source.enabled.is_(True)).all()
         }
 
-        for item in raw_items:
+        for source_id, url, title in raw_items:
             # Priority 1: orphan source (source_id doesn't exist)
-            if item.source_id is None or item.source_id not in all_source_ids:
+            if source_id is None or source_id not in all_source_ids:
                 orphan_source += 1
                 continue
             # Priority 2: disabled source
-            if item.source_id not in enabled_source_ids:
+            if source_id not in enabled_source_ids:
                 disabled_source += 1
                 continue
             # Priority 3: missing url
-            if not (item.url and item.url.strip()):
+            if not (url and url.strip()):
                 missing_url += 1
                 continue
             # Priority 4: missing title
-            if not (item.title and item.title.strip()):
+            if not (title and title.strip()):
                 missing_title += 1
                 continue
 
