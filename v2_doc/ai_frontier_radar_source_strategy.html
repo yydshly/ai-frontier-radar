@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Frontier Radar｜全球 AI 信息入口策略调研</title>
+<style>
+:root {
+  --bg: #f6f8fb;
+  --panel: #ffffff;
+  --text: #172033;
+  --muted: #61708a;
+  --line: #dfe6f1;
+  --p0: #136f63;
+  --p0bg: #e7f7f3;
+  --p1: #9a6500;
+  --p1bg: #fff4d9;
+  --p2: #4f5f7a;
+  --p2bg: #eef2ff;
+  --p3: #747474;
+  --p3bg: #f1f1f1;
+  --blue: #275efe;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+}
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.hero {
+  padding: 56px 7vw 36px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 54%, #134e4a 100%);
+  color: #fff;
+}
+.hero h1 { margin: 0 0 14px; font-size: clamp(30px, 5vw, 54px); line-height: 1.1; }
+.hero p { margin: 8px 0; max-width: 1080px; font-size: 18px; color: rgba(255,255,255,.9); }
+.hero .sub { font-size: 15px; opacity: .82; }
+.container { width: min(1280px, 92vw); margin: 0 auto; padding: 28px 0 80px; }
+.notice {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--blue);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin: -18px 0 24px;
+  box-shadow: 0 8px 28px rgba(19, 33, 68, .08);
+}
+.notice strong { color: #0f2f85; }
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 24px 0;
+}
+.summary-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.04);
+}
+.summary-card h3 { margin: 0 0 8px; }
+.summary-card ul { margin: 8px 0 0 20px; padding: 0; }
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0 34px;
+}
+.category-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  min-height: 190px;
+  color: inherit;
+  box-shadow: 0 4px 16px rgba(0,0,0,.04);
+}
+.category-card:hover { transform: translateY(-2px); text-decoration: none; box-shadow: 0 10px 24px rgba(0,0,0,.08); }
+.card-top { display: flex; justify-content: space-between; align-items: center; }
+.cat-icon { font-size: 30px; line-height: 1; }
+.cat-icon.big { font-size: 38px; margin-right: 12px; }
+.category-card h3 { margin: 12px 0 8px; font-size: 18px; }
+.category-card p { color: var(--muted); margin: 0; font-size: 14px; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge.p0, .category-card.p0 { border-color: #99d8cf; }
+.badge.p0 { color: var(--p0); background: var(--p0bg); }
+.badge.p1 { color: var(--p1); background: var(--p1bg); }
+.badge.p2 { color: var(--p2); background: var(--p2bg); }
+.badge.p3 { color: var(--p3); background: var(--p3bg); }
+.category-card.p0 { background: linear-gradient(180deg, #ffffff 0%, #f1fffb 100%); }
+.cat-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px;
+  margin: 22px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,.04);
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+.section-title > div { display: flex; align-items: center; }
+.section-title h2 { margin: 0; font-size: 26px; }
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+.meta-grid div {
+  background: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
+  padding: 12px;
+}
+.meta-grid p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; min-width: 780px; background: #fff; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid #eef2f7; font-size: 14px; }
+th { background: #f3f6fb; color: #34405a; }
+tr:last-child td { border-bottom: 0; }
+.site-name { font-weight: 700; white-space: nowrap; }
+.toolbar {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(246,248,251,.94);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+  margin-bottom: 14px;
+}
+.searchbox {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  font-size: 16px;
+}
+.focus-table td:first-child { font-weight: 800; color: #0f766e; }
+.footer { color: var(--muted); font-size: 13px; text-align: center; padding: 36px 0; }
+@media (max-width: 980px) {
+  .summary-grid, .category-grid, .meta-grid { grid-template-columns: 1fr; }
+  .section-title { align-items: flex-start; flex-direction: column; }
+}
+@media print {
+  .toolbar { display: none; }
+  body { background: #fff; }
+  .cat-section, .summary-card, .category-card, .notice { box-shadow: none; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>AI Frontier Radar｜全球 AI 信息入口策略调研</h1>
+  <p>目标：从不同入口捕捉 AI 前沿变化信号，并转化为中文摘要、InsightCard、能力变化判断、产品机会与行动建议。</p>
+  <p class="sub">生成时间：2026-06-12 11:44｜说明：18 类是当前调研框架，不是永久上限；具体 URL 接入前需要执行可用性、RSS、robots、频率和内容质量验证。</p>
+</header>
+
+<main class="container">
+  <div class="notice">
+    <strong>结论：</strong>当前不应该把目标理解成“抓更多网站”，而应该理解成“从不同入口捕捉不同信号”。第一阶段重点关注 <strong>官方公告、API Docs/Changelog、Pricing、Benchmark、产品 Release Notes、人工 URL 输入</strong>；论文、开源、报告作为 P1；社区、招聘、投融资、政策、专利、安全作为 P2/P3。
+  </div>
+
+  <section class="summary-grid">
+    <div class="summary-card">
+      <h3>当前核心方向</h3>
+      <ul>
+        <li>稳定核心权威源</li>
+        <li>捕捉模型/API/价格变化</li>
+        <li>用榜单验证能力</li>
+        <li>保留人工高价值 URL</li>
+      </ul>
+    </div>
+    <div class="summary-card">
+      <h3>不是资讯站</h3>
+      <ul>
+        <li>不是翻译器</li>
+        <li>不是 RSS 阅读器</li>
+        <li>不是全网爬虫</li>
+        <li>是信息信号治理与洞察编译系统</li>
+      </ul>
+    </div>
+    <div class="summary-card">
+      <h3>入口接入原则</h3>
+      <ul>
+        <li>RSS 优先，HTML fallback</li>
+        <li>Docs/Pricing 用 diff</li>
+        <li>社区只做低权重线索</li>
+        <li>所有外部内容视为不可信输入</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="cat-section">
+    <div class="section-title"><div><span class="cat-icon big">🎯</span><h2>当前应该优先关注的方向</h2></div><span class="badge p0">P0 当前核心</span></div>
+    <div class="table-wrap">
+      <table class="focus-table">
+        <thead><tr><th>优先级</th><th>入口</th><th>原因</th></tr></thead>
+        <tbody>
+          <tr><td>P0-1</td><td>官方公告 / 官方博客</td><td>先稳定 OpenAI、Anthropic、DeepMind、xAI、Meta、NVIDIA、Microsoft、Mistral、Cohere、Hugging Face。</td></tr><tr><td>P0-2</td><td>API Docs / Changelog / Model List</td><td>这是最接近“能力变化”的入口，应作为下一阶段重点。</td></tr><tr><td>P0-3</td><td>Pricing / Quota / Plan</td><td>直接影响独立开发者成本、模型选型和商业机会。</td></tr><tr><td>P0-4</td><td>Benchmark / Leaderboard</td><td>用于验证官方说法，辅助判断模型能力与性价比。</td></tr><tr><td>P0-5</td><td>产品 Release Notes</td><td>跟踪 ChatGPT、Claude、Gemini、Grok、Cursor、MiniMax、视频/语音产品能力。</td></tr><tr><td>P0-6</td><td>人工 URL 输入</td><td>保留高价值手动入口，自动抓取无法覆盖所有信息。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="cat-section">
+    <div class="section-title"><div><span class="cat-icon big">🧭</span><h2>当前项目来源状态总结</h2></div><span class="badge p0">基于 AI Frontier Radar 当前阶段</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>类型</th><th>来源/缺口</th><th>建议</th></tr></thead>
+        <tbody>
+          <tr><td class='site-name'>已接入/已验证方向</td><td>OpenAI News, Anthropic News, DeepMind Blog, Hugging Face Blog, arXiv cs.AI/cs.CL/cs.LG, Stanford HAI, MIT News AI, Meta AI, NVIDIA AI, Microsoft AI, Berkeley BAIR, Mistral, Cohere</td><td>继续做健康监测和来源分级。</td></tr><tr><td class='site-name'>明显缺口</td><td>xAI / Grok</td><td>应加入候选来源池，但先验证官网 news/docs/pricing 是否稳定。</td></tr><tr><td class='site-name'>下一批高价值</td><td>OpenAI/Anthropic/Gemini/xAI Docs, Pricing, Model List, ChatGPT/Claude/Gemini/Grok release notes</td><td>比普通新闻更能捕捉能力变化。</td></tr><tr><td class='site-name'>暂缓</td><td>X/Twitter 自动抓取、Reddit 全量抓取、复杂爬虫、招聘/投融资/专利</td><td>噪音/复杂度高，放到 P2/P3。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <input class="searchbox" id="searchbox" placeholder="搜索入口、网站、URL、信号类型，例如：xAI / pricing / benchmark / GitHub / policy">
+  </div>
+
+  <h2>18 类信息入口总览</h2>
+  <div class="category-grid">
+    <a class='category-card p0' href='#cat-1'><div class='card-top'><span class='cat-icon'>🏢</span><span class='badge p0'>P0 当前核心</span></div><h3>1. 官方公告 / 官方新闻</h3><p>确认事实是否真实发生：模型发布、产品公告、安全声明、公司战略。</p></a><a class='category-card p0' href='#cat-2'><div class='card-top'><span class='cat-icon'>🧪</span><span class='badge p0'>P0/P1 当前重要</span></div><h3>2. 研究博客 / 技术博客</h3><p>理解技术意义：新方法、新架构、新评估、新工程实践。</p></a><a class='category-card p0' href='#cat-3'><div class='card-top'><span class='cat-icon'>📘</span><span class='badge p0'>P0 当前核心</span></div><h3>3. API Docs / Changelog / Model List</h3><p>捕捉开发者可用能力变化：新模型名、参数、上下文、工具调用、SDK、弃用信息。</p></a><a class='category-card p0' href='#cat-4'><div class='card-top'><span class='cat-icon'>💰</span><span class='badge p0'>P0 当前核心</span></div><h3>4. Pricing / Quota / Plan</h3><p>追踪成本、套餐、限额、计费方式变化，直接影响模型选型和独立开发者产品成本。</p></a><a class='category-card p0' href='#cat-5'><div class='card-top'><span class='cat-icon'>🏆</span><span class='badge p0'>P0 当前核心</span></div><h3>5. Benchmark / Leaderboard</h3><p>验证模型能力是否真的变化：代码、推理、综合偏好、多模态、视频、语音等。</p></a><a class='category-card p0' href='#cat-6'><div class='card-top'><span class='cat-icon'>🚀</span><span class='badge p0'>P0 当前核心</span></div><h3>6. 产品发布 / Release Notes / 能力矩阵</h3><p>追踪用户可见能力变化：ChatGPT、Claude、Gemini、Grok、Cursor、视频/语音产品等。</p></a><a class='category-card p1' href='#cat-7'><div class='card-top'><span class='cat-icon'>📄</span><span class='badge p1'>P1 下一阶段</span></div><h3>7. 论文 / 学术会议 / 早期研究</h3><p>发现早期技术趋势，但噪音高，需要强过滤。</p></a><a class='category-card p1' href='#cat-8'><div class='card-top'><span class='cat-icon'>🧰</span><span class='badge p1'>P1 下一阶段</span></div><h3>8. 开源生态 / GitHub / Hugging Face</h3><p>发现可用工具、框架、开源模型、开发者机会。</p></a><a class='category-card p1' href='#cat-9'><div class='card-top'><span class='cat-icon'>📊</span><span class='badge p1'>P1 下一阶段</span></div><h3>9. 行业报告 / 白皮书 / PDF</h3><p>低频高密度内容：趋势、产业、政策、风险、商业机会。</p></a><a class='category-card p2' href='#cat-10'><div class='card-top'><span class='cat-icon'>⚖️</span><span class='badge p2'>P2 后续扩展</span></div><h3>10. 政策 / 标准 / 合规</h3><p>AI 安全、版权、合规、企业部署门槛等长期风险。</p></a><a class='category-card p2' href='#cat-11'><div class='card-top'><span class='cat-icon'>💬</span><span class='badge p2'>P2 后续扩展</span></div><h3>11. 社区 / 热点线索</h3><p>发现早期讨论、用户反馈、争议、爆火产品。不是事实源，需回溯验证。</p></a><a class='category-card p2' href='#cat-12'><div class='card-top'><span class='cat-icon'>📰</span><span class='badge p2'>P2 后续扩展</span></div><h3>12. 二级聚合 / Newsletter / 媒体</h3><p>用别人筛选过的信息作为发现线索，但最终事实需回到原始来源。</p></a><a class='category-card p0' href='#cat-13'><div class='card-top'><span class='cat-icon'>✍️</span><span class='badge p0'>P0 当前核心机制</span></div><h3>13. 人工 URL / 私有输入</h3><p>自动抓取永远有盲区，保留人工发现入口是高质量补充机制。</p></a><a class='category-card p2' href='#cat-14'><div class='card-top'><span class='cat-icon'>👥</span><span class='badge p2'>P2 后续扩展</span></div><h3>14. 招聘 / 岗位信号</h3><p>岗位变化能提前暴露公司战略方向：Agent infra、video、robotics、安全评估等。</p></a><a class='category-card p2' href='#cat-15'><div class='card-top'><span class='cat-icon'>💼</span><span class='badge p2'>P2 后续扩展</span></div><h3>15. 投融资 / 并购 / 资本信号</h3><p>判断赛道升温、公司格局、商业化速度。</p></a><a class='category-card p3' href='#cat-16'><div class='card-top'><span class='cat-icon'>🧾</span><span class='badge p3'>P3 低频长期</span></div><h3>16. 专利 / 技术布局</h3><p>大公司长期方向可能先出现在专利里，但噪音很高。</p></a><a class='category-card p2' href='#cat-17'><div class='card-top'><span class='cat-icon'>🏭</span><span class='badge p2'>P2 后续扩展</span></div><h3>17. 企业案例 / 落地场景</h3><p>判断哪些 AI 能力真正开始被企业采用，识别可商业化场景。</p></a><a class='category-card p2' href='#cat-18'><div class='card-top'><span class='cat-icon'>🛡️</span><span class='badge p2'>P2 后续扩展</span></div><h3>18. 安全事故 / 风险信号</h3><p>AI 安全、越狱、泄露、滥用、模型事故，低频但高影响。</p></a>
+  </div>
+
+  
+        <section class="cat-section" id="cat-1">
+          <div class="section-title">
+            <div><span class="cat-icon big">🏢</span><h2>1. 官方公告 / 官方新闻</h2></div>
+            <span class="badge p0">P0 当前核心</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>确认事实是否真实发生：模型发布、产品公告、安全声明、公司战略。</p></div>
+            <div><strong>获取策略</strong><p>RSS 优先；无 RSS 时 HTML index；重要但不稳定来源可先 manual URL。</p></div>
+            <div><strong>典型信号</strong><p>model_release, product_launch, safety_notice, company_strategy</p></div>
+            <div><strong>输出形态</strong><p>事实卡、发布摘要、影响判断、后续待验证项</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>OpenAI News</td><td><a href='https://openai.com/news/' target='_blank' rel='noopener noreferrer'>https://openai.com/news/</a></td><td>RSS: https://openai.com/news/rss.xml</td></tr>
+<tr><td class='site-name'>Anthropic News</td><td><a href='https://www.anthropic.com/news' target='_blank' rel='noopener noreferrer'>https://www.anthropic.com/news</a></td><td>HTML index / 官方公告</td></tr>
+<tr><td class='site-name'>Google DeepMind Blog</td><td><a href='https://deepmind.google/discover/blog/' target='_blank' rel='noopener noreferrer'>https://deepmind.google/discover/blog/</a></td><td>RSS: https://deepmind.google/discover/blog/feed</td></tr>
+<tr><td class='site-name'>Google AI Blog</td><td><a href='https://blog.google/technology/ai/' target='_blank' rel='noopener noreferrer'>https://blog.google/technology/ai/</a></td><td>Google 官方 AI 动态</td></tr>
+<tr><td class='site-name'>xAI News</td><td><a href='https://x.ai/news' target='_blank' rel='noopener noreferrer'>https://x.ai/news</a></td><td>Grok / xAI 官方动态，需验证抓取方式</td></tr>
+<tr><td class='site-name'>Meta AI Blog</td><td><a href='https://ai.meta.com/blog/' target='_blank' rel='noopener noreferrer'>https://ai.meta.com/blog/</a></td><td>HTML index，抓取稳定性需持续观察</td></tr>
+<tr><td class='site-name'>Microsoft AI Source</td><td><a href='https://news.microsoft.com/source/topics/ai/' target='_blank' rel='noopener noreferrer'>https://news.microsoft.com/source/topics/ai/</a></td><td>Microsoft 官方 AI 新闻聚合</td></tr>
+<tr><td class='site-name'>NVIDIA AI Blog</td><td><a href='https://blogs.nvidia.com/blog/category/generative-ai/' target='_blank' rel='noopener noreferrer'>https://blogs.nvidia.com/blog/category/generative-ai/</a></td><td>RSS: /feed</td></tr>
+<tr><td class='site-name'>Mistral AI News</td><td><a href='https://mistral.ai/news/' target='_blank' rel='noopener noreferrer'>https://mistral.ai/news/</a></td><td>官方新闻，HTML index</td></tr>
+<tr><td class='site-name'>Cohere Blog</td><td><a href='https://cohere.com/blog' target='_blank' rel='noopener noreferrer'>https://cohere.com/blog</a></td><td>企业 LLM / RAG 官方博客</td></tr>
+<tr><td class='site-name'>Hugging Face Blog</td><td><a href='https://huggingface.co/blog' target='_blank' rel='noopener noreferrer'>https://huggingface.co/blog</a></td><td>RSS: https://huggingface.co/blog/feed.xml</td></tr>
+<tr><td class='site-name'>AWS Machine Learning Blog</td><td><a href='https://aws.amazon.com/blogs/machine-learning/' target='_blank' rel='noopener noreferrer'>https://aws.amazon.com/blogs/machine-learning/</a></td><td>云厂商 AI / Bedrock 生态</td></tr>
+<tr><td class='site-name'>Databricks Blog - AI</td><td><a href='https://www.databricks.com/blog/category/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.databricks.com/blog/category/artificial-intelligence</a></td><td>企业数据 + AI</td></tr>
+<tr><td class='site-name'>Snowflake Blog - AI</td><td><a href='https://www.snowflake.com/en/blog/category/ai-ml/' target='_blank' rel='noopener noreferrer'>https://www.snowflake.com/en/blog/category/ai-ml/</a></td><td>企业数据云 + AI</td></tr>
+<tr><td class='site-name'>Salesforce AI Blog</td><td><a href='https://www.salesforce.com/blog/category/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://www.salesforce.com/blog/category/artificial-intelligence/</a></td><td>企业 AI / Agent</td></tr>
+<tr><td class='site-name'>Adobe Firefly / AI Blog</td><td><a href='https://blog.adobe.com/en/topics/ai' target='_blank' rel='noopener noreferrer'>https://blog.adobe.com/en/topics/ai</a></td><td>创意 AI</td></tr>
+<tr><td class='site-name'>Runway Blog</td><td><a href='https://runwayml.com/blog' target='_blank' rel='noopener noreferrer'>https://runwayml.com/blog</a></td><td>视频生成产品动态</td></tr>
+<tr><td class='site-name'>ElevenLabs Blog</td><td><a href='https://elevenlabs.io/blog' target='_blank' rel='noopener noreferrer'>https://elevenlabs.io/blog</a></td><td>语音 / TTS / dubbing</td></tr>
+<tr><td class='site-name'>Perplexity Blog</td><td><a href='https://www.perplexity.ai/hub/blog' target='_blank' rel='noopener noreferrer'>https://www.perplexity.ai/hub/blog</a></td><td>AI 搜索产品动态</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-2">
+          <div class="section-title">
+            <div><span class="cat-icon big">🧪</span><h2>2. 研究博客 / 技术博客</h2></div>
+            <span class="badge p0">P0/P1 当前重要</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>理解技术意义：新方法、新架构、新评估、新工程实践。</p></div>
+            <div><strong>获取策略</strong><p>RSS / HTML index；按主题关键词和机构权重筛选；不全量摘要。</p></div>
+            <div><strong>典型信号</strong><p>research_direction, technical_method, architecture_change, engineering_pattern</p></div>
+            <div><strong>输出形态</strong><p>技术洞察卡、方法摘要、可落地启发</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>Google Research Blog</td><td><a href='https://research.google/blog/' target='_blank' rel='noopener noreferrer'>https://research.google/blog/</a></td><td>Google Research 官方博客</td></tr>
+<tr><td class='site-name'>Google DeepMind Research</td><td><a href='https://deepmind.google/discover/blog/' target='_blank' rel='noopener noreferrer'>https://deepmind.google/discover/blog/</a></td><td>Gemini / AI for Science / RL</td></tr>
+<tr><td class='site-name'>OpenAI Research</td><td><a href='https://openai.com/research/' target='_blank' rel='noopener noreferrer'>https://openai.com/research/</a></td><td>研究与系统卡</td></tr>
+<tr><td class='site-name'>Anthropic Research</td><td><a href='https://www.anthropic.com/research' target='_blank' rel='noopener noreferrer'>https://www.anthropic.com/research</a></td><td>AI safety / interpretability / agents</td></tr>
+<tr><td class='site-name'>Meta AI Research</td><td><a href='https://ai.meta.com/research/' target='_blank' rel='noopener noreferrer'>https://ai.meta.com/research/</a></td><td>Llama / FAIR / multimodal</td></tr>
+<tr><td class='site-name'>Microsoft Research AI</td><td><a href='https://www.microsoft.com/en-us/research/research-area/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://www.microsoft.com/en-us/research/research-area/artificial-intelligence/</a></td><td>MSR AI 研究</td></tr>
+<tr><td class='site-name'>NVIDIA Technical Blog - AI</td><td><a href='https://developer.nvidia.com/blog/category/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://developer.nvidia.com/blog/category/artificial-intelligence/</a></td><td>GPU / inference / robotics</td></tr>
+<tr><td class='site-name'>Berkeley BAIR Blog</td><td><a href='https://bair.berkeley.edu/blog/' target='_blank' rel='noopener noreferrer'>https://bair.berkeley.edu/blog/</a></td><td>RSS: https://bair.berkeley.edu/blog/feed</td></tr>
+<tr><td class='site-name'>Stanford HAI</td><td><a href='https://hai.stanford.edu/news' target='_blank' rel='noopener noreferrer'>https://hai.stanford.edu/news</a></td><td>AI policy / society / research</td></tr>
+<tr><td class='site-name'>MIT News AI</td><td><a href='https://news.mit.edu/topic/artificial-intelligence2' target='_blank' rel='noopener noreferrer'>https://news.mit.edu/topic/artificial-intelligence2</a></td><td>MIT AI 研究动态</td></tr>
+<tr><td class='site-name'>MIT CSAIL News</td><td><a href='https://www.csail.mit.edu/news' target='_blank' rel='noopener noreferrer'>https://www.csail.mit.edu/news</a></td><td>CSAIL 研究</td></tr>
+<tr><td class='site-name'>CMU ML Blog</td><td><a href='https://blog.ml.cmu.edu/' target='_blank' rel='noopener noreferrer'>https://blog.ml.cmu.edu/</a></td><td>ML 研究博客</td></tr>
+<tr><td class='site-name'>Allen Institute for AI Blog</td><td><a href='https://allenai.org/blog' target='_blank' rel='noopener noreferrer'>https://allenai.org/blog</a></td><td>AI2 研究</td></tr>
+<tr><td class='site-name'>Sakana AI Blog</td><td><a href='https://sakana.ai/blog/' target='_blank' rel='noopener noreferrer'>https://sakana.ai/blog/</a></td><td>日本前沿研究公司</td></tr>
+<tr><td class='site-name'>EleutherAI Blog</td><td><a href='https://blog.eleuther.ai/' target='_blank' rel='noopener noreferrer'>https://blog.eleuther.ai/</a></td><td>开源研究社区</td></tr>
+<tr><td class='site-name'>LangChain Blog</td><td><a href='https://blog.langchain.com/' target='_blank' rel='noopener noreferrer'>https://blog.langchain.com/</a></td><td>Agent / LangGraph / LLM app engineering</td></tr>
+<tr><td class='site-name'>LlamaIndex Blog</td><td><a href='https://www.llamaindex.ai/blog' target='_blank' rel='noopener noreferrer'>https://www.llamaindex.ai/blog</a></td><td>RAG / agentic knowledge workflows</td></tr>
+<tr><td class='site-name'>Weights &amp; Biases Blog</td><td><a href='https://wandb.ai/site/articles/' target='_blank' rel='noopener noreferrer'>https://wandb.ai/site/articles/</a></td><td>模型训练 / MLOps</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-3">
+          <div class="section-title">
+            <div><span class="cat-icon big">📘</span><h2>3. API Docs / Changelog / Model List</h2></div>
+            <span class="badge p0">P0 当前核心</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>捕捉开发者可用能力变化：新模型名、参数、上下文、工具调用、SDK、弃用信息。</p></div>
+            <div><strong>获取策略</strong><p>Docs diff；模型列表页定期快照；changelog 解析；字段化抽取。</p></div>
+            <div><strong>典型信号</strong><p>api_change, model_list_change, context_window_change, tool_call_change, deprecation</p></div>
+            <div><strong>输出形态</strong><p>能力变化卡、开发者影响、接入建议</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>OpenAI Docs</td><td><a href='https://platform.openai.com/docs' target='_blank' rel='noopener noreferrer'>https://platform.openai.com/docs</a></td><td>核心 docs</td></tr>
+<tr><td class='site-name'>OpenAI Models</td><td><a href='https://platform.openai.com/docs/models' target='_blank' rel='noopener noreferrer'>https://platform.openai.com/docs/models</a></td><td>模型列表</td></tr>
+<tr><td class='site-name'>OpenAI Changelog</td><td><a href='https://platform.openai.com/docs/changelog' target='_blank' rel='noopener noreferrer'>https://platform.openai.com/docs/changelog</a></td><td>API 变更</td></tr>
+<tr><td class='site-name'>Anthropic Docs</td><td><a href='https://docs.anthropic.com/' target='_blank' rel='noopener noreferrer'>https://docs.anthropic.com/</a></td><td>Claude API docs</td></tr>
+<tr><td class='site-name'>Anthropic Release Notes</td><td><a href='https://docs.anthropic.com/en/release-notes/overview' target='_blank' rel='noopener noreferrer'>https://docs.anthropic.com/en/release-notes/overview</a></td><td>release notes</td></tr>
+<tr><td class='site-name'>Anthropic Models</td><td><a href='https://docs.anthropic.com/en/docs/about-claude/models' target='_blank' rel='noopener noreferrer'>https://docs.anthropic.com/en/docs/about-claude/models</a></td><td>Claude 模型列表</td></tr>
+<tr><td class='site-name'>Google Gemini API Docs</td><td><a href='https://ai.google.dev/gemini-api/docs' target='_blank' rel='noopener noreferrer'>https://ai.google.dev/gemini-api/docs</a></td><td>Gemini API</td></tr>
+<tr><td class='site-name'>Gemini Models</td><td><a href='https://ai.google.dev/gemini-api/docs/models' target='_blank' rel='noopener noreferrer'>https://ai.google.dev/gemini-api/docs/models</a></td><td>模型列表</td></tr>
+<tr><td class='site-name'>Google AI Studio Release Notes</td><td><a href='https://ai.google.dev/gemini-api/docs/release-notes' target='_blank' rel='noopener noreferrer'>https://ai.google.dev/gemini-api/docs/release-notes</a></td><td>release notes</td></tr>
+<tr><td class='site-name'>xAI Docs</td><td><a href='https://docs.x.ai/' target='_blank' rel='noopener noreferrer'>https://docs.x.ai/</a></td><td>Grok API docs，需验证结构</td></tr>
+<tr><td class='site-name'>xAI Models</td><td><a href='https://docs.x.ai/docs/models' target='_blank' rel='noopener noreferrer'>https://docs.x.ai/docs/models</a></td><td>Grok 模型列表，需验证</td></tr>
+<tr><td class='site-name'>Mistral Docs</td><td><a href='https://docs.mistral.ai/' target='_blank' rel='noopener noreferrer'>https://docs.mistral.ai/</a></td><td>Mistral API</td></tr>
+<tr><td class='site-name'>Cohere Docs</td><td><a href='https://docs.cohere.com/' target='_blank' rel='noopener noreferrer'>https://docs.cohere.com/</a></td><td>Cohere API</td></tr>
+<tr><td class='site-name'>Hugging Face Docs</td><td><a href='https://huggingface.co/docs' target='_blank' rel='noopener noreferrer'>https://huggingface.co/docs</a></td><td>HF 生态 docs</td></tr>
+<tr><td class='site-name'>Together AI Docs</td><td><a href='https://docs.together.ai/' target='_blank' rel='noopener noreferrer'>https://docs.together.ai/</a></td><td>模型聚合/推理</td></tr>
+<tr><td class='site-name'>Fireworks AI Docs</td><td><a href='https://docs.fireworks.ai/' target='_blank' rel='noopener noreferrer'>https://docs.fireworks.ai/</a></td><td>推理平台</td></tr>
+<tr><td class='site-name'>Groq Docs</td><td><a href='https://console.groq.com/docs/overview' target='_blank' rel='noopener noreferrer'>https://console.groq.com/docs/overview</a></td><td>高速推理平台</td></tr>
+<tr><td class='site-name'>Replicate Docs</td><td><a href='https://replicate.com/docs' target='_blank' rel='noopener noreferrer'>https://replicate.com/docs</a></td><td>模型部署/调用</td></tr>
+<tr><td class='site-name'>Perplexity API Docs</td><td><a href='https://docs.perplexity.ai/' target='_blank' rel='noopener noreferrer'>https://docs.perplexity.ai/</a></td><td>AI search API</td></tr>
+<tr><td class='site-name'>MiniMax Docs</td><td><a href='https://www.minimax.io/platform/document' target='_blank' rel='noopener noreferrer'>https://www.minimax.io/platform/document</a></td><td>MiniMax API 文档，需根据地区核对</td></tr>
+<tr><td class='site-name'>DeepSeek API Docs</td><td><a href='https://api-docs.deepseek.com/' target='_blank' rel='noopener noreferrer'>https://api-docs.deepseek.com/</a></td><td>DeepSeek API</td></tr>
+<tr><td class='site-name'>Qwen Docs</td><td><a href='https://help.aliyun.com/zh/model-studio/' target='_blank' rel='noopener noreferrer'>https://help.aliyun.com/zh/model-studio/</a></td><td>通义千问 / DashScope</td></tr>
+<tr><td class='site-name'>ElevenLabs Docs</td><td><a href='https://elevenlabs.io/docs' target='_blank' rel='noopener noreferrer'>https://elevenlabs.io/docs</a></td><td>TTS / speech docs</td></tr>
+<tr><td class='site-name'>Runway API Docs</td><td><a href='https://docs.dev.runwayml.com/' target='_blank' rel='noopener noreferrer'>https://docs.dev.runwayml.com/</a></td><td>视频生成 API</td></tr>
+<tr><td class='site-name'>Stability AI Docs</td><td><a href='https://platform.stability.ai/docs' target='_blank' rel='noopener noreferrer'>https://platform.stability.ai/docs</a></td><td>图像/视频生成 API</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-4">
+          <div class="section-title">
+            <div><span class="cat-icon big">💰</span><h2>4. Pricing / Quota / Plan</h2></div>
+            <span class="badge p0">P0 当前核心</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>追踪成本、套餐、限额、计费方式变化，直接影响模型选型和独立开发者产品成本。</p></div>
+            <div><strong>获取策略</strong><p>价格页快照；结构化抽取 input/output 价格、套餐、免费额度、限额。</p></div>
+            <div><strong>典型信号</strong><p>pricing_change, quota_change, plan_change, rate_limit_change, commercial_opportunity</p></div>
+            <div><strong>输出形态</strong><p>价格变化卡、成本判断、模型选型建议</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>OpenAI API Pricing</td><td><a href='https://openai.com/api/pricing/' target='_blank' rel='noopener noreferrer'>https://openai.com/api/pricing/</a></td><td>API 定价</td></tr>
+<tr><td class='site-name'>Anthropic Pricing</td><td><a href='https://docs.anthropic.com/en/docs/about-claude/pricing' target='_blank' rel='noopener noreferrer'>https://docs.anthropic.com/en/docs/about-claude/pricing</a></td><td>Claude API 定价</td></tr>
+<tr><td class='site-name'>Google Gemini Pricing</td><td><a href='https://ai.google.dev/gemini-api/docs/pricing' target='_blank' rel='noopener noreferrer'>https://ai.google.dev/gemini-api/docs/pricing</a></td><td>Gemini API 定价</td></tr>
+<tr><td class='site-name'>Google Vertex AI Pricing</td><td><a href='https://cloud.google.com/vertex-ai/generative-ai/pricing' target='_blank' rel='noopener noreferrer'>https://cloud.google.com/vertex-ai/generative-ai/pricing</a></td><td>企业云定价</td></tr>
+<tr><td class='site-name'>xAI Pricing</td><td><a href='https://docs.x.ai/docs/models' target='_blank' rel='noopener noreferrer'>https://docs.x.ai/docs/models</a></td><td>价格/模型页需验证</td></tr>
+<tr><td class='site-name'>Mistral Pricing</td><td><a href='https://docs.mistral.ai/platform/pricing/' target='_blank' rel='noopener noreferrer'>https://docs.mistral.ai/platform/pricing/</a></td><td>Mistral API 价格</td></tr>
+<tr><td class='site-name'>Cohere Pricing</td><td><a href='https://cohere.com/pricing' target='_blank' rel='noopener noreferrer'>https://cohere.com/pricing</a></td><td>Cohere 定价</td></tr>
+<tr><td class='site-name'>Together Pricing</td><td><a href='https://www.together.ai/pricing' target='_blank' rel='noopener noreferrer'>https://www.together.ai/pricing</a></td><td>模型推理定价</td></tr>
+<tr><td class='site-name'>Fireworks Pricing</td><td><a href='https://fireworks.ai/pricing' target='_blank' rel='noopener noreferrer'>https://fireworks.ai/pricing</a></td><td>推理平台</td></tr>
+<tr><td class='site-name'>Groq Pricing</td><td><a href='https://groq.com/pricing/' target='_blank' rel='noopener noreferrer'>https://groq.com/pricing/</a></td><td>高速推理</td></tr>
+<tr><td class='site-name'>Replicate Pricing</td><td><a href='https://replicate.com/pricing' target='_blank' rel='noopener noreferrer'>https://replicate.com/pricing</a></td><td>模型运行定价</td></tr>
+<tr><td class='site-name'>Perplexity Pricing</td><td><a href='https://docs.perplexity.ai/guides/pricing' target='_blank' rel='noopener noreferrer'>https://docs.perplexity.ai/guides/pricing</a></td><td>API pricing</td></tr>
+<tr><td class='site-name'>DeepSeek Pricing</td><td><a href='https://api-docs.deepseek.com/quick_start/pricing' target='_blank' rel='noopener noreferrer'>https://api-docs.deepseek.com/quick_start/pricing</a></td><td>DeepSeek API 价格</td></tr>
+<tr><td class='site-name'>MiniMax Pricing</td><td><a href='https://www.minimax.io/platform/price' target='_blank' rel='noopener noreferrer'>https://www.minimax.io/platform/price</a></td><td>需根据 Token Plan / 国际站核对</td></tr>
+<tr><td class='site-name'>Hugging Face Pricing</td><td><a href='https://huggingface.co/pricing' target='_blank' rel='noopener noreferrer'>https://huggingface.co/pricing</a></td><td>平台与推理端点</td></tr>
+<tr><td class='site-name'>AWS Bedrock Pricing</td><td><a href='https://aws.amazon.com/bedrock/pricing/' target='_blank' rel='noopener noreferrer'>https://aws.amazon.com/bedrock/pricing/</a></td><td>企业云模型调用</td></tr>
+<tr><td class='site-name'>Azure OpenAI Pricing</td><td><a href='https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/' target='_blank' rel='noopener noreferrer'>https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/</a></td><td>Azure OpenAI</td></tr>
+<tr><td class='site-name'>RunPod Pricing</td><td><a href='https://www.runpod.io/pricing' target='_blank' rel='noopener noreferrer'>https://www.runpod.io/pricing</a></td><td>GPU / serverless</td></tr>
+<tr><td class='site-name'>Lambda Cloud Pricing</td><td><a href='https://lambda.ai/service/gpu-cloud/pricing' target='_blank' rel='noopener noreferrer'>https://lambda.ai/service/gpu-cloud/pricing</a></td><td>GPU cloud</td></tr>
+<tr><td class='site-name'>Modal Pricing</td><td><a href='https://modal.com/pricing' target='_blank' rel='noopener noreferrer'>https://modal.com/pricing</a></td><td>serverless GPU</td></tr>
+<tr><td class='site-name'>Baseten Pricing</td><td><a href='https://www.baseten.co/pricing/' target='_blank' rel='noopener noreferrer'>https://www.baseten.co/pricing/</a></td><td>模型部署</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-5">
+          <div class="section-title">
+            <div><span class="cat-icon big">🏆</span><h2>5. Benchmark / Leaderboard</h2></div>
+            <span class="badge p0">P0 当前核心</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>验证模型能力是否真的变化：代码、推理、综合偏好、多模态、视频、语音等。</p></div>
+            <div><strong>获取策略</strong><p>榜单快照；结构化记录模型、分数、排名、日期；和官方发布交叉验证。</p></div>
+            <div><strong>典型信号</strong><p>benchmark_delta, model_rank_change, coding_ability, reasoning_ability, multimodal_quality</p></div>
+            <div><strong>输出形态</strong><p>能力验证卡、模型对比、选型参考</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>Arena / LMArena</td><td><a href='https://arena.ai/' target='_blank' rel='noopener noreferrer'>https://arena.ai/</a></td><td>用户投票/匿名模型对战</td></tr>
+<tr><td class='site-name'>Artificial Analysis</td><td><a href='https://artificialanalysis.ai/' target='_blank' rel='noopener noreferrer'>https://artificialanalysis.ai/</a></td><td>模型质量/速度/价格综合</td></tr>
+<tr><td class='site-name'>SWE-bench</td><td><a href='https://www.swebench.com/' target='_blank' rel='noopener noreferrer'>https://www.swebench.com/</a></td><td>真实软件工程修复能力</td></tr>
+<tr><td class='site-name'>SWE-bench Verified</td><td><a href='https://www.swebench.com/' target='_blank' rel='noopener noreferrer'>https://www.swebench.com/</a></td><td>代码 Agent 重点关注</td></tr>
+<tr><td class='site-name'>LiveCodeBench</td><td><a href='https://livecodebench.github.io/' target='_blank' rel='noopener noreferrer'>https://livecodebench.github.io/</a></td><td>代码能力</td></tr>
+<tr><td class='site-name'>Aider LLM Leaderboards</td><td><a href='https://aider.chat/docs/leaderboards/' target='_blank' rel='noopener noreferrer'>https://aider.chat/docs/leaderboards/</a></td><td>代码编辑/真实仓库任务</td></tr>
+<tr><td class='site-name'>HELM</td><td><a href='https://crfm.stanford.edu/helm/latest/' target='_blank' rel='noopener noreferrer'>https://crfm.stanford.edu/helm/latest/</a></td><td>Stanford CRFM 综合评测</td></tr>
+<tr><td class='site-name'>Hugging Face Open LLM Leaderboard</td><td><a href='https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard' target='_blank' rel='noopener noreferrer'>https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard</a></td><td>开源模型榜单</td></tr>
+<tr><td class='site-name'>Papers with Code SOTA</td><td><a href='https://paperswithcode.com/sota' target='_blank' rel='noopener noreferrer'>https://paperswithcode.com/sota</a></td><td>任务 SOTA</td></tr>
+<tr><td class='site-name'>BigCodeBench</td><td><a href='https://bigcode-bench.github.io/' target='_blank' rel='noopener noreferrer'>https://bigcode-bench.github.io/</a></td><td>代码生成评测</td></tr>
+<tr><td class='site-name'>MMMU</td><td><a href='https://mmmu-benchmark.github.io/' target='_blank' rel='noopener noreferrer'>https://mmmu-benchmark.github.io/</a></td><td>多模态理解</td></tr>
+<tr><td class='site-name'>MMLU-Pro</td><td><a href='https://github.com/TIGER-AI-Lab/MMLU-Pro' target='_blank' rel='noopener noreferrer'>https://github.com/TIGER-AI-Lab/MMLU-Pro</a></td><td>通用知识/推理</td></tr>
+<tr><td class='site-name'>GPQA / Eval resources</td><td><a href='https://github.com/idavidrein/gpqa' target='_blank' rel='noopener noreferrer'>https://github.com/idavidrein/gpqa</a></td><td>研究级问答评测</td></tr>
+<tr><td class='site-name'>VBench</td><td><a href='https://vchitect.github.io/VBench-project/' target='_blank' rel='noopener noreferrer'>https://vchitect.github.io/VBench-project/</a></td><td>视频生成评测</td></tr>
+<tr><td class='site-name'>T2I-CompBench</td><td><a href='https://github.com/Karine-Huang/T2I-CompBench' target='_blank' rel='noopener noreferrer'>https://github.com/Karine-Huang/T2I-CompBench</a></td><td>文生图组合能力</td></tr>
+<tr><td class='site-name'>Chatbot Arena Papers</td><td><a href='https://lmsys.org/blog/' target='_blank' rel='noopener noreferrer'>https://lmsys.org/blog/</a></td><td>Arena 方法和更新</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-6">
+          <div class="section-title">
+            <div><span class="cat-icon big">🚀</span><h2>6. 产品发布 / Release Notes / 能力矩阵</h2></div>
+            <span class="badge p0">P0 当前核心</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>追踪用户可见能力变化：ChatGPT、Claude、Gemini、Grok、Cursor、视频/语音产品等。</p></div>
+            <div><strong>获取策略</strong><p>release notes / changelog / product updates 抓取；和 docs/pricing/benchmark 联动。</p></div>
+            <div><strong>典型信号</strong><p>product_feature, user_capability_change, agent_feature, coding_tool_change</p></div>
+            <div><strong>输出形态</strong><p>产品能力变化卡、体验判断、可落地场景</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>ChatGPT Release Notes</td><td><a href='https://help.openai.com/en/articles/6825453-chatgpt-release-notes' target='_blank' rel='noopener noreferrer'>https://help.openai.com/en/articles/6825453-chatgpt-release-notes</a></td><td>ChatGPT 功能更新</td></tr>
+<tr><td class='site-name'>Claude Release Notes</td><td><a href='https://docs.anthropic.com/en/release-notes/overview' target='_blank' rel='noopener noreferrer'>https://docs.anthropic.com/en/release-notes/overview</a></td><td>Claude / API release notes</td></tr>
+<tr><td class='site-name'>Gemini Apps Release Updates</td><td><a href='https://gemini.google.com/updates' target='_blank' rel='noopener noreferrer'>https://gemini.google.com/updates</a></td><td>Gemini 用户端更新</td></tr>
+<tr><td class='site-name'>Google Workspace Updates - Gemini</td><td><a href='https://workspaceupdates.googleblog.com/' target='_blank' rel='noopener noreferrer'>https://workspaceupdates.googleblog.com/</a></td><td>企业侧 Gemini 更新</td></tr>
+<tr><td class='site-name'>Grok / xAI</td><td><a href='https://x.ai/' target='_blank' rel='noopener noreferrer'>https://x.ai/</a></td><td>产品与模型入口</td></tr>
+<tr><td class='site-name'>Perplexity Blog</td><td><a href='https://www.perplexity.ai/hub/blog' target='_blank' rel='noopener noreferrer'>https://www.perplexity.ai/hub/blog</a></td><td>AI 搜索产品</td></tr>
+<tr><td class='site-name'>Cursor Changelog</td><td><a href='https://cursor.com/changelog' target='_blank' rel='noopener noreferrer'>https://cursor.com/changelog</a></td><td>AI 编程工具</td></tr>
+<tr><td class='site-name'>Windsurf Blog</td><td><a href='https://windsurf.com/blog' target='_blank' rel='noopener noreferrer'>https://windsurf.com/blog</a></td><td>AI 编程工具</td></tr>
+<tr><td class='site-name'>GitHub Copilot Changelog</td><td><a href='https://github.blog/changelog/label/copilot/' target='_blank' rel='noopener noreferrer'>https://github.blog/changelog/label/copilot/</a></td><td>Copilot 更新</td></tr>
+<tr><td class='site-name'>Replit Blog</td><td><a href='https://blog.replit.com/' target='_blank' rel='noopener noreferrer'>https://blog.replit.com/</a></td><td>开发者/Agentic coding</td></tr>
+<tr><td class='site-name'>Lovable Blog</td><td><a href='https://lovable.dev/blog' target='_blank' rel='noopener noreferrer'>https://lovable.dev/blog</a></td><td>AI App Builder</td></tr>
+<tr><td class='site-name'>Bolt.new Blog</td><td><a href='https://blog.stackblitz.com/' target='_blank' rel='noopener noreferrer'>https://blog.stackblitz.com/</a></td><td>AI app builder / StackBlitz</td></tr>
+<tr><td class='site-name'>Vercel v0</td><td><a href='https://v0.dev/' target='_blank' rel='noopener noreferrer'>https://v0.dev/</a></td><td>UI/code generation 产品</td></tr>
+<tr><td class='site-name'>Runway Updates</td><td><a href='https://runwayml.com/blog' target='_blank' rel='noopener noreferrer'>https://runwayml.com/blog</a></td><td>视频生成</td></tr>
+<tr><td class='site-name'>Pika</td><td><a href='https://pika.art/' target='_blank' rel='noopener noreferrer'>https://pika.art/</a></td><td>视频生成产品</td></tr>
+<tr><td class='site-name'>Luma AI</td><td><a href='https://lumalabs.ai/' target='_blank' rel='noopener noreferrer'>https://lumalabs.ai/</a></td><td>Dream Machine / video</td></tr>
+<tr><td class='site-name'>Kling AI</td><td><a href='https://klingai.com/' target='_blank' rel='noopener noreferrer'>https://klingai.com/</a></td><td>视频生成</td></tr>
+<tr><td class='site-name'>ElevenLabs Blog</td><td><a href='https://elevenlabs.io/blog' target='_blank' rel='noopener noreferrer'>https://elevenlabs.io/blog</a></td><td>语音/播客/配音</td></tr>
+<tr><td class='site-name'>HeyGen Blog</td><td><a href='https://www.heygen.com/blog' target='_blank' rel='noopener noreferrer'>https://www.heygen.com/blog</a></td><td>数字人/视频</td></tr>
+<tr><td class='site-name'>Synthesia Blog</td><td><a href='https://www.synthesia.io/blog' target='_blank' rel='noopener noreferrer'>https://www.synthesia.io/blog</a></td><td>企业数字人视频</td></tr>
+<tr><td class='site-name'>MiniMax</td><td><a href='https://www.minimax.io/' target='_blank' rel='noopener noreferrer'>https://www.minimax.io/</a></td><td>模型/语音/视频能力</td></tr>
+<tr><td class='site-name'>DeepSeek</td><td><a href='https://www.deepseek.com/' target='_blank' rel='noopener noreferrer'>https://www.deepseek.com/</a></td><td>模型产品/官方动态</td></tr>
+<tr><td class='site-name'>Qwen</td><td><a href='https://qwenlm.github.io/' target='_blank' rel='noopener noreferrer'>https://qwenlm.github.io/</a></td><td>通义千问开源与模型动态</td></tr>
+<tr><td class='site-name'>Moonshot Kimi</td><td><a href='https://kimi.moonshot.cn/' target='_blank' rel='noopener noreferrer'>https://kimi.moonshot.cn/</a></td><td>长上下文/中文模型</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-7">
+          <div class="section-title">
+            <div><span class="cat-icon big">📄</span><h2>7. 论文 / 学术会议 / 早期研究</h2></div>
+            <span class="badge p1">P1 下一阶段</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>发现早期技术趋势，但噪音高，需要强过滤。</p></div>
+            <div><strong>获取策略</strong><p>Feed + 关键词/作者/机构筛选；更适合周报/专题，不宜全量进日报。</p></div>
+            <div><strong>典型信号</strong><p>research_trend, paper_signal, new_method, benchmark_proposal</p></div>
+            <div><strong>输出形态</strong><p>研究趋势卡、论文简报、技术储备</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>arXiv cs.AI</td><td><a href='https://export.arxiv.org/rss/cs.AI' target='_blank' rel='noopener noreferrer'>https://export.arxiv.org/rss/cs.AI</a></td><td>AI 论文 RSS</td></tr>
+<tr><td class='site-name'>arXiv cs.CL</td><td><a href='https://export.arxiv.org/rss/cs.CL' target='_blank' rel='noopener noreferrer'>https://export.arxiv.org/rss/cs.CL</a></td><td>NLP/LLM</td></tr>
+<tr><td class='site-name'>arXiv cs.LG</td><td><a href='https://export.arxiv.org/rss/cs.LG' target='_blank' rel='noopener noreferrer'>https://export.arxiv.org/rss/cs.LG</a></td><td>机器学习</td></tr>
+<tr><td class='site-name'>arXiv cs.CV</td><td><a href='https://export.arxiv.org/rss/cs.CV' target='_blank' rel='noopener noreferrer'>https://export.arxiv.org/rss/cs.CV</a></td><td>视觉/多模态/视频</td></tr>
+<tr><td class='site-name'>arXiv stat.ML</td><td><a href='https://export.arxiv.org/rss/stat.ML' target='_blank' rel='noopener noreferrer'>https://export.arxiv.org/rss/stat.ML</a></td><td>统计机器学习</td></tr>
+<tr><td class='site-name'>OpenReview</td><td><a href='https://openreview.net/' target='_blank' rel='noopener noreferrer'>https://openreview.net/</a></td><td>ICLR/NeurIPS/ICML 等评审平台</td></tr>
+<tr><td class='site-name'>Papers with Code</td><td><a href='https://paperswithcode.com/' target='_blank' rel='noopener noreferrer'>https://paperswithcode.com/</a></td><td>论文 + 代码 + SOTA</td></tr>
+<tr><td class='site-name'>Semantic Scholar</td><td><a href='https://www.semanticscholar.org/' target='_blank' rel='noopener noreferrer'>https://www.semanticscholar.org/</a></td><td>论文搜索与引用</td></tr>
+<tr><td class='site-name'>Hugging Face Papers</td><td><a href='https://huggingface.co/papers' target='_blank' rel='noopener noreferrer'>https://huggingface.co/papers</a></td><td>社区论文筛选</td></tr>
+<tr><td class='site-name'>ACL Anthology</td><td><a href='https://aclanthology.org/' target='_blank' rel='noopener noreferrer'>https://aclanthology.org/</a></td><td>NLP 论文</td></tr>
+<tr><td class='site-name'>NeurIPS</td><td><a href='https://neurips.cc/' target='_blank' rel='noopener noreferrer'>https://neurips.cc/</a></td><td>会议/论文</td></tr>
+<tr><td class='site-name'>ICML</td><td><a href='https://icml.cc/' target='_blank' rel='noopener noreferrer'>https://icml.cc/</a></td><td>会议/论文</td></tr>
+<tr><td class='site-name'>ICLR</td><td><a href='https://iclr.cc/' target='_blank' rel='noopener noreferrer'>https://iclr.cc/</a></td><td>会议/论文</td></tr>
+<tr><td class='site-name'>CVPR</td><td><a href='https://cvpr.thecvf.com/' target='_blank' rel='noopener noreferrer'>https://cvpr.thecvf.com/</a></td><td>视觉会议</td></tr>
+<tr><td class='site-name'>EMNLP</td><td><a href='https://2025.emnlp.org/' target='_blank' rel='noopener noreferrer'>https://2025.emnlp.org/</a></td><td>NLP 会议，年份需更新</td></tr>
+<tr><td class='site-name'>AAAI</td><td><a href='https://aaai.org/conference/aaai/' target='_blank' rel='noopener noreferrer'>https://aaai.org/conference/aaai/</a></td><td>AI 综合会议</td></tr>
+<tr><td class='site-name'>COLM</td><td><a href='https://colmweb.org/' target='_blank' rel='noopener noreferrer'>https://colmweb.org/</a></td><td>语言模型会议</td></tr>
+<tr><td class='site-name'>Interspeech</td><td><a href='https://www.interspeech2025.org/' target='_blank' rel='noopener noreferrer'>https://www.interspeech2025.org/</a></td><td>语音会议，年份需更新</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-8">
+          <div class="section-title">
+            <div><span class="cat-icon big">🧰</span><h2>8. 开源生态 / GitHub / Hugging Face</h2></div>
+            <span class="badge p1">P1 下一阶段</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>发现可用工具、框架、开源模型、开发者机会。</p></div>
+            <div><strong>获取策略</strong><p>GitHub releases / stars delta / HF models API；不要全量抓 trending，按关注方向过滤。</p></div>
+            <div><strong>典型信号</strong><p>open_source_release, repo_growth, framework_update, model_weight_release</p></div>
+            <div><strong>输出形态</strong><p>工具机会卡、技术栈更新、可集成清单</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>GitHub Trending</td><td><a href='https://github.com/trending' target='_blank' rel='noopener noreferrer'>https://github.com/trending</a></td><td>趋势线索，需强过滤</td></tr>
+<tr><td class='site-name'>GitHub Releases</td><td><a href='https://docs.github.com/en/rest/releases/releases' target='_blank' rel='noopener noreferrer'>https://docs.github.com/en/rest/releases/releases</a></td><td>可通过 API 抓 repo release</td></tr>
+<tr><td class='site-name'>Hugging Face Models</td><td><a href='https://huggingface.co/models' target='_blank' rel='noopener noreferrer'>https://huggingface.co/models</a></td><td>模型发布</td></tr>
+<tr><td class='site-name'>Hugging Face Spaces</td><td><a href='https://huggingface.co/spaces' target='_blank' rel='noopener noreferrer'>https://huggingface.co/spaces</a></td><td>Demo / 应用</td></tr>
+<tr><td class='site-name'>Transformers</td><td><a href='https://github.com/huggingface/transformers' target='_blank' rel='noopener noreferrer'>https://github.com/huggingface/transformers</a></td><td>模型库</td></tr>
+<tr><td class='site-name'>Diffusers</td><td><a href='https://github.com/huggingface/diffusers' target='_blank' rel='noopener noreferrer'>https://github.com/huggingface/diffusers</a></td><td>图像/视频生成</td></tr>
+<tr><td class='site-name'>vLLM</td><td><a href='https://github.com/vllm-project/vllm' target='_blank' rel='noopener noreferrer'>https://github.com/vllm-project/vllm</a></td><td>推理框架</td></tr>
+<tr><td class='site-name'>Ollama</td><td><a href='https://github.com/ollama/ollama' target='_blank' rel='noopener noreferrer'>https://github.com/ollama/ollama</a></td><td>本地模型运行</td></tr>
+<tr><td class='site-name'>llama.cpp</td><td><a href='https://github.com/ggml-org/llama.cpp' target='_blank' rel='noopener noreferrer'>https://github.com/ggml-org/llama.cpp</a></td><td>本地推理</td></tr>
+<tr><td class='site-name'>Open WebUI</td><td><a href='https://github.com/open-webui/open-webui' target='_blank' rel='noopener noreferrer'>https://github.com/open-webui/open-webui</a></td><td>本地/私有 AI UI</td></tr>
+<tr><td class='site-name'>LiteLLM</td><td><a href='https://github.com/BerriAI/litellm' target='_blank' rel='noopener noreferrer'>https://github.com/BerriAI/litellm</a></td><td>模型网关</td></tr>
+<tr><td class='site-name'>LangChain</td><td><a href='https://github.com/langchain-ai/langchain' target='_blank' rel='noopener noreferrer'>https://github.com/langchain-ai/langchain</a></td><td>LLM app framework</td></tr>
+<tr><td class='site-name'>LangGraph</td><td><a href='https://github.com/langchain-ai/langgraph' target='_blank' rel='noopener noreferrer'>https://github.com/langchain-ai/langgraph</a></td><td>Agent workflow</td></tr>
+<tr><td class='site-name'>LlamaIndex</td><td><a href='https://github.com/run-llama/llama_index' target='_blank' rel='noopener noreferrer'>https://github.com/run-llama/llama_index</a></td><td>RAG/知识库</td></tr>
+<tr><td class='site-name'>Haystack</td><td><a href='https://github.com/deepset-ai/haystack' target='_blank' rel='noopener noreferrer'>https://github.com/deepset-ai/haystack</a></td><td>RAG framework</td></tr>
+<tr><td class='site-name'>DSPy</td><td><a href='https://github.com/stanfordnlp/dspy' target='_blank' rel='noopener noreferrer'>https://github.com/stanfordnlp/dspy</a></td><td>LLM 编程/优化</td></tr>
+<tr><td class='site-name'>AutoGen</td><td><a href='https://github.com/microsoft/autogen' target='_blank' rel='noopener noreferrer'>https://github.com/microsoft/autogen</a></td><td>多 Agent</td></tr>
+<tr><td class='site-name'>CrewAI</td><td><a href='https://github.com/crewAIInc/crewAI' target='_blank' rel='noopener noreferrer'>https://github.com/crewAIInc/crewAI</a></td><td>多 Agent</td></tr>
+<tr><td class='site-name'>OpenHands</td><td><a href='https://github.com/All-Hands-AI/OpenHands' target='_blank' rel='noopener noreferrer'>https://github.com/All-Hands-AI/OpenHands</a></td><td>AI coding agent</td></tr>
+<tr><td class='site-name'>Dify</td><td><a href='https://github.com/langgenius/dify' target='_blank' rel='noopener noreferrer'>https://github.com/langgenius/dify</a></td><td>LLM app platform</td></tr>
+<tr><td class='site-name'>Flowise</td><td><a href='https://github.com/FlowiseAI/Flowise' target='_blank' rel='noopener noreferrer'>https://github.com/FlowiseAI/Flowise</a></td><td>低代码 LLM workflow</td></tr>
+<tr><td class='site-name'>n8n</td><td><a href='https://github.com/n8n-io/n8n' target='_blank' rel='noopener noreferrer'>https://github.com/n8n-io/n8n</a></td><td>自动化工作流</td></tr>
+<tr><td class='site-name'>ComfyUI</td><td><a href='https://github.com/comfyanonymous/ComfyUI' target='_blank' rel='noopener noreferrer'>https://github.com/comfyanonymous/ComfyUI</a></td><td>AIGC 工作流</td></tr>
+<tr><td class='site-name'>Milvus</td><td><a href='https://github.com/milvus-io/milvus' target='_blank' rel='noopener noreferrer'>https://github.com/milvus-io/milvus</a></td><td>向量数据库</td></tr>
+<tr><td class='site-name'>Qdrant</td><td><a href='https://github.com/qdrant/qdrant' target='_blank' rel='noopener noreferrer'>https://github.com/qdrant/qdrant</a></td><td>向量数据库</td></tr>
+<tr><td class='site-name'>Weaviate</td><td><a href='https://github.com/weaviate/weaviate' target='_blank' rel='noopener noreferrer'>https://github.com/weaviate/weaviate</a></td><td>向量数据库</td></tr>
+<tr><td class='site-name'>Chroma</td><td><a href='https://github.com/chroma-core/chroma' target='_blank' rel='noopener noreferrer'>https://github.com/chroma-core/chroma</a></td><td>向量数据库</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-9">
+          <div class="section-title">
+            <div><span class="cat-icon big">📊</span><h2>9. 行业报告 / 白皮书 / PDF</h2></div>
+            <span class="badge p1">P1 下一阶段</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>低频高密度内容：趋势、产业、政策、风险、商业机会。</p></div>
+            <div><strong>获取策略</strong><p>PDF / 长文解析；低频监控；生成专题报告，不混入日报主列表。</p></div>
+            <div><strong>典型信号</strong><p>industry_trend, market_report, risk_trend, longform_insight</p></div>
+            <div><strong>输出形态</strong><p>专题洞察、趋势报告、风险/机会清单</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>Stanford AI Index</td><td><a href='https://aiindex.stanford.edu/report/' target='_blank' rel='noopener noreferrer'>https://aiindex.stanford.edu/report/</a></td><td>年度 AI 指数</td></tr>
+<tr><td class='site-name'>State of AI Report</td><td><a href='https://www.stateof.ai/' target='_blank' rel='noopener noreferrer'>https://www.stateof.ai/</a></td><td>年度行业报告</td></tr>
+<tr><td class='site-name'>Epoch AI</td><td><a href='https://epoch.ai/' target='_blank' rel='noopener noreferrer'>https://epoch.ai/</a></td><td>AI compute / scaling / trends</td></tr>
+<tr><td class='site-name'>McKinsey AI</td><td><a href='https://www.mckinsey.com/capabilities/quantumblack/our-insights' target='_blank' rel='noopener noreferrer'>https://www.mckinsey.com/capabilities/quantumblack/our-insights</a></td><td>企业 AI 报告</td></tr>
+<tr><td class='site-name'>BCG AI</td><td><a href='https://www.bcg.com/capabilities/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.bcg.com/capabilities/artificial-intelligence</a></td><td>咨询报告</td></tr>
+<tr><td class='site-name'>Deloitte AI</td><td><a href='https://www2.deloitte.com/us/en/insights/focus/cognitive-technologies.html' target='_blank' rel='noopener noreferrer'>https://www2.deloitte.com/us/en/insights/focus/cognitive-technologies.html</a></td><td>行业报告</td></tr>
+<tr><td class='site-name'>Accenture AI</td><td><a href='https://www.accenture.com/us-en/services/data-ai-index' target='_blank' rel='noopener noreferrer'>https://www.accenture.com/us-en/services/data-ai-index</a></td><td>企业 AI</td></tr>
+<tr><td class='site-name'>Gartner AI</td><td><a href='https://www.gartner.com/en/topics/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.gartner.com/en/topics/artificial-intelligence</a></td><td>行业分析，部分需订阅</td></tr>
+<tr><td class='site-name'>Forrester AI</td><td><a href='https://www.forrester.com/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://www.forrester.com/artificial-intelligence/</a></td><td>行业分析，部分需订阅</td></tr>
+<tr><td class='site-name'>CB Insights AI</td><td><a href='https://www.cbinsights.com/research/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://www.cbinsights.com/research/artificial-intelligence/</a></td><td>市场/投资数据</td></tr>
+<tr><td class='site-name'>PitchBook AI</td><td><a href='https://pitchbook.com/news/tags/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://pitchbook.com/news/tags/artificial-intelligence</a></td><td>投融资报告</td></tr>
+<tr><td class='site-name'>a16z AI</td><td><a href='https://a16z.com/ai/' target='_blank' rel='noopener noreferrer'>https://a16z.com/ai/</a></td><td>投资机构观点</td></tr>
+<tr><td class='site-name'>Sequoia AI</td><td><a href='https://www.sequoiacap.com/article/tag/ai/' target='_blank' rel='noopener noreferrer'>https://www.sequoiacap.com/article/tag/ai/</a></td><td>投资机构观点</td></tr>
+<tr><td class='site-name'>Microsoft Work Trend Index</td><td><a href='https://www.microsoft.com/en-us/worklab/work-trend-index' target='_blank' rel='noopener noreferrer'>https://www.microsoft.com/en-us/worklab/work-trend-index</a></td><td>工作/企业采用</td></tr>
+<tr><td class='site-name'>World Economic Forum AI</td><td><a href='https://www.weforum.org/agenda/archive/artificial-intelligence-and-robotics/' target='_blank' rel='noopener noreferrer'>https://www.weforum.org/agenda/archive/artificial-intelligence-and-robotics/</a></td><td>全球趋势</td></tr>
+<tr><td class='site-name'>NIST AI Reports</td><td><a href='https://www.nist.gov/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.nist.gov/artificial-intelligence</a></td><td>AI RMF / 评估</td></tr>
+<tr><td class='site-name'>OpenAI Safety</td><td><a href='https://openai.com/safety/' target='_blank' rel='noopener noreferrer'>https://openai.com/safety/</a></td><td>系统卡/安全报告</td></tr>
+<tr><td class='site-name'>Anthropic Safety</td><td><a href='https://www.anthropic.com/responsible-scaling-policy' target='_blank' rel='noopener noreferrer'>https://www.anthropic.com/responsible-scaling-policy</a></td><td>RSP / 安全</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-10">
+          <div class="section-title">
+            <div><span class="cat-icon big">⚖️</span><h2>10. 政策 / 标准 / 合规</h2></div>
+            <span class="badge p2">P2 后续扩展</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>AI 安全、版权、合规、企业部署门槛等长期风险。</p></div>
+            <div><strong>获取策略</strong><p>低频政策监控；重点报告解析；输出风险卡和合规卡。</p></div>
+            <div><strong>典型信号</strong><p>policy_change, regulatory_risk, standard_update, compliance_requirement</p></div>
+            <div><strong>输出形态</strong><p>政策风险卡、合规摘要、企业部署影响</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>NIST AI</td><td><a href='https://www.nist.gov/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.nist.gov/artificial-intelligence</a></td><td>AI RMF / standards</td></tr>
+<tr><td class='site-name'>EU AI Office</td><td><a href='https://digital-strategy.ec.europa.eu/en/policies/ai-office' target='_blank' rel='noopener noreferrer'>https://digital-strategy.ec.europa.eu/en/policies/ai-office</a></td><td>EU AI Act 执行</td></tr>
+<tr><td class='site-name'>EU AI Act</td><td><a href='https://artificialintelligenceact.eu/' target='_blank' rel='noopener noreferrer'>https://artificialintelligenceact.eu/</a></td><td>AI Act 信息入口</td></tr>
+<tr><td class='site-name'>OECD AI Policy Observatory</td><td><a href='https://oecd.ai/' target='_blank' rel='noopener noreferrer'>https://oecd.ai/</a></td><td>全球政策数据库</td></tr>
+<tr><td class='site-name'>UK AI Safety Institute</td><td><a href='https://www.gov.uk/government/organisations/ai-safety-institute' target='_blank' rel='noopener noreferrer'>https://www.gov.uk/government/organisations/ai-safety-institute</a></td><td>AI safety</td></tr>
+<tr><td class='site-name'>US White House AI</td><td><a href='https://www.whitehouse.gov/ostp/ai/' target='_blank' rel='noopener noreferrer'>https://www.whitehouse.gov/ostp/ai/</a></td><td>美国政策</td></tr>
+<tr><td class='site-name'>FTC AI</td><td><a href='https://www.ftc.gov/business-guidance/technology/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.ftc.gov/business-guidance/technology/artificial-intelligence</a></td><td>消费者保护/AI</td></tr>
+<tr><td class='site-name'>US Copyright Office AI</td><td><a href='https://www.copyright.gov/ai/' target='_blank' rel='noopener noreferrer'>https://www.copyright.gov/ai/</a></td><td>版权与生成式 AI</td></tr>
+<tr><td class='site-name'>ISO/IEC JTC 1/SC 42</td><td><a href='https://www.iso.org/committee/6794475.html' target='_blank' rel='noopener noreferrer'>https://www.iso.org/committee/6794475.html</a></td><td>AI 标准</td></tr>
+<tr><td class='site-name'>IEEE AI Standards</td><td><a href='https://standards.ieee.org/initiatives/artificial-intelligence-systems/' target='_blank' rel='noopener noreferrer'>https://standards.ieee.org/initiatives/artificial-intelligence-systems/</a></td><td>AI 系统标准</td></tr>
+<tr><td class='site-name'>China CAC</td><td><a href='https://www.cac.gov.cn/' target='_blank' rel='noopener noreferrer'>https://www.cac.gov.cn/</a></td><td>中国网信办，需关键词筛选</td></tr>
+<tr><td class='site-name'>China MIIT</td><td><a href='https://www.miit.gov.cn/' target='_blank' rel='noopener noreferrer'>https://www.miit.gov.cn/</a></td><td>工信部，需关键词筛选</td></tr>
+<tr><td class='site-name'>Japan AI Policy</td><td><a href='https://www8.cao.go.jp/cstp/ai/' target='_blank' rel='noopener noreferrer'>https://www8.cao.go.jp/cstp/ai/</a></td><td>日本 AI 政策入口</td></tr>
+<tr><td class='site-name'>Singapore AI Verify</td><td><a href='https://aiverifyfoundation.sg/' target='_blank' rel='noopener noreferrer'>https://aiverifyfoundation.sg/</a></td><td>AI governance</td></tr>
+<tr><td class='site-name'>Canada AI</td><td><a href='https://ised-isde.canada.ca/site/ised/en/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://ised-isde.canada.ca/site/ised/en/artificial-intelligence</a></td><td>加拿大 AI 政策</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-11">
+          <div class="section-title">
+            <div><span class="cat-icon big">💬</span><h2>11. 社区 / 热点线索</h2></div>
+            <span class="badge p2">P2 后续扩展</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>发现早期讨论、用户反馈、争议、爆火产品。不是事实源，需回溯验证。</p></div>
+            <div><strong>获取策略</strong><p>低权重线索源；只做候选发现；必须回溯官方/原文。</p></div>
+            <div><strong>典型信号</strong><p>community_signal, early_hype, user_feedback, controversy</p></div>
+            <div><strong>输出形态</strong><p>线索卡、待验证热点、社区反馈摘要</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>Hacker News</td><td><a href='https://news.ycombinator.com/' target='_blank' rel='noopener noreferrer'>https://news.ycombinator.com/</a></td><td>技术社区</td></tr>
+<tr><td class='site-name'>HN Algolia Search</td><td><a href='https://hn.algolia.com/' target='_blank' rel='noopener noreferrer'>https://hn.algolia.com/</a></td><td>关键词搜索</td></tr>
+<tr><td class='site-name'>Reddit r/MachineLearning</td><td><a href='https://www.reddit.com/r/MachineLearning/' target='_blank' rel='noopener noreferrer'>https://www.reddit.com/r/MachineLearning/</a></td><td>研究社区</td></tr>
+<tr><td class='site-name'>Reddit r/LocalLLaMA</td><td><a href='https://www.reddit.com/r/LocalLLaMA/' target='_blank' rel='noopener noreferrer'>https://www.reddit.com/r/LocalLLaMA/</a></td><td>开源模型社区</td></tr>
+<tr><td class='site-name'>Reddit r/artificial</td><td><a href='https://www.reddit.com/r/artificial/' target='_blank' rel='noopener noreferrer'>https://www.reddit.com/r/artificial/</a></td><td>AI 热点</td></tr>
+<tr><td class='site-name'>X / Twitter</td><td><a href='https://x.com/' target='_blank' rel='noopener noreferrer'>https://x.com/</a></td><td>重要但抓取复杂，后期再做</td></tr>
+<tr><td class='site-name'>Product Hunt AI</td><td><a href='https://www.producthunt.com/topics/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.producthunt.com/topics/artificial-intelligence</a></td><td>新产品发现</td></tr>
+<tr><td class='site-name'>Indie Hackers</td><td><a href='https://www.indiehackers.com/' target='_blank' rel='noopener noreferrer'>https://www.indiehackers.com/</a></td><td>独立开发者信号</td></tr>
+<tr><td class='site-name'>Lobsters</td><td><a href='https://lobste.rs/' target='_blank' rel='noopener noreferrer'>https://lobste.rs/</a></td><td>技术讨论</td></tr>
+<tr><td class='site-name'>LessWrong AI</td><td><a href='https://www.lesswrong.com/tag/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.lesswrong.com/tag/artificial-intelligence</a></td><td>AI safety / alignment</td></tr>
+<tr><td class='site-name'>Alignment Forum</td><td><a href='https://www.alignmentforum.org/' target='_blank' rel='noopener noreferrer'>https://www.alignmentforum.org/</a></td><td>AI alignment</td></tr>
+<tr><td class='site-name'>Discord communities</td><td><a href='#' target='_blank' rel='noopener noreferrer'>manual://discord</a></td><td>不建议自动抓，作为人工输入</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-12">
+          <div class="section-title">
+            <div><span class="cat-icon big">📰</span><h2>12. 二级聚合 / Newsletter / 媒体</h2></div>
+            <span class="badge p2">P2 后续扩展</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>用别人筛选过的信息作为发现线索，但最终事实需回到原始来源。</p></div>
+            <div><strong>获取策略</strong><p>作为候选发现源；自动抽原文链接；不要直接当最终事实依据。</p></div>
+            <div><strong>典型信号</strong><p>curated_signal, media_report, trend_summary</p></div>
+            <div><strong>输出形态</strong><p>线索池、热点候选、原文回溯任务</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>The Batch</td><td><a href='https://www.deeplearning.ai/the-batch/' target='_blank' rel='noopener noreferrer'>https://www.deeplearning.ai/the-batch/</a></td><td>Andrew Ng 团队 newsletter</td></tr>
+<tr><td class='site-name'>Import AI</td><td><a href='https://importai.substack.com/' target='_blank' rel='noopener noreferrer'>https://importai.substack.com/</a></td><td>AI weekly</td></tr>
+<tr><td class='site-name'>TLDR AI</td><td><a href='https://tldr.tech/ai' target='_blank' rel='noopener noreferrer'>https://tldr.tech/ai</a></td><td>AI newsletter</td></tr>
+<tr><td class='site-name'>Ben&#x27;s Bites</td><td><a href='https://www.bensbites.co/' target='_blank' rel='noopener noreferrer'>https://www.bensbites.co/</a></td><td>AI newsletter</td></tr>
+<tr><td class='site-name'>The Rundown AI</td><td><a href='https://www.therundown.ai/' target='_blank' rel='noopener noreferrer'>https://www.therundown.ai/</a></td><td>AI newsletter</td></tr>
+<tr><td class='site-name'>Latent Space</td><td><a href='https://www.latent.space/' target='_blank' rel='noopener noreferrer'>https://www.latent.space/</a></td><td>AI engineering</td></tr>
+<tr><td class='site-name'>AlphaSignal</td><td><a href='https://alphasignal.ai/' target='_blank' rel='noopener noreferrer'>https://alphasignal.ai/</a></td><td>AI newsletter</td></tr>
+<tr><td class='site-name'>MIT Technology Review AI</td><td><a href='https://www.technologyreview.com/topic/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://www.technologyreview.com/topic/artificial-intelligence/</a></td><td>媒体</td></tr>
+<tr><td class='site-name'>The Decoder</td><td><a href='https://the-decoder.com/' target='_blank' rel='noopener noreferrer'>https://the-decoder.com/</a></td><td>AI news</td></tr>
+<tr><td class='site-name'>TechCrunch AI</td><td><a href='https://techcrunch.com/category/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://techcrunch.com/category/artificial-intelligence/</a></td><td>创业/产品</td></tr>
+<tr><td class='site-name'>The Verge AI</td><td><a href='https://www.theverge.com/ai-artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.theverge.com/ai-artificial-intelligence</a></td><td>产品/行业</td></tr>
+<tr><td class='site-name'>VentureBeat AI</td><td><a href='https://venturebeat.com/category/ai/' target='_blank' rel='noopener noreferrer'>https://venturebeat.com/category/ai/</a></td><td>企业 AI</td></tr>
+<tr><td class='site-name'>Wired AI</td><td><a href='https://www.wired.com/tag/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://www.wired.com/tag/artificial-intelligence/</a></td><td>媒体</td></tr>
+<tr><td class='site-name'>Ars Technica AI</td><td><a href='https://arstechnica.com/tag/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://arstechnica.com/tag/artificial-intelligence/</a></td><td>技术媒体</td></tr>
+<tr><td class='site-name'>Reuters Technology</td><td><a href='https://www.reuters.com/technology/' target='_blank' rel='noopener noreferrer'>https://www.reuters.com/technology/</a></td><td>宏观新闻</td></tr>
+<tr><td class='site-name'>The Information AI</td><td><a href='https://www.theinformation.com/tags/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.theinformation.com/tags/artificial-intelligence</a></td><td>深度报道，订阅制</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-13">
+          <div class="section-title">
+            <div><span class="cat-icon big">✍️</span><h2>13. 人工 URL / 私有输入</h2></div>
+            <span class="badge p0">P0 当前核心机制</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>自动抓取永远有盲区，保留人工发现入口是高质量补充机制。</p></div>
+            <div><strong>获取策略</strong><p>URL 导入；手动标记来源/主题/优先级；直接生成 InsightCard。</p></div>
+            <div><strong>典型信号</strong><p>manual_high_value, private_context, ad_hoc_report, user_interest</p></div>
+            <div><strong>输出形态</strong><p>单篇编译卡、个人相关性判断、行动建议</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>Manual URL Import</td><td><a href='#' target='_blank' rel='noopener noreferrer'>manual://url-import</a></td><td>用户手动输入 URL</td></tr>
+<tr><td class='site-name'>PDF Upload</td><td><a href='#' target='_blank' rel='noopener noreferrer'>manual://pdf-upload</a></td><td>报告/PDF 导入</td></tr>
+<tr><td class='site-name'>Newsletter Forward</td><td><a href='#' target='_blank' rel='noopener noreferrer'>manual://newsletter</a></td><td>邮件/Newsletter 转入</td></tr>
+<tr><td class='site-name'>Chat / Group Link</td><td><a href='#' target='_blank' rel='noopener noreferrer'>manual://chat-link</a></td><td>朋友/群聊转发链接</td></tr>
+<tr><td class='site-name'>YouTube / Podcast Link</td><td><a href='#' target='_blank' rel='noopener noreferrer'>manual://media-link</a></td><td>后期可做音视频摘要</td></tr>
+<tr><td class='site-name'>WeChat / 国内链接</td><td><a href='#' target='_blank' rel='noopener noreferrer'>manual://wechat</a></td><td>人工导入，避免复杂抓取</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-14">
+          <div class="section-title">
+            <div><span class="cat-icon big">👥</span><h2>14. 招聘 / 岗位信号</h2></div>
+            <span class="badge p2">P2 后续扩展</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>岗位变化能提前暴露公司战略方向：Agent infra、video、robotics、安全评估等。</p></div>
+            <div><strong>获取策略</strong><p>低频抓岗位标题/团队/技能；按公司和关键词聚类。</p></div>
+            <div><strong>典型信号</strong><p>hiring_signal, strategy_inference, skill_trend</p></div>
+            <div><strong>输出形态</strong><p>战略方向线索、技能趋势、岗位变化摘要</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>OpenAI Careers</td><td><a href='https://openai.com/careers/' target='_blank' rel='noopener noreferrer'>https://openai.com/careers/</a></td><td>岗位方向</td></tr>
+<tr><td class='site-name'>Anthropic Careers</td><td><a href='https://www.anthropic.com/careers' target='_blank' rel='noopener noreferrer'>https://www.anthropic.com/careers</a></td><td>Claude / safety / infra</td></tr>
+<tr><td class='site-name'>xAI Careers</td><td><a href='https://x.ai/careers' target='_blank' rel='noopener noreferrer'>https://x.ai/careers</a></td><td>Grok / infra / data</td></tr>
+<tr><td class='site-name'>Google DeepMind Careers</td><td><a href='https://deepmind.google/careers/' target='_blank' rel='noopener noreferrer'>https://deepmind.google/careers/</a></td><td>研究/产品</td></tr>
+<tr><td class='site-name'>Meta Careers AI</td><td><a href='https://www.metacareers.com/jobs/?q=AI' target='_blank' rel='noopener noreferrer'>https://www.metacareers.com/jobs/?q=AI</a></td><td>AI 岗位</td></tr>
+<tr><td class='site-name'>NVIDIA Careers</td><td><a href='https://www.nvidia.com/en-us/about-nvidia/careers/' target='_blank' rel='noopener noreferrer'>https://www.nvidia.com/en-us/about-nvidia/careers/</a></td><td>GPU / robotics / AI</td></tr>
+<tr><td class='site-name'>Microsoft Careers AI</td><td><a href='https://jobs.careers.microsoft.com/' target='_blank' rel='noopener noreferrer'>https://jobs.careers.microsoft.com/</a></td><td>需关键词搜索</td></tr>
+<tr><td class='site-name'>Mistral Careers</td><td><a href='https://mistral.ai/careers/' target='_blank' rel='noopener noreferrer'>https://mistral.ai/careers/</a></td><td>欧洲模型公司</td></tr>
+<tr><td class='site-name'>Cohere Careers</td><td><a href='https://cohere.com/careers' target='_blank' rel='noopener noreferrer'>https://cohere.com/careers</a></td><td>企业 LLM</td></tr>
+<tr><td class='site-name'>Runway Careers</td><td><a href='https://runwayml.com/careers' target='_blank' rel='noopener noreferrer'>https://runwayml.com/careers</a></td><td>视频生成</td></tr>
+<tr><td class='site-name'>Perplexity Careers</td><td><a href='https://www.perplexity.ai/hub/careers' target='_blank' rel='noopener noreferrer'>https://www.perplexity.ai/hub/careers</a></td><td>AI search</td></tr>
+<tr><td class='site-name'>Anysphere / Cursor Careers</td><td><a href='https://www.cursor.com/careers' target='_blank' rel='noopener noreferrer'>https://www.cursor.com/careers</a></td><td>AI coding</td></tr>
+<tr><td class='site-name'>Figure AI Careers</td><td><a href='https://www.figure.ai/careers' target='_blank' rel='noopener noreferrer'>https://www.figure.ai/careers</a></td><td>机器人/Physical AI</td></tr>
+<tr><td class='site-name'>Tesla AI Careers</td><td><a href='https://www.tesla.com/AI' target='_blank' rel='noopener noreferrer'>https://www.tesla.com/AI</a></td><td>自动驾驶/机器人</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-15">
+          <div class="section-title">
+            <div><span class="cat-icon big">💼</span><h2>15. 投融资 / 并购 / 资本信号</h2></div>
+            <span class="badge p2">P2 后续扩展</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>判断赛道升温、公司格局、商业化速度。</p></div>
+            <div><strong>获取策略</strong><p>抓融资事件字段：公司、赛道、金额、投资方、轮次；和技术方向关联。</p></div>
+            <div><strong>典型信号</strong><p>funding_event, ma_event, investor_signal, market_heat</p></div>
+            <div><strong>输出形态</strong><p>资本趋势卡、赛道机会、公司地图</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>Crunchbase AI</td><td><a href='https://www.crunchbase.com/hub/artificial-intelligence-companies' target='_blank' rel='noopener noreferrer'>https://www.crunchbase.com/hub/artificial-intelligence-companies</a></td><td>公司/融资数据</td></tr>
+<tr><td class='site-name'>PitchBook AI</td><td><a href='https://pitchbook.com/news/tags/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://pitchbook.com/news/tags/artificial-intelligence</a></td><td>投融资新闻</td></tr>
+<tr><td class='site-name'>CB Insights AI</td><td><a href='https://www.cbinsights.com/research/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://www.cbinsights.com/research/artificial-intelligence/</a></td><td>市场研究</td></tr>
+<tr><td class='site-name'>Dealroom AI</td><td><a href='https://dealroom.co/' target='_blank' rel='noopener noreferrer'>https://dealroom.co/</a></td><td>创业公司数据</td></tr>
+<tr><td class='site-name'>TechCrunch AI Startups</td><td><a href='https://techcrunch.com/category/artificial-intelligence/' target='_blank' rel='noopener noreferrer'>https://techcrunch.com/category/artificial-intelligence/</a></td><td>创业融资新闻</td></tr>
+<tr><td class='site-name'>The Information AI</td><td><a href='https://www.theinformation.com/tags/artificial-intelligence' target='_blank' rel='noopener noreferrer'>https://www.theinformation.com/tags/artificial-intelligence</a></td><td>深度报道</td></tr>
+<tr><td class='site-name'>Reuters Deals / Tech</td><td><a href='https://www.reuters.com/technology/' target='_blank' rel='noopener noreferrer'>https://www.reuters.com/technology/</a></td><td>宏观新闻</td></tr>
+<tr><td class='site-name'>SEC EDGAR</td><td><a href='https://www.sec.gov/edgar/search/' target='_blank' rel='noopener noreferrer'>https://www.sec.gov/edgar/search/</a></td><td>上市公司文件</td></tr>
+<tr><td class='site-name'>a16z AI</td><td><a href='https://a16z.com/ai/' target='_blank' rel='noopener noreferrer'>https://a16z.com/ai/</a></td><td>投资观点</td></tr>
+<tr><td class='site-name'>Sequoia AI</td><td><a href='https://www.sequoiacap.com/article/tag/ai/' target='_blank' rel='noopener noreferrer'>https://www.sequoiacap.com/article/tag/ai/</a></td><td>投资观点</td></tr>
+<tr><td class='site-name'>Lightspeed AI</td><td><a href='https://lsvp.com/stories/' target='_blank' rel='noopener noreferrer'>https://lsvp.com/stories/</a></td><td>投资机构观点</td></tr>
+<tr><td class='site-name'>Y Combinator AI</td><td><a href='https://www.ycombinator.com/companies/industry/ai' target='_blank' rel='noopener noreferrer'>https://www.ycombinator.com/companies/industry/ai</a></td><td>早期创业公司</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-16">
+          <div class="section-title">
+            <div><span class="cat-icon big">🧾</span><h2>16. 专利 / 技术布局</h2></div>
+            <span class="badge p3">P3 低频长期</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>大公司长期方向可能先出现在专利里，但噪音很高。</p></div>
+            <div><strong>获取策略</strong><p>低频；只关注大公司 + 高相关关键词；生成长期趋势，不进日报。</p></div>
+            <div><strong>典型信号</strong><p>patent_signal, long_term_rnd, technical_direction</p></div>
+            <div><strong>输出形态</strong><p>长期技术布局摘要、方向雷达</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>Google Patents</td><td><a href='https://patents.google.com/' target='_blank' rel='noopener noreferrer'>https://patents.google.com/</a></td><td>专利搜索</td></tr>
+<tr><td class='site-name'>USPTO Patent Center</td><td><a href='https://patentcenter.uspto.gov/' target='_blank' rel='noopener noreferrer'>https://patentcenter.uspto.gov/</a></td><td>美国专利</td></tr>
+<tr><td class='site-name'>WIPO PatentScope</td><td><a href='https://patentscope.wipo.int/' target='_blank' rel='noopener noreferrer'>https://patentscope.wipo.int/</a></td><td>国际专利</td></tr>
+<tr><td class='site-name'>EPO Espacenet</td><td><a href='https://worldwide.espacenet.com/' target='_blank' rel='noopener noreferrer'>https://worldwide.espacenet.com/</a></td><td>欧洲专利</td></tr>
+<tr><td class='site-name'>CNIPA</td><td><a href='https://www.cnipa.gov.cn/' target='_blank' rel='noopener noreferrer'>https://www.cnipa.gov.cn/</a></td><td>中国国家知识产权局</td></tr>
+<tr><td class='site-name'>The Lens</td><td><a href='https://www.lens.org/' target='_blank' rel='noopener noreferrer'>https://www.lens.org/</a></td><td>专利/论文搜索</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-17">
+          <div class="section-title">
+            <div><span class="cat-icon big">🏭</span><h2>17. 企业案例 / 落地场景</h2></div>
+            <span class="badge p2">P2 后续扩展</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>判断哪些 AI 能力真正开始被企业采用，识别可商业化场景。</p></div>
+            <div><strong>获取策略</strong><p>客户案例抓取；行业/场景/技术栈抽取；和产品机会匹配。</p></div>
+            <div><strong>典型信号</strong><p>enterprise_adoption, customer_case, vertical_use_case, business_value</p></div>
+            <div><strong>输出形态</strong><p>落地场景卡、行业机会、可复制方案</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>OpenAI Customer Stories</td><td><a href='https://openai.com/customer-stories/' target='_blank' rel='noopener noreferrer'>https://openai.com/customer-stories/</a></td><td>企业案例</td></tr>
+<tr><td class='site-name'>Anthropic Customers</td><td><a href='https://www.anthropic.com/customers' target='_blank' rel='noopener noreferrer'>https://www.anthropic.com/customers</a></td><td>企业案例</td></tr>
+<tr><td class='site-name'>Microsoft Customer Stories AI</td><td><a href='https://customers.microsoft.com/' target='_blank' rel='noopener noreferrer'>https://customers.microsoft.com/</a></td><td>需关键词搜索 AI/Copilot</td></tr>
+<tr><td class='site-name'>Google Cloud Customers</td><td><a href='https://cloud.google.com/customers' target='_blank' rel='noopener noreferrer'>https://cloud.google.com/customers</a></td><td>云/AI 客户</td></tr>
+<tr><td class='site-name'>AWS ML Customer Stories</td><td><a href='https://aws.amazon.com/machine-learning/customers/' target='_blank' rel='noopener noreferrer'>https://aws.amazon.com/machine-learning/customers/</a></td><td>ML/AI 客户</td></tr>
+<tr><td class='site-name'>NVIDIA Customer Stories</td><td><a href='https://www.nvidia.com/en-us/customer-stories/' target='_blank' rel='noopener noreferrer'>https://www.nvidia.com/en-us/customer-stories/</a></td><td>GPU/AI 落地</td></tr>
+<tr><td class='site-name'>Salesforce AI Customer Stories</td><td><a href='https://www.salesforce.com/customer-success-stories/' target='_blank' rel='noopener noreferrer'>https://www.salesforce.com/customer-success-stories/</a></td><td>CRM/Agent</td></tr>
+<tr><td class='site-name'>ServiceNow Customers</td><td><a href='https://www.servicenow.com/customers.html' target='_blank' rel='noopener noreferrer'>https://www.servicenow.com/customers.html</a></td><td>企业流程 AI</td></tr>
+<tr><td class='site-name'>Snowflake Customers</td><td><a href='https://www.snowflake.com/en/customers/' target='_blank' rel='noopener noreferrer'>https://www.snowflake.com/en/customers/</a></td><td>数据 + AI</td></tr>
+<tr><td class='site-name'>Databricks Customers</td><td><a href='https://www.databricks.com/customers' target='_blank' rel='noopener noreferrer'>https://www.databricks.com/customers</a></td><td>数据智能</td></tr>
+<tr><td class='site-name'>GitHub Customer Stories</td><td><a href='https://github.com/customer-stories' target='_blank' rel='noopener noreferrer'>https://github.com/customer-stories</a></td><td>Copilot/开发者效率</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+        <section class="cat-section" id="cat-18">
+          <div class="section-title">
+            <div><span class="cat-icon big">🛡️</span><h2>18. 安全事故 / 风险信号</h2></div>
+            <span class="badge p2">P2 后续扩展</span>
+          </div>
+          <div class="meta-grid">
+            <div><strong>意义</strong><p>AI 安全、越狱、泄露、滥用、模型事故，低频但高影响。</p></div>
+            <div><strong>获取策略</strong><p>低频高权重；交叉验证；输出风险卡，不做未经核实的结论。</p></div>
+            <div><strong>典型信号</strong><p>security_incident, model_misuse, jailbreak, data_leak, ai_risk</p></div>
+            <div><strong>输出形态</strong><p>风险警报、企业部署风险、产品安全清单</p></div>
+          </div>
+          <h3>候选网站 / 入口</h3>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>网站 / 入口</th><th>URL</th><th>说明 / 抓取备注</th></tr></thead>
+            <tbody><tr><td class='site-name'>AI Incident Database</td><td><a href='https://incidentdatabase.ai/' target='_blank' rel='noopener noreferrer'>https://incidentdatabase.ai/</a></td><td>AI 事故库</td></tr>
+<tr><td class='site-name'>OWASP LLM Top 10</td><td><a href='https://owasp.org/www-project-top-10-for-large-language-model-applications/' target='_blank' rel='noopener noreferrer'>https://owasp.org/www-project-top-10-for-large-language-model-applications/</a></td><td>LLM 应用安全</td></tr>
+<tr><td class='site-name'>MITRE ATLAS</td><td><a href='https://atlas.mitre.org/' target='_blank' rel='noopener noreferrer'>https://atlas.mitre.org/</a></td><td>AI 攻击知识库</td></tr>
+<tr><td class='site-name'>NVD</td><td><a href='https://nvd.nist.gov/' target='_blank' rel='noopener noreferrer'>https://nvd.nist.gov/</a></td><td>漏洞库</td></tr>
+<tr><td class='site-name'>CVE</td><td><a href='https://www.cve.org/' target='_blank' rel='noopener noreferrer'>https://www.cve.org/</a></td><td>漏洞编号</td></tr>
+<tr><td class='site-name'>Google Project Zero</td><td><a href='https://googleprojectzero.blogspot.com/' target='_blank' rel='noopener noreferrer'>https://googleprojectzero.blogspot.com/</a></td><td>安全研究</td></tr>
+<tr><td class='site-name'>Microsoft Security Blog</td><td><a href='https://www.microsoft.com/en-us/security/blog/' target='_blank' rel='noopener noreferrer'>https://www.microsoft.com/en-us/security/blog/</a></td><td>安全情报</td></tr>
+<tr><td class='site-name'>Google Threat Analysis Group</td><td><a href='https://blog.google/threat-analysis-group/' target='_blank' rel='noopener noreferrer'>https://blog.google/threat-analysis-group/</a></td><td>威胁情报</td></tr>
+<tr><td class='site-name'>OpenAI Safety</td><td><a href='https://openai.com/safety/' target='_blank' rel='noopener noreferrer'>https://openai.com/safety/</a></td><td>安全公告/系统卡</td></tr>
+<tr><td class='site-name'>Anthropic Responsible Scaling</td><td><a href='https://www.anthropic.com/responsible-scaling-policy' target='_blank' rel='noopener noreferrer'>https://www.anthropic.com/responsible-scaling-policy</a></td><td>模型风险管理</td></tr>
+<tr><td class='site-name'>METR</td><td><a href='https://metr.org/' target='_blank' rel='noopener noreferrer'>https://metr.org/</a></td><td>AI risk evals</td></tr>
+<tr><td class='site-name'>Apollo Research</td><td><a href='https://www.apolloresearch.ai/' target='_blank' rel='noopener noreferrer'>https://www.apolloresearch.ai/</a></td><td>AI safety research</td></tr>
+<tr><td class='site-name'>Redwood Research</td><td><a href='https://www.redwoodresearch.org/' target='_blank' rel='noopener noreferrer'>https://www.redwoodresearch.org/</a></td><td>alignment/safety</td></tr>
+<tr><td class='site-name'>HarmBench</td><td><a href='https://www.harmbench.org/' target='_blank' rel='noopener noreferrer'>https://www.harmbench.org/</a></td><td>安全评测</td></tr>
+<tr><td class='site-name'>JailbreakBench</td><td><a href='https://jailbreakbench.github.io/' target='_blank' rel='noopener noreferrer'>https://jailbreakbench.github.io/</a></td><td>越狱评测</td></tr></tbody>
+          </table>
+          </div>
+        </section>
+        
+
+  <section class="cat-section">
+    <div class="section-title"><div><span class="cat-icon big">🌍</span><h2>横切维度：区域 / 语言来源</h2></div><span class="badge p1">不是第 19 类，而是覆盖所有入口的维度</span></div>
+    <p>全球 AI 前沿不只来自英文美国圈。区域来源应作为横切维度，按国家/地区映射到官方公告、产品能力、政策、投融资、企业案例等入口。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>区域</th><th>代表对象</th><th>接入建议</th></tr></thead>
+        <tbody>
+          <tr><td class='site-name'>中国</td><td>DeepSeek, Qwen, MiniMax, Kimi/Moonshot, Zhipu, Baidu ERNIE, Tencent Hunyuan, ByteDance Seed</td><td>先从官方英文/中文公告、API docs、pricing 入手；避免一开始抓中文社媒。</td></tr><tr><td class='site-name'>日本</td><td>Sakana AI, Preferred Networks, CyberAgent AI, 日本 AI 政策</td><td>适合研究博客、政策、机器人/AI for Science。</td></tr><tr><td class='site-name'>欧洲</td><td>Mistral, Aleph Alpha, EU AI Office, UK AISI, 德法 AI 生态</td><td>官方公告 + 政策/合规 + 投融资。</td></tr><tr><td class='site-name'>中东</td><td>G42, UAE AI, Saudi AI initiatives</td><td>行业报告/投资/政策信号，低频观察。</td></tr><tr><td class='site-name'>韩国</td><td>Naver, Kakao, Samsung AI</td><td>产品能力、企业案例、区域模型生态。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="cat-section">
+    <div class="section-title"><div><span class="cat-icon big">🧱</span><h2>建议的数据建模</h2></div><span class="badge p0">架构收口建议</span></div>
+    <div class="meta-grid">
+      <div><strong>SourceType</strong><p>official_news, docs, pricing, benchmark, paper_feed, github_release, report_pdf, community_signal...</p></div>
+      <div><strong>SignalType</strong><p>model_release, api_change, pricing_change, benchmark_delta, research_breakthrough, policy_risk...</p></div>
+      <div><strong>FetchStrategy</strong><p>rss, html_index, sitemap, docs_diff, api_json, github_api, pdf_parse, manual_url</p></div>
+      <div><strong>QualityPolicy</strong><p>authority_score, reliability_score, noise_level, update_cadence, user_relevance</p></div>
+    </div>
+  </section>
+
+  <div class="footer">
+    AI Frontier Radar｜Source & Signal Strategy Research HTML｜候选 URL 需在实际接入前逐项验证。
+  </div>
+</main>
+
+<script>
+const search = document.getElementById('searchbox');
+search.addEventListener('input', function() {
+  const q = this.value.trim().toLowerCase();
+  const sections = document.querySelectorAll('.cat-section');
+  const cards = document.querySelectorAll('.category-card');
+  if (!q) {
+    sections.forEach(s => s.style.display = '');
+    cards.forEach(c => c.style.display = '');
+    return;
+  }
+  sections.forEach(s => {
+    s.style.display = s.innerText.toLowerCase().includes(q) ? '' : 'none';
+  });
+  cards.forEach(c => {
+    c.style.display = c.innerText.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+</body>
+</html>
