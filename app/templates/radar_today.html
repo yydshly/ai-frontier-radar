@@ -83,6 +83,13 @@
                                 <span class="radar-section-count">{{ view.section_counts.get('today_focus', 0) }}</span>
                             </a>
                         </li>
+                        {# 今日速览 — deterministic grouped-by-source list (merged briefing) #}
+                        <li>
+                            <a href="/radar/today?section=briefing&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link {% if view.active_section == 'briefing' %}is-active{% endif %}">
+                                <span>今日速览</span>
+                                <span class="radar-section-count">{{ view.section_counts.get('briefing', 0) }}</span>
+                            </a>
+                        </li>
                         {% if view.section_counts.get('recommended', 0) > 0 %}
                         <li>
                             <a href="/radar/today?section=recommended&hours={{ view.hours }}&limit={{ view.limit }}&page=1&per_page={{ view.per_page }}" class="radar-section-link radar-section-link-recommended {% if view.active_section == 'recommended' %}is-active{% endif %}">
@@ -210,7 +217,7 @@
                                 </form>
                                 {% endif %}
                                 {% else %}
-                                <a href="/radar/today/briefing" class="is-primary">查看今日新增</a>
+                                <a href="/radar/today?section=briefing" class="is-primary">查看今日速览</a>
                                 <form method="post" action="/radar/today/daily-report">
                                     <button type="submit">生成核心报告</button>
                                 </form>
@@ -324,7 +331,7 @@
                         {% else %}
                         <div class="radar-scheduler-hint">今日暂无已摘要的新内容</div>
                         {% endif %}
-                        <a href="/radar/today/briefing" class="btn-sm radar-digest-briefing-link">查看全部今日新增 →</a>
+                        <a href="/radar/today?section=briefing" class="btn-sm radar-digest-briefing-link">查看今日速览 →</a>
                     </div>
                     {% endif %}
 
@@ -406,7 +413,7 @@
             {# ── Middle: candidate cards ───────────────────────────────── #}
             <div class="radar-main">
                 <div class="radar-main-toolbar">
-                {% if view.total_items == 0 %}
+                {% if view.total_items == 0 and view.active_section != 'briefing' %}
                 <p class="radar-empty">暂无候选内容。</p>
                 </div>{# <!-- /.radar-main-toolbar --> #}
                 {% else %}
@@ -426,10 +433,11 @@
                     'product_business': '产品机会 / 商业化',
                     'infra_compute': '基础设施 / 算力',
                     'others': '其他',
+                    'briefing': '今日速览',
                 } %}
                 <h2 class="radar-active-section-title">
                     {{ active_label.get(view.active_section, view.active_section) }}
-                    <small>{{ view.total_items }}</small>
+                    <small>{% if view.active_section == 'briefing' %}{{ view.section_counts.get('briefing', 0) }}{% else %}{{ view.total_items }}{% endif %}</small>
                 </h2>
                 {% if view.active_section == 'recommended' %}
                 <span class="radar-toolbar-context">按主题相关性、来源质量、时效性和内容完整度筛选</span>
@@ -451,6 +459,7 @@
                     </select>
                 </form>
 
+                {% if view.active_section != 'briefing' %}
                 <nav class="radar-pagination radar-pagination-compact" aria-label="分页">
                     {% set base_q = '/radar/today?section=' ~ view.active_section ~ '&hours=' ~ view.hours ~ '&limit=' ~ view.limit ~ '&per_page=' ~ view.per_page %}
                     {% if view.has_prev %}
@@ -465,6 +474,7 @@
                     <span class="btn-sm radar-page-disabled">下一页</span>
                     {% endif %}
                 </nav>
+                {% endif %}
                 </div>
                 </div>{# <!-- /.radar-main-toolbar --> #}
 
@@ -704,7 +714,44 @@
                 {% endif %}
                 </div>{# <!-- /#radar-action-results --> #}
                 <div class="radar-main-scroll">
-                {% if view.active_section == 'recommended' and view.recommended_items %}
+                {% if view.active_section == 'briefing' %}
+                {# ── 今日速览: deterministic grouped-by-source list (merged briefing) ── #}
+                {% if view.briefing and view.briefing.groups %}
+                <div class="briefing-summary">
+                    <span>今日新增 <strong>{{ view.briefing.new_items_count }}</strong></span>
+                    <span>· 覆盖来源 <strong>{{ view.briefing.source_count }}</strong></span>
+                    <span>· 已有中文摘要 <strong>{{ view.briefing.summarized_count }}</strong>/{{ view.briefing.shown_count }}</span>
+                    {% if view.briefing.truncated %}
+                    <span class="briefing-muted">· 仅展示最新 {{ view.briefing.shown_count }} 条</span>
+                    {% endif %}
+                </div>
+                {% for group in view.briefing.groups %}
+                <section class="briefing-group">
+                    <h3 class="briefing-group-title">{{ group.source_name }} <span class="briefing-muted">（{{ group.items|length }} 条）</span></h3>
+                    <ul class="briefing-list">
+                        {% for it in group.items %}
+                        <li class="briefing-item">
+                            <div class="briefing-item-main">{{ it.zh_preview or it.title }}</div>
+                            {% if it.zh_preview and it.title and it.title != it.zh_preview %}
+                            <div class="briefing-item-sub">{{ it.title }}</div>
+                            {% endif %}
+                            <div class="briefing-item-meta">
+                                <span class="briefing-muted">{{ it.time_label }}</span>
+                                {% if not it.has_summary %}<span class="briefing-chip">待生成摘要</span>{% endif %}
+                                {% set safe_url = safe_external_url(it.url) %}
+                                {% if safe_url %}<a href="{{ safe_url }}" target="_blank" rel="noopener">原文</a>{% endif %}
+                                <a href="/source-items/{{ it.item_id }}">详情</a>
+                                {% if it.insight_card_id %}<a href="/cards/{{ it.insight_card_id }}">洞察卡</a>{% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% endfor %}
+                {% else %}
+                <p class="radar-empty-hint">今天暂无新增内容。可点击「同步今日新增」抓取最新。</p>
+                {% endif %}
+                {% elif view.active_section == 'recommended' and view.recommended_items %}
                 {# ── Recommended items (virtual section — not in view.sections) ── #}
                 <section class="radar-section" id="section-recommended">
                     <div class="radar-card-list">

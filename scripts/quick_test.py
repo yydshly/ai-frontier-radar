@@ -8278,9 +8278,9 @@ def main():
         check("briefing template exists",
               briefing_tpl.exists(),
               "radar_briefing.html should exist")
-        check("radar today links to the briefing",
-              "/radar/today/briefing" in radar_html,
-              "today radar should link to the daily briefing")
+        check("radar today surfaces the briefing (merged 今日速览 section)",
+              "section=briefing" in radar_html and "今日速览" in radar_html,
+              "today radar should surface the briefing as the merged 今日速览 catalog section")
         check("radar today summary action uses POST",
               'method="post" action="/radar/today/generate-summaries"' in radar_html,
               "summary generation is a write action and must use POST")
@@ -8712,6 +8712,41 @@ def main():
             _db.close()
     except Exception as e:
         check("interrupted batch recovery checks", False, str(e))
+
+    # ── 61. B1 Phase 2: briefing merged into workbench as 今日速览 section ─────
+    print("\n[61] briefing merged as 今日速览 section (B1)")
+    try:
+        from app.application.radar.today import (
+            RadarTodayService as _RTS61, BRIEFING_KEY as _BK, normalize_section_key as _nsk,
+        )
+        from app.db import SessionLocal as _SL61
+        check("briefing is a valid section key", _nsk("briefing") == _BK,
+              "normalize_section_key must accept 'briefing'")
+        _db = _SL61()
+        try:
+            v = _RTS61(_db).build_today_view(section="briefing", per_page=20)
+            check("briefing view exposes view.briefing + catalog count",
+                  v.active_section == _BK
+                  and v.briefing is not None
+                  and "briefing" in v.section_counts,
+                  "build_today_view(section=briefing) must build the briefing + a catalog count")
+            # Non-briefing sections must NOT pay for building the briefing.
+            v2 = _RTS61(_db).build_today_view(section="all", per_page=20)
+            check("briefing built lazily (None when section != briefing)",
+                  v2.briefing is None and "briefing" in v2.section_counts,
+                  "briefing should only be built when its section is active")
+        finally:
+            _db.close()
+
+        from fastapi.testclient import TestClient as _TC61
+        from app.main import app as _app61
+        _h = _TC61(_app61).get("/radar/today?section=briefing").text
+        check("today page renders the 今日速览 catalog entry + grouped list",
+              "section=briefing" in _h and _h.count("今日速览") >= 2
+              and (("briefing-group-title" in _h) or ("今天暂无新增内容" in _h)),
+              "the workbench should render the briefing inline under 今日速览")
+    except Exception as e:
+        check("briefing merge checks", False, str(e))
 
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")

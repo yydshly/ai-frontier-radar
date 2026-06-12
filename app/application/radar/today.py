@@ -226,6 +226,10 @@ ALL_KEY = "all"
 ALL_TITLE = "全部"
 RECOMMENDED_KEY = "recommended"
 RECOMMENDED_TITLE = "推荐深入分析"
+# Briefing (今日速览): the deterministic grouped-by-source list, merged into the
+# workbench as a virtual section (like RECOMMENDED) rather than a separate page.
+BRIEFING_KEY = "briefing"
+BRIEFING_TITLE = "今日速览"
 
 # (_CATEGORIES is imported from app.application.radar.relevance — see above.)
 
@@ -282,6 +286,8 @@ class RadarTodayView:
     recommended_item_ids: set[int] = field(default_factory=set)
     # ── Recommended items for the current page (used when active_section == 'recommended') ──
     recommended_items: list = field(default_factory=list)
+    # ── Briefing (今日速览): grouped-by-source list, built only when that section is active ──
+    briefing: object | None = None
 
 def normalize_section_key(section: str) -> str:
     """Clamp an incoming section string to a known sidebar key.
@@ -291,7 +297,9 @@ def normalize_section_key(section: str) -> str:
     ``active_section``; callers that only need the validated section (e.g. a
     redirect target) can use this instead of building the whole view.
     """
-    valid_keys = {key for key, _ in SECTION_ORDER} | {ALL_KEY, RECOMMENDED_KEY}
+    valid_keys = {key for key, _ in SECTION_ORDER} | {
+        ALL_KEY, RECOMMENDED_KEY, BRIEFING_KEY,
+    }
     return section if section in valid_keys else ALL_KEY
 
 
@@ -697,6 +705,19 @@ class RadarTodayService:
         section_counts[ALL_KEY] = len(items)
         section_counts[RECOMMENDED_KEY] = len(recommended_item_ids)
 
+        # ── Briefing (今日速览) — deterministic grouped-by-source list ─────
+        # Built only when that section is active; otherwise just a cheap count
+        # for the catalog badge. Uses build_daily_briefing's own "today" scope
+        # (settings window), independent of the workbench hours filter, so the
+        # merged section matches the former standalone page exactly.
+        if section == BRIEFING_KEY:
+            from app.application.radar.daily_digest import build_daily_briefing
+            briefing = build_daily_briefing(self.db)
+            section_counts[BRIEFING_KEY] = briefing.new_items_count
+        else:
+            briefing = None
+            section_counts[BRIEFING_KEY] = recent_valid_items_query(self.db).count()
+
         # ── Filter items to the active section ───────────────────────────
         if section == ALL_KEY:
             filtered_items = items
@@ -706,6 +727,9 @@ class RadarTodayService:
             filtered_items = [
                 item for item in items if item.id in recommended_item_ids
             ]
+        elif section == BRIEFING_KEY:
+            # Briefing renders its own grouped list (view.briefing), not cards.
+            filtered_items = []
         else:
             filtered_items = [
                 item for item in items[TODAY_FOCUS_SIZE:]
@@ -806,6 +830,7 @@ class RadarTodayService:
             compile_candidates=compile_candidates,
             recommended_item_ids=recommended_item_ids,
             recommended_items=recommended_items,
+            briefing=briefing,
         )
 
     def _build_sections(
