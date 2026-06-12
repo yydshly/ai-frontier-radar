@@ -73,7 +73,15 @@ def main() -> int:
         ).all()
         item_ids = [it.id for it in items]
         card_ids = [it.insight_card_id for it in items if it.insight_card_id]
-        run_count = db.query(FetchRun).filter(FetchRun.source_key.in_(test_keys)).count() if test_keys else 0
+        # FetchRuns matching the test pattern DIRECTLY — catches orphan runs
+        # (e.g. orphan_key, orphan_limit_test) that have no Source row, which a
+        # source-keyed delete would miss.
+        run_keys = {r[0] for r in db.query(FetchRun.source_key).distinct().all()}
+        test_run_keys = {k for k in run_keys if is_test_source(k)}
+        run_count = (
+            db.query(FetchRun).filter(FetchRun.source_key.in_(test_run_keys)).count()
+            if test_run_keys else 0
+        )
 
         print("=" * 64)
         print(f"Cleanup test/dev pollution ({'APPLY' if apply else 'DRY-RUN'})")
@@ -87,7 +95,7 @@ def main() -> int:
         if not apply:
             print("\nDry-run only. Re-run with --apply to back up + delete.")
             return 0
-        if not test_ids:
+        if not (test_ids or test_run_keys):
             print("\nNothing to delete.")
             return 0
 
@@ -100,13 +108,15 @@ def main() -> int:
             db.query(InsightCard).filter(InsightCard.id.in_(card_ids)).delete(synchronize_session=False)
         if item_ids:
             db.query(SourceItem).filter(SourceItem.id.in_(item_ids)).delete(synchronize_session=False)
-        if test_keys:
-            db.query(FetchRun).filter(FetchRun.source_key.in_(test_keys)).delete(synchronize_session=False)
-        db.query(Source).filter(Source.id.in_(test_ids)).delete(synchronize_session=False)
+        if test_run_keys:
+            db.query(FetchRun).filter(FetchRun.source_key.in_(test_run_keys)).delete(synchronize_session=False)
+        if test_ids:
+            db.query(Source).filter(Source.id.in_(test_ids)).delete(synchronize_session=False)
         db.commit()
 
-        remaining = db.query(Source).count()
-        print(f"  deleted. sources remaining: {remaining}")
+        remaining_sources = db.query(Source).count()
+        remaining_runs = db.query(FetchRun).count()
+        print(f"  deleted. sources remaining: {remaining_sources}, fetch_runs remaining: {remaining_runs}")
         return 0
     except Exception:
         db.rollback()

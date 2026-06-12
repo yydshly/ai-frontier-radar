@@ -228,7 +228,7 @@
                         <details class="radar-workflow-guide">
                             <summary>如何获得最终报告</summary>
                             <ol>
-                                <li><strong>同步新增</strong>：收录最近 24 小时的新文章。</li>
+                                <li><strong>同步新增</strong>：收录今日 8:00 起的新文章。</li>
                                 <li><strong>补全摘要</strong>：生成报告需要的中文概述与摘要。</li>
                                 <li><strong>推荐洞察</strong>：可选，但能为重点文章补充深度分析。</li>
                                 <li><strong>报告依据</strong>：检查哪些内容会进入报告输入。</li>
@@ -239,7 +239,7 @@
 
                         <div class="radar-action-stage">
                             <div class="radar-action-stage-heading"><span>1</span>同步今日内容</div>
-                            <p>检查已到期的信息源，收录最近 24 小时新增文章。</p>
+                            <p>检查已到期的信息源，收录今日 8:00 起新增文章。</p>
                             <form method="post" action="/radar/today/update" class="radar-update-form">
                                 <input type="hidden" name="section" value="{{ view.active_section }}">
                                 <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">

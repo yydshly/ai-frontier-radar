@@ -8480,8 +8480,8 @@ def main():
               "daily_report settings must match radar.settings (single source)")
         check("daily report default input cap is 50",
               s.max_items == 50
-              and ".limit(min(scope_settings.item_limit, max_items))" in dr_text,
-              "daily report query must enforce the configured 50-item cap")
+              and ".limit(max_items)" in dr_text,
+              "daily report query must enforce the configured max_items cap (DAILY_REPORT_MAX_ITEMS)")
     except Exception as e:
         check("daily report settings single source checks", False, str(e))
 
@@ -9136,16 +9136,20 @@ def main():
                      if any(m in (s.source_key or "").lower() for m in _markers)]
             _tids = {s.id for s in _tsrc}
             _tkeys = {s.source_key for s in _tsrc}
-            if _tids:
+            # FetchRuns by pattern DIRECTLY — catches orphan_* runs with no Source.
+            _run_keys = {r[0] for r in _dbc.query(_FRC.source_key).distinct().all()}
+            _trk = {k for k in _run_keys if any(m in (k or "").lower() for m in _markers)}
+            if _tids or _trk:
                 _iids = [it.id for it in _dbc.query(_SIC).filter(
                     (_SIC.source_id.in_(_tids)) | (_SIC.source_key.in_(_tkeys))).all()]
                 if _iids:
                     _dbc.query(_SIC).filter(_SIC.id.in_(_iids)).delete(synchronize_session=False)
-                if _tkeys:
-                    _dbc.query(_FRC).filter(_FRC.source_key.in_(_tkeys)).delete(synchronize_session=False)
-                _dbc.query(_SrcC).filter(_SrcC.id.in_(_tids)).delete(synchronize_session=False)
+                if _trk:
+                    _dbc.query(_FRC).filter(_FRC.source_key.in_(_trk)).delete(synchronize_session=False)
+                if _tids:
+                    _dbc.query(_SrcC).filter(_SrcC.id.in_(_tids)).delete(synchronize_session=False)
                 _dbc.commit()
-                print(f"\n[cleanup] removed {len(_tsrc)} test-pattern sources seeded during the run")
+                print(f"\n[cleanup] removed {len(_tsrc)} test sources + {len(_trk)} test fetch-run keys seeded during the run")
         finally:
             _dbc.close()
     except Exception as _ce:
