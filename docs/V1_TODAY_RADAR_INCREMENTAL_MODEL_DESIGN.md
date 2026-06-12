@@ -207,6 +207,24 @@
 
 > 决策追加（见 §6 第 9 项）：持久化"上次处理时间"标记仅用于断档感知/历史标记；**抓取增量已由 url 去重 + FetchRun 时间保证，不做全量重处理**。
 
+## 6.9 存储方案评估与技术债
+
+**现状**：SQLite 单文件（`check_same_thread=False`，**未开 WAL/busy_timeout**，无迁移用 `create_all`）；SourceItem 的派生数据塞在 `raw_metadata_json` 文本字段（实测 **30 个 key**：原始 RSS 字段 + 派生摘要 + 处理状态 + 文件路径混存）；正文快照 / 每日报告(+history) / 语音 WAV 存在磁盘 runtime 目录。
+
+**正在累积的债（按优先级）**：
+- **🔴 ST1 无迁移机制**：`create_all` 不改已有表；加列/索引须手写 SQL。模型演进必踩，放大最快。
+- **🔴 ST2 `raw_metadata_json` 杂物抽屉（30 key）**：状态/时间字段塞 JSON → 不可索引、需 `json_extract`（增量/计数/恢复已付代价）；无 schema 校验 → key 漂移（曾有 `summary_zh`/`auto_summary` 幽灵 key）。
+- **🟠 ST3 DB/磁盘分裂 + 无保留**：报告/音频/快照在磁盘、余在 DB → 备份须两者兼顾、无事务一致性；快照/音频/历史无限增长无清理。
+- **🟡 ST4 SQLite 未开 WAL/busy_timeout**：并发写易 `database is locked`，日更链路会放大。
+
+**不是债（避免过度工程）**：SQLite 对单用户本地应用是正确选择，**不要急于上 Postgres**；债在迁移机制 + JSON 杂物抽屉，不在引擎。
+
+**建议处理顺序**：
+1. 即刻近免费：开 **WAL + busy_timeout**（修 ST4）；文档声明"数据 = DB + runtime 目录，须一起备份"（缓解 ST3 备份面）。
+2. P1 前置：引入**迁移机制**（轻量版本化 `CREATE INDEX`/`ALTER` 脚本于 `scripts/`，或 Alembic）——解锁索引与列提升（修 ST1，与 §6.7 D2 同源）。
+3. 迁移到位后：把 `raw_metadata_json` 中**被查询的热字段提升为索引列**（`status`、解析后的 `published_at`、`has_zh_summary`、快照标志），JSON 仅留原始来源 payload（治 ST2）。
+4. later：SourceItem/快照/报告历史的保留/归档策略（治 ST3 增长面）。
+
 ## 7. 非目标
 
 - 不动③层（摘要/洞察/报告/速览/推荐）的内部逻辑——只换②给它们的集合。
