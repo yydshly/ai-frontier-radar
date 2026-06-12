@@ -12,7 +12,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from app.models import Source
-from app.application.radar.daily_report_store import load_daily_report
+from app.application.radar.daily_report_store import (
+    load_daily_report,
+    load_final_daily_report,
+)
 from app.application.radar.history import _valid_items_in_window, _audio_jobs_for
 
 if TYPE_CHECKING:
@@ -120,10 +123,19 @@ def build_share_view(db, date_label: str) -> ShareView:
     from app.application.candidates.display import build_candidate_display_card
     from app.application.radar.daily_audio_jobs import select_daily_audio_job
 
-    report = load_daily_report(date_label)
+    report = load_final_daily_report(date_label) or load_daily_report(date_label)
     audio_jobs = _audio_jobs_for(date_label)
-    items = _valid_items_in_window(db, date_label)
-    article_ids = {it.id for it in items}
+    frozen_articles = (
+        report.get("articles")
+        if report and report.get("report_kind") == "final"
+        else None
+    )
+    items = [] if frozen_articles is not None else _valid_items_in_window(db, date_label)
+    article_ids = {
+        int(article.get("item_id"))
+        for article in frozen_articles or []
+        if isinstance(article, dict) and article.get("item_id") is not None
+    } if frozen_articles is not None else {it.id for it in items}
     audio_job = select_daily_audio_job(
         audio_jobs,
         date_label=date_label,
@@ -142,38 +154,74 @@ def build_share_view(db, date_label: str) -> ShareView:
     other_grouped: dict[str, list[ShareArticle]] = {}
     summarized = 0
 
-    for it in items:
-        card = build_candidate_display_card(it)
-        zh = card.primary_text if card.uses_zh_one_liner else None
-        description = card.detail_summary
-        if description in {zh, card.title}:
-            description = None
-        if zh:
-            summarized += 1
-        article = ShareArticle(
-            item_id=it.id,
-            title=card.title,
-            zh_preview=zh,
-            description=description,
-            source_name=names.get(it.source_key, it.source_key),
-            url=card.url,
-            insight_card_id=it.insight_card_id,
-        )
-        if it.id in important_ids:
-            important.append(article)
-        else:
-            other_grouped.setdefault(it.source_key, []).append(article)
+    if frozen_articles is not None:
+        for frozen in frozen_articles:
+            if not isinstance(frozen, dict):
+                continue
+            try:
+                item_id = int(frozen.get("item_id"))
+            except (TypeError, ValueError):
+                continue
+            zh = str(frozen.get("zh_one_liner") or "").strip() or None
+            description = str(frozen.get("zh_summary") or "").strip() or None
+            title = str(frozen.get("title") or "无标题").strip()
+            if description in {zh, title}:
+                description = None
+            if zh:
+                summarized += 1
+            source_key = str(frozen.get("source_key") or "")
+            source_name = str(frozen.get("source_name") or source_key)
+            names[source_key] = source_name
+            article = ShareArticle(
+                item_id=item_id,
+                title=title,
+                zh_preview=zh,
+                description=description,
+                source_name=source_name,
+                url=frozen.get("url"),
+                insight_card_id=frozen.get("insight_card_id"),
+            )
+            if item_id in important_ids:
+                important.append(article)
+            else:
+                other_grouped.setdefault(source_key, []).append(article)
+    else:
+        for it in items:
+            card = build_candidate_display_card(it)
+            zh = card.primary_text if card.uses_zh_one_liner else None
+            description = card.detail_summary
+            if description in {zh, card.title}:
+                description = None
+            if zh:
+                summarized += 1
+            article = ShareArticle(
+                item_id=it.id,
+                title=card.title,
+                zh_preview=zh,
+                description=description,
+                source_name=names.get(it.source_key, it.source_key),
+                url=card.url,
+                insight_card_id=it.insight_card_id,
+            )
+            if it.id in important_ids:
+                important.append(article)
+            else:
+                other_grouped.setdefault(it.source_key, []).append(article)
 
     other_groups = [
         ShareGroup(source_name=names.get(k, k), items=v)
         for k, v in other_grouped.items()
     ]
     stats = ShareStats(
-        new_items=len(items),
+        new_items=len(article_ids),
         summarized=summarized,
-        pending=len(items) - summarized,
+        pending=len(article_ids) - summarized,
         important=len(important),
-        sources=len(names),
+        sources=len({
+            article.source_name for article in important
+        } | {
+            group.source_name for group in other_groups
+        }),
     )
     return ShareView(
         date_label=date_label,

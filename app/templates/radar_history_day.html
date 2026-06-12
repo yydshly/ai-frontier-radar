@@ -8,6 +8,11 @@
         <div class="page-header">
             <h1>{{ view.date_label }} · 当日回看</h1>
             <p>新增 {{ view.item_count }} · 覆盖来源 {{ view.source_count }} · 语音 {{ view.audio_jobs|length }}</p>
+            {% if view.report and view.report.report_kind == 'final' %}
+            <p>正式日报 · 固定周期 {{ view.report.window_start }} ～ {{ view.report.window_end }} · 文章内容使用结算时快照</p>
+            {% elif view.report %}
+            <p>旧版历史报告 · 尚未包含正式结算快照</p>
+            {% endif %}
             <a href="/radar/history" class="btn-link">← 返回历史列表</a>
         </div>
 

@@ -27,6 +27,7 @@ from sqlalchemy import or_
 
 from app.models import CardStatus, InsightCard, SourceItem
 from app.application.radar.daily_scope import (
+    anchor_window_for_date,
     recent_valid_items_query,
     daily_anchor,
     daily_date_label,
@@ -192,8 +193,19 @@ def _build_insight_context(card: InsightCard | None, *, max_chars: int = 600) ->
     return text
 
 
-def build_daily_report_input(db, *, now: datetime | None = None, max_items: int | None = None) -> DailyReportInput:
-    """Assemble today's summaries and completed insight context. Read-only."""
+def build_daily_report_input(
+    db,
+    *,
+    now: datetime | None = None,
+    date_label: str | None = None,
+    max_items: int | None = None,
+) -> DailyReportInput:
+    """Assemble summaries and completed insight context. Read-only.
+
+    Without ``date_label`` this keeps the live current-period behavior used by
+    today-radar previews. With ``date_label`` it reads the immutable historical
+    anchor window ``[start, end)`` used by formal daily finalization.
+    """
     import json as _json
 
     if now is None:
@@ -201,11 +213,21 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
     if max_items is None:
         max_items = get_daily_report_settings().max_items
 
+    if date_label:
+        window_start, window_end = anchor_window_for_date(date_label)
+        base = recent_valid_items_query(db, now=now, since=window_start).filter(
+            SourceItem.first_seen_at < window_end
+        )
+        resolved_date_label = date_label
+    else:
+        base = recent_valid_items_query(db, now=now, since=daily_anchor(now))
+        resolved_date_label = daily_date_label(now)
+
     rows = (
         # Anchored to the daily increment (same scope as the radar), capped to
         # max_items as a report-synthesis ceiling (top-N), not a display limit.
         # RADAR_DAILY_ITEM_LIMIT does NOT affect core report input.
-        recent_valid_items_query(db, now=now, since=daily_anchor(now))
+        base
         .filter(or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS]))
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
         .limit(max_items)
@@ -257,13 +279,13 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
                 item_id=it.id,
                 title=it.title or "无标题",
                 summary=summary,
-                url=it.url,
+                url=it.canonical_url or it.url,
                 insight_card_id=it.insight_card_id,
                 insight_context=insight_context,
             ))
 
     return DailyReportInput(
-        date_label=daily_date_label(now),
+        date_label=resolved_date_label,
         item_count=len(bullets),
         bullet_sources=bullets,
         sources=sources,
@@ -347,10 +369,11 @@ def generate_daily_report(
     provider: DailyReportProvider | None = None,
     apply: bool = False,
     now: datetime | None = None,
+    date_label: str | None = None,
 ) -> DailyReportResult:
     """Generate the core report. Dry-run by default; LLM only behind gates."""
     settings = get_daily_report_settings()
-    payload = build_daily_report_input(db, now=now)
+    payload = build_daily_report_input(db, now=now, date_label=date_label)
     input_fingerprint = daily_report_input_fingerprint(payload)
 
     if not apply:

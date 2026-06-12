@@ -132,3 +132,13 @@ def daily_date_label(now: datetime | None = None) -> str:
     settings = get_daily_scope_settings()
     local_start = start + timedelta(hours=settings.anchor_tz_offset_hours)
     return local_start.strftime("%Y-%m-%d")
+
+
+def latest_completed_date_label(now: datetime | None = None) -> str:
+    """Return the date label of the most recently completed anchor period.
+
+    The current period remains the live today-radar workspace. The period
+    immediately before it is eligible for immutable daily finalization.
+    """
+    current_start = daily_anchor(now)
+    return daily_date_label(current_start - timedelta(microseconds=1))

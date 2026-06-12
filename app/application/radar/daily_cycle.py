@@ -1,4 +1,4 @@
-"""Daily cycle orchestration (P3): fetch increment → summarize → report → audio.
+"""Daily cycle orchestration: finalize completed periods → process live period.
 
 Runs the core daily loop end-to-end. Idempotent and best-effort per step (one
 step's failure is recorded but does not abort the rest). There is no in-app
@@ -8,10 +8,10 @@ display anchor is deterministic, so it stays correct regardless of when (or
 whether) this ran.
 
 Steps:
-1. fetch  — daily-increment fetch of due sources (sync; reuses discovery_runs).
-2. summary — summarize the whole increment's missing items (select_increment_summary_targets).
-3. report — generate + persist today's core report (LLM, gated by DAILY_REPORT_ENABLED).
-4. audio  — (opt-in) synthesize the report narration via MiMo TTS.
+1. finalization — catch up completed anchor periods, including summaries,
+   immutable formal report, article snapshots and default audio.
+2. fetch — daily-increment fetch of due sources for the new live period.
+3. summary — summarize the live period's missing items.
 Finally records a 'last cycle run' marker (offline-gap / history awareness).
 """
 from __future__ import annotations
@@ -28,6 +28,7 @@ class DailyCycleResult:
     summary_completed: int = 0
     report_status: str = "skipped"
     audio_status: str = "skipped"
+    finalized_dates: list[str] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -56,13 +57,77 @@ def run_daily_cycle(
     do_fetch: bool = True,
     do_summary: bool = True,
     do_report: bool = True,
-    do_audio: bool = False,
+    do_audio: bool = True,
     max_sources: int = 50,
 ) -> DailyCycleResult:
     """Run (or dry-run) the daily cycle. See module docstring."""
     result = DailyCycleResult(dry_run=dry_run)
 
-    # 1. Fetch the daily increment (due sources only).
+    # 1. Finalize all recently completed periods before opening the live cycle.
+    if do_report:
+        try:
+            from app.application.radar.daily_finalization import (
+                finalize_daily_report,
+                pending_finalization_dates,
+            )
+            from app.application.radar.settings import (
+                get_daily_finalization_backfill_days,
+            )
+
+            pending_dates = pending_finalization_dates(
+                max_days=get_daily_finalization_backfill_days(),
+                include_audio_incomplete=do_audio,
+            )
+            if dry_run:
+                result.report_status = "would_generate"
+                result.audio_status = (
+                    "would_generate" if pending_dates and do_audio else "skipped"
+                )
+                result.steps.append(
+                    "report: finalization "
+                    + (", ".join(pending_dates) if pending_dates else "up-to-date")
+                    + " (dry-run)"
+                )
+            else:
+                statuses: list[str] = []
+                audio_statuses: list[str] = []
+                for date_label in pending_dates:
+                    finalized = finalize_daily_report(
+                        db,
+                        date_label,
+                        generate_audio=do_audio,
+                    )
+                    statuses.append(finalized.status)
+                    audio_statuses.append(finalized.audio_status)
+                    if finalized.status in {"finalized", "already_finalized"}:
+                        result.finalized_dates.append(date_label)
+                    result.errors.extend(
+                        f"finalization {date_label}: {error}"
+                        for error in finalized.errors
+                    )
+                result.report_status = (
+                    "finalized"
+                    if "finalized" in statuses
+                    else (statuses[-1] if statuses else "up_to_date")
+                )
+                result.audio_status = (
+                    audio_statuses[-1] if audio_statuses else "up_to_date"
+                )
+                result.steps.append(
+                    "report: finalization "
+                    + (
+                        ", ".join(
+                            f"{label}={status}"
+                            for label, status in zip(pending_dates, statuses)
+                        )
+                        if pending_dates
+                        else "up-to-date"
+                    )
+                )
+        except Exception as exc:
+            result.errors.append(f"finalization: {exc}")
+
+    # 2. Fetch the live daily increment (due sources only).
     if do_fetch:
         try:
             from app.application.sources.discovery_runs import (
@@ -86,7 +151,7 @@ def run_daily_cycle(
         except Exception as exc:  # best-effort
             result.errors.append(f"fetch: {exc}")
 
-    # 2. Summarize the whole increment's missing items.
+    # 3. Summarize the live increment's missing items.
     if do_summary:
         try:
             from app.application.radar.background_summary import (
@@ -106,35 +171,7 @@ def run_daily_cycle(
         except Exception as exc:
             result.errors.append(f"summary: {exc}")
 
-    # 3. Generate + persist the core report.
-    if do_report:
-        try:
-            if dry_run:
-                result.report_status = "would_generate"
-            else:
-                from app.application.radar.daily_report import generate_daily_report
-                from app.application.radar.daily_report_store import save_daily_report
-
-                report = generate_daily_report(db, apply=True)
-                result.report_status = report.status
-                if report.status == "generated":
-                    save_daily_report(report)
-            result.steps.append(f"report: {result.report_status}")
-        except Exception as exc:
-            result.errors.append(f"report: {exc}")
-
-    # 4. (opt-in) Synthesize the report narration.
-    if do_audio:
-        try:
-            if dry_run:
-                result.audio_status = "would_generate"
-            else:
-                result.audio_status = _generate_audio()
-            result.steps.append(f"audio: {result.audio_status}")
-        except Exception as exc:
-            result.errors.append(f"audio: {exc}")
-
-    # 5. Record the completed run (offline-gap / history awareness).
+    # 4. Record the completed run (offline-gap / history awareness).
     if not dry_run:
         try:
             from app.application.radar.cycle_state import set_last_cycle_run
@@ -143,44 +180,9 @@ def run_daily_cycle(
                 "report_status": result.report_status,
                 "summary_targets": result.summary_targets,
                 "summary_completed": result.summary_completed,
+                "finalized_dates": result.finalized_dates,
             })
         except Exception as exc:
             result.errors.append(f"marker: {exc}")
 
     return result
-
-
-def _generate_audio() -> str:
-    """Best-effort: build the broadcast script from today's saved core report and
-    synthesize it via MiMo TTS. Returns the resulting job status."""
-    from app.application.radar.daily_report_card import build_daily_report_card
-    from app.application.radar.daily_report_store import load_daily_report
-    from app.application.radar.daily_broadcast import build_core_report_broadcast_script
-    from app.application.radar.daily_audio_jobs import (
-        enqueue_daily_audio_job,
-        run_daily_audio_job,
-    )
-    from app.application.radar.mimo_tts import MiMoTTSSettings
-    from app.db import SessionLocal
-
-    db = SessionLocal()
-    try:
-        card = build_daily_report_card(db)
-    finally:
-        db.close()
-
-    core = load_daily_report(card.date_label)
-    if core is None:
-        return "no_report"
-    script = build_core_report_broadcast_script(core)
-    settings = MiMoTTSSettings.from_env()
-    enq = enqueue_daily_audio_job(
-        script,
-        script_basis="今日核心报告",
-        voice=settings.voice,
-        style=settings.style,
-        report_version=core.get("version_id"),
-    )
-    if enq.should_start:
-        run_daily_audio_job(enq.job.job_id)
-    return "generated"

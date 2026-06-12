@@ -1532,10 +1532,18 @@ def _render_share(request: Request, date_label: str):
 
 @router.get("/share/today", response_class=HTMLResponse)
 def radar_share_today(request: Request):
-    """Public read-only share page (H5) for today's anchor period."""
-    from app.application.radar.daily_scope import daily_anchor
+    """Public share page for the most recent formal daily report."""
+    from app.application.radar.daily_report_store import (
+        list_daily_report_dates,
+        list_final_daily_report_dates,
+    )
+    from app.application.radar.daily_scope import latest_completed_date_label
 
-    return _render_share(request, daily_anchor().strftime("%Y-%m-%d"))
+    dates = list_final_daily_report_dates() or list_daily_report_dates()
+    return _render_share(
+        request,
+        dates[0] if dates else latest_completed_date_label(),
+    )
 
 
 @router.get("/share/{date_label}", response_class=HTMLResponse)

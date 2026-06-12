@@ -223,6 +223,7 @@ DAILY_BROADCAST_AUDIO_DIR=runtime/daily_audio
 DAILY_BROADCAST_AUDIO_RETENTION_DAYS=30
 DAILY_BROADCAST_AUDIO_MAX_FILES=100
 DAILY_BROADCAST_AUDIO_LOCK_MINUTES=30
+DAILY_FINALIZATION_BACKFILL_DAYS=7
 ```
 
 当前使用后台分段 WAV 生成。页面可查看排队、分段进度、完成和失败状态；相同文稿、音色与风格会复用已有结果。音频保存在运行目录，通过受限路由提供播放和下载，不会公开整个 `runtime` 目录。
@@ -231,6 +232,9 @@ DAILY_BROADCAST_AUDIO_LOCK_MINUTES=30
 - `DAILY_BROADCAST_AUDIO_RETENTION_DAYS`：历史音频保留天数。
 - `DAILY_BROADCAST_AUDIO_MAX_FILES`：最多保留的语音任务数。
 - `DAILY_BROADCAST_AUDIO_LOCK_MINUTES`：跨进程任务锁的过期时间。
+- `DAILY_FINALIZATION_BACKFILL_DAYS`：单次定时任务最多补算多少个已结束的 08:00 日周期，默认 7 天。
+
+正式日报流水线由 `python scripts/run_daily_cycle.py --apply` 启动，默认包含正式报告音频。需要临时跳过语音时使用 `--no-audio`。网页是否打开不影响外部定时任务运行。
 
 Token Plan 中国集群使用 `tp-` 开头的专属 API Key。Token Plan Key 与按量计费的 `sk-` Key 不能混用；其他区域应以订阅管理页面展示的 Base URL 为准。
 

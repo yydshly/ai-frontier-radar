@@ -160,3 +160,13 @@ def get_daily_report_max_items() -> int:
 def get_daily_broadcast_tts_enabled() -> bool:
     """Return whether TTS audio generation is enabled."""
     return _env_bool("DAILY_BROADCAST_TTS_ENABLED", default=False)
+
+
+def get_daily_finalization_backfill_days() -> int:
+    """Maximum completed periods finalized in one scheduler run."""
+    return _env_int(
+        "DAILY_FINALIZATION_BACKFILL_DAYS",
+        default=7,
+        minimum=1,
+        maximum=31,
+    )

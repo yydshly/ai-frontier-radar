@@ -279,7 +279,7 @@
 
                         <div class="radar-action-stage">
                             <div class="radar-action-stage-heading"><span>3</span>汇总与交付</div>
-                            <p>先检查报告依据，再生成综合核心报告。</p>
+                            <p>这里生成的是当前 08:00 周期的动态预览；周期结束后由每日任务保存为正式日报。</p>
                             <a href="/radar/daily-report" class="btn-sm" title="规则整理今日可读内容，不调用 LLM，用于检查报告输入">查看报告依据</a>
                             <form method="post" action="/radar/today/daily-report" class="radar-digest-form">
                                 <button type="submit" class="btn-sm {% if not DAILY_REPORT_ENABLED %}btn-secondary{% endif %}" title="基于报告依据综合生成的最终报告" {% if not DAILY_REPORT_ENABLED %}disabled{% endif %}>生成核心报告</button>
@@ -326,7 +326,7 @@
                         <div class="radar-scheduler-hint">今日暂无已摘要的新内容</div>
                         {% endif %}
                         <a href="/radar/today?section=briefing" class="btn-sm radar-digest-briefing-link">查看今日速览 →</a>
-                        <a href="/radar/history" class="btn-sm radar-digest-history-link">每日历史 →</a>
+                        <a href="/radar/history" class="btn-sm radar-digest-history-link">每日历史（正式日报）→</a>
                     </div>
                     {% endif %}
 

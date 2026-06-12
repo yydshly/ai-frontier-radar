@@ -33,12 +33,34 @@ def get_daily_report_path(date_label: str, root_dir: Path | None = None) -> Path
     return get_daily_report_runtime_dir(root_dir) / f"daily_report_{date_label}.json"
 
 
+def get_final_daily_report_dir(root_dir: Path | None = None) -> Path:
+    return get_daily_report_runtime_dir(root_dir) / "final"
+
+
+def get_final_daily_report_path(
+    date_label: str,
+    root_dir: Path | None = None,
+) -> Path:
+    if not _DATE_LABEL_RE.fullmatch(date_label):
+        raise ValueError("date_label must use YYYY-MM-DD")
+    return get_final_daily_report_dir(root_dir) / f"daily_report_{date_label}.json"
+
+
 def list_daily_report_dates(root_dir: Path | None = None) -> list[str]:
     """Return the date labels (YYYY-MM-DD) that have a persisted report, newest
     first. Backs the per-day history index."""
     runtime_dir = get_daily_report_runtime_dir(root_dir)
     dates: list[str] = []
     for path in runtime_dir.glob("daily_report_*.json"):
+        label = path.stem.replace("daily_report_", "", 1)
+        if _DATE_LABEL_RE.fullmatch(label):
+            dates.append(label)
+    return sorted(dates, reverse=True)
+
+
+def list_final_daily_report_dates(root_dir: Path | None = None) -> list[str]:
+    dates: list[str] = []
+    for path in get_final_daily_report_dir(root_dir).glob("daily_report_*.json"):
         label = path.stem.replace("daily_report_", "", 1)
         if _DATE_LABEL_RE.fullmatch(label):
             dates.append(label)
@@ -69,6 +91,7 @@ def get_daily_report_version_path(
 def _write_payload(path: Path, payload: dict[str, Any]) -> bool:
     temp_path = path.with_suffix(path.suffix + ".tmp")
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         temp_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -156,6 +179,82 @@ def load_daily_report(
         return None
 
     return _validate_payload(payload, date_label)
+
+
+def save_final_daily_report(
+    result: DailyReportResult,
+    *,
+    articles: list[dict[str, Any]],
+    window_start: datetime,
+    window_end: datetime,
+    root_dir: Path | None = None,
+    finalized_at: datetime | None = None,
+    summary_status: str = "completed",
+    audio_status: str = "pending",
+) -> dict[str, Any] | None:
+    """Persist one immutable-by-default formal report for an anchor period."""
+    if result.status != "generated":
+        return None
+    path = get_final_daily_report_path(result.date_label, root_dir)
+    existing = load_final_daily_report(result.date_label, root_dir=root_dir)
+    if existing is not None:
+        return existing
+
+    finalized_at = finalized_at or datetime.utcnow()
+    version_id = finalized_at.strftime("%Y%m%dT%H%M%S%fZ")
+    payload: dict[str, Any] = {
+        "status": result.status,
+        "report_kind": "final",
+        "date_label": result.date_label,
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
+        "finalized_at": finalized_at.isoformat(timespec="seconds"),
+        "generated_at": finalized_at.isoformat(timespec="seconds"),
+        "version_id": version_id,
+        "input_item_count": result.input_item_count,
+        "message": result.message,
+        "title": result.title,
+        "overview": result.overview,
+        "highlights": list(result.highlights),
+        "highlight_references": list(result.highlight_references),
+        "input_fingerprint": result.input_fingerprint,
+        "summary_status": summary_status,
+        "audio_status": audio_status,
+        "articles": articles,
+    }
+    return payload if _write_payload(path, payload) else None
+
+
+def load_final_daily_report(
+    date_label: str,
+    *,
+    root_dir: Path | None = None,
+) -> dict[str, Any] | None:
+    try:
+        path = get_final_daily_report_path(date_label, root_dir)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    validated = _validate_payload(payload, date_label)
+    if validated is None or validated.get("report_kind") != "final":
+        return None
+    if not isinstance(validated.get("articles"), list):
+        return None
+    return validated
+
+
+def update_final_daily_report(
+    date_label: str,
+    updates: dict[str, Any],
+    *,
+    root_dir: Path | None = None,
+) -> dict[str, Any] | None:
+    payload = load_final_daily_report(date_label, root_dir=root_dir)
+    if payload is None:
+        return None
+    payload.update(updates)
+    path = get_final_daily_report_path(date_label, root_dir)
+    return payload if _write_payload(path, payload) else None
 
 
 def load_daily_report_version(

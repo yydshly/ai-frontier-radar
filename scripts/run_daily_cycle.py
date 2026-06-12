@@ -5,8 +5,8 @@ at the daily anchor (08:00). Dry-run by default; --apply performs the cycle.
 
 Usage:
     python scripts/run_daily_cycle.py                 # dry-run (no side effects)
-    python scripts/run_daily_cycle.py --apply          # fetch + summarize + report
-    python scripts/run_daily_cycle.py --apply --audio   # also synthesize narration
+    python scripts/run_daily_cycle.py --apply          # finalize + audio + live processing
+    python scripts/run_daily_cycle.py --apply --no-audio # skip formal narration
     python scripts/run_daily_cycle.py --apply --no-fetch # skip fetch (summarize+report only)
 """
 from __future__ import annotations
@@ -33,7 +33,8 @@ def main() -> int:
     parser.add_argument("--no-fetch", action="store_true", help="skip the increment fetch step")
     parser.add_argument("--no-summary", action="store_true", help="skip the summarize step")
     parser.add_argument("--no-report", action="store_true", help="skip the report step")
-    parser.add_argument("--audio", action="store_true", help="also synthesize the report narration (TTS)")
+    parser.add_argument("--audio", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--no-audio", action="store_true", help="skip formal report narration")
     parser.add_argument("--max-sources", type=int, default=50, help="cap on due sources fetched")
     args = parser.parse_args()
 
@@ -45,7 +46,7 @@ def main() -> int:
             do_fetch=not args.no_fetch,
             do_summary=not args.no_summary,
             do_report=not args.no_report,
-            do_audio=args.audio,
+            do_audio=not args.no_audio,
             max_sources=args.max_sources,
         )
     finally:
