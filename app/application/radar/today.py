@@ -513,6 +513,38 @@ def _category_for(blob: str) -> str:
     return OTHERS_KEY
 
 
+def _balanced_focus_items(items: list, size: int) -> list:
+    """Pick the '最新发现' set by round-robin across sources.
+
+    ``items`` is already newest-first. Taking a strict prefix lets a high-volume
+    source (e.g. arxiv, ~50 papers/day) flood 最新发现; instead we take the newest
+    item from each source in turn until ``size`` is reached, so every source that
+    has new content is represented. Returns at most ``size`` items.
+    """
+    if size <= 0 or not items:
+        return []
+    from collections import OrderedDict
+
+    by_source: "OrderedDict[str, list]" = OrderedDict()
+    for it in items:
+        by_source.setdefault(it.source_key, []).append(it)
+
+    focus: list = []
+    idx = 0
+    while len(focus) < size:
+        progressed = False
+        for lst in by_source.values():
+            if idx < len(lst):
+                focus.append(lst[idx])
+                progressed = True
+                if len(focus) >= size:
+                    break
+        if not progressed:
+            break
+        idx += 1
+    return focus
+
+
 class RadarTodayService:
     """Builds a RadarTodayView from recent SourceItems."""
 
@@ -677,10 +709,18 @@ class RadarTodayService:
             candidate.source_item_id for candidate in compile_candidates
         }
 
+        # ── 最新发现: balanced across sources (round-robin), not a prefix ──
+        focus_items = _balanced_focus_items(items, TODAY_FOCUS_SIZE)
+        focus_ids = {it.id for it in focus_items}
+
         # ── Per-section counts over the FULL result set ──────────────────
+        # Partition is mutually exclusive: an item is either in 最新发现 (focus)
+        # or categorized — so ALL == 最新发现 + Σcategories + 其他 (§4.7).
         section_counts: dict[str, int] = {key: 0 for key, _ in SECTION_ORDER}
-        section_counts[TODAY_FOCUS_KEY] = min(len(items), TODAY_FOCUS_SIZE)
-        for item in items[TODAY_FOCUS_SIZE:]:
+        section_counts[TODAY_FOCUS_KEY] = len(focus_items)
+        for item in items:
+            if item.id in focus_ids:
+                continue
             key = _categorize_item(item, full_display_map.get(item.id))
             section_counts[key] = section_counts.get(key, 0) + 1
         # "all" count is the total items in the candidate set.
@@ -707,7 +747,7 @@ class RadarTodayService:
         if section == ALL_KEY:
             filtered_items = items
         elif section == TODAY_FOCUS_KEY:
-            filtered_items = items[:TODAY_FOCUS_SIZE]
+            filtered_items = focus_items
         elif section == RECOMMENDED_KEY:
             filtered_items = [
                 item for item in items if item.id in recommended_item_ids
@@ -717,8 +757,9 @@ class RadarTodayService:
             filtered_items = []
         else:
             filtered_items = [
-                item for item in items[TODAY_FOCUS_SIZE:]
-                if _categorize_item(item, full_display_map.get(item.id)) == section
+                item for item in items
+                if item.id not in focus_ids
+                and _categorize_item(item, full_display_map.get(item.id)) == section
             ]
             # today_focus items are also relevant when section=ALL; for a
             # specific category we only show items in that category, which
@@ -747,7 +788,7 @@ class RadarTodayService:
         # show every category with its full-set count, even if the current
         # page has 0 items in a category.
         full_buckets: dict[str, list] = {key: [] for key, _ in SECTION_ORDER}
-        today_focus_ids = {i.id for i in items[:TODAY_FOCUS_SIZE]}
+        today_focus_ids = focus_ids
         for item in page_items:
             if item.id in today_focus_ids and section in (ALL_KEY, TODAY_FOCUS_KEY):
                 full_buckets[TODAY_FOCUS_KEY].append(item)

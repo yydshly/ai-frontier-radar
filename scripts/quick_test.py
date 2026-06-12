@@ -8920,6 +8920,24 @@ def main():
             check("empty increment does not fall back to old items",
                   v.fallback_used is False,
                   "increment model should show an empty state, not older items")
+            # 最新发现 is balanced across sources (round-robin), not a single
+            # high-volume source flooding it — when >1 source is present.
+            from app.application.radar.today import TODAY_FOCUS_KEY as _FK2, _balanced_focus_items
+            inc_items = [it for sec in v.sections for it in sec.items]
+            distinct_src = {it.source_key for it in inc_items}
+            vf = _RTS64(_db).build_today_view(section="today_focus", per_page=50)
+            focus = [it for sec in vf.sections if sec.key == _FK2 for it in sec.items]
+            focus_src = {it.source_key for it in focus}
+            check("最新发现 is balanced across sources (not single-source flooded)",
+                  (len(distinct_src) <= 1) or (len(focus_src) >= min(len(distinct_src), 2)),
+                  f"focus sources {focus_src} should span multiple sources when available ({distinct_src})")
+            # round-robin helper: first picks are one-per-source
+            _a, _b = type("I", (), {"id": 1, "source_key": "s1"})(), type("I", (), {"id": 2, "source_key": "s2"})()
+            _c = type("I", (), {"id": 3, "source_key": "s1"})()
+            picked = _balanced_focus_items([_a, _c, _b], 2)
+            check("round-robin focus picks one-per-source first",
+                  [x.source_key for x in picked] == ["s1", "s2"],
+                  "balanced focus must interleave sources, not take a single source's prefix")
         finally:
             _db.close()
 
