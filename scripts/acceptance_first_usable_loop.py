@@ -158,9 +158,11 @@ def main() -> int:
           "InsightCard 预览应展示洞察与行动，而不是重复内容摘要")
 
     print("\n[10] 测试来源隔离")
+    import re as _re_test
     check("排除 test_* 来源",
-          "is_test_source_key" in radar_route_py or "test_" not in radar_route_py,
-          "测试来源不应出现在生产视图")
+          "is_test_source_key" in radar_route_py
+          or not _re_test.search(r"\btest_", radar_route_py),
+          "测试来源不应出现在生产视图（按词边界匹配，避免误伤 latest_completed 等）")
     check("今日雷达更新使用 enabled sources",
           "enabled" in radar_route_py and "list_sources()" in radar_route_py,
           "更新应使用 enabled 来源")
