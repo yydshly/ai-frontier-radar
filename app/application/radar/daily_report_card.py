@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from app.models import SourceItem
-from app.application.radar.daily_scope import recent_valid_items_query
+from app.application.radar.daily_scope import recent_valid_items_query, daily_anchor
 from app.application.radar.settings import get_daily_scope_settings
 
 
@@ -322,7 +322,8 @@ def build_daily_report_card(
 
     settings = get_daily_scope_settings()
     rows = (
-        recent_valid_items_query(db, now=now, hours=settings.window_hours)
+        # Anchored to the daily increment (same scope as the radar).
+        recent_valid_items_query(db, now=now, since=daily_anchor(now))
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
         .limit(settings.item_limit)
         .all()

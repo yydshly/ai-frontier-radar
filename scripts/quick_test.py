@@ -8892,6 +8892,20 @@ def main():
                   "increment model should show an empty state, not older items")
         finally:
             _db.close()
+
+        # P1-4: both report paths are anchored to the increment (not the 24h
+        # window), so the report covers the same items as the radar.
+        proj = Path(__file__).resolve().parents[1]
+        dr = (proj / "app" / "application" / "radar" / "daily_report.py").read_text(encoding="utf-8")
+        drc = (proj / "app" / "application" / "radar" / "daily_report_card.py").read_text(encoding="utf-8")
+        check("report input anchored to increment (since=daily_anchor)",
+              "since=daily_anchor(now)" in dr
+              and "hours=scope_settings.window_hours" not in dr,
+              "build_daily_report_input must use the daily-anchor increment scope")
+        check("report card anchored to increment (since=daily_anchor)",
+              "since=daily_anchor(now)" in drc
+              and "hours=settings.window_hours" not in drc,
+              "build_daily_report_card must use the daily-anchor increment scope")
     except Exception as e:
         check("radar increment + count integrity checks", False, str(e))
 

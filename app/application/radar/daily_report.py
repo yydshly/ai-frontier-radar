@@ -26,7 +26,11 @@ from typing import Any, Protocol
 from sqlalchemy import or_
 
 from app.models import CardStatus, InsightCard, SourceItem
-from app.application.radar.daily_scope import recent_valid_items_query, SUMMARY_MARKERS
+from app.application.radar.daily_scope import (
+    recent_valid_items_query,
+    daily_anchor,
+    SUMMARY_MARKERS,
+)
 from app.application.radar.settings import get_daily_scope_settings
 
 # Summary markers live in daily_scope (single source of truth, shared with the
@@ -199,7 +203,9 @@ def build_daily_report_input(db, *, now: datetime | None = None, max_items: int 
 
     scope_settings = get_daily_scope_settings()
     rows = (
-        recent_valid_items_query(db, now=now, hours=scope_settings.window_hours)
+        # Anchored to the daily increment (same scope as the radar), capped to
+        # max_items as a report-synthesis ceiling (top-N), not a display limit.
+        recent_valid_items_query(db, now=now, since=daily_anchor(now))
         .filter(or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS]))
         .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
         .limit(min(scope_settings.item_limit, max_items))
