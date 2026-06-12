@@ -128,15 +128,8 @@
                             <span class="radar-sidebar-summary-date">{{ today_summary_panel.date_label }}</span>
                         </summary>
                         <div class="radar-sidebar-summary-compact-body">
-                            {% if daily_digest %}
-                            <div class="radar-sidebar-summary-stats">
-                                <span><strong>{{ daily_digest.new_items_count }}</strong><small>今日纳入</small></span>
-                                <span><strong>{{ daily_digest.source_count }}</strong><small>覆盖来源</small></span>
-                                <span><strong>{{ daily_digest.summarized_count }}</strong><small>可读内容</small></span>
-                            </div>
-                            <div class="radar-sidebar-summary-scope-note">最近 24 小时有效内容，最多纳入 50 条。</div>
-                            {% endif %}
-
+                            {# Headline stats live once in 今日编译概览 below — this
+                               module focuses on the core report + audio. #}
                             {% if today_summary_panel.has_core_report %}
                             {% if today_summary_panel.report_is_stale %}
                             <div class="radar-sidebar-summary-stale">今日内容已更新，当前报告尚未包含最新信息。</div>
@@ -336,8 +329,8 @@
                     {% endif %}
 
                     {% if view.fetch_run_summary or scheduler_status %}
-                    <div class="radar-fetch-summary">
-                        <div class="radar-fetch-summary-title">运行状态</div>
+                    <details class="radar-fetch-summary radar-runtime-status">
+                        <summary class="radar-fetch-summary-title">运行状态 / 调度</summary>
 
                         {% if view.fetch_run_summary %}
                         {% if view.fetch_run_summary.total %}
@@ -384,7 +377,7 @@
                             <div class="radar-scheduler-hint">自动调度：{{ scheduler_status.scheduler_mode_label }}</div>
                         </div>
                         {% endif %}
-                    </div>
+                    </details>
                     {% endif %}
 
                     {# ── 高级 / 运维 ──────────────────────────────────────── #}

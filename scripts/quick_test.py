@@ -4915,11 +4915,13 @@ def main():
               radar_html.index("radar-sidebar-summary-compact")
               < radar_html.index("radar-today-actions"),
               "today summary must be the first daily information entry")
-        check("today summary exposes daily content metrics",
-              "radar-sidebar-summary-stats" in radar_html
+        check("daily content metrics are surfaced once (in 今日编译概览)",
+              "今日编译概览" in radar_html
               and "daily_digest.new_items_count" in radar_html
-              and "daily_digest.source_count" in radar_html,
-              "today summary must explain the scope of today's new content")
+              and "daily_digest.source_count" in radar_html
+              and "daily_digest.summarized_count" in radar_html
+              and "radar-sidebar-summary-stats" not in radar_html,
+              "daily content scope/metrics must be shown once, consolidated in 今日编译概览 (de-duplicated from the summary panel)")
         check("today summary exposes report highlights and fallback items",
               "core_report_highlights" in radar_html
               and "radar-sidebar-summary-fallback-list" in radar_html,
