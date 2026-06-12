@@ -9039,6 +9039,37 @@ def main():
     except Exception as e:
         check("daily cycle orchestration checks", False, str(e))
 
+    # ── Leave the working DB clean ───────────────────────────────────────────
+    # Several checks (and the app under test) seed throwaway sources via the real
+    # SessionLocal; without cleanup these accumulate in the dev DB run after run
+    # (they were the source of ~960 'test_*/orphan_*' rows). Remove them here,
+    # AFTER all checks have run. Conservative patterns — real sources never match.
+    try:
+        from app.db import SessionLocal as _SLc
+        from app.models import Source as _SrcC, SourceItem as _SIC, FetchRun as _FRC
+        _markers = ("test", "orphan", "demo", "abc123", "_enq_", "_filter_",
+                    "_err_", "dummy", "example_", "mock")
+        _dbc = _SLc()
+        try:
+            _tsrc = [s for s in _dbc.query(_SrcC).all()
+                     if any(m in (s.source_key or "").lower() for m in _markers)]
+            _tids = {s.id for s in _tsrc}
+            _tkeys = {s.source_key for s in _tsrc}
+            if _tids:
+                _iids = [it.id for it in _dbc.query(_SIC).filter(
+                    (_SIC.source_id.in_(_tids)) | (_SIC.source_key.in_(_tkeys))).all()]
+                if _iids:
+                    _dbc.query(_SIC).filter(_SIC.id.in_(_iids)).delete(synchronize_session=False)
+                if _tkeys:
+                    _dbc.query(_FRC).filter(_FRC.source_key.in_(_tkeys)).delete(synchronize_session=False)
+                _dbc.query(_SrcC).filter(_SrcC.id.in_(_tids)).delete(synchronize_session=False)
+                _dbc.commit()
+                print(f"\n[cleanup] removed {len(_tsrc)} test-pattern sources seeded during the run")
+        finally:
+            _dbc.close()
+    except Exception as _ce:
+        print(f"[cleanup] skipped: {_ce}")
+
     print(f"\n{'='*50}")
     print(f"Results: {PASS} passed, {FAIL} failed")
     if FAIL > 0:
