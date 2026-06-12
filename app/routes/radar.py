@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 import os
 
-from fastapi import APIRouter, BackgroundTasks, Form, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -410,6 +410,241 @@ _radar_templates = Jinja2Templates(
 )
 
 
+# ── Grouped action-result query params (PRG echo-back) ───────────────────────
+# After a POST action redirects back to /radar/today, its result is carried in
+# the URL query string. These dependency classes group those ~40 echo-back
+# params so the GET signature stays small, and each knows how to assemble its
+# own template-context dict. The URL contract is unchanged: FastAPI derives the
+# same query params from each class __init__ as the old flat signature did.
+
+
+class SummaryResultParams:
+    """Echo-back params for the batch / single Chinese-summary result banner."""
+
+    def __init__(
+        self,
+        summary_success: int | None = Query(None, ge=0),
+        summary_skipped: int | None = Query(None, ge=0),
+        summary_failed: int | None = Query(None, ge=0),
+        summary_details: str | None = Query(None),
+        summary_batch_ids: str | None = Query(None),
+        summary_batch_accepted: int | None = Query(None, ge=0),
+        summary_batch_skipped: int | None = Query(None, ge=0),
+        summary_batch_failed: int | None = Query(None, ge=0),
+    ):
+        self.summary_success = summary_success
+        self.summary_skipped = summary_skipped
+        self.summary_failed = summary_failed
+        self.summary_details = summary_details
+        self.summary_batch_ids = summary_batch_ids
+        self.summary_batch_accepted = summary_batch_accepted
+        self.summary_batch_skipped = summary_batch_skipped
+        self.summary_batch_failed = summary_batch_failed
+
+    def build(self) -> dict | None:
+        summary_result = _build_summary_batch_status(self.summary_batch_ids)
+        if summary_result is not None:
+            summary_result.update({
+                "accepted": self.summary_batch_accepted or 0,
+                "skipped": self.summary_batch_skipped or 0,
+                "failed_enqueue": self.summary_batch_failed or 0,
+                "background": True,
+            })
+        elif (
+            self.summary_success is not None
+            or self.summary_skipped is not None
+            or self.summary_failed is not None
+        ):
+            summary_result = {
+                "success": self.summary_success or 0,
+                "skipped": self.summary_skipped or 0,
+                "failed": self.summary_failed or 0,
+                "details": _parse_summary_details(self.summary_details),
+            }
+            summary_result["retry_ids"] = [
+                detail["item_id"]
+                for detail in summary_result["details"]
+                if detail["status"] == "failed" and detail["item_id"].isdigit()
+            ]
+        return summary_result
+
+
+class InsightResultParams:
+    """Echo-back params for the single-insight + batch-insight result banners."""
+
+    def __init__(
+        self,
+        insight_status: str | None = Query(None),
+        insight_message: str | None = Query(None),
+        insight_batch_accepted: int | None = Query(None, ge=0),
+        insight_batch_skipped: int | None = Query(None, ge=0),
+        insight_batch_failed: int | None = Query(None, ge=0),
+        insight_batch_ids: str | None = Query(None),
+        insight_batch_total: int | None = Query(None, ge=0),
+        insight_batch_hard_cap: int | None = Query(None, ge=0),
+    ):
+        self.insight_status = insight_status
+        self.insight_message = insight_message
+        self.insight_batch_accepted = insight_batch_accepted
+        self.insight_batch_skipped = insight_batch_skipped
+        self.insight_batch_failed = insight_batch_failed
+        self.insight_batch_ids = insight_batch_ids
+        self.insight_batch_total = insight_batch_total
+        self.insight_batch_hard_cap = insight_batch_hard_cap
+
+    def build_insight_result(self) -> dict | None:
+        if self.insight_status is None:
+            return None
+        return {
+            "status": self.insight_status,
+            "message": self.insight_message or "",
+        }
+
+    def build_batch_result(self) -> dict | None:
+        insight_batch_result = (
+            {
+                "accepted": self.insight_batch_accepted or 0,
+                "skipped": self.insight_batch_skipped or 0,
+                "failed": self.insight_batch_failed or 0,
+                "total_candidates": self.insight_batch_total or 0,
+                "hard_cap": self.insight_batch_hard_cap or 0,
+            }
+            if any(
+                value is not None
+                for value in (
+                    self.insight_batch_accepted,
+                    self.insight_batch_skipped,
+                    self.insight_batch_failed,
+                )
+            )
+            else None
+        )
+        insight_batch_status = _build_insight_batch_status(self.insight_batch_ids)
+        if insight_batch_result and insight_batch_status:
+            insight_batch_result.update(insight_batch_status)
+        elif insight_batch_status:
+            insight_batch_result = insight_batch_status
+            insight_batch_result.update({"accepted": 0, "skipped": 0, "failed": 0})
+        return insight_batch_result
+
+
+class UpdateResultParams:
+    """Echo-back params for the "同步今日新增" due-source result banner."""
+
+    def __init__(
+        self,
+        update_started: int | None = Query(None, ge=0),
+        update_running: int | None = Query(None, ge=0),
+        update_unsupported: int | None = Query(None, ge=0),
+        update_failed: int | None = Query(None, ge=0),
+        update_truncated: int | None = Query(None, ge=0),
+        update_unique_sources: int | None = Query(None, ge=0),
+        update_duplicate_sources: int | None = Query(None, ge=0),
+        update_configured_sources: int | None = Query(None, ge=0),
+        update_filtered_sources: int | None = Query(None, ge=0),
+        # New due-source summary fields (V1.0-beta.1)
+        update_total: int | None = Query(None, ge=0),
+        update_due: int | None = Query(None, ge=0),
+        update_skipped: int | None = Query(None, ge=0),
+        update_missing: int | None = Query(None, ge=0),
+        update_reason_summary: str | None = Query(None),
+        update_plan_source: str | None = Query(None),
+    ):
+        self.update_started = update_started
+        self.update_running = update_running
+        self.update_unsupported = update_unsupported
+        self.update_failed = update_failed
+        self.update_truncated = update_truncated
+        self.update_unique_sources = update_unique_sources
+        self.update_duplicate_sources = update_duplicate_sources
+        self.update_configured_sources = update_configured_sources
+        self.update_filtered_sources = update_filtered_sources
+        self.update_total = update_total
+        self.update_due = update_due
+        self.update_skipped = update_skipped
+        self.update_missing = update_missing
+        self.update_reason_summary = update_reason_summary
+        self.update_plan_source = update_plan_source
+
+    def build(self) -> dict | None:
+        if not any(v is not None for v in [
+            self.update_started,
+            self.update_running,
+            self.update_unsupported,
+            self.update_failed,
+            self.update_truncated,
+            self.update_unique_sources,
+            self.update_duplicate_sources,
+            self.update_configured_sources,
+            self.update_filtered_sources,
+            self.update_total,
+            self.update_due,
+            self.update_skipped,
+            self.update_missing,
+            self.update_reason_summary,
+            self.update_plan_source,
+        ]):
+            return None
+        return {
+            "started": self.update_started or 0,
+            "running": self.update_running or 0,
+            "unsupported": self.update_unsupported or 0,
+            "failed": self.update_failed or 0,
+            "truncated": self.update_truncated or 0,
+            "unique_sources": self.update_unique_sources or 0,
+            "duplicate_sources": self.update_duplicate_sources or 0,
+            "configured_sources": self.update_configured_sources or 0,
+            "filtered_sources": self.update_filtered_sources or 0,
+            # New due-source summary fields (V1.0-beta.1)
+            "total": self.update_total or 0,
+            "due": self.update_due or 0,
+            "skipped": self.update_skipped or 0,
+            "missing": self.update_missing or 0,
+            "reason_summary": self.update_reason_summary or "",
+            "reason_summary_label": _humanize_reason_summary(self.update_reason_summary) or "",
+            "plan_source": self.update_plan_source or "",
+        }
+
+
+class BootstrapResultParams:
+    """Echo-back params for the "初始化来源内容" bootstrap result banner."""
+
+    def __init__(
+        self,
+        bootstrap_dry_run: int | None = Query(None, ge=0),
+        bootstrap_total: int | None = Query(None, ge=0),
+        bootstrap_eligible: int | None = Query(None, ge=0),
+        bootstrap_started: int | None = Query(None, ge=0),
+        bootstrap_skipped: int | None = Query(None, ge=0),
+        bootstrap_unsupported: int | None = Query(None, ge=0),
+        bootstrap_failed: int | None = Query(None, ge=0),
+        bootstrap_message: str | None = Query(None),
+        bootstrap_execution_mode: str | None = Query(None),
+    ):
+        self.bootstrap_dry_run = bootstrap_dry_run
+        self.bootstrap_total = bootstrap_total
+        self.bootstrap_eligible = bootstrap_eligible
+        self.bootstrap_started = bootstrap_started
+        self.bootstrap_skipped = bootstrap_skipped
+        self.bootstrap_unsupported = bootstrap_unsupported
+        self.bootstrap_failed = bootstrap_failed
+        self.bootstrap_message = bootstrap_message
+        self.bootstrap_execution_mode = bootstrap_execution_mode
+
+    def build(self) -> dict | None:
+        return _build_bootstrap_result(
+            dry_run=self.bootstrap_dry_run,
+            total=self.bootstrap_total,
+            eligible=self.bootstrap_eligible,
+            started=self.bootstrap_started,
+            skipped=self.bootstrap_skipped,
+            unsupported=self.bootstrap_unsupported,
+            failed=self.bootstrap_failed,
+            message=self.bootstrap_message,
+            execution_mode=self.bootstrap_execution_mode,
+        )
+
+
 @router.get("/today", response_class=HTMLResponse)
 def radar_today_page(
     request: Request,
@@ -420,47 +655,10 @@ def radar_today_page(
     per_page: int = Query(DEFAULT_PER_PAGE, ge=MIN_PER_PAGE, le=MAX_PER_PAGE),
     section: str = Query(ALL_KEY),
     panel: str | None = Query(None),
-    summary_success: int | None = Query(None, ge=0),
-    summary_skipped: int | None = Query(None, ge=0),
-    summary_failed: int | None = Query(None, ge=0),
-    summary_details: str | None = Query(None),
-    summary_batch_ids: str | None = Query(None),
-    summary_batch_accepted: int | None = Query(None, ge=0),
-    summary_batch_skipped: int | None = Query(None, ge=0),
-    summary_batch_failed: int | None = Query(None, ge=0),
-    insight_status: str | None = Query(None),
-    insight_message: str | None = Query(None),
-    insight_batch_accepted: int | None = Query(None, ge=0),
-    insight_batch_skipped: int | None = Query(None, ge=0),
-    insight_batch_failed: int | None = Query(None, ge=0),
-    insight_batch_ids: str | None = Query(None),
-    insight_batch_total: int | None = Query(None, ge=0),
-    insight_batch_hard_cap: int | None = Query(None, ge=0),
-    update_started: int | None = Query(None, ge=0),
-    update_running: int | None = Query(None, ge=0),
-    update_unsupported: int | None = Query(None, ge=0),
-    update_failed: int | None = Query(None, ge=0),
-    update_truncated: int | None = Query(None, ge=0),
-    update_unique_sources: int | None = Query(None, ge=0),
-    update_duplicate_sources: int | None = Query(None, ge=0),
-    update_configured_sources: int | None = Query(None, ge=0),
-    update_filtered_sources: int | None = Query(None, ge=0),
-    # New due-source summary fields (V1.0-beta.1)
-    update_total: int | None = Query(None, ge=0),
-    update_due: int | None = Query(None, ge=0),
-    update_skipped: int | None = Query(None, ge=0),
-    update_missing: int | None = Query(None, ge=0),
-    update_reason_summary: str | None = Query(None),
-    update_plan_source: str | None = Query(None),
-    bootstrap_dry_run: int | None = Query(None, ge=0),
-    bootstrap_total: int | None = Query(None, ge=0),
-    bootstrap_eligible: int | None = Query(None, ge=0),
-    bootstrap_started: int | None = Query(None, ge=0),
-    bootstrap_skipped: int | None = Query(None, ge=0),
-    bootstrap_unsupported: int | None = Query(None, ge=0),
-    bootstrap_failed: int | None = Query(None, ge=0),
-    bootstrap_message: str | None = Query(None),
-    bootstrap_execution_mode: str | None = Query(None),
+    summary_params: SummaryResultParams = Depends(),
+    insight_params: InsightResultParams = Depends(),
+    update_params: UpdateResultParams = Depends(),
+    bootstrap_params: BootstrapResultParams = Depends(),
 ):
     """Render today's AI frontier radar reading view."""
     # Build base context using shared helper
@@ -474,115 +672,11 @@ def radar_today_page(
         section=section,
     )
 
-    summary_result = _build_summary_batch_status(summary_batch_ids)
-    if summary_result is not None:
-        summary_result.update({
-            "accepted": summary_batch_accepted or 0,
-            "skipped": summary_batch_skipped or 0,
-            "failed_enqueue": summary_batch_failed or 0,
-            "background": True,
-        })
-    elif (
-        summary_success is not None
-        or summary_skipped is not None
-        or summary_failed is not None
-    ):
-        summary_result = {
-            "success": summary_success or 0,
-            "skipped": summary_skipped or 0,
-            "failed": summary_failed or 0,
-            "details": _parse_summary_details(summary_details),
-        }
-        summary_result["retry_ids"] = [
-            detail["item_id"]
-            for detail in summary_result["details"]
-            if detail["status"] == "failed" and detail["item_id"].isdigit()
-        ]
-
-    insight_result = None
-    if insight_status is not None:
-        insight_result = {
-            "status": insight_status,
-            "message": insight_message or "",
-        }
-
-    update_result = None
-    if any(v is not None for v in [
-        update_started,
-        update_running,
-        update_unsupported,
-        update_failed,
-        update_truncated,
-        update_unique_sources,
-        update_duplicate_sources,
-        update_configured_sources,
-        update_filtered_sources,
-        update_total,
-        update_due,
-        update_skipped,
-        update_missing,
-        update_reason_summary,
-        update_plan_source,
-    ]):
-        update_result = {
-            "started": update_started or 0,
-            "running": update_running or 0,
-            "unsupported": update_unsupported or 0,
-            "failed": update_failed or 0,
-            "truncated": update_truncated or 0,
-            "unique_sources": update_unique_sources or 0,
-            "duplicate_sources": update_duplicate_sources or 0,
-            "configured_sources": update_configured_sources or 0,
-            "filtered_sources": update_filtered_sources or 0,
-            # New due-source summary fields (V1.0-beta.1)
-            "total": update_total or 0,
-            "due": update_due or 0,
-            "skipped": update_skipped or 0,
-            "missing": update_missing or 0,
-            "reason_summary": update_reason_summary or "",
-            "reason_summary_label": _humanize_reason_summary(update_reason_summary) or "",
-            "plan_source": update_plan_source or "",
-        }
-
-    context["summary_result"] = summary_result
-    context["insight_result"] = insight_result
-    insight_batch_result = (
-        {
-            "accepted": insight_batch_accepted or 0,
-            "skipped": insight_batch_skipped or 0,
-            "failed": insight_batch_failed or 0,
-            "total_candidates": insight_batch_total or 0,
-            "hard_cap": insight_batch_hard_cap or 0,
-        }
-        if any(
-            value is not None
-            for value in (
-                insight_batch_accepted,
-                insight_batch_skipped,
-                insight_batch_failed,
-            )
-        )
-        else None
-    )
-    insight_batch_status = _build_insight_batch_status(insight_batch_ids)
-    if insight_batch_result and insight_batch_status:
-        insight_batch_result.update(insight_batch_status)
-    elif insight_batch_status:
-        insight_batch_result = insight_batch_status
-        insight_batch_result.update({"accepted": 0, "skipped": 0, "failed": 0})
-    context["insight_batch_result"] = insight_batch_result
-    context["update_result"] = update_result
-    context["bootstrap_result"] = _build_bootstrap_result(
-        dry_run=bootstrap_dry_run,
-        total=bootstrap_total,
-        eligible=bootstrap_eligible,
-        started=bootstrap_started,
-        skipped=bootstrap_skipped,
-        unsupported=bootstrap_unsupported,
-        failed=bootstrap_failed,
-        message=bootstrap_message,
-        execution_mode=bootstrap_execution_mode,
-    )
+    context["summary_result"] = summary_params.build()
+    context["insight_result"] = insight_params.build_insight_result()
+    context["insight_batch_result"] = insight_params.build_batch_result()
+    context["update_result"] = update_params.build()
+    context["bootstrap_result"] = bootstrap_params.build()
     context["panel_mode"] = panel
 
     return _radar_templates.TemplateResponse(
