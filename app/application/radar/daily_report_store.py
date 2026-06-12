@@ -33,6 +33,18 @@ def get_daily_report_path(date_label: str, root_dir: Path | None = None) -> Path
     return get_daily_report_runtime_dir(root_dir) / f"daily_report_{date_label}.json"
 
 
+def list_daily_report_dates(root_dir: Path | None = None) -> list[str]:
+    """Return the date labels (YYYY-MM-DD) that have a persisted report, newest
+    first. Backs the per-day history index."""
+    runtime_dir = get_daily_report_runtime_dir(root_dir)
+    dates: list[str] = []
+    for path in runtime_dir.glob("daily_report_*.json"):
+        label = path.stem.replace("daily_report_", "", 1)
+        if _DATE_LABEL_RE.fullmatch(label):
+            dates.append(label)
+    return sorted(dates, reverse=True)
+
+
 def get_daily_report_history_dir(
     date_label: str,
     root_dir: Path | None = None,

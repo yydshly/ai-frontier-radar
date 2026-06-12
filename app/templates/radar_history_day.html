@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{{ view.date_label }} 历史 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>{{ view.date_label }} · 当日回看</h1>
+            <p>新增 {{ view.item_count }} · 覆盖来源 {{ view.source_count }} · 语音 {{ view.audio_jobs|length }}</p>
+            <a href="/radar/history" class="btn-link">← 返回历史列表</a>
+        </div>
+
+        <section class="history-section">
+            {% if view.report %}
+            <h2>{{ view.report.title or '今日核心报告' }}</h2>
+            {% if view.report.overview %}<p>{{ view.report.overview }}</p>{% endif %}
+            {% if view.report.highlights %}
+            <ul>
+                {% for h in view.report.highlights %}<li>{{ h }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+            {% else %}
+            <p class="empty-state">当日没有生成核心报告。</p>
+            {% endif %}
+        </section>
+
+        {% if view.audio_jobs %}
+        <section class="history-section">
+            <h2>语音报告</h2>
+            {% for j in view.audio_jobs %}
+            <div class="history-audio-row">
+                <span>{{ j.voice }} 音色</span>
+                <audio controls preload="metadata" src="{{ j.audio_url }}"></audio>
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <section class="history-section">
+            <h2>当日新增文章</h2>
+            {% if view.groups %}
+            {% for g in view.groups %}
+            <h3 class="briefing-group-title">{{ g.source_name }} <span class="briefing-muted">（{{ g.items|length }} 条）</span></h3>
+            <ul class="briefing-list">
+                {% for it in g.items %}
+                <li class="briefing-item">
+                    <div class="briefing-item-main">{{ it.zh_preview or it.title }}</div>
+                    <div class="briefing-item-meta">
+                        <span class="briefing-muted">{{ it.time_label }}</span>
+                        {% set safe_url = safe_external_url(it.url) %}
+                        {% if safe_url %}<a href="{{ safe_url }}" target="_blank" rel="noopener">原文</a>{% endif %}
+                        <a href="/source-items/{{ it.item_id }}">详情</a>
+                        {% if it.insight_card_id %}<a href="/cards/{{ it.insight_card_id }}">洞察卡</a>{% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endfor %}
+            {% else %}
+            <p class="empty-state">当日没有新增文章。</p>
+            {% endif %}
+        </section>
+{% endblock %}

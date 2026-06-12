@@ -9064,6 +9064,42 @@ def main():
     except Exception as e:
         check("published_at staleness guard checks", False, str(e))
 
+    # ── 68. P5 per-day history (index + per-day view + anchor window) ────────
+    print("\n[68] per-day history (P5)")
+    try:
+        from app.application.radar.daily_scope import anchor_window_for_date as _awd
+        from datetime import datetime as _dt68
+        # default config: 08:00 CST == UTC 00:00 → window is the UTC calendar day
+        _ws, _we = _awd("2026-06-12", anchor_hour=8, tz_offset_hours=8)
+        check("anchor_window_for_date spans one anchor day",
+              _ws == _dt68(2026, 6, 12, 0, 0, 0) and _we == _dt68(2026, 6, 13, 0, 0, 0),
+              f"got {_ws}..{_we}")
+
+        proj68 = Path(__file__).resolve().parents[1]
+        radar_route = (proj68 / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        check("history routes exist (index + per-day)",
+              '@router.get("/history"' in radar_route
+              and '@router.get("/history/{date_label}"' in radar_route,
+              "P5 needs a history index and a per-day route")
+        check("history templates exist",
+              (proj68 / "app" / "templates" / "radar_history.html").exists()
+              and (proj68 / "app" / "templates" / "radar_history_day.html").exists(),
+              "history list + per-day templates should exist")
+
+        from fastapi.testclient import TestClient as _TC68
+        from app.main import app as _app68
+        _c68 = _TC68(_app68)
+        check("history index renders + today page links to it",
+              _c68.get("/radar/history").status_code == 200
+              and "每日历史" in _c68.get("/radar/today").text,
+              "history index should render and be linked from the radar")
+        check("history per-day view renders; bad date -> 400",
+              _c68.get("/radar/history/2026-06-12").status_code == 200
+              and _c68.get("/radar/history/not-a-date").status_code == 400,
+              "per-day view should render for a valid date and reject malformed ones")
+    except Exception as e:
+        check("per-day history checks", False, str(e))
+
     # ── Leave the working DB clean ───────────────────────────────────────────
     # Several checks (and the app under test) seed throwaway sources via the real
     # SessionLocal; without cleanup these accumulate in the dev DB run after run

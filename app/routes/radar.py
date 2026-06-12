@@ -1481,6 +1481,41 @@ def update_today_radar(
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
+@router.get("/history", response_class=HTMLResponse)
+def radar_history(request: Request):
+    """Per-day history index (P5): past days that have a persisted report."""
+    from app.application.radar.history import list_history_days
+
+    db = next(get_db())
+    try:
+        days = list_history_days(db)
+    finally:
+        db.close()
+    return _radar_templates.TemplateResponse(
+        "radar_history.html", {"request": request, "days": days}
+    )
+
+
+@router.get("/history/{date_label}", response_class=HTMLResponse)
+def radar_history_day(request: Request, date_label: str):
+    """Read-only detail for one past day: its report, audio, and articles."""
+    import re as _re
+    from app.application.radar.history import build_history_day_view
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+
+    db = next(get_db())
+    try:
+        view = build_history_day_view(db, date_label)
+    finally:
+        db.close()
+    return _radar_templates.TemplateResponse(
+        "radar_history_day.html",
+        {"request": request, "view": view, "safe_external_url": safe_external_url},
+    )
+
+
 @router.get("/daily-report", response_class=HTMLResponse)
 def get_daily_report_card(
     request: Request,

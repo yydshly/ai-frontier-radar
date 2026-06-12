@@ -39,6 +39,32 @@ def daily_anchor(
         local_anchor -= timedelta(days=1)
     return local_anchor - timedelta(hours=offset)
 
+
+def anchor_window_for_date(
+    date_label: str,
+    *,
+    anchor_hour: int | None = None,
+    tz_offset_hours: int | None = None,
+) -> tuple[datetime, datetime]:
+    """Return the [start, end) naive-UTC window for a past anchor-period day.
+
+    ``date_label`` is the local date (YYYY-MM-DD) of the anchor period; the window
+    runs from that day's local anchor hour to the next day's, both as naive UTC.
+    Used by the per-day history view to select that day's increment.
+    """
+    from app.application.radar.settings import get_daily_scope_settings
+
+    settings = get_daily_scope_settings()
+    hour = settings.anchor_hour if anchor_hour is None else anchor_hour
+    offset = (
+        settings.anchor_tz_offset_hours if tz_offset_hours is None else tz_offset_hours
+    )
+    local_day = datetime.strptime(date_label, "%Y-%m-%d").replace(
+        hour=hour, minute=0, second=0, microsecond=0
+    )
+    start = local_day - timedelta(hours=offset)
+    return start, start + timedelta(hours=24)
+
 # Canonical raw_metadata_json substrings that mark a SourceItem as already
 # carrying a (Chinese) summary. Single source of truth — imported by the digest,
 # the daily report and the source workspace so their "已有中文摘要" counts can

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}每日历史 - AI Frontier Radar{% endblock %}
+
+{% block main_class %}wide-page{% endblock %}
+
+{% block content %}
+        <div class="page-header">
+            <h1>每日历史</h1>
+            <p>按天回看历史的核心报告、语音与当日新增文章。每天的核心报告生成后在此归档。</p>
+            <a href="/radar/today" class="btn-link">← 返回今日雷达</a>
+        </div>
+
+        {% if days %}
+        <ul class="history-list">
+            {% for d in days %}
+            <li class="history-day">
+                <a href="/radar/history/{{ d.date_label }}" class="history-day-link">
+                    <span class="history-day-date">{{ d.date_label }}</span>
+                    <span class="history-day-meta">
+                        {% if d.report_title %}{{ d.report_title }}{% else %}（当日无核心报告）{% endif %}
+                        · 新增 {{ d.item_count }} · 语音 {{ d.audio_count }}
+                    </span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty-state">暂无历史记录。每天的核心报告生成后会在此按天归档。</p>
+        {% endif %}
+{% endblock %}
