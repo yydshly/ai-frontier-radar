@@ -511,36 +511,29 @@ class RadarTodayService:
     def __init__(self, db: Session):
         self.db = db
 
-    def build_today_view(
+    def _select_window_items(
         self,
-        selected_item_id: int | None = None,
-        hours: int = DEFAULT_HOURS,
-        limit: int = DEFAULT_LIMIT,
-        page: int = 1,
-        per_page: int = DEFAULT_PER_PAGE,
-        section: str = ALL_KEY,
-        fetch_run_source_keys: "set[str] | None" = None,
-    ) -> RadarTodayView:
-        hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
-        limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
-        per_page = _clamp(int(per_page), MIN_PER_PAGE, MAX_PER_PAGE)
-        page = max(1, int(page))
+        hours: int,
+        limit: int,
+    ) -> tuple[list[SourceItem], bool]:
+        """Select the recent-window item set, with empty-window fallback.
 
-        # Validate section against known keys (unknown → ALL_KEY).
-        section = normalize_section_key(section)
+        Returns ``(items_sorted_for_display, fallback_used)``. This is the single
+        source for the item set used by both ``build_today_view`` and the
+        recommendation-only path, so they can never diverge.
 
-        # Select the candidate set by RELIABLE datetime columns. published_at is
-        # free-text and mostly RFC822 (e.g. "Thu, 04 Jun 2026 ..."), which sorts
-        # lexicographically by weekday — NOT chronologically — so leading the DB
-        # ORDER BY + LIMIT with it would truncate to an arbitrary weekday-ranked
-        # set and drop genuinely newer items. Final display order still prefers
-        # published_at via _radar_sort_key (which parses RFC822/ISO correctly).
+        Candidates are selected by RELIABLE datetime columns. published_at is
+        free-text and mostly RFC822 (e.g. "Thu, 04 Jun 2026 ..."), which sorts
+        lexicographically by weekday — NOT chronologically — so leading the DB
+        ORDER BY + LIMIT with it would truncate to an arbitrary weekday-ranked
+        set and drop genuinely newer items. Final display order still prefers
+        published_at via _radar_sort_key (which parses RFC822/ISO correctly).
+        """
         order = desc(func.coalesce(
             SourceItem.last_seen_at,
             SourceItem.first_seen_at,
         ))
 
-        # ── Recent-window query ──────────────────────────────────────────
         items = (
             recent_valid_items_query(self.db, hours=hours)
             .order_by(order)
@@ -548,7 +541,6 @@ class RadarTodayService:
             .all()
         )
 
-        # ── Fallback: most recent `limit` items if window is empty ────────
         fallback_used = False
         if not items:
             fallback_used = True
@@ -567,8 +559,56 @@ class RadarTodayService:
                 .all()
             )
 
-        # ── Re-sort by display-layer datetime (handles mixed ISO/RFC822) ──
+        # Re-sort by display-layer datetime (handles mixed ISO/RFC822).
         items = sorted(items, key=_radar_sort_key, reverse=True)
+        return items, fallback_used
+
+    def select_recommended_candidates(
+        self,
+        hours: int = DEFAULT_HOURS,
+        limit: int = DEFAULT_LIMIT,
+    ) -> list[CompileCandidate]:
+        """Compute only today's recommended compile-candidates.
+
+        Identical result to ``build_today_view(...).compile_candidates`` — the
+        candidate set is a pure function of ``(hours, limit)`` — but without
+        building display cards, sections, the reading panel, or stats. Callers
+        that only need the recommended id list (e.g. the batch-insight POST)
+        should use this instead of building the whole view.
+        """
+        hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
+        limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
+        items, _ = self._select_window_items(hours, limit)
+        return select_compile_candidates(
+            self.db,
+            hours=hours,
+            limit=RECOMMENDED_LIMIT,
+            per_source_limit=RECOMMENDED_PER_SOURCE_LIMIT,
+            max_scan=RECOMMENDED_MAX_SCAN,
+            item_ids={item.id for item in items},
+        )
+
+    def build_today_view(
+        self,
+        selected_item_id: int | None = None,
+        hours: int = DEFAULT_HOURS,
+        limit: int = DEFAULT_LIMIT,
+        page: int = 1,
+        per_page: int = DEFAULT_PER_PAGE,
+        section: str = ALL_KEY,
+        fetch_run_source_keys: "set[str] | None" = None,
+    ) -> RadarTodayView:
+        hours = _clamp(int(hours), MIN_HOURS, MAX_HOURS)
+        limit = _clamp(int(limit), MIN_LIMIT, MAX_LIMIT)
+        per_page = _clamp(int(per_page), MIN_PER_PAGE, MAX_PER_PAGE)
+        page = max(1, int(page))
+
+        # Validate section against known keys (unknown → ALL_KEY).
+        section = normalize_section_key(section)
+
+        # Recent-window item set (with empty-window fallback), via the shared
+        # selector so the recommendation-only path computes the identical set.
+        items, fallback_used = self._select_window_items(hours, limit)
 
         # ── Build display cards for the FULL result set (not just page) ──
         # This is needed to compute per-section counts over the full set

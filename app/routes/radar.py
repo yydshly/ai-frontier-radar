@@ -1124,14 +1124,13 @@ def generate_recommended_insights(
 
     db = next(get_db())
     try:
-        view = RadarTodayService(db).build_today_view(
+        # Only the recommended candidate ids are needed here, so compute just
+        # those instead of building the whole today-view (display cards, sections,
+        # panel, stats). The candidate set is identical to view.compile_candidates.
+        candidates = RadarTodayService(db).select_recommended_candidates(
             hours=hours,
             limit=limit,
-            page=1,
-            per_page=per_page,
-            section=ALL_KEY,
         )
-        candidates = view.compile_candidates
         all_candidate_ids = [c.source_item_id for c in candidates]
 
         # Specific item IDs override limit (retry flow)
