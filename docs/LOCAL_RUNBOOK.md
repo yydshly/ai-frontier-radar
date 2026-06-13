@@ -47,7 +47,26 @@ LLM_PROFILE=minimax_m27_highspeed_anthropic
 
 将 `config/sources.yaml.example`（如有）复制为 `config/sources.yaml`，或自行创建。
 
-## 5. 启动 Web 服务
+## 5. 本地控制台（推荐）
+
+双击打开 GUI 控制台，无需记忆命令：
+
+```powershell
+.\scripts\launcher.ps1
+```
+
+窗口中包含：
+
+- Start Web Service
+- Stop Web Service
+- Open Home
+- Open Local Status
+- Show Status
+- Open Logs Folder
+- Run Daily Cycle Once
+- Exit
+
+## 6. 启动 Web 服务
 
 ```powershell
 .\scripts\start_local.ps1
@@ -70,7 +89,7 @@ Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
 
 本地状态页面：http://127.0.0.1:8765/local-status
 
-## 6. 停止 Web 服务
+## 7. 停止 Web 服务
 
 在新终端中运行：
 
@@ -80,7 +99,7 @@ Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
 
 或直接按 Ctrl+C 停止 `start_local.ps1`。
 
-## 7. 安装每日定时任务
+## 8. 安装每日定时任务
 
 ```powershell
 .\scripts\install_windows_daily_task.ps1
@@ -93,13 +112,13 @@ Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
 
 安装完成后会显示任务摘要信息。
 
-## 8. 卸载每日定时任务
+## 9. 卸载每日定时任务
 
 ```powershell
 .\scripts\uninstall_windows_daily_task.ps1
 ```
 
-## 9. 手动运行一次每日任务
+## 10. 手动运行一次每日任务
 
 ```bash
 # dry-run（不实际执行）
@@ -109,7 +128,7 @@ python scripts/run_daily_cycle.py
 python scripts/run_daily_cycle.py --apply
 ```
 
-## 10. 查看最近每日任务状态
+## 11. 查看最近每日任务状态
 
 ### 方式一：PowerShell 脚本（推荐）
 
@@ -133,7 +152,7 @@ python scripts/show_daily_cycle_status.py
 
 访问：http://127.0.0.1:8765/local-status
 
-## 11. 日志和数据目录说明
+## 12. 日志和数据目录说明
 
 ### 关键目录
 
@@ -193,7 +212,7 @@ python scripts/show_daily_cycle_status.py
 | `runtime/daily_audio/` | 音频广播文件 |
 | `runtime/content_snapshots/` | 内容快照 |
 
-## 12. 常见问题
+## 13. 常见问题
 
 ### Q: start_local.ps1 提示 ".venv not found"
 
@@ -236,7 +255,7 @@ python scripts/run_daily_cycle.py
 
 检查 `runtime/daily_cycle_runs/` 目录权限，以及 `logs/daily_cycle.log` 中是否有写入错误。
 
-## 13. 快速命令汇总
+## 14. 快速命令汇总
 
 ```powershell
 # 启动 Web 服务

@@ -852,6 +852,14 @@ python scripts/acceptance_demo_data.py --isolated-db
 
 详细说明见 [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md)。
 
+### 本地控制台（推荐）
+
+双击打开 GUI 控制台，一键启动/停止服务、打开页面：
+
+```powershell
+.\scripts\launcher.ps1
+```
+
 ### 启动 Web 服务
 
 ```powershell

@@ -9212,6 +9212,33 @@ def main():
     check("local_status.py _load_latest_report uses _project_root()",
           "_project_root()" in local_status_py and "def _load_latest_report" in local_status_py)
 
+    # ── 71. Local launcher (GUI) ───────────────────────────────────────────────
+    print("\n[71] local launcher (GUI)")
+    launcher_path = proj70 / "scripts" / "launcher.ps1"
+    check("launcher.ps1 exists", launcher_path.exists())
+    if launcher_path.exists():
+        launcher_content = launcher_path.read_text(encoding="utf-8")
+        check("launcher.ps1 uses System.Windows.Forms",
+              "System.Windows.Forms" in launcher_content)
+        check("launcher.ps1 calls start_local.ps1",
+              "start_local.ps1" in launcher_content)
+        check("launcher.ps1 calls stop_local.ps1",
+              "stop_local.ps1" in launcher_content)
+        check("launcher.ps1 calls status_local.ps1",
+              "status_local.ps1" in launcher_content)
+        check("launcher.ps1 uses port 8765",
+              "8765" in launcher_content)
+        check("launcher.ps1 opens logs folder",
+              "logs" in launcher_content)
+        check("launcher.ps1 has Exit button",
+              "Exit" in launcher_content)
+        check("launcher.ps1 has Run Daily Cycle button",
+              "run_daily_cycle.py" in launcher_content)
+    check("README mentions launcher.ps1",
+          "launcher.ps1" in (proj70 / "README.md").read_text(encoding="utf-8"))
+    check("LOCAL_RUNBOOK mentions launcher.ps1",
+          "launcher.ps1" in (proj70 / "docs" / "LOCAL_RUNBOOK.md").read_text(encoding="utf-8"))
+
     # ── Leave the working DB clean ───────────────────────────────────────────
     # Several checks (and the app under test) seed throwaway sources via the real
     # SessionLocal; without cleanup these accumulate in the dev DB run after run
