@@ -1,20 +1,23 @@
-# install_windows_daily_task.ps1 — Install a Windows Task Scheduler job for the daily cycle.
+# install_windows_daily_task.ps1 - Install a RELIABLE Windows Task Scheduler job
+# for the daily cycle (fetch -> summarize -> report -> audio -> finalize).
 #
 # Usage:
-#   .\scripts\install_windows_daily_task.ps1
+#   .\scripts\install_windows_daily_task.ps1                 # daily at 08:05
+#   .\scripts\install_windows_daily_task.ps1 -RunTime 09:00
 #
-# What it does:
-# - Creates a daily task "AI Frontier Radar Daily Cycle" that runs at 08:05
-# - Calls scripts\run_daily_cycle.py --apply
-# - Appends stdout/stderr to logs\daily_cycle.log
+# Reliability (the whole point):
+#   - StartWhenAvailable: if the PC was OFF/asleep at the scheduled time, the task
+#     runs as soon as possible after the machine is available again (the daily
+#     cycle then back-fills any missed days). Plain `schtasks /Create` does NOT do
+#     this, which is why it was unreliable.
+#   - Restart on failure (2x), execution time limit (2h), no overlapping runs.
 #
-# NOTE: Does NOT read or print any API keys from .env.
+# Runs as the current user (only while logged on, which is the normal desktop
+# case). Does NOT read or print any API keys.
 
 param(
     [string]$TaskName = "AI Frontier Radar Daily Cycle",
-    [string]$RunTime = "08:05",
-    [string]$ScriptName = "run_daily_cycle.py",
-    [string]$ScriptArgs = "--apply"
+    [string]$RunTime = "08:05"
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,116 +27,63 @@ $ProjectRoot = (Resolve-Path (Join-Path $ProjectRoot "..")).Path
 Set-Location $ProjectRoot
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "AI Frontier Radar — Install Daily Task" -ForegroundColor Cyan
+Write-Host "AI Frontier Radar - Install Daily Task (reliable)" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host ""
 Write-Host "Project root: $ProjectRoot" -ForegroundColor Gray
 
 # ── Directory setup ──────────────────────────────────────────────────────────
-$LogsDir = Join-Path $ProjectRoot "logs"
-$RuntimeRunsDir = Join-Path $ProjectRoot "runtime\daily_cycle_runs"
-foreach ($dir in @($LogsDir, $RuntimeRunsDir)) {
-    if (-not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Force -Path $dir | Out-Null
-        Write-Host "[CREATED] $dir" -ForegroundColor Yellow
-    }
+foreach ($dir in @((Join-Path $ProjectRoot "logs"), (Join-Path $ProjectRoot "runtime\daily_cycle_runs"))) {
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
 }
 
-# ── Python selection ────────────────────────────────────────────────────────
-$PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-if (-not (Test-Path $PythonExe)) {
-    Write-Host "[INFO] .venv not found. Using python from PATH." -ForegroundColor Yellow
-    $PythonExe = "python"
-}
-Write-Host "Python: $PythonExe" -ForegroundColor Gray
-
-# ── Script path ─────────────────────────────────────────────────────────────
-$ScriptPath = Join-Path $ProjectRoot "scripts\$ScriptName"
-if (-not (Test-Path $ScriptPath)) {
-    Write-Host "[ERROR] $ScriptPath not found!" -ForegroundColor Red
-    throw "Script not found: $ScriptPath"
-}
-Write-Host "Script: $ScriptPath" -ForegroundColor Gray
-Write-Host "Args:   $ScriptArgs" -ForegroundColor Gray
-
-# ── Log path ─────────────────────────────────────────────────────────────────
-$DailyLog = Join-Path $ProjectRoot "logs\daily_cycle.log"
-Write-Host "Log:   $DailyLog" -ForegroundColor Gray
-Write-Host ""
-
-# ── Build the scheduled action ───────────────────────────────────────────────
-# We use cmd.exe /c to run an inline command so that:
-#   1. Working directory is set to ProjectRoot
-#   2. stdout/stderr are redirected to daily_cycle.log
-# The outer quotes around Python path handle spaces in directory names.
-$PythonQuoted = "`"$PythonExe`""
-$ScriptQuoted = "`"$ScriptPath`""
-$DailyLogQuoted = "`"$DailyLog`""
-$ProjectRootQuoted = "`"$ProjectRoot`""
-
-# Build the command that gets passed to cmd.exe /c
-$ActionCommand = "cd /d $ProjectRootQuoted && $PythonQuoted $ScriptQuoted $ScriptArgs >> $DailyLogQuoted 2>&1"
-
-Write-Host "Installing Windows Task Scheduler task..." -ForegroundColor Green
-Write-Host "  Task name:  $TaskName" -ForegroundColor Gray
-Write-Host "  Run time:   $RunTime daily" -ForegroundColor Gray
-Write-Host "  Command:    $ActionCommand" -ForegroundColor DarkGray
-Write-Host ""
-
-# ── Remove existing task if present ─────────────────────────────────────────
-try {
-    $existing = schtasks /Query /TN $TaskName /FO LIST 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "[INFO] Task '$TaskName' already exists. Deleting old task..." -ForegroundColor Yellow
-        schtasks /Delete /TN $TaskName /F 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[WARN] Failed to delete old task (may already be gone)." -ForegroundColor Yellow
-        }
-    }
-} catch {
-    # Task doesn't exist — that's fine, we'll create it.
+# ── The scheduled action runs the non-interactive runner ─────────────────────
+$ScheduledScript = Join-Path $ProjectRoot "scripts\run_daily_cycle_scheduled.ps1"
+if (-not (Test-Path $ScheduledScript)) {
+    throw "Runner not found: $ScheduledScript"
 }
 
-# ── Create the task ──────────────────────────────────────────────────────────
-$createResult = schtasks /Create `
-    /TN $TaskName `
-    /SC DAILY `
-    /ST $RunTime `
-    /TR "cmd.exe /c $ActionCommand" `
-    /F `
-    2>&1
+$action = New-ScheduledTaskAction `
+    -Execute "powershell.exe" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScheduledScript`"" `
+    -WorkingDirectory $ProjectRoot
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "[SUCCESS] Task '$TaskName' installed." -ForegroundColor Green
-} else {
-    Write-Host "[ERROR] Failed to create task. Exit code: $LASTEXITCODE" -ForegroundColor Red
-    Write-Host $createResult -ForegroundColor Red
-    throw "schtasks /Create failed with exit code $LASTEXITCODE"
-}
+$trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]$RunTime)
 
-# ── Verify and show task info ───────────────────────────────────────────────
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Task Summary" -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  Task name:    $TaskName" -ForegroundColor Gray
-Write-Host "  Run time:     $RunTime daily" -ForegroundColor Gray
-Write-Host "  Project root: $ProjectRoot" -ForegroundColor Gray
-Write-Host "  Python:       $PythonExe" -ForegroundColor Gray
-Write-Host "  Script:       $ScriptPath $ScriptArgs" -ForegroundColor Gray
-Write-Host "  Log:          $DailyLog" -ForegroundColor Gray
-Write-Host ""
+# StartWhenAvailable is the key reliability flag (catch up missed runs).
+$settings = New-ScheduledTaskSettingsSet `
+    -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 2) `
+    -RestartCount 2 -RestartInterval (New-TimeSpan -Minutes 10) `
+    -MultipleInstances IgnoreNew `
+    -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
-try {
-    $info = schtasks /Query /TN $TaskName /FO LIST 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "[INFO] Task details:" -ForegroundColor Gray
-        Write-Host $info -ForegroundColor DarkGray
-    }
-} catch {
-    Write-Host "[WARN] Could not retrieve task details." -ForegroundColor Yellow
+$description = "AI Frontier Radar: daily fetch/summarize/report/audio + back-fill of missed days. Runs at $RunTime; catches up if the PC was off."
+
+Write-Host "Installing task '$TaskName' (daily at $RunTime, catch-up on)..." -ForegroundColor Green
+Register-ScheduledTask `
+    -TaskName $TaskName `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -Description $description `
+    -Force | Out-Null
+
+# ── Verify ───────────────────────────────────────────────────────────────────
+$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($null -eq $task) {
+    throw "Task '$TaskName' was not registered."
 }
 
 Write-Host ""
-Write-Host "NOTE: Ensure .env is configured with your API keys before the task runs." -ForegroundColor Yellow
-Write-Host "Log output will be appended to: $DailyLog" -ForegroundColor Gray
+Write-Host "[SUCCESS] Task installed." -ForegroundColor Green
+Write-Host "  Task name:     $TaskName" -ForegroundColor Gray
+Write-Host "  Run time:      $RunTime daily (+ catch-up if missed)" -ForegroundColor Gray
+Write-Host "  Runner:        $ScheduledScript" -ForegroundColor Gray
+Write-Host "  Log:           $(Join-Path $ProjectRoot 'logs\daily_cycle.log')" -ForegroundColor Gray
+Write-Host "  Run record:    $(Join-Path $ProjectRoot 'runtime\daily_cycle_runs\latest.json')" -ForegroundColor Gray
+Write-Host ""
+Write-Host "Tips:" -ForegroundColor Cyan
+Write-Host "  - Test now:     Start-ScheduledTask -TaskName `"$TaskName`"" -ForegroundColor Gray
+Write-Host "  - Check status: Get-ScheduledTaskInfo -TaskName `"$TaskName`"" -ForegroundColor Gray
+Write-Host "  - Ensure .env has your API keys before the task runs." -ForegroundColor Yellow
+Write-Host "  - Task runs while you are logged on; StartWhenAvailable catches up after the PC is on." -ForegroundColor Gray
