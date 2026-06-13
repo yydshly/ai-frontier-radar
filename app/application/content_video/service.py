@@ -34,6 +34,8 @@ from app.application.content_video.storage import (
     VideoStorage,
     video_storage_for,
     ensure_video_dirs,
+    should_keep_intermediate,
+    cleanup_intermediate_artifacts,
 )
 from app.application.content_video.storyboard import build_storyboard
 from app.application.content_video.audio_renderer import (
@@ -204,6 +206,11 @@ def generate_video(
             shutil.copy(scene1_img, poster_path)
 
         # Step: done
+        # Cleanup intermediates unless CONTENT_VIDEO_KEEP_INTERMEDIATE=true
+        keep = should_keep_intermediate()
+        if not keep:
+            cleanup_intermediate_artifacts(storage)
+
         storage.write_status(
             job_id=job_id,
             input_hash=input_hash,

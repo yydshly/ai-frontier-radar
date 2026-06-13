@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -212,3 +213,24 @@ class VideoStorage:
                 current_step="done",
             )
         return None
+
+
+def should_keep_intermediate() -> bool:
+    """Return True if intermediate artifacts (scenes/audio/clips) should be kept.
+
+    Controlled by CONTENT_VIDEO_KEEP_INTERMEDIATE env var.
+    Default: False (clean up intermediates after successful generation).
+    """
+    val = os.getenv("CONTENT_VIDEO_KEEP_INTERMEDIATE", "").strip().lower()
+    return val in ("true", "1", "yes")
+
+
+def cleanup_intermediate_artifacts(storage: "VideoStorage") -> None:
+    """Remove scenes/, audio/, clips/ directories if they exist.
+
+    Called after successful video generation unless CONTENT_VIDEO_KEEP_INTERMEDIATE=true.
+    Does NOT raise if directories don't exist.
+    """
+    for subdir in (storage.scenes_dir, storage.audio_dir, storage.clips_dir):
+        if subdir.exists() and subdir.is_dir():
+            shutil.rmtree(subdir)

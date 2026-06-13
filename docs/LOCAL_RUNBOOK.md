@@ -456,8 +456,57 @@ python scripts/make_app_icon.py
 | `MIMO_TTS_STYLE` | （默认播报语气）| TTS 风格 |
 | `CONTENT_VIDEO_FONT_PATH` | 字体文件路径 | 强制使用指定路径的中文字体（覆盖默认字体查找） |
 | `CONTENT_VIDEO_BOLD_FONT_PATH` | 字体文件路径 | 强制使用指定路径的粗体中文字体 |
+| `CONTENT_VIDEO_KEEP_INTERMEDIATE` | `true` | 保留 scenes/audio/clips 中间产物（默认 false，生成后自动清理） |
 
-### 16.3 视频生成原理
+### 16.3 中间产物清理
+
+成功生成视频后，默认只保留最终产物：
+
+```
+output.mp4       ← 最终视频
+poster.png       ← 封面帧
+status.json      ← 状态记录
+storyboard.json ← 分镜脚本
+input_snapshot.json
+input_hash.txt
+```
+
+以下中间产物会被自动删除（节省空间）：
+
+```
+scenes/    ← scene PNG 图片
+audio/     ← scene MP3 音频
+clips/     ← scene MP4 片段
+```
+
+如需调试中间产物，设置环境变量：
+
+```bash
+export CONTENT_VIDEO_KEEP_INTERMEDIATE=true
+```
+
+失败时不会清理中间产物，方便排查问题。
+
+### 16.4 视频 Scene 结构（V1 短格式）
+
+视频采用适合手机观看的短格式，每页一个重点：
+
+```
+Scene 01  封面       — 品牌 + 日期 + 信号数量（无长标题）
+Scene 02  今日总判断 — 核心判断（1-2 行）
+Scene 03  信号 1 标题 — 信号标题 + 一句话摘要
+Scene 04  为什么重要 — 信号重要性（why_it_matters 拆分）
+Scene 05  信号 2 标题 — 同上
+Scene 06  为什么重要
+Scene 07  信号 3 标题
+Scene 08  为什么重要
+Scene 09  今日结论   — 压缩后的要点（每条 ≤28 字）
+Scene 10  结语       — CTA
+```
+
+默认取前 3 个信号，避免一页塞太多内容。长段落在进入 scene 前会经过 `compact_title` / `compact_line` / `split_to_visual_lines` 压缩处理。
+
+### 16.5 视频生成原理
 
 视频数据来自分享页背后的核心报告快照，不是网页截图。流程：
 
@@ -469,7 +518,7 @@ python scripts/make_app_icon.py
 6. 后台执行：Scene 图片（Pillow）→ Scene 音频（TTS）→ MP4（ffmpeg）
 7. 存储到 `runtime/generated_videos/<source_key>/<input_hash>/`
 
-### 16.4 本地开发测试
+### 16.6 本地开发测试
 
 ```bash
 # 启用开发假 TTS（不调真实 API）
@@ -484,7 +533,7 @@ start_app.bat
 # 点击"生成视频"，观察状态轮询
 ```
 
-### 16.5 常见问题
+### 16.7 常见问题
 
 **Q: 点击生成视频后一直显示"生成中"？**
 - 检查 ffmpeg 是否可用：`ffmpeg -version`

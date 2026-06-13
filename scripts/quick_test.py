@@ -9525,6 +9525,54 @@ def main():
               or ("Chinese" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")
                   and "_wrap_text" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")),
               "_wrap_text should handle Chinese continuous text (char-level wrapping)")
+
+        # ── 69e. Scene density + intermediate cleanup ─────────────────────────
+        text_utils_py = proj69 / "app" / "application" / "content_video" / "text_utils.py"
+        check("text_utils.py exists with compact functions",
+              text_utils_py.exists(),
+              "text_utils.py should exist with compact_title/split_to_visual_lines/etc")
+        tu_src = text_utils_py.read_text(encoding="utf-8") if text_utils_py.exists() else ""
+        check("text_utils.py defines compact_title",
+              "def compact_title" in tu_src,
+              "compact_title function should exist")
+        check("text_utils.py defines split_to_visual_lines",
+              "def split_to_visual_lines" in tu_src,
+              "split_to_visual_lines function should exist")
+        check("text_utils.py defines compact_narration",
+              "def compact_narration" in tu_src,
+              "compact_narration function should exist")
+        check("text_utils.py defines split_highlight_scenes",
+              "def split_highlight_scenes" in tu_src,
+              "split_highlight_scenes function should exist for highlight splitting")
+
+        storyboard_src = (proj69 / "app" / "application" / "content_video" / "storyboard.py").read_text(encoding="utf-8")
+        check("storyboard.py limits highlights to 3 (not 5)",
+              "max_highlights = 3" in storyboard_src or "[:3]" in storyboard_src,
+              "Highlights should be limited to 3 for short-form video")
+        check("storyboard.py uses split_highlight_scenes for 2-scene highlight",
+              "split_highlight_scenes" in storyboard_src,
+              "Highlights should be split into title + detail scenes")
+        check("storyboard.py imports text_utils compact functions",
+              "from app.application.content_video.text_utils import" in storyboard_src,
+              "storyboard.py should use text_utils compact functions")
+
+        storage_src = (proj69 / "app" / "application" / "content_video" / "storage.py").read_text(encoding="utf-8")
+        check("storage.py defines should_keep_intermediate",
+              "def should_keep_intermediate" in storage_src,
+              "should_keep_intermediate function should exist")
+        check("storage.py defines cleanup_intermediate_artifacts",
+              "def cleanup_intermediate_artifacts" in storage_src,
+              "cleanup_intermediate_artifacts function should exist")
+        check("CONTENT_VIDEO_KEEP_INTERMEDIATE is checked in storage",
+              "CONTENT_VIDEO_KEEP_INTERMEDIATE" in storage_src,
+              "CONTENT_VIDEO_KEEP_INTERMEDIATE env var should be checked")
+        check("service.py calls cleanup after success",
+              "cleanup_intermediate_artifacts" in (proj69 / "app" / "application" / "content_video" / "service.py").read_text(encoding="utf-8"),
+              "service.py should call cleanup_intermediate_artifacts on success")
+
+        check("image_renderer.py uses BOTTOM_SAFE overflow protection",
+              "BOTTOM_SAFE" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8"),
+              "image_renderer should check bounds to avoid drawing outside canvas")
     except Exception as e:
         check("public share page checks", False, str(e))
 

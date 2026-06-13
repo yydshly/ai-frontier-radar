@@ -98,120 +98,131 @@ def _choose_font_size(draw: ImageDraw.ImageDraw, text: str, max_width: int,
 
 
 def _render_cover(scene, w: int, h: int) -> Image.Image:
-    """Render a cover scene."""
+    """Render a cover scene — simplified: brand, date, signal count.
+
+    New cover structure (no long title):
+      - Brand: ◎ AI 前沿雷达
+      - Date + signal count from visual_lines
+      - Short tagline
+    """
     img = Image.new("RGBA", (w, h), C_BG)
     draw = ImageDraw.Draw(img)
 
-    # Titles use bold CJK font
-    title_font = _load_font(64, bold=True)
-    subtitle_font = _load_font(32)
-    date_font = _load_font(28)
+    # Use bold for brand and date; regular for subtitle lines
+    brand_font = _load_font(52, bold=True)
+    date_font = _load_font(30)
+    tagline_font = _load_font(26)
 
-    # Brand label top-left
+    # Brand label centered top
     brand = "◎ AI 前沿雷达"
-    draw.text((60, 60), brand, font=title_font, fill=C_ACCENT)
+    brand_bbox = draw.textbbox((0, 0), brand, font=brand_font)
+    draw.text(((w - brand_bbox[2]) // 2, 80), brand, font=brand_font, fill=C_ACCENT)
 
-    # Date top-right
-    if scene.visual_lines and len(scene.visual_lines) >= 3:
-        date_text = scene.visual_lines[2]
-        d_bbox = draw.textbbox((0, 0), date_text, font=date_font)
-        draw.text((w - d_bbox[2] - 60, 60), date_text, font=date_font, fill=C_SOURCE)
+    # Horizontal accent rule below brand
+    draw.rectangle([(w // 4, 148), (w - w // 4, 151)], fill=C_ACCENT)
 
-    # Horizontal rule
-    draw.rectangle([(60, 145), (w - 60, 148)], fill=C_ACCENT)
-
-    # Title block (bold)
-    title_text = scene.visual_lines[0] if scene.visual_lines else scene.visual_title
-    title_size = _choose_font_size(draw, title_text, w - 120, 36, 80, bold=True)
-    title_font_used = _load_font(title_size, bold=True)
-    bbox = draw.textbbox((0, 0), title_text, font=title_font_used)
-    title_y = 200
-    draw.text(((w - bbox[2]) // 2, title_y), title_text, font=title_font_used, fill=C_TEXT)
-
-    # Subtitle (regular weight)
-    if len(scene.visual_lines) > 1:
-        sub_text = scene.visual_lines[1]
-        sub_font = _load_font(36)
-        bbox2 = draw.textbbox((0, 0), sub_text, font=sub_font)
-        draw.text(((w - bbox2[2]) // 2, title_y + bbox[3] - bbox[1] + 30), sub_text,
-                  font=sub_font, fill=C_TEXT_DIM)
+    # Visual lines: usually [date_label, "N 个重点信号", ...]
+    # Show first 2 lines centered
+    line_y = 200
+    for vl in (scene.visual_lines or [])[:2]:
+        vl = vl.strip()
+        if not vl:
+            continue
+        vl_font = _choose_font_size(draw, vl, w - 160, 24, 54)
+        vl_font_obj = _load_font(vl_font)
+        vl_bbox = draw.textbbox((0, 0), vl, font=vl_font_obj)
+        draw.text(((w - vl_bbox[2]) // 2, line_y), vl, font=vl_font_obj, fill=C_TEXT)
+        line_y += vl_bbox[3] - vl_bbox[1] + 24
 
     # Bottom tagline
     tagline = "扫码查看完整报告 · 语音播报 · 全部文章原文"
-    tag_font = _load_font(24)
-    tag_bbox = draw.textbbox((0, 0), tagline, font=tag_font)
-    draw.text(((w - tag_bbox[2]) // 2, h - tag_bbox[3] - 60), tagline,
-              font=tag_font, fill=C_SOURCE)
+    tag_bbox = draw.textbbox((0, 0), tagline, font=tagline_font)
+    draw.text(((w - tag_bbox[2]) // 2, h - tag_bbox[3] - 70), tagline,
+              font=tagline_font, fill=C_SOURCE)
 
     # Auto-gen footer
     footer = "AI Frontier Radar · 视频由系统自动生成"
-    ft_bbox = draw.textbbox((0, 0), footer, font=tag_font)
-    draw.text(((w - ft_bbox[2]) // 2, h - ft_bbox[3] - 30), footer,
-              font=tag_font, fill=C_SOURCE)
+    ft_bbox = draw.textbbox((0, 0), footer, font=tagline_font)
+    draw.text(((w - ft_bbox[2]) // 2, h - ft_bbox[3] - 35), footer,
+              font=tagline_font, fill=C_SOURCE)
 
     return img
 
 
 def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
-    """Render a generic content card scene (summary/highlight/takeaways)."""
+    """Render a generic content card scene (summary/highlight/takeaways/ending)."""
     img = Image.new("RGBA", (w, h), C_BG)
     draw = ImageDraw.Draw(img)
 
-    MARGIN = 60
+    # Wider margins → narrower content for mobile readability
+    MARGIN = 72
     content_w = w - 2 * MARGIN
+    # Safety zone: don't draw below this y
+    BOTTOM_SAFE = h - 120
 
     y = 80
 
     # Section title (small caps label, bold)
     label_text = scene.scene_type.upper()
     if scene.scene_type == "highlight":
-        label_text = "重点内容"
+        label_text = "信号"
+    elif scene.scene_type == "highlight_detail":
+        label_text = "重点"
     elif scene.scene_type == "summary":
-        label_text = "核心判断"
+        label_text = "总判断"
     elif scene.scene_type == "takeaways":
-        label_text = "今日要点"
+        label_text = "今日结论"
     elif scene.scene_type == "ending":
         label_text = "结语"
 
-    label_font = _load_font(22, bold=True)
+    label_font = _load_font(20, bold=True)
     draw.text((MARGIN, y), label_text, font=label_font, fill=title_color)
-    y += 50
+    y += 48
 
     # Divider
     draw.rectangle([(MARGIN, y), (w - MARGIN, y + 3)], fill=title_color)
-    y += 30
+    y += 28
 
-    # Visual title (bold)
-    vt_font_size = _choose_font_size(draw, scene.visual_title, content_w, 32, 64, bold=True)
-    vt_font = _load_font(vt_font_size, bold=True)
-    vt_bbox = draw.textbbox((0, 0), scene.visual_title, font=vt_font)
-    draw.text((MARGIN, y), scene.visual_title, font=vt_font, fill=C_TEXT)
-    y += vt_bbox[3] - vt_bbox[1] + 20
+    # Visual title (bold) — only if not cover
+    if scene.visual_title and scene.scene_type != "cover":
+        vt_font_size = _choose_font_size(draw, scene.visual_title, content_w, 30, 54, bold=True)
+        vt_font = _load_font(vt_font_size, bold=True)
+        vt_bbox = draw.textbbox((0, 0), scene.visual_title, font=vt_font)
+        # Check bounds
+        if y + (vt_bbox[3] - vt_bbox[1]) < BOTTOM_SAFE:
+            draw.text((MARGIN, y), scene.visual_title, font=vt_font, fill=C_TEXT)
+            y += vt_bbox[3] - vt_bbox[1] + 16
 
-    # Visual lines (body, regular weight)
-    body_font = _load_font(34)
-    line_height = 56
-    for line in scene.visual_lines[:6]:
+    # Visual lines (body, regular weight) — smaller font, tighter line height
+    body_font = _load_font(32)
+    line_height = 52  # ~1.6x for readability
+    for line in scene.visual_lines[:5]:
         line = line.strip()
         if not line:
             continue
         wrapped = _wrap_text(draw, line, body_font, content_w, line_height)
         for wl in wrapped:
+            if y + line_height > BOTTOM_SAFE:
+                # Draw ellipsis and stop
+                draw.text((MARGIN, y), "…", font=body_font, fill=C_TEXT_DIM)
+                y += line_height
+                break
             draw.text((MARGIN, y), wl, font=body_font, fill=C_TEXT_DIM)
             y += line_height
-        y += 10
+        y += 8
 
     # Source label bottom-right
     if scene.source_label:
-        src_font = _load_font(24)
+        src_font = _load_font(22)
         draw.text((w - MARGIN, h - 80), scene.source_label, font=src_font, fill=C_SOURCE)
 
     # Footer
     footer = "AI Frontier Radar · 视频由系统自动生成"
-    ft_font = _load_font(20)
+    ft_font = _load_font(18)
     ft_bbox = draw.textbbox((0, 0), footer, font=ft_font)
-    draw.text(((w - ft_bbox[2]) // 2, h - ft_bbox[3] - 30), footer,
-              font=ft_font, fill=C_SOURCE)
+    ft_y = h - ft_bbox[3] - 30
+    if ft_y > y + 10:  # only if there's room
+        draw.text(((w - ft_bbox[2]) // 2, ft_y), footer, font=ft_font, fill=C_SOURCE)
 
     return img
 
