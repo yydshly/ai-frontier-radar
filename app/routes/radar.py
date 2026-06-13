@@ -2146,6 +2146,33 @@ def _start_video_generation(db, date_label, force, background_tasks):
             "error": None,
         }
 
+    # Run full preflight — fail fast before starting background task
+    from app.application.content_video.preflight import run_preflight
+    preflight = run_preflight(require_tts=True)
+    if not preflight.ok:
+        failed_items = [item for item in preflight.items if not item.ok]
+        if len(failed_items) == 1:
+            error_msg = failed_items[0].message
+        else:
+            error_lines = "\n".join(f"- {item.message}" for item in failed_items)
+            error_msg = f"生成环境检查失败：\n{error_lines}"
+        storage.write_status(
+            job_id="none",
+            input_hash=input_hash,
+            status="failed",
+            current_step="preflight",
+            error=error_msg,
+        )
+        return "none", input_hash, {
+            "job_id": "none",
+            "input_hash": input_hash,
+            "status": "failed",
+            "current_step": "preflight",
+            "video_path": None,
+            "poster_path": None,
+            "error": error_msg,
+        }
+
     # Resolve TTS eagerly here so we fail fast before starting background task
     try:
         tts_provider = _resolve_share_tts_provider()

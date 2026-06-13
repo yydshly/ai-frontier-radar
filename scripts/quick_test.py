@@ -9692,15 +9692,33 @@ def main():
         check("storage.py has update_status_extra method",
               "def update_status_extra" in storage_src,
               "storage should have update_status_extra for scene_count/duration/file_size")
+        service_src = (proj69 / "app" / "application" / "content_video" / "service.py").read_text(encoding="utf-8")
         check("service.py writes metadata.json after success",
-              "write_metadata" in (proj69 / "app" / "application" / "content_video" / "service.py").read_text(encoding="utf-8"),
+              "write_metadata" in service_src,
               "service.py should call storage.write_metadata after successful generation")
+        # write_status must come BEFORE update_status_extra so extra fields survive
+        wpos = service_src.find("write_status(")
+        upos = service_src.find("update_status_extra(")
+        check("service.py calls write_status before update_status_extra (fix overwrite bug)",
+              wpos > 0 and upos > 0 and wpos < upos,
+              "write_status(success) must be called BEFORE update_status_extra to preserve extra fields")
         check("service.py has improved error messages",
-              "未检测到 ffmpeg" in (proj69 / "app" / "application" / "content_video" / "service.py").read_text(encoding="utf-8"),
+              "未检测到 ffmpeg" in service_src,
               "service.py should have clear Chinese error messages for missing ffmpeg")
+        radar_src = (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
         check("status route returns scene_count/duration/tts_mode",
-              "scene_count" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8"),
+              "scene_count" in radar_src,
               "video status route should return scene_count, duration_seconds, file_size_bytes, tts_mode")
+        check("_start_video_generation calls run_preflight",
+              "run_preflight" in radar_src and "_start_video_generation" in radar_src,
+              "_start_video_generation should call run_preflight before starting background task")
+        check("preflight failed blocks background task (no add_task)",
+              # If preflight fails we return early before background_tasks.add_task
+              "if not preflight.ok" in radar_src or "preflight.ok" in radar_src,
+              "preflight failure should return early without dispatching background task")
+        check("preflight failed sets current_step to preflight",
+              'current_step="preflight"' in radar_src or "current_step='preflight'" in radar_src,
+              "preflight failure should set current_step='preflight' in status.json")
         check("share page JS shows TTS mode warning",
               "tts_mode" in share_html and "ttsWarning" in share_html,
               "share page JS should check tts_mode and show a warning if using fake TTS")
@@ -9708,7 +9726,7 @@ def main():
               (proj69 / "scripts" / "check_content_video_runtime.py").exists(),
               "check_content_video_runtime.py script should exist")
         check("preflight route exists in radar.py",
-              "/video/preflight" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8"),
+              "/video/preflight" in radar_src,
               "preflight route should be registered in radar.py")
         check("composer.py has get_video_duration",
               "def get_video_duration" in (proj69 / "app" / "application" / "content_video" / "composer.py").read_text(encoding="utf-8"),

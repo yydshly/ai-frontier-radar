@@ -238,15 +238,8 @@ def generate_video(
         }
         storage.write_metadata(metadata_payload)
 
-        # Update status.json with extra fields
-        storage.update_status_extra(
-            scene_count=scene_count,
-            duration_seconds=duration_seconds,
-            file_size_bytes=file_size_bytes,
-            tts_mode=tts_mode,
-            intermediate_kept=keep,
-        )
-
+        # Write base status first, then append extra fields (order matters: write_status
+        # overwrites the full file, so update_status_extra must come AFTER it)
         storage.write_status(
             job_id=job_id,
             input_hash=input_hash,
@@ -254,6 +247,13 @@ def generate_video(
             current_step="done",
             video_path=str(output_mp4),
             poster_path=str(poster_path) if poster_path.exists() else None,
+        )
+        storage.update_status_extra(
+            scene_count=scene_count,
+            duration_seconds=duration_seconds,
+            file_size_bytes=file_size_bytes,
+            tts_mode=tts_mode,
+            intermediate_kept=keep,
         )
 
         return VideoGenerationResult(
