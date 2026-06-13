@@ -32,22 +32,59 @@ Write-Host "  $ProjectRoot" -ForegroundColor Gray
 Write-Host ""
 
 # Web service status
+function Get-ListeningProcessIdsOnPort {
+    param([int]$Port)
+
+    $processIds = @()
+
+    try {
+        $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        if ($connections) {
+            foreach ($conn in $connections) {
+                if ($conn.OwningProcess) {
+                    $processIds += [int]$conn.OwningProcess
+                }
+            }
+        }
+    } catch {
+        Write-Host "[INFO] Get-NetTCPConnection failed, will try netstat." -ForegroundColor Yellow
+    }
+
+    if (-not $processIds -or $processIds.Count -eq 0) {
+        try {
+            $lines = netstat -ano | Select-String ":$Port" | Select-String "LISTENING"
+            foreach ($line in $lines) {
+                $parts = ($line.ToString() -split "\s+") | Where-Object { $_ -ne "" }
+                if ($parts.Count -gt 0) {
+                    $maybePid = $parts[-1]
+                    if ($maybePid -match "^\d+$") {
+                        $processIds += [int]$maybePid
+                    }
+                }
+            }
+        } catch {
+            Write-Host "[WARN] netstat fallback failed: $_" -ForegroundColor Yellow
+        }
+    }
+
+    return $processIds | Sort-Object -Unique
+}
+
 Write-Host "Web Service:" -ForegroundColor White
 $webAddress = "http://127.0.0.1:${WebPort}"
 Write-Host "  Address: $webAddress" -ForegroundColor Gray
+Write-Host ("  Port:    " + $WebPort) -ForegroundColor Gray
 
-try {
-    $Connections = Get-NetTCPConnection -LocalPort $WebPort -State Listen -ErrorAction SilentlyContinue
-} catch {
-    $Connections = @()
-}
+$ProcessIds = Get-ListeningProcessIdsOnPort -Port $WebPort
 
-if ($Connections -and $Connections.Count -gt 0) {
-    $PID = $Connections[0].OwningProcess
-    $Process = Get-Process -Id $PID -ErrorAction SilentlyContinue
-    $ProcessName = if ($Process) { $Process.ProcessName } else { "Unknown" }
+if ($ProcessIds -and $ProcessIds.Count -gt 0) {
     Write-Host "  Status: Running" -ForegroundColor Green
-    Write-Host "  PID:  $PID ($ProcessName)" -ForegroundColor Gray
+    Write-Host ("  Process count: " + $ProcessIds.Count) -ForegroundColor Gray
+    foreach ($procId in $ProcessIds) {
+        $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+        $procName = if ($proc) { $proc.ProcessName } else { "Unknown" }
+        Write-Host ("  PID: " + $procId + " (" + $procName + ")") -ForegroundColor Gray
+    }
 } else {
     Write-Host "  Status: Not running" -ForegroundColor Yellow
 }

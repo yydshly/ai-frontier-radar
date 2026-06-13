@@ -9240,11 +9240,89 @@ def main():
         check("launcher.ps1 has Exit button",
               "Exit" in launcher_content)
         check("launcher.ps1 has Run Daily Cycle button",
-              "run_daily_cycle.py" in launcher_content)
+              "Run Daily Cycle" in launcher_content)
     check("README mentions launcher.ps1",
           "launcher.ps1" in (proj70 / "README.md").read_text(encoding="utf-8"))
     check("LOCAL_RUNBOOK mentions launcher.ps1",
           "launcher.ps1" in (proj70 / "docs" / "LOCAL_RUNBOOK.md").read_text(encoding="utf-8"))
+
+    # ── 72. Local observability (running.json + live log) ─────────────────
+    print("\n[72] local observability (running.json + live log)")
+
+    # stop_local.ps1
+    stop_path = proj70 / "scripts" / "stop_local.ps1"
+    stop_content = stop_path.read_text(encoding="utf-8")
+    check("stop_local.ps1 does NOT use $PID =",
+          "$PID =" not in stop_content)
+    check("stop_local.ps1 uses Get-NetTCPConnection",
+          "Get-NetTCPConnection" in stop_content)
+    check("stop_local.ps1 has netstat fallback",
+          "netstat" in stop_content)
+    check("stop_local.ps1 matches LISTENING",
+          "LISTENING" in stop_content)
+    check("stop_local.ps1 uses port 8765",
+          "8765" in stop_content)
+    check("stop_local.ps1 re-verifies port after stop",
+          "Get-ListeningProcessIdsOnPort" in stop_content)
+
+    # status_local.ps1
+    status_path = proj70 / "scripts" / "status_local.ps1"
+    status_content = status_path.read_text(encoding="utf-8")
+    check("status_local.ps1 does NOT use $PID =",
+          "$PID =" not in status_content)
+    check("status_local.ps1 has netstat fallback",
+          "netstat" in status_content)
+    check("status_local.ps1 matches LISTENING",
+          "LISTENING" in status_content)
+
+    # run_daily_cycle.py
+    rdc_path = proj70 / "scripts" / "run_daily_cycle.py"
+    rdc_content = rdc_path.read_text(encoding="utf-8")
+    check("run_daily_cycle.py writes running.json",
+          "running.json" in rdc_content and "save_daily_cycle_running_status" in rdc_content)
+    check("run_daily_cycle.py uses daily_cycle.live.log",
+          "daily_cycle.live.log" in rdc_content)
+    check("run_daily_cycle.py uses flush=True",
+          "flush=True" in rdc_content)
+    check("run_daily_cycle.py uses current_step",
+          "current_step" in rdc_content)
+    check("run_daily_cycle.py uses append_daily_cycle_live_log",
+          "append_daily_cycle_live_log" in rdc_content)
+
+    # run_daily_cycle_once.ps1
+    rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
+    check("run_daily_cycle_once.ps1 exists", rdo_path.exists())
+    if rdo_path.exists():
+        rdo_content = rdo_path.read_text(encoding="utf-8")
+        check("run_daily_cycle_once.ps1 uses -u (unbuffered)",
+              "-u " in rdo_content or "-u\"" in rdo_content or rdo_content.find("-u") > 0)
+        check("run_daily_cycle_once.ps1 calls run_daily_cycle.py",
+              "run_daily_cycle.py" in rdo_content)
+
+    # launcher.ps1 — Run Daily Cycle uses wrapper
+    launcher_content_check = (proj70 / "scripts" / "launcher.ps1").read_text(encoding="utf-8")
+    check("launcher.ps1 calls run_daily_cycle_once.ps1",
+          "run_daily_cycle_once.ps1" in launcher_content_check)
+
+    # local_status.py — reads running.json
+    local_status_py_check = (proj70 / "app" / "routes" / "local_status.py").read_text(encoding="utf-8")
+    check("local_status.py loads running.json",
+          "load_daily_cycle_running_status" in local_status_py_check)
+
+    # local_status.html — shows current_step
+    local_status_html_check = (proj70 / "app" / "templates" / "local_status.html").read_text(encoding="utf-8")
+    check("local_status.html shows current_step",
+          "current_step" in local_status_html_check)
+    check("local_status.html mentions daily_cycle.live.log",
+          "daily_cycle.live.log" in local_status_html_check)
+
+    # docs mention live log
+    readme_check = (proj70 / "README.md").read_text(encoding="utf-8")
+    runbook_check = (proj70 / "docs" / "LOCAL_RUNBOOK.md").read_text(encoding="utf-8")
+    check("README mentions daily_cycle.live.log",
+          "daily_cycle.live.log" in readme_check)
+    check("LOCAL_RUNBOOK mentions daily_cycle.live.log",
+          "daily_cycle.live.log" in runbook_check)
 
     # ── Leave the working DB clean ───────────────────────────────────────────
     # Several checks (and the app under test) seed throwaway sources via the real

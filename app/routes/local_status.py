@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.application.radar.daily_cycle_runs import load_daily_cycle_running_status
 from app.context_processors import inject_sources_nav, _format_dt
 
 router = APIRouter(tags=["local-status"])
@@ -46,9 +47,11 @@ def local_status(request: Request):
     - Web service address
     - Key directory paths
     - Latest daily-cycle run result (from latest.json)
+    - Current daily-cycle run status (from running.json)
     - NO API keys, no LLM calls, no network access.
     """
     report = _load_latest_report()
+    running = load_daily_cycle_running_status()
 
     project_root = _project_root()
     logs_dir = project_root / "logs"
@@ -62,6 +65,8 @@ def local_status(request: Request):
         "日志目录": str(logs_dir),
         "Web 日志": str(logs_dir / "app.log"),
         "每日任务日志": str(logs_dir / "daily_cycle.log"),
+        "实时日志": str(logs_dir / "daily_cycle.live.log"),
+        "运行中状态": str(runtime_dir / "daily_cycle_runs" / "running.json"),
         "最近执行报告": str(runtime_dir / "daily_cycle_runs" / "latest.json"),
         "日报存储": str(runtime_dir / "daily_reports"),
         "音频存储": str(runtime_dir / "daily_audio"),
@@ -72,6 +77,7 @@ def local_status(request: Request):
         {
             "request": request,
             "report": report,
+            "running": running,
             "key_dirs": key_dirs,
             "project_root": str(project_root),
             "web_address": "http://127.0.0.1:8765",

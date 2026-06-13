@@ -177,14 +177,7 @@ $b7.Text = "Run Daily Cycle Once"
 $b7.Size = New-Object System.Drawing.Size($btnW, $btnH)
 $b7.Location = New-Object System.Drawing.Point($btnX, ($btnY += $btnH + $spacing))
 $b7.FlatStyle = "Standard"
-$b7.Add_Click({
-    $venvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-    $python = if (Test-Path $venvPython) { $venvPython } else { "python" }
-    $scriptPath = Join-Path $ProjectRoot "scripts\run_daily_cycle.py"
-    $cmd = "& `"$python`" `"$scriptPath`" --apply"
-    $pwsh = "powershell.exe"
-    Start-Process $pwsh -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $cmd -WindowStyle Normal
-})
+$b7.Add_Click({ Start-ScriptInNewWindow "scripts\run_daily_cycle_once.ps1" })
 $Form.Controls.Add($b7)
 $buttons += $b7
 

@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -27,9 +28,24 @@ for _s in (sys.stdout, sys.stderr):  # UTF-8 safe on Windows GBK consoles
 from app.db import SessionLocal  # noqa: E402
 from app.application.radar.daily_cycle import run_daily_cycle  # noqa: E402
 from app.application.radar.daily_cycle_runs import (  # noqa: E402
+    append_daily_cycle_live_log,
     append_daily_cycle_log,
+    clear_daily_cycle_running_status,
+    load_daily_cycle_running_status,
+    save_daily_cycle_running_status,
     save_daily_cycle_run_report,
 )
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _emit_live(tag: str, message: str) -> None:
+    """Print to console (flush) and append to logs/daily_cycle.live.log."""
+    line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [{tag}] {message}"
+    print(line, flush=True)
+    append_daily_cycle_live_log(line)
 
 
 def _build_report(
@@ -59,8 +75,33 @@ def _build_report(
         "steps": list(result.steps),
         "errors": list(result.errors),
         "log_path": "logs/daily_cycle.log",
+        "live_log_path": "logs/daily_cycle.live.log",
         "command": command,
     }
+
+
+def _write_running(
+    run_id: str,
+    mode: str,
+    started_at: datetime,
+    current_step: str,
+    command: str,
+    errors: list[str] | None = None,
+) -> None:
+    """Persist runtime/daily_cycle_runs/running.json (best-effort)."""
+    payload = {
+        "run_id": run_id,
+        "status": "failed" if (errors and len(errors) > 0 and current_step == "failed") else "running",
+        "mode": mode,
+        "started_at": started_at.isoformat(),
+        "updated_at": _now_iso(),
+        "current_step": current_step,
+        "command": command,
+        "pid": os.getpid(),
+        "live_log_path": "logs/daily_cycle.live.log",
+        "errors": list(errors or []),
+    }
+    save_daily_cycle_running_status(payload)
 
 
 def main() -> int:
@@ -78,12 +119,24 @@ def main() -> int:
     command = " ".join(sys.argv)
 
     started_at = datetime.now()
+    run_id = started_at.strftime("%Y%m%d_%H%M%S")
     result = None
     exit_code = 0
 
+    # ── [START] emit immediately so users see something in the new window ──
+    _emit_live("START", f"Daily cycle {mode} (run_id={run_id})")
+
+    # ── Write running.json so /local-status and PS launcher can see it ──────
+    _write_running(run_id, mode, started_at, "starting", command)
+    _emit_live("STEP", "starting")
+
     try:
+        _emit_live("STEP", "initializing_db")
+        _write_running(run_id, mode, started_at, "initializing_db", command)
         db = SessionLocal()
         try:
+            _emit_live("STEP", "running_cycle")
+            _write_running(run_id, mode, started_at, "running_cycle", command)
             result = run_daily_cycle(
                 db,
                 dry_run=not args.apply,
@@ -95,13 +148,11 @@ def main() -> int:
             )
         finally:
             db.close()
+        _emit_live("STEP", "running_cycle_done")
     except Exception as exc:
-        # Unhandled exception — build a failed report.
-        import sys as _sys
-        print(f"[ERROR] Unhandled exception in run_daily_cycle: {exc}", file=_sys.stderr)
+        _emit_live("ERROR", f"unhandled exception: {exc}")
         finished_at = datetime.now()
         exit_code = 1
-        # Synthesise a minimal DailyCycleResult so the report has the right shape.
         from app.application.radar.daily_cycle import DailyCycleResult
         result = DailyCycleResult(dry_run=not args.apply)
         result.errors.append(f"unhandled: {exc}")
@@ -138,7 +189,7 @@ def main() -> int:
     else:
         # Should not reach here, but guard against None result.
         report = {
-            "run_id": started_at.strftime("%Y%m%d_%H%M%S"),
+            "run_id": run_id,
             "mode": mode,
             "status": "failed",
             "exit_code": 1,
@@ -150,8 +201,14 @@ def main() -> int:
         }
         exit_code = 1
 
+    _emit_live("STEP", "writing_report")
+    _write_running(run_id, mode, started_at, "writing_report", command, errors=report.get("errors", []))
+
     # Persist the JSON report (both <run_id>.json and latest.json).
     save_daily_cycle_run_report(report)
+
+    _emit_live("STEP", "appending_log")
+    _write_running(run_id, mode, started_at, "appending_log", command, errors=report.get("errors", []))
 
     # Append human-readable text log.
     append_daily_cycle_log(
@@ -168,6 +225,27 @@ def main() -> int:
         steps=report.get("steps", []),
         errors=report.get("errors", []),
     )
+
+    if exit_code == 0:
+        _emit_live("DONE", f"exit_code=0 status={report['status']}")
+        _write_running(run_id, mode, started_at, "done", command, errors=[])
+        # Clean up the running marker on success.
+        clear_daily_cycle_running_status()
+    else:
+        _emit_live("ERROR", f"exit_code={exit_code} status={report['status']}")
+        # Keep the running.json with status=failed so users can see the failure.
+        _write_running(
+            run_id,
+            mode,
+            started_at,
+            "failed",
+            command,
+            errors=report.get("errors", []),
+        )
+        # Also set status="failed" explicitly in running.json.
+        existing = load_daily_cycle_running_status() or {}
+        existing["status"] = "failed"
+        save_daily_cycle_running_status(existing)
 
     return exit_code
 

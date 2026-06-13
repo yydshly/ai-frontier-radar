@@ -128,6 +128,25 @@ python scripts/run_daily_cycle.py
 python scripts/run_daily_cycle.py --apply
 ```
 
+或者通过本地控制台（推荐）：
+
+```powershell
+.\scripts\run_daily_cycle_once.ps1
+```
+
+### 重要提示
+
+```text
+1. Run Daily Cycle Once 可能需要数分钟。
+2. 执行中不要关闭窗口。
+3. 执行中可以打开 /local-status 查看 current_step。
+4. 实时日志在 logs/daily_cycle.live.log。
+5. 完整执行报告在 runtime/daily_cycle_runs/latest.json。
+6. 当前运行状态在 runtime/daily_cycle_runs/running.json。
+7. 如果强制关闭窗口，本次任务可能不会完整写入 latest.json。
+8. 下次通常可以重新运行，但应先查看 running.json / live log / latest.json。
+```
+
 ## 11. 查看最近每日任务状态
 
 ### 方式一：PowerShell 脚本（推荐）
@@ -171,6 +190,7 @@ python scripts/show_daily_cycle_status.py
 |------|------|
 | `logs/app.log` | Web 服务（uvicorn）日志 |
 | `logs/daily_cycle.log` | 每日任务执行日志（追加） |
+| `logs/daily_cycle.live.log` | 每日任务实时日志（运行中追加，完成后保留） |
 
 ### 每日任务报告
 
@@ -178,6 +198,7 @@ python scripts/show_daily_cycle_status.py
 |------|------|
 | `runtime/daily_cycle_runs/latest.json` | 最近一次执行报告 |
 | `runtime/daily_cycle_runs/<run_id>.json` | 历史执行报告（如 `20260613_080500.json`） |
+| `runtime/daily_cycle_runs/running.json` | 当前运行中状态（任务进行中或失败时存在） |
 
 `latest.json` 字段说明：
 

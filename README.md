@@ -885,7 +885,9 @@ python scripts\show_daily_cycle_status.py
 |------|------|
 | `.env` | 环境变量配置（API Key） |
 | `logs/` | 日志文件 |
+| `logs/daily_cycle.live.log` | 每日任务实时日志 |
 | `runtime/daily_cycle_runs/latest.json` | 最近执行报告 |
+| `runtime/daily_cycle_runs/running.json` | 当前运行中状态 |
 | `runtime/daily_reports/` | 日报文件 |
 | `runtime/daily_audio/` | 音频文件 |
 

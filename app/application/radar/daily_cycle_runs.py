@@ -188,3 +188,86 @@ def append_daily_cycle_log(
     except OSError as exc:
         import sys
         print(f"[WARNING] Failed to append to {log_path}: {exc}", file=sys.stderr)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Running status + live log helpers
+#
+# These files support a future "current run" observability view (e.g. the
+# /local-status page and any local GUI launcher). They are NOT required for
+# the main daily-cycle business logic.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def get_daily_cycle_running_path(root_dir: str | Path | None = None) -> Path:
+    """Return ``runtime/daily_cycle_runs/running.json`` (a transient marker)."""
+    return get_daily_cycle_runs_dir(root_dir) / "running.json"
+
+
+def get_daily_cycle_live_log_path(root_dir: str | Path | None = None) -> Path:
+    """Return ``logs/daily_cycle.live.log`` (transient, appended while a run is in flight)."""
+    return _get_runtime_root(root_dir) / "logs" / "daily_cycle.live.log"
+
+
+def save_daily_cycle_running_status(
+    status: dict[str, Any],
+    *,
+    root_dir: str | Path | None = None,
+) -> bool:
+    """Atomically write ``runtime/daily_cycle_runs/running.json``.
+
+    Returns True on success, False on any error (never raises).
+    """
+    path = get_daily_cycle_running_path(root_dir)
+    return _write_json_atomic(path, status)
+
+
+def load_daily_cycle_running_status(
+    *,
+    root_dir: str | Path | None = None,
+) -> dict[str, Any] | None:
+    """Load ``runtime/daily_cycle_runs/running.json`` safely; return None on missing/corrupt."""
+    try:
+        path = get_daily_cycle_running_path(root_dir)
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def clear_daily_cycle_running_status(
+    *,
+    root_dir: str | Path | None = None,
+) -> bool:
+    """Delete ``runtime/daily_cycle_runs/running.json`` if it exists.
+
+    Returns True if file was deleted (or already absent), False on error.
+    Never raises — failure to clear must not break the main flow.
+    """
+    try:
+        path = get_daily_cycle_running_path(root_dir)
+        if path.exists():
+            path.unlink()
+        return True
+    except OSError as exc:
+        import sys
+        print(f"[WARNING] Failed to clear running.json: {exc}", file=sys.stderr)
+        return False
+
+
+def append_daily_cycle_live_log(
+    message: str,
+    *,
+    root_dir: str | Path | None = None,
+) -> None:
+    """Append a single line to ``logs/daily_cycle.live.log`` (UTF-8).
+
+    Silently swallows OSError so logging never breaks the main flow.
+    """
+    try:
+        path = get_daily_cycle_live_log_path(root_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(message.rstrip("\n") + "\n")
+    except OSError as exc:
+        import sys
+        print(f"[WARNING] Failed to append to live log: {exc}", file=sys.stderr)
