@@ -417,3 +417,73 @@ python scripts/make_app_icon.py
 
 > 快捷方式带的是**绝对路径**，请在软件实际所在的机器上生成，不要把别人机器上
 > 生成的 .lnk 直接拷过来。
+
+---
+
+## 16. 分享页视频生成
+
+分享页支持将核心报告生成为 9:16 竖屏 MP4 视频（语音讲解 + 信息卡片）。
+
+### 16.1 前置依赖
+
+**ffmpeg**（必须）：
+- 下载地址：https://ffmpeg.org/download.html
+- 将 `ffmpeg.exe` 放在项目根目录的 `bin/` 文件夹，或确保系统 PATH 中有 ffmpeg
+- 验证：`ffmpeg -version`
+
+**MiMo TTS**（可选，用于语音）：
+- 设置 `MIMO_API_KEY` 环境变量
+- 若未配置且 `DEV_FAKE_TTS=true`，系统使用静音音频（可完成 pipeline 测试）
+
+### 16.2 视频生成配置
+
+| 环境变量 | 值 | 说明 |
+|---------|-----|------|
+| `DEV_FAKE_TTS` | `true` | 开发模式：使用静音音频（不调真实 TTS） |
+| `MIMO_API_KEY` | `sk-...` 或 `tp-...` | MiMo V2.5 TTS API Key |
+| `MIMO_TTS_VOICE` | 冰糖（默认）| TTS 音色 |
+| `MIMO_TTS_STYLE` | （默认播报语气）| TTS 风格 |
+
+### 16.3 视频生成原理
+
+视频数据来自分享页背后的核心报告快照，不是网页截图。流程：
+
+1. 用户点击"生成视频"
+2. 构造 `ShareReportSnapshot`（核心报告快照）
+3. 转成 `VideoSourceSnapshot`（通用视频数据结构）
+4. 计算 `input_hash`（基于内容 + 配置）
+5. 检查是否已有成功视频（复用）
+6. 后台执行：Scene 图片（Pillow）→ Scene 音频（TTS）→ MP4（ffmpeg）
+7. 存储到 `runtime/generated_videos/<source_key>/<input_hash>/`
+
+### 16.4 本地开发测试
+
+```bash
+# 启用开发假 TTS（不调真实 API）
+export DEV_FAKE_TTS=true
+
+# 启动服务
+start_app.bat
+
+# 打开分享页
+# http://127.0.0.1:8765/radar/share/today
+
+# 点击"生成视频"，观察状态轮询
+```
+
+### 16.5 常见问题
+
+**Q: 点击生成视频后一直显示"生成中"？**
+- 检查 ffmpeg 是否可用：`ffmpeg -version`
+- 检查服务日志是否有错误
+
+**Q: 视频生成失败？**
+- 检查 `runtime/generated_videos/<source_key>/<input_hash>/status.json` 中的 `error` 字段
+- 常见原因：TTS 未配置（需要 `MIMO_API_KEY` 或 `DEV_FAKE_TTS=true`）
+
+**Q: 如何重新生成视频？**
+- 点击分享页中的"重新生成"按钮（传 `force=true`）
+
+**Q: 视频文件存储在哪里？**
+- `runtime/generated_videos/<source_key>/<input_hash>/output.mp4`
+- 不同 `input_hash` 不会互相覆盖；同 `input_hash` + `force=True` 会覆盖

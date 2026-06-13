@@ -55,8 +55,7 @@ _STATUS_EXISTING = "existing"
 
 # Valid current_step values (in order)
 STEPS = [
-    "loading_share_snapshot",
-    "calculating_input_hash",
+    "queued",
     "checking_existing_video",
     "building_storyboard",
     "rendering_scene_images",
@@ -83,8 +82,14 @@ def generate_video(
     request: VideoGenerationRequest,
     *,
     tts_provider: TTSProvider | None = None,
+    job_id: str | None = None,
 ) -> VideoGenerationResult:
     """Generate a video from a VideoSourceSnapshot.
+
+    Args:
+        request: video generation request
+        tts_provider: TTS provider instance (required; raise if not provided)
+        job_id: optional external job_id; if None, one is generated internally
 
     On success: saves output.mp4, poster.png, and status.json.
     On "existing": returns the existing result without regenerating.
@@ -92,7 +97,7 @@ def generate_video(
     """
     snapshot = request.source_snapshot
     source_key = snapshot.source_key
-    job_id = _job_id()
+    job_id = job_id or _job_id()
 
     # Step: calculating_input_hash
     input_hash = compute_input_hash(request)

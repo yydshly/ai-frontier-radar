@@ -7,7 +7,7 @@ POST /radar/today/generate-summaries queues background summary generation for
 today's items.
 """
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
@@ -2024,21 +2024,23 @@ def _build_video_source_from_share(db, date_label: str):
 def _resolve_share_tts_provider():
     """Resolve TTS provider for share video generation.
 
-    Prefers real MiMo TTS; falls back to FakeTTS if DEV_FAKE_TTS=true.
+    Rules:
+    - DEV_FAKE_TTS=true → FakeTTSProvider (dev only)
+    - Otherwise → real MiMo TTS; if not configured → raise TTSProviderError
     """
     import os
     from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSError
-    from app.application.content_video.audio_renderer import FakeTTSProvider
+    from app.application.content_video.audio_renderer import FakeTTSProvider, TTSProviderError
 
     if os.getenv("DEV_FAKE_TTS", "").strip().lower() == "true":
         return FakeTTSProvider()
     try:
         client = MiMoTTSClient()
-        # Wrap in a simple provider adapter
         return _MiMoTTSProviderWrapper(client)
-    except MiMoTTSError:
-        # No real TTS — fall back to fake so generation can still be tested
-        return FakeTTSProvider()
+    except MiMoTTSError as exc:
+        raise TTSProviderError(
+            f"TTS provider is not configured: {exc}"
+        ) from exc
 
 
 class _MiMoTTSProviderWrapper:
@@ -2051,48 +2053,141 @@ class _MiMoTTSProviderWrapper:
         return self._client.synthesize(text)
 
 
+def _run_content_video_job(request, job_id, input_hash):
+    """Background task: resolve TTS and run video generation.
+
+    DB session is NOT passed — request contains only dataclass/pickle-safe data.
+    TTS provider is resolved inside this function so it runs in the background context.
+    """
+    from app.application.content_video.audio_renderer import TTSProviderError
+    from app.application.content_video.service import generate_video
+    from app.application.content_video.storage import video_storage_for
+
+    try:
+        tts_provider = _resolve_share_tts_provider()
+    except TTSProviderError as exc:
+        # TTS not configured — write failed status using the known input_hash
+        storage = video_storage_for(request.source_snapshot.source_key, input_hash)
+        storage.write_status(
+            job_id=job_id,
+            input_hash=input_hash,
+            status="failed",
+            current_step="generating_scene_audio",
+            error=str(exc),
+        )
+        return
+
+    try:
+        generate_video(request, tts_provider=tts_provider, job_id=job_id)
+    except Exception:
+        # Error is already written to status.json inside generate_video
+        pass
+
+
+def _start_video_generation(db, date_label, force, background_tasks):
+    """Shared logic for starting a video generation job (used by today and history routes).
+
+    Returns (job_id, input_hash, immediate_response_dict).
+    """
+    from fastapi import BackgroundTasks
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import (
+        generate_video,
+        get_existing_video_status,
+    )
+    from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.storage import video_storage_for, ensure_video_dirs
+    from app.application.content_video.audio_renderer import TTSProviderError
+
+    video_snapshot = _build_video_source_from_share(db, date_label)
+    request = VideoGenerationRequest(source_snapshot=video_snapshot, force=force)
+    input_hash = compute_input_hash(request)
+    storage = video_storage_for(video_snapshot.source_key, input_hash)
+    ensure_video_dirs(storage.base_dir)
+
+    # Check for existing video
+    existing = get_existing_video_status(video_snapshot.source_key, input_hash)
+    if existing is not None and not force:
+        return existing.job_id, input_hash, {
+            "job_id": existing.job_id,
+            "input_hash": input_hash,
+            "status": "existing",
+            "current_step": "done",
+            "video_path": existing.video_path,
+            "poster_path": existing.poster_path,
+            "error": None,
+        }
+
+    # Resolve TTS eagerly here so we fail fast before starting background task
+    try:
+        tts_provider = _resolve_share_tts_provider()
+    except TTSProviderError as exc:
+        # TTS not available — write failed status immediately
+        storage.write_status(
+            job_id="none",
+            input_hash=input_hash,
+            status="failed",
+            current_step="generating_scene_audio",
+            error=str(exc),
+        )
+        return "none", input_hash, {
+            "job_id": "none",
+            "input_hash": input_hash,
+            "status": "failed",
+            "current_step": "generating_scene_audio",
+            "video_path": None,
+            "poster_path": None,
+            "error": str(exc),
+        }
+
+    # Write initial queued status
+    job_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    storage.write_status(
+        job_id=job_id,
+        input_hash=input_hash,
+        status="running",
+        current_step="queued",
+    )
+
+    # Dispatch background task (only the request dataclass — no DB session)
+    background_tasks.add_task(_run_content_video_job, request, job_id, input_hash)
+
+    return job_id, input_hash, {
+        "job_id": job_id,
+        "input_hash": input_hash,
+        "status": "running",
+        "current_step": "queued",
+        "video_path": None,
+        "poster_path": None,
+        "error": None,
+    }
+
+
 @router.post("/share/today/video/generate")
-def generate_share_today_video(force: bool = Form(False)):
+def generate_share_today_video(
+    background_tasks: BackgroundTasks,
+    force: bool = Query(False),
+):
     """Trigger structured-content video generation for today's share page.
 
-    Uses the share page's core-report snapshot as the data source.
-    Returns JSON with job_id and input_hash for status polling.
+    Uses BackgroundTasks so the HTTP response returns immediately with job_id.
+    Client should poll /share/today/video/status for progress.
     """
-    from app.application.content_video.models import VideoGenerationRequest
-    from app.application.content_video.service import generate_video
-    from app.application.content_video.hashing import compute_input_hash
-
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, None)
-        tts_provider = _resolve_share_tts_provider()
-        request = VideoGenerationRequest(
-            source_snapshot=video_snapshot,
-            force=force,
+        job_id, input_hash, payload = _start_video_generation(
+            db, None, force, background_tasks
         )
-        result = generate_video(request, tts_provider=tts_provider)
-        return {
-            "job_id": result.job_id,
-            "input_hash": result.input_hash,
-            "status": result.status,
-            "current_step": result.current_step,
-            "video_path": result.video_path,
-            "poster_path": result.poster_path,
-            "error": result.error,
-        }
+        return payload
     finally:
         db.close()
 
 
 @router.get("/share/today/video/status")
 def get_share_today_video_status(input_hash: str | None = Query(None)):
-    """Poll the video generation status for today's share page.
-
-    If input_hash is provided, check that specific hash.
-    Otherwise, compute hash from current snapshot and check.
-    """
+    """Poll the video generation status for today's share page."""
     from app.application.content_video.models import VideoGenerationRequest
-    from app.application.content_video.service import get_existing_video_status, get_video_paths
+    from app.application.content_video.service import get_video_paths
     from app.application.content_video.hashing import compute_input_hash
 
     db = next(get_db())
@@ -2104,10 +2199,7 @@ def get_share_today_video_status(input_hash: str | None = Query(None)):
         paths = get_video_paths(video_snapshot.source_key, input_hash)
         if paths is None:
             return {"status": "not_found", "input_hash": input_hash}
-        return {
-            **paths,
-            "input_hash": input_hash,
-        }
+        return {**paths, "input_hash": input_hash}
     finally:
         db.close()
 
@@ -2118,7 +2210,6 @@ def download_share_today_video(input_hash: str | None = Query(None)):
     from app.application.content_video.models import VideoGenerationRequest
     from app.application.content_video.service import get_existing_video_status
     from app.application.content_video.hashing import compute_input_hash
-    from app.application.content_video.storage import video_storage_for
 
     db = next(get_db())
     try:
@@ -2147,34 +2238,23 @@ def download_share_today_video(input_hash: str | None = Query(None)):
 # ── Historical share video routes ─────────────────────────────────────────────
 
 @router.post("/share/{date_label}/video/generate")
-def generate_share_history_video(date_label: str, force: bool = Form(False)):
+def generate_share_history_video(
+    date_label: str,
+    background_tasks: BackgroundTasks,
+    force: bool = Query(False),
+):
     """Trigger structured-content video generation for a historical share page."""
     import re as _re
-
-    from app.application.content_video.models import VideoGenerationRequest
-    from app.application.content_video.service import generate_video
 
     if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
         return HTMLResponse("无效日期。", status_code=400)
 
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, date_label)
-        tts_provider = _resolve_share_tts_provider()
-        request = VideoGenerationRequest(
-            source_snapshot=video_snapshot,
-            force=force,
+        job_id, input_hash, payload = _start_video_generation(
+            db, date_label, force, background_tasks
         )
-        result = generate_video(request, tts_provider=tts_provider)
-        return {
-            "job_id": result.job_id,
-            "input_hash": result.input_hash,
-            "status": result.status,
-            "current_step": result.current_step,
-            "video_path": result.video_path,
-            "poster_path": result.poster_path,
-            "error": result.error,
-        }
+        return payload
     finally:
         db.close()
 

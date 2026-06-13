@@ -9441,13 +9441,23 @@ def main():
               and "generateLongImage" in share_html
               and "html2canvas.min.js" in share_html,
               "长图 needs a locally-vendored html2canvas and a generate hook")
-        check("short-video: module + route + ffmpeg gate",
-              video_py.exists()
-              and "def compose_audiogram" in video_py.read_text(encoding="utf-8")
-              and "def resolve_ffmpeg" in video_py.read_text(encoding="utf-8")
-              and '/share/{date_label}/video' in radar_route
-              and "video_enabled" in share_html,
-              "短视频 needs share_video.py, a /video route, and an ffmpeg-availability gate")
+        # New structured-content video (content_video module) — no html2canvas screenshot
+        check("content_video module exists",
+              (proj69 / "app" / "application" / "content_video").is_dir()
+              and (proj69 / "app" / "application" / "content_video" / "models.py").exists()
+              and (proj69 / "app" / "application" / "content_video" / "service.py").exists(),
+              "content_video module should exist with models + service")
+        check("new video generate routes exist (today + history)",
+              '/share/today/video/generate' in radar_route
+              and '/share/{date_label}/video/generate' in radar_route,
+              "new video generation routes should exist for today and per-date")
+        check("share page has new cvGenerate() video UI",
+              "cvGenerate" in share_html
+              and "核心报告视频" in share_html,
+              "share page should have the new cv-based video generation UI")
+        check("share page does NOT expose old generateVideo() button",
+              "生成短视频（含语音）" not in share_html,
+              "old html2canvas-based video button should be removed from UI")
         check("share view still links every article to 原文",
               ">原文<" in _c69.get("/radar/share/today").text or not _ldrd(),
               "each shared article must link to its source 原文")

@@ -240,7 +240,6 @@
         </div>
         <div class="share-btns">
             <button onclick="generateLongImage()">生成长图</button>
-            {% if video_enabled %}<button onclick="generateVideo()">生成短视频（含语音）</button>{% endif %}
         </div>
         <button class="share-close" onclick="closeShare()">关闭</button>
     </div>
@@ -367,38 +366,6 @@ function collectBlockRects(scale){
             h: Math.round(r.height * scale)
         };
     });
-}
-function generateVideo(){
-    closeShare();
-    showBusy('正在合成短视频（语音跟读高亮 + 声波，约十几秒）…');
-    var rects = [];
-    captureCard()
-        .then(function(canvas){
-            rects = collectBlockRects(2);  // 2 == captureCard scale
-            return new Promise(function(res, rej){
-                canvas.toBlob(function(b){ b ? res(b) : rej(new Error('封面渲染失败')); }, 'image/png');
-            });
-        })
-        .then(function(blob){
-            var fd = new FormData();
-            fd.append('cover', blob, 'cover.png');
-            fd.append('lines', JSON.stringify(rects));
-            return fetch('/radar/share/' + SHARE_DATE + '/video', { method:'POST', body:fd });
-        })
-        .then(function(r){
-            if(!r.ok){ return r.text().then(function(t){ throw new Error(t || ('HTTP ' + r.status)); }); }
-            return r.blob();
-        })
-        .then(function(mp4){
-            var url = URL.createObjectURL(mp4);
-            var fname = 'AI前沿雷达_' + SHARE_DATE + '.mp4';
-            document.getElementById('resultTip').textContent = '短视频已生成，可播放或下载转发';
-            document.getElementById('resultBody').innerHTML = '<video controls playsinline style="max-height:70vh" src="' + url + '"></video>';
-            document.getElementById('resultActions').innerHTML =
-                '<a download="' + fname + '" href="' + url + '">下载视频</a>' +
-                '<button class="ghost" onclick="closeResult()">关闭</button>';
-        })
-        .catch(function(err){ closeResult(); toast('短视频生成失败：' + (err && err.message || err)); });
 }
 
 // ── Core report structured video (content_video module) ──────────────────────
