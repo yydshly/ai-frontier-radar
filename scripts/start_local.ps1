@@ -9,11 +9,11 @@
 # - Starts uvicorn on 127.0.0.1:8000 with stdout/stderr visible and written to logs/app.log
 
 param(
-    [string]$Host = "127.0.0.1",
-    [int]$Port = 8000
+    [string]$BindHost = "127.0.0.1",
+    [int]$Port = 8992
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path (Join-Path $ProjectRoot "..")).Path
 
@@ -56,16 +56,29 @@ if (-not (Test-Path $SourcesYaml)) {
     Write-Host "[WARN] Source configuration is missing. Copy config/sources.yaml.example if available." -ForegroundColor Yellow
 }
 
-# ── Start uvicorn ───────────────────────────────────────────────────────────
+# ── Start uvicorn with transcript logging ───────────────────────────────────
 $AppLog = Join-Path $ProjectRoot "logs\app.log"
 Write-Host ""
 Write-Host "Starting FastAPI server..." -ForegroundColor Green
-Write-Host "  Web address:  http://${Host}:${Port}" -ForegroundColor Cyan
+Write-Host "  Web address:  http://${BindHost}:${Port}" -ForegroundColor Cyan
 Write-Host "  App log:     $AppLog" -ForegroundColor Gray
 Write-Host ""
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "Press Ctrl+C to stop the server." -ForegroundColor Gray
 Write-Host ""
 
-# Tee stdout+stderr to console AND append to app.log
-& $PythonExe -m uvicorn app.main:app --host $Host --port $Port 2>&1 | Tee-Object -FilePath $AppLog -Append
+# Use Start-Transcript to log all console output to app.log (reliable on PS 5.1).
+# Start-Transcript handles external command streams correctly where Tee-Object fails.
+try {
+    Start-Transcript -Path $AppLog -Append -ErrorAction Stop | Out-Null
+} catch {
+    # Fallback: create new file if transcript fails
+    try { Start-Transcript -Path $AppLog -ErrorAction Stop | Out-Null } catch {
+        Write-Host "[WARN] Could not start transcript logging: $_" -ForegroundColor Yellow
+    }
+}
+
+& $PythonExe -m uvicorn app.main:app --host $BindHost --port $Port
+
+# Stop transcript when uvicorn exits (e.g., Ctrl+C)
+try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
