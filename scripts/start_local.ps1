@@ -6,7 +6,7 @@
 # What it does:
 # - Checks prerequisites (.env, config/sources.yaml)
 # - Creates logs/, runtime/, data/ directories if absent
-# - Starts uvicorn on 127.0.0.1:8000 with stdout/stderr visible and written to logs/app.log
+# - Starts uvicorn on 127.0.0.1:8765 with stdout/stderr visible and written to logs/app.log
 
 param(
     [string]$BindHost = "127.0.0.1",

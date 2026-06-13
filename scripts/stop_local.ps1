@@ -1,4 +1,4 @@
-# stop_local.ps1 — Stop the FastAPI Web service running on port 8000.
+# stop_local.ps1 — Stop the FastAPI Web service running on port 8765.
 #
 # Usage:
 #   .\scripts\stop_local.ps1
@@ -10,9 +10,9 @@ Write-Host "AI Frontier Radar — Stop Web Service" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$Port = 8000
+$Port = 8765
 
-# Find processes listening on port 8000
+# Find processes listening on port 8765
 try {
     $Connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 } catch {
