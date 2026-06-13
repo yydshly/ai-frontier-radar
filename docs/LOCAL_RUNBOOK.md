@@ -62,13 +62,13 @@ AI Frontier Radar — Local Start
 
 Project root: D:\path\to\ai-frontier-radar
 Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
-  Web address:  http://127.0.0.1:8000
+  Web address:  http://127.0.0.1:8765
   App log:     D:\path\to\ai-frontier-radar\logs\app.log
 ```
 
-服务启动后访问：http://127.0.0.1:8000
+服务启动后访问：http://127.0.0.1:8765
 
-本地状态页面：http://127.0.0.1:8000/local-status
+本地状态页面：http://127.0.0.1:8765/local-status
 
 ## 6. 停止 Web 服务
 
@@ -131,7 +131,7 @@ python scripts/show_daily_cycle_status.py
 
 ### 方式三：Web 页面
 
-访问：http://127.0.0.1:8000/local-status
+访问：http://127.0.0.1:8765/local-status
 
 ## 11. 日志和数据目录说明
 
@@ -217,7 +217,7 @@ pip install -r requirements.txt
 - 检查 `config/sources.yaml` 是否存在
 - 查看控制台输出的详细错误信息
 
-### Q: Web 服务端口 8000 被占用
+### Q: Web 服务端口 8765 被占用
 
 ```powershell
 .\scripts\stop_local.ps1

@@ -10,7 +10,7 @@
 
 param(
     [string]$BindHost = "127.0.0.1",
-    [int]$Port = 8992
+    [int]$Port = 8765
 )
 
 $ErrorActionPreference = "Continue"

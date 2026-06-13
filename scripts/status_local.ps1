@@ -12,7 +12,7 @@
 
 param(
     [string]$TaskName = "AI Frontier Radar Daily Cycle",
-    [int]$WebPort = 8000
+    [int]$WebPort = 8765
 )
 
 $ErrorActionPreference = "Continue"

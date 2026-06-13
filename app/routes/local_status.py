@@ -70,6 +70,6 @@ def local_status(request: Request):
             "report": report,
             "key_dirs": key_dirs,
             "project_root": str(project_root),
-            "web_address": "http://127.0.0.1:8000",
+            "web_address": "http://127.0.0.1:8765",
         },
     )
