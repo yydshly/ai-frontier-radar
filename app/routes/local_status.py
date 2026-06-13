@@ -8,10 +8,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.context_processors import inject_sources_nav, _format_dt
+
 router = APIRouter(tags=["local-status"])
 _templates = Jinja2Templates(
     directory=Path(__file__).resolve().parent.parent / "templates",
+    context_processors=[inject_sources_nav],
 )
+_templates.env.filters["format_dt"] = _format_dt
 
 
 def _project_root() -> Path:

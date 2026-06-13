@@ -9211,6 +9211,13 @@ def main():
           "parents[2]" in local_status_py)
     check("local_status.py _load_latest_report uses _project_root()",
           "_project_root()" in local_status_py and "def _load_latest_report" in local_status_py)
+    # Template context must match main app (inject_sources_nav + format_dt)
+    check("local_status.py uses inject_sources_nav",
+          "inject_sources_nav" in local_status_py)
+    check("local_status.py uses context_processors",
+          "context_processors" in local_status_py)
+    check("local_status.py sets format_dt filter",
+          'format_dt' in local_status_py)
 
     # ── 71. Local launcher (GUI) ───────────────────────────────────────────────
     print("\n[71] local launcher (GUI)")
