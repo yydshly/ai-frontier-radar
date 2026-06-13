@@ -24,8 +24,10 @@ $ScriptPath = Join-Path $ProjectRoot "scripts\run_daily_cycle.py"
 "===== $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss') daily cycle start (python=$PythonExe) =====" |
     Out-File -FilePath $DailyLog -Append -Encoding utf8
 
-# -u for unbuffered output; *>> captures all streams (stdout+stderr) into the log.
-& $PythonExe -u $ScriptPath --apply *>> $DailyLog
+# -u for unbuffered output. Force UTF-8 so Chinese is readable and the file
+# isn't a mix of UTF-16 (PS '*>>' default) and the UTF-8 markers above.
+$env:PYTHONIOENCODING = "utf-8"
+& $PythonExe -u $ScriptPath --apply 2>&1 | Out-File -FilePath $DailyLog -Append -Encoding utf8
 $exitCode = $LASTEXITCODE
 
 "===== $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss') daily cycle end (exit=$exitCode) =====" |
