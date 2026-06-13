@@ -848,6 +848,39 @@ python scripts/create_demo_data.py
 python scripts/acceptance_demo_data.py --isolated-db
 ```
 
+## 本地运行版
+
+详细说明见 [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md)。
+
+### 启动 Web 服务
+
+```powershell
+.\scripts\start_local.ps1
+```
+
+### 安装每日定时任务
+
+```powershell
+.\scripts\install_windows_daily_task.ps1
+```
+
+### 查看本地状态
+
+```powershell
+.\scripts\status_local.ps1
+python scripts\show_daily_cycle_status.py
+```
+
+### 关键目录
+
+| 目录 | 说明 |
+|------|------|
+| `.env` | 环境变量配置（API Key） |
+| `logs/` | 日志文件 |
+| `runtime/daily_cycle_runs/latest.json` | 最近执行报告 |
+| `runtime/daily_reports/` | 日报文件 |
+| `runtime/daily_audio/` | 音频文件 |
+
 ## 后续路线
 
 - [ ] 批量 URL 导入

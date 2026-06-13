@@ -28,6 +28,7 @@ from app.exports.markdown_report import build_full_report_markdown
 from app.version import APP_VERSION
 from app.url_safety import is_safe_external_url
 from app.routes.project_docs import router as project_docs_router
+from app.routes.local_status import router as local_status_router
 from app.routes.candidate_pool import router as candidate_pool_router
 from app.routes.fetch_runs import router as fetch_runs_router, is_test_source_key
 from app.routes.radar import router as radar_router
@@ -1840,6 +1841,9 @@ app.include_router(fetch_runs_router)
 
 # ── Mount radar routes ────────────────────────────────────────────────────────
 app.include_router(radar_router)
+
+# ── Mount local status routes ────────────────────────────────────────────────
+app.include_router(local_status_router)
 
 
 if __name__ == "__main__":

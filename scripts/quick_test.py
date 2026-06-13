@@ -9169,6 +9169,41 @@ def main():
     except Exception as e:
         check("public share page checks", False, str(e))
 
+    # ── 70. Local packaging scripts and docs ────────────────────────────────
+    print("\n[70] local packaging scripts and docs")
+    proj70 = Path(__file__).resolve().parents[1]
+    local_scripts = {
+        "scripts/start_local.ps1": "start_local.ps1 exists",
+        "scripts/stop_local.ps1": "stop_local.ps1 exists",
+        "scripts/install_windows_daily_task.ps1": "install_windows_daily_task.ps1 exists",
+        "scripts/uninstall_windows_daily_task.ps1": "uninstall_windows_daily_task.ps1 exists",
+        "scripts/status_local.ps1": "status_local.ps1 exists",
+        "scripts/show_daily_cycle_status.py": "show_daily_cycle_status.py exists",
+    }
+    for rel_path, desc in local_scripts.items():
+        check(desc, (proj70 / rel_path).exists(), rel_path)
+    check("LOCAL_RUNBOOK.md exists", (proj70 / "docs" / "LOCAL_RUNBOOK.md").exists())
+    readme = (proj70 / "README.md").read_text(encoding="utf-8")
+    check("README mentions LOCAL_RUNBOOK.md", "LOCAL_RUNBOOK.md" in readme)
+    check("README mentions start_local.ps1", "start_local.ps1" in readme)
+    check("README mentions install_windows_daily_task.ps1", "install_windows_daily_task.ps1" in readme)
+    # Web local-status route
+    check("local_status route registered in main.py",
+          "local_status_router" in (proj70 / "app" / "main.py").read_text(encoding="utf-8"))
+    check("local_status template exists",
+          (proj70 / "app" / "templates" / "local_status.html").exists())
+    check("local_status template mentions logs/daily_cycle.log",
+          "logs/daily_cycle.log" in (proj70 / "app" / "templates" / "local_status.html").read_text(encoding="utf-8"))
+    check("local_status template mentions latest.json",
+          "latest.json" in (proj70 / "app" / "templates" / "local_status.html").read_text(encoding="utf-8"))
+    # Sensitive data must not appear in local_status template
+    local_status_template = (proj70 / "app" / "templates" / "local_status.html").read_text(encoding="utf-8")
+    sensitive = ["api_key", "API_KEY", "ANTHROPIC_API_KEY", "MINIMAX_API_KEY",
+                 ".env", "OPENAI_API_KEY"]
+    leaked = [k for k in sensitive if k in local_status_template]
+    check("local_status template does NOT leak API keys", not leaked,
+          f"found: {leaked}" if leaked else "")
+
     # ── Leave the working DB clean ───────────────────────────────────────────
     # Several checks (and the app under test) seed throwaway sources via the real
     # SessionLocal; without cleanup these accumulate in the dev DB run after run
