@@ -2007,3 +2007,234 @@ def get_daily_broadcast_audio_file(filename: str):
         filename=filename,
         content_disposition_type="inline",
     )
+
+
+# ── Content-video generation routes (structured content → 9:16 MP4) ──────────
+
+def _build_video_source_from_share(db, date_label: str):
+    """Build VideoSourceSnapshot from the share page snapshot for a date."""
+    from app.application.radar.share_snapshot import build_today_share_snapshot
+    from app.application.radar.share_video_adapter import build_video_source_snapshot_from_share_report
+
+    snapshot = build_today_share_snapshot(db, date_label)
+    video_snapshot = build_video_source_snapshot_from_share_report(snapshot)
+    return video_snapshot
+
+
+def _resolve_share_tts_provider():
+    """Resolve TTS provider for share video generation.
+
+    Prefers real MiMo TTS; falls back to FakeTTS if DEV_FAKE_TTS=true.
+    """
+    import os
+    from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSError
+    from app.application.content_video.audio_renderer import FakeTTSProvider
+
+    if os.getenv("DEV_FAKE_TTS", "").strip().lower() == "true":
+        return FakeTTSProvider()
+    try:
+        client = MiMoTTSClient()
+        # Wrap in a simple provider adapter
+        return _MiMoTTSProviderWrapper(client)
+    except MiMoTTSError:
+        # No real TTS — fall back to fake so generation can still be tested
+        return FakeTTSProvider()
+
+
+class _MiMoTTSProviderWrapper:
+    """Wraps a MiMoTTSClient to conform to the TTSProvider interface."""
+
+    def __init__(self, client):
+        self._client = client
+
+    def synthesize(self, text: str) -> bytes:
+        return self._client.synthesize(text)
+
+
+@router.post("/share/today/video/generate")
+def generate_share_today_video(force: bool = Form(False)):
+    """Trigger structured-content video generation for today's share page.
+
+    Uses the share page's core-report snapshot as the data source.
+    Returns JSON with job_id and input_hash for status polling.
+    """
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import generate_video
+    from app.application.content_video.hashing import compute_input_hash
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, None)
+        tts_provider = _resolve_share_tts_provider()
+        request = VideoGenerationRequest(
+            source_snapshot=video_snapshot,
+            force=force,
+        )
+        result = generate_video(request, tts_provider=tts_provider)
+        return {
+            "job_id": result.job_id,
+            "input_hash": result.input_hash,
+            "status": result.status,
+            "current_step": result.current_step,
+            "video_path": result.video_path,
+            "poster_path": result.poster_path,
+            "error": result.error,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/share/today/video/status")
+def get_share_today_video_status(input_hash: str | None = Query(None)):
+    """Poll the video generation status for today's share page.
+
+    If input_hash is provided, check that specific hash.
+    Otherwise, compute hash from current snapshot and check.
+    """
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import get_existing_video_status, get_video_paths
+    from app.application.content_video.hashing import compute_input_hash
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, None)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        paths = get_video_paths(video_snapshot.source_key, input_hash)
+        if paths is None:
+            return {"status": "not_found", "input_hash": input_hash}
+        return {
+            **paths,
+            "input_hash": input_hash,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/share/today/video/download")
+def download_share_today_video(input_hash: str | None = Query(None)):
+    """Download the generated MP4 for today's share page."""
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import get_existing_video_status
+    from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.storage import video_storage_for
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, None)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        existing = get_existing_video_status(video_snapshot.source_key, input_hash)
+        if existing is None:
+            return HTMLResponse("视频不存在或尚未生成。", status_code=404)
+        mp4_path = existing.video_path
+        if not mp4_path or not Path(mp4_path).is_file():
+            return HTMLResponse("视频文件不存在。", status_code=404)
+        date_label = video_snapshot.date_label or "today"
+        filename = f"AI_Frontier_Radar_{date_label}.mp4"
+        return FileResponse(
+            mp4_path,
+            media_type="video/mp4",
+            filename=filename,
+            content_disposition_type="attachment",
+        )
+    finally:
+        db.close()
+
+
+# ── Historical share video routes ─────────────────────────────────────────────
+
+@router.post("/share/{date_label}/video/generate")
+def generate_share_history_video(date_label: str, force: bool = Form(False)):
+    """Trigger structured-content video generation for a historical share page."""
+    import re as _re
+
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import generate_video
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, date_label)
+        tts_provider = _resolve_share_tts_provider()
+        request = VideoGenerationRequest(
+            source_snapshot=video_snapshot,
+            force=force,
+        )
+        result = generate_video(request, tts_provider=tts_provider)
+        return {
+            "job_id": result.job_id,
+            "input_hash": result.input_hash,
+            "status": result.status,
+            "current_step": result.current_step,
+            "video_path": result.video_path,
+            "poster_path": result.poster_path,
+            "error": result.error,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/share/{date_label}/video/status")
+def get_share_history_video_status(date_label: str, input_hash: str | None = Query(None)):
+    """Poll the video generation status for a historical share page."""
+    import re as _re
+
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import get_video_paths
+    from app.application.content_video.hashing import compute_input_hash
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, date_label)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        paths = get_video_paths(video_snapshot.source_key, input_hash)
+        if paths is None:
+            return {"status": "not_found", "input_hash": input_hash}
+        return {**paths, "input_hash": input_hash}
+    finally:
+        db.close()
+
+
+@router.get("/share/{date_label}/video/download")
+def download_share_history_video(date_label: str, input_hash: str | None = Query(None)):
+    """Download the generated MP4 for a historical share page."""
+    import re as _re
+
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import get_existing_video_status
+    from app.application.content_video.hashing import compute_input_hash
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, date_label)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        existing = get_existing_video_status(video_snapshot.source_key, input_hash)
+        if existing is None:
+            return HTMLResponse("视频不存在或尚未生成。", status_code=404)
+        mp4_path = existing.video_path
+        if not mp4_path or not Path(mp4_path).is_file():
+            return HTMLResponse("视频文件不存在。", status_code=404)
+        filename = f"AI_Frontier_Radar_{date_label}.mp4"
+        return FileResponse(
+            mp4_path,
+            media_type="video/mp4",
+            filename=filename,
+            content_disposition_type="attachment",
+        )
+    finally:
+        db.close()

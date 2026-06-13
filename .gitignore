@@ -17,3 +17,7 @@ dist/
 
 # Generated shortcuts (machine-specific absolute paths)
 *.lnk
+
+# Generated video artifacts
+runtime/generated_videos/
+runtime/share_videos/

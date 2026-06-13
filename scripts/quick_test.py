@@ -1870,6 +1870,263 @@ def main():
     except Exception as e:
         check("LLM profile one-liner quick checks", False, str(e))
 
+    # ── 16a. content_video module: models, hashing, storyboard, storage ────────
+    print("\n[16a] content_video module (models, hashing, storyboard, storage)")
+    try:
+        # 1. Models exist and are importable
+        from app.application.content_video.models import (
+            VideoSourceSnapshot,
+            VideoSourceSection,
+            VideoScene,
+            VideoGenerationRequest,
+            VideoGenerationResult,
+        )
+        check("VideoSourceSnapshot is importable", VideoSourceSnapshot is not None)
+        check("VideoSourceSection is importable", VideoSourceSection is not None)
+        check("VideoScene is importable", VideoScene is not None)
+        check("VideoGenerationRequest is importable", VideoGenerationRequest is not None)
+        check("VideoGenerationResult is importable", VideoGenerationResult is not None)
+
+        # 2. VideoSourceSnapshot has required fields
+        snap = VideoSourceSnapshot(
+            source_key="test_key",
+            title="Test Report",
+            subtitle="Test Subtitle",
+            date_label="2026-06-13",
+            summary="Test summary text.",
+            sections=[],
+            takeaways=["Takeaway 1", "Takeaway 2"],
+            source_url="https://example.com",
+            version_id="v1",
+            metadata={"extra": "value"},
+        )
+        check("VideoSourceSnapshot.source_key works", snap.source_key == "test_key")
+        check("VideoSourceSnapshot.title works", snap.title == "Test Report")
+        check("VideoSourceSnapshot.subtitle works", snap.subtitle == "Test Subtitle")
+        check("VideoSourceSnapshot.date_label works", snap.date_label == "2026-06-13")
+        check("VideoSourceSnapshot.summary works", snap.summary == "Test summary text.")
+        check("VideoSourceSnapshot.takeaways works", len(snap.takeaways) == 2)
+        check("VideoSourceSnapshot.version_id works", snap.version_id == "v1")
+        check("VideoSourceSnapshot.to_dict() works", isinstance(snap.to_dict(), dict))
+
+        # 3. VideoScene fields
+        scene = VideoScene(
+            scene_id="scene_01",
+            scene_type="cover",
+            visual_title="Cover Title",
+            visual_lines=["Line 1", "Line 2"],
+            narration_text="This is narration text.",
+            source_label="Test Source",
+            image_path="/path/to/image.png",
+            audio_path="/path/to/audio.mp3",
+            duration_seconds=5.0,
+        )
+        check("VideoScene.scene_id works", scene.scene_id == "scene_01")
+        check("VideoScene.scene_type works", scene.scene_type == "cover")
+        check("VideoScene.narration_text works", scene.narration_text == "This is narration text.")
+        check("VideoScene.duration_seconds works", scene.duration_seconds == 5.0)
+
+        # 4. hashing.py
+        from app.application.content_video.hashing import compute_input_hash, VIDEO_ENGINE_VERSION
+        check("VIDEO_ENGINE_VERSION is 'content_video_v1'", VIDEO_ENGINE_VERSION == "content_video_v1")
+        check("compute_input_hash is callable", callable(compute_input_hash))
+
+        req1 = VideoGenerationRequest(source_snapshot=snap, template_id="mobile_briefing_v1")
+        req2 = VideoGenerationRequest(source_snapshot=snap, template_id="mobile_briefing_v1")
+        hash1 = compute_input_hash(req1)
+        hash2 = compute_input_hash(req2)
+        check("same input → same hash", hash1 == hash2)
+        check("hash is 16 chars", len(hash1) == 16)
+
+        # Different template_id → different hash
+        req3 = VideoGenerationRequest(source_snapshot=snap, template_id="other_template")
+        hash3 = compute_input_hash(req3)
+        check("different template_id → different hash", hash1 != hash3)
+
+        # Different voice_id → different hash
+        req4 = VideoGenerationRequest(source_snapshot=snap, voice_id="voice_2")
+        hash4 = compute_input_hash(req4)
+        check("different voice_id → different hash", hash1 != hash4)
+
+        # 5. storyboard.py
+        from app.application.content_video.storyboard import build_storyboard
+
+        snap_with_sections = VideoSourceSnapshot(
+            source_key="radar_today",
+            title="AI 前沿日报",
+            subtitle="今日重要AI动态",
+            date_label="2026-06-13",
+            summary="今日AI领域有多个重要进展。",
+            sections=[
+                VideoSourceSection(
+                    title="第一个重点",
+                    summary="这是第一个重点的摘要。",
+                    key_points=["要点1", "要点2"],
+                    why_it_matters="这很重要",
+                    source_name="来源A",
+                ),
+                VideoSourceSection(
+                    title="第二个重点",
+                    summary="这是第二个重点的摘要。",
+                    key_points=["要点A"],
+                    why_it_matters=None,
+                    source_name="来源B",
+                ),
+            ],
+            takeaways=["结论一", "结论二"],
+        )
+        scenes = build_storyboard(snap_with_sections)
+        check("storyboard returns at least 4 scenes (cover+summary+2sections+ending)", len(scenes) >= 4)
+        check("scene 1 is cover", scenes[0].scene_type == "cover")
+        check("scene 1 has narration_text", bool(scenes[0].narration_text))
+        check("all scenes have scene_id", all(s.scene_id for s in scenes))
+        check("cover scene uses radar greeting", "AI 前沿雷达" in scenes[0].narration_text)
+        check("last scene is ending", scenes[-1].scene_type == "ending")
+
+        # Generic (non-radar) source_key uses generic greeting
+        generic_snap = VideoSourceSnapshot(
+            source_key="poem_demo",
+            title="诗词赏析",
+            subtitle="静夜思",
+            date_label="2026-06-13",
+            summary="李白静夜思赏析。",
+            sections=[],
+        )
+        generic_scenes = build_storyboard(generic_snap)
+        check("non-radar source_key uses generic greeting", "本期内容简报" in generic_scenes[0].narration_text)
+
+        # 6. storage.py
+        from app.application.content_video.storage import (
+            VideoStorage,
+            video_storage_for,
+            get_video_base_dir,
+            ensure_video_dirs,
+        )
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_dir = Path(tmpdir) / "test_video"
+            test_dir.mkdir()
+            ensure_video_dirs(test_dir)
+            check("ensure_video_dirs creates scenes/audio/clips", (test_dir / "scenes").exists())
+            check("ensure_video_dirs creates audio dir", (test_dir / "audio").exists())
+            check("ensure_video_dirs creates clips dir", (test_dir / "clips").exists())
+
+            storage = video_storage_for("test_source", "abcd1234efgh")
+            check("VideoStorage.base_dir resolves correctly",
+                  str(storage.base_dir).replace("\\", "/").endswith("test_source/abcd1234efgh"))
+
+            check("scene_image_path works", str(storage.scene_image_path("scene_01")).replace("\\", "/").endswith("scenes/scene_01.png"))
+            check("scene_audio_path works", str(storage.scene_audio_path("scene_01")).replace("\\", "/").endswith("audio/scene_01.mp3"))
+            check("scene_clip_path works", str(storage.scene_clip_path("scene_01")).replace("\\", "/").endswith("clips/scene_01.mp4"))
+
+            # write_status / read_status
+            storage.write_status("job_001", "hash1234", "running", current_step="building_storyboard")
+            status = storage.read_status()
+            check("write_status then read_status works", status is not None)
+            check("status.job_id is preserved", status.get("job_id") == "job_001")
+            check("status.input_hash is preserved", status.get("input_hash") == "hash1234")
+            check("status.status is preserved", status.get("status") == "running")
+            check("status.current_step is preserved", status.get("current_step") == "building_storyboard")
+            check("created_at is set", "created_at" in status)
+            check("updated_at is set", "updated_at" in status)
+
+            # save_input_hash
+            storage.save_input_hash("test_hash_001")
+            check("save_input_hash works", storage.input_hash_path.read_text() == "test_hash_001")
+
+            # check_existing_success returns None when not success
+            result = storage.check_existing_success()
+            check("check_existing_success returns None when not success", result is None)
+
+    except Exception as e:
+        check("content_video module checks", False, str(e))
+
+    # ── 16b. content_video: adapter isolation (content_video does NOT import radar) ─
+    print("\n[16b] content_video adapter isolation (content_video !> radar)")
+    try:
+        # Verify that content_video does NOT import radar modules
+        import ast
+        import sys
+
+        cv_root = Path(__file__).resolve().parents[1] / "app" / "application" / "content_video"
+        for py_file in cv_root.glob("*.py"):
+            if py_file.name == "__init__.py":
+                continue
+            content = py_file.read_text(encoding="utf-8")
+            tree = ast.parse(content)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    if node.module and ("radar" in node.module or "daily_cycle" in node.module):
+                        check(f"{py_file.name} must NOT import radar/daily_cycle",
+                              False, f"found: {node.module}")
+                        raise AssertionError(f"{py_file.name} imports radar: {node.module}")
+        check("content_video modules do NOT import app.application.radar", True)
+        check("content_video modules do NOT import daily_cycle", True)
+
+        # Verify adapter imports content_video correctly
+        from app.application.radar.share_video_adapter import (
+            build_video_source_snapshot_from_share_report,
+        )
+        from app.application.radar.share_snapshot import (
+            ShareReportSnapshot,
+            ShareReportHighlight,
+        )
+        snap = ShareReportSnapshot(
+            share_key="radar_today",
+            date_label="2026-06-13",
+            report_version_id="v2",
+            title="AI前沿雷达",
+            headline="今日AI重要进展",
+            overview="今天AI领域有多个重要进展。",
+            highlights=[
+                ShareReportHighlight(title="重点1", summary="这是重点1的摘要。"),
+            ],
+            takeaways=["结论1", "结论2"],
+        )
+        vss = build_video_source_snapshot_from_share_report(snap)
+        check("adapter: source_key maps correctly", vss.source_key == "radar_today")
+        check("adapter: title maps correctly", vss.title == "AI前沿雷达")
+        check("adapter: subtitle maps to headline", vss.subtitle == "今日AI重要进展")
+        check("adapter: summary maps to overview", vss.summary == "今天AI领域有多个重要进展。")
+        check("adapter: version_id maps correctly", vss.version_id == "v2")
+        check("adapter: sections from highlights", len(vss.sections) == 1)
+        check("adapter: takeaways from snapshot", len(vss.takeaways) == 2)
+    except Exception as e:
+        check("content_video adapter isolation checks", False, str(e))
+
+    # ── 16c. content_video: service and route wiring ───────────────────────────
+    print("\n[16c] content_video service + route wiring")
+    try:
+        from app.application.content_video.service import (
+            generate_video,
+            get_existing_video_status,
+            get_video_paths,
+            STEPS,
+        )
+        check("generate_video is callable", callable(generate_video))
+        check("get_existing_video_status is callable", callable(get_existing_video_status))
+        check("get_video_paths is callable", callable(get_video_paths))
+        check("STEPS includes checking_existing_video", "checking_existing_video" in STEPS)
+        check("STEPS includes rendering_scene_images", "rendering_scene_images" in STEPS)
+        check("STEPS includes generating_scene_audio", "generating_scene_audio" in STEPS)
+        check("STEPS includes composing_scene_videos", "composing_scene_videos" in STEPS)
+        check("STEPS includes done", "done" in STEPS)
+        check("STEPS includes failed", "failed" in STEPS)
+
+        # Routes are registered
+        from app.routes.radar import router
+        route_paths = [r.path for r in router.routes]
+        check("POST /share/today/video/generate route exists",
+              any("share/today/video/generate" in p for p in route_paths))
+        check("GET /share/today/video/status route exists",
+              any("share/today/video/status" in p for p in route_paths))
+        check("GET /share/today/video/download route exists",
+              any("share/today/video/download" in p for p in route_paths))
+        check("POST /share/{date_label}/video/generate route exists",
+              any("share/" in p and "video/generate" in p for p in route_paths))
+    except Exception as e:
+        check("content_video service + route wiring", False, str(e))
+
     # ── 16. Today Radar: catalog + cards + reading panel ───────────────────
     print("\n[16] Today Radar (catalog + cards + reading panel)")
     try:

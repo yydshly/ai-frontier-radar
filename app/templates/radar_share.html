@@ -75,6 +75,19 @@
         .result-overlay .actions button.ghost { background:transparent; color:#fff; }
         .spinner { width:34px; height:34px; border:3px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; margin:30px 0 10px; }
         @keyframes spin { to { transform:rotate(360deg); } }
+        /* ── core-video section ── */
+        .cv-loading { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:14px; }
+        .cv-spinner { width:18px; height:18px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; flex:none; }
+        .cv-idle { font-size:14px; color:var(--muted); margin-bottom:10px; }
+        .cv-btn { display:inline-block; padding:8px 18px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; margin-top:8px; }
+        .cv-btn:hover { opacity:.85; }
+        .cv-error { color:#c0392b; font-size:13px; margin-top:6px; }
+        .cv-step { font-size:12px; color:var(--muted); margin-top:4px; }
+        .cv-video-wrap { margin-top:10px; }
+        .cv-video-wrap video { width:100%; border-radius:8px; }
+        .cv-actions { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+        .cv-actions a, .cv-actions button { padding:7px 14px; border-radius:8px; font-size:13px; text-decoration:none; cursor:pointer; border:1px solid var(--accent); color:var(--accent); background:#fff; }
+        .cv-actions button.primary { background:var(--accent); color:#fff; }
         /* ── shared core-report poster (rendered to an image by html2canvas;
               used for BOTH the long image and the short-video frame) ── */
         .report-card { position:fixed; left:-99999px; top:0; width:540px; box-sizing:border-box;
@@ -157,6 +170,17 @@
         <audio controls preload="none" src="{{ view.audio_job.audio_url }}"></audio>
     </section>
     {% endif %}
+
+    {# ── 核心报告视频 ── #}
+    <section id="videoSection">
+        <div class="sec-title">核心报告视频</div>
+        <div id="videoPanel">
+            <div class="cv-loading" id="videoLoading">
+                <div class="cv-spinner"></div>
+                <span>检查视频状态…</span>
+            </div>
+        </div>
+    </section>
 
     {# ── 重要文章 ── #}
     {% if view.important %}
@@ -376,6 +400,121 @@ function generateVideo(){
         })
         .catch(function(err){ closeResult(); toast('短视频生成失败：' + (err && err.message || err)); });
 }
+
+// ── Core report structured video (content_video module) ──────────────────────
+
+var _cvStatus = null;
+var _cvPolling = null;
+
+function cvStatusPath() {
+    return '/radar/share/' + SHARE_DATE + '/video/status';
+}
+function cvGeneratePath() {
+    return '/radar/share/' + SHARE_DATE + '/video/generate';
+}
+function cvDownloadPath(hash) {
+    return '/radar/share/' + SHARE_DATE + '/video/download?input_hash=' + encodeURIComponent(hash);
+}
+
+function cvShowIdle() {
+    document.getElementById('videoLoading').style.display = 'none';
+    document.getElementById('videoPanel').innerHTML =
+        '<div class="cv-idle">核心报告视频尚未生成</div>' +
+        '<button class="cv-btn" onclick="cvGenerate()">生成视频</button>';
+}
+
+function cvShowGenerating(data) {
+    document.getElementById('videoLoading').style.display = 'none';
+    var step = data.current_step || 'running';
+    document.getElementById('videoPanel').innerHTML =
+        '<div class="cv-idle">正在生成视频…</div>' +
+        '<div class="cv-step">当前步骤：' + step + '</div>' +
+        '<button class="cv-btn" onclick="cvPollStatus(\'' + data.input_hash + '\')">刷新状态</button>';
+}
+
+function cvShowSuccess(data, inputHash) {
+    document.getElementById('videoLoading').style.display = 'none';
+    var videoUrl = cvDownloadPath(inputHash);
+    var poster = data.poster_path || '';
+    document.getElementById('videoPanel').innerHTML =
+        '<div class="cv-video-wrap">' +
+        '<video controls playsinline' + (poster ? ' poster="' + poster + '"' : '') + ' src="' + videoUrl + '"></video>' +
+        '</div>' +
+        '<div class="cv-actions">' +
+        '<a href="' + videoUrl + '" download>下载 MP4</a>' +
+        '<button onclick="cvGenerate(true)">重新生成</button>' +
+        '</div>';
+}
+
+function cvShowFailed(data) {
+    document.getElementById('videoLoading').style.display = 'none';
+    var err = data.error || '未知错误';
+    document.getElementById('videoPanel').innerHTML =
+        '<div class="cv-error">生成失败：' + err + '</div>' +
+        '<button class="cv-btn" onclick="cvGenerate(true)">重新生成</button>';
+}
+
+function cvCheckAndShow(data) {
+    var status = data.status;
+    var inputHash = data.input_hash;
+    if (status === 'success' || status === 'existing') {
+        cvShowSuccess(data, inputHash);
+    } else if (status === 'failed') {
+        cvShowFailed(data);
+    } else if (status === 'pending' || status === 'running') {
+        cvShowGenerating(data);
+    } else if (status === 'not_found') {
+        cvShowIdle();
+    } else {
+        cvShowIdle();
+    }
+}
+
+function cvPollStatus(inputHash) {
+    clearInterval(_cvPolling);
+    var url = cvStatusPath();
+    if (inputHash) url += '?input_hash=' + encodeURIComponent(inputHash);
+    fetch(url)
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            _cvStatus = data;
+            cvCheckAndShow(data);
+            if (data.status === 'pending' || data.status === 'running') {
+                _cvPolling = setInterval(function(){ cvPollStatus(data.input_hash); }, 3000);
+            }
+        })
+        .catch(function(){ cvShowIdle(); });
+}
+
+function cvGenerate(force) {
+    clearInterval(_cvPolling);
+    var url = cvGeneratePath();
+    if (force) url += '?force=true';
+    fetch(url, { method: 'POST' })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            _cvStatus = data;
+            if (data.status === 'success' || data.status === 'existing') {
+                cvShowSuccess(data, data.input_hash);
+            } else if (data.status === 'failed') {
+                cvShowFailed(data);
+            } else {
+                cvShowGenerating(data);
+                _cvPolling = setInterval(function(){ cvPollStatus(data.input_hash); }, 3000);
+            }
+        })
+        .catch(function(err){
+            document.getElementById('videoLoading').style.display = 'none';
+            document.getElementById('videoPanel').innerHTML =
+                '<div class="cv-error">请求失败：' + (err && err.message || err) + '</div>' +
+                '<button class="cv-btn" onclick="cvGenerate()">重试</button>';
+        });
+}
+
+// Check video status on page load
+document.addEventListener('DOMContentLoaded', function(){
+    cvPollStatus();
+});
 </script>
 </body>
 </html>
