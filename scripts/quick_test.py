@@ -9288,6 +9288,38 @@ def main():
           "current_step" in rdc_content)
     check("run_daily_cycle.py uses append_daily_cycle_live_log",
           "append_daily_cycle_live_log" in rdc_content)
+    check("run_daily_cycle.py calls run_daily_cycle with progress_callback",
+          "progress_callback=_progress" in rdc_content)
+    check("run_daily_cycle.py _progress writes current_step",
+          "_write_running(run_id, mode, started_at, step," in rdc_content)
+
+    # daily_cycle.py — progress steps
+    dc_path = proj70 / "app" / "application" / "radar" / "daily_cycle.py"
+    dc_content = dc_path.read_text(encoding="utf-8")
+    check("daily_cycle.py has progress_callback parameter",
+          "progress_callback: ProgressCallback | None = None" in dc_content)
+    check("daily_cycle.py emits cycle_start",
+          '"cycle_start"' in dc_content)
+    check("daily_cycle.py emits finalization_check_start",
+          '"finalization_check_start"' in dc_content)
+    check("daily_cycle.py emits finalization_pending_dates",
+          '"finalization_pending_dates"' in dc_content)
+    check("daily_cycle.py emits fetch_start",
+          '"fetch_start"' in dc_content)
+    check("daily_cycle.py emits fetch_done",
+          '"fetch_done"' in dc_content)
+    check("daily_cycle.py emits summary_select_start",
+          '"summary_select_start"' in dc_content)
+    check("daily_cycle.py emits summary_batch_start",
+          '"summary_batch_start"' in dc_content)
+    check("daily_cycle.py emits summary_batch_done",
+          '"summary_batch_done"' in dc_content)
+    check("daily_cycle.py emits marker_start",
+          '"marker_start"' in dc_content)
+    check("daily_cycle.py emits cycle_done",
+          '"cycle_done"' in dc_content)
+    check("daily_cycle.py _progress swallows exceptions",
+          "progress logging must never break" in dc_content)
 
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"

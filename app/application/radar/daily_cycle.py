@@ -17,6 +17,9 @@ Finally records a 'last cycle run' marker (offline-gap / history awareness).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable, Any
+
+ProgressCallback = Callable[[str, dict[str, Any]], None]
 
 
 @dataclass
@@ -59,13 +62,36 @@ def run_daily_cycle(
     do_report: bool = True,
     do_audio: bool = True,
     max_sources: int = 50,
+    progress_callback: ProgressCallback | None = None,
 ) -> DailyCycleResult:
     """Run (or dry-run) the daily cycle. See module docstring."""
+
+    def _progress(step: str, **payload) -> None:
+        if progress_callback is None:
+            return
+        try:
+            progress_callback(step, payload)
+        except Exception:
+            # progress logging must never break business flow
+            pass
+
     result = DailyCycleResult(dry_run=dry_run)
+
+    _progress(
+        "cycle_start",
+        dry_run=dry_run,
+        do_fetch=do_fetch,
+        do_summary=do_summary,
+        do_report=do_report,
+        do_audio=do_audio,
+        max_sources=max_sources,
+    )
 
     # 1. Finalize all recently completed periods before opening the live cycle.
     if do_report:
         try:
+            _progress("finalization_check_start", include_audio_incomplete=do_audio)
+
             from app.application.radar.daily_finalization import (
                 finalize_daily_report,
                 pending_finalization_dates,
@@ -78,6 +104,8 @@ def run_daily_cycle(
                 max_days=get_daily_finalization_backfill_days(),
                 include_audio_incomplete=do_audio,
             )
+            _progress("finalization_pending_dates", count=len(pending_dates), dates=pending_dates)
+
             if dry_run:
                 result.report_status = "would_generate"
                 result.audio_status = (
@@ -92,6 +120,7 @@ def run_daily_cycle(
                 statuses: list[str] = []
                 audio_statuses: list[str] = []
                 for date_label in pending_dates:
+                    _progress("finalization_date_start", date=date_label, generate_audio=do_audio)
                     finalized = finalize_daily_report(
                         db,
                         date_label,
@@ -104,6 +133,13 @@ def run_daily_cycle(
                     result.errors.extend(
                         f"finalization {date_label}: {error}"
                         for error in finalized.errors
+                    )
+                    _progress(
+                        "finalization_date_done",
+                        date=date_label,
+                        status=finalized.status,
+                        audio_status=finalized.audio_status,
+                        error_count=len(finalized.errors),
                     )
                 result.report_status = (
                     "finalized"
@@ -126,10 +162,15 @@ def run_daily_cycle(
                 )
         except Exception as exc:
             result.errors.append(f"finalization: {exc}")
+            _progress("finalization_error", error=str(exc))
+    else:
+        _progress("finalization_skipped", reason="do_report_false")
 
     # 2. Fetch the live daily increment (due sources only).
     if do_fetch:
         try:
+            _progress("fetch_start", max_sources=max_sources, dry_run=dry_run)
+
             from app.application.sources.discovery_runs import (
                 run_source_discovery,
                 SourceDiscoveryRunSettings,
@@ -148,32 +189,57 @@ def run_daily_cycle(
                 f"fetch: due={r.eligible_sources} started={r.started}"
                 + (" (dry-run)" if dry_run else "")
             )
+            _progress(
+                "fetch_done",
+                eligible_sources=r.eligible_sources,
+                started=r.started,
+            )
         except Exception as exc:  # best-effort
             result.errors.append(f"fetch: {exc}")
+            _progress("fetch_error", error=str(exc))
+    else:
+        _progress("fetch_skipped", reason="do_fetch_false")
 
     # 3. Summarize the live increment's missing items.
     if do_summary:
         try:
+            _progress("summary_select_start")
+
             from app.application.radar.background_summary import (
                 select_increment_summary_targets,
                 run_summary_batch_in_background,
             )
             targets = select_increment_summary_targets(db)
             result.summary_targets = len(targets)
+            _progress("summary_targets_selected", count=len(targets))
+
             if not dry_run and targets:
+                _progress("summary_batch_start", count=len(targets))
                 run_summary_batch_in_background(targets)
                 db.expire_all()
+                _progress("summary_batch_done", count=len(targets))
+
             _, result.summary_completed = _summary_coverage(db)
+            _progress(
+                "summary_coverage_done",
+                targets=len(targets),
+                completed=result.summary_completed,
+            )
             result.steps.append(
                 f"summary: targets={len(targets)} covered={result.summary_completed}"
                 + (" (dry-run)" if dry_run else "")
             )
         except Exception as exc:
             result.errors.append(f"summary: {exc}")
+            _progress("summary_error", error=str(exc))
+    else:
+        _progress("summary_skipped", reason="do_summary_false")
 
     # 4. Record the completed run (offline-gap / history awareness).
     if not dry_run:
         try:
+            _progress("marker_start")
+
             from app.application.radar.cycle_state import set_last_cycle_run
 
             set_last_cycle_run(extra={
@@ -182,7 +248,22 @@ def run_daily_cycle(
                 "summary_completed": result.summary_completed,
                 "finalized_dates": result.finalized_dates,
             })
+            _progress("marker_done")
         except Exception as exc:
             result.errors.append(f"marker: {exc}")
+            _progress("marker_error", error=str(exc))
+    else:
+        _progress("marker_skipped", reason="dry_run")
+
+    _progress(
+        "cycle_done",
+        fetch_due=result.fetch_due,
+        fetch_started=result.fetch_started,
+        summary_targets=result.summary_targets,
+        summary_completed=result.summary_completed,
+        report_status=result.report_status,
+        audio_status=result.audio_status,
+        error_count=len(result.errors),
+    )
 
     return result

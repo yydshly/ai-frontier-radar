@@ -53,12 +53,20 @@
     </div>
     <table class="info-table">
         <tr><th>状态 (status)</th><td>{{ running.status }}</td></tr>
-        <tr><th>当前步骤 (current_step)</th><td><code>{{ running.current_step }}</code></td></tr>
+        <tr>
+            <th>当前步骤 (current_step)</th>
+            <td>
+                <code class="step-badge">{{ running.current_step }}</code>
+                {% if running.current_step in ['summary_batch_start', 'running_cycle', 'fetch_start', 'finalization_date_start'] %}
+                <span class="step-hint">任务可能在模型调用中，请等待或查看 live log</span>
+                {% endif %}
+            </td>
+        </tr>
         <tr><th>模式</th><td>{{ running.mode }}</td></tr>
         <tr><th>开始时间</th><td>{{ running.started_at }}</td></tr>
         <tr><th>更新时间</th><td>{{ running.updated_at }}</td></tr>
         <tr><th>进程 PID</th><td>{{ running.pid }}</td></tr>
-        <tr><th>实时日志</th><td><code>{{ running.live_log_path }}</code></td></tr>
+        <tr><th>实时日志路径</th><td><code>{{ running.live_log_path }}</code></td></tr>
         {% if running.errors %}
         <tr><th>错误</th><td>
             <ul class="error-list">
@@ -244,6 +252,22 @@
 .no-errors {
     color: #166534;
     font-size: 0.9rem;
+}
+.step-badge {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1e3a8a;
+    padding: 0.2rem 0.6rem;
+    border-radius: 0.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.step-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-style: italic;
 }
 </style>
 {% endblock %}

@@ -130,6 +130,23 @@ def main() -> int:
     _write_running(run_id, mode, started_at, "starting", command)
     _emit_live("STEP", "starting")
 
+    def _progress(step: str, payload: dict) -> None:
+        """Format and emit progress step from inside run_daily_cycle."""
+        # Truncate long values to keep logs readable
+        truncated = {}
+        for k, v in payload.items():
+            if v is None:
+                continue
+            if isinstance(v, str) and len(v) > 200:
+                v = v[:200] + "..."
+            elif isinstance(v, list) and len(v) > 10:
+                v = v[:10] + [f"... +{len(v) - 10} more"]
+            truncated[k] = v
+        detail = " ".join(f"{k}={v}" for k, v in truncated.items() if v is not None)
+        message = f"{step}" + (f" | {detail}" if detail else "")
+        _emit_live("STEP", message)
+        _write_running(run_id, mode, started_at, step, command)
+
     try:
         _emit_live("STEP", "initializing_db")
         _write_running(run_id, mode, started_at, "initializing_db", command)
@@ -145,6 +162,7 @@ def main() -> int:
                 do_report=not args.no_report,
                 do_audio=not args.no_audio,
                 max_sources=args.max_sources,
+                progress_callback=_progress,
             )
         finally:
             db.close()

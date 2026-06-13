@@ -147,6 +147,29 @@ python scripts/run_daily_cycle.py --apply
 8. 下次通常可以重新运行，但应先查看 running.json / live log / latest.json。
 ```
 
+### 每日任务内部阶段说明
+
+Daily Cycle 运行时会输出内部阶段日志，可在 logs/daily_cycle.live.log 或控制台查看：
+
+| 阶段 | 说明 |
+|------|------|
+| `cycle_start` | 每日任务开始，显示参数 |
+| `finalization_check_start` | 开始检查待结算日期 |
+| `finalization_pending_dates` | 找到待结算日期列表 |
+| `finalization_date_start` | 开始结算某个日期 |
+| `finalization_date_done` | 某个日期结算完成 |
+| `fetch_start` | 开始抓取增量来源 |
+| `fetch_done` | 来源抓取完成 |
+| `summary_select_start` | 开始选择摘要目标 |
+| `summary_targets_selected` | 摘要目标已选定 |
+| `summary_batch_start` | 开始批量生成摘要 |
+| `summary_batch_done` | 批量摘要生成完成 |
+| `marker_start` | 开始记录最后运行时间 |
+| `marker_done` | 运行标记完成 |
+| `cycle_done` | 每日任务全部完成 |
+
+如果窗口长时间停在 `summary_batch_start` 或 `summary_batch_done` 前后，通常表示正在调用模型或修复 JSON，请耐心等待。
+
 ## 11. 查看最近每日任务状态
 
 ### 方式一：PowerShell 脚本（推荐）

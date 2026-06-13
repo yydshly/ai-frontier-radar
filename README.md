@@ -891,6 +891,12 @@ python scripts\show_daily_cycle_status.py
 | `runtime/daily_reports/` | 日报文件 |
 | `runtime/daily_audio/` | 音频文件 |
 
+### 每日任务内部阶段
+
+Daily Cycle 运行时会在控制台和 `logs/daily_cycle.live.log` 输出内部阶段日志。如果窗口长时间停在 `summary_batch_start` 前后，通常表示正在调用模型，请耐心等待。
+
+主要阶段：`cycle_start` → `finalization_*` → `fetch_*` → `summary_*` → `marker_*` → `cycle_done`。详细说明见 [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md)。
+
 ## 后续路线
 
 - [ ] 批量 URL 导入
