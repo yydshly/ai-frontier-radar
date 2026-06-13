@@ -9631,6 +9631,33 @@ def main():
               "centered" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8").lower()
               or "(w - " in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8"),
               "image_renderer should center content horizontally")
+
+        # ── 69g. share video preview size constraints ─────────────────────────
+        check("radar_share.html has core-video-preview class",
+              "core-video-preview" in share_html,
+              "core-video-preview class should exist for video container")
+        check("radar_share.html video is wrapped in core-video-preview",
+              "core-video-preview" in share_html
+              and share_html.count("core-video-preview") >= 2,
+              "video element should be inside core-video-preview container")
+        check("core-video-preview has aspect-ratio: 9 / 16",
+              "aspect-ratio: 9 / 16" in share_html or "aspect-ratio:9/16" in share_html,
+              "core-video-preview must enforce 9:16 portrait aspect ratio")
+        check("core-video-preview has max-height",
+              "max-height" in share_html and "core-video-preview" in share_html,
+              "core-video-preview must have max-height constraint")
+        check("video has object-fit: contain",
+              "object-fit: contain" in share_html or "object-fit:contain" in share_html,
+              "video element must use object-fit: contain to maintain aspect ratio")
+        check("core-video-modal has max-height",
+              "core-video-modal" in share_html,
+              "core-video-modal wrapper should exist with max-height")
+        check("closeResult clears _cvPolling interval",
+              "clearInterval(_cvPolling)" in share_html,
+              "closeResult should clear _cvPolling to stop video status polling")
+        check("CSS uses core-video- prefix (does not pollute long-image)",
+              share_html.count("core-video-") >= 8,
+              "core-video- prefix CSS should not interfere with long-image preview styles")
     except Exception as e:
         check("public share page checks", False, str(e))
 
