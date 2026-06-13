@@ -82,6 +82,7 @@ class VideoScene:
     image_path: str | None = None
     audio_path: str | None = None
     duration_seconds: float | None = None
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

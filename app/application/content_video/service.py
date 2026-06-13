@@ -348,3 +348,128 @@ def get_video_paths(source_key: str, input_hash: str) -> dict | None:
         "input_hash": status.get("input_hash"),
         "job_id": status.get("job_id"),
     }
+
+
+# ── Storyboard-only generation (images first, no audio/video) ──────────────────
+
+def generate_storyboard_images(
+    request: VideoGenerationRequest,
+    *,
+    job_id: str | None = None,
+) -> VideoGenerationResult:
+    """Generate storyboard scene images only — no audio, no video.
+
+    Use this for image-first quality verification before committing to full
+    video generation.
+
+    Steps:
+      1. Compute input_hash
+      2. Build storyboard
+      3. Render all scene PNGs
+      4. Copy scene 1 as poster.png
+      5. Save storyboard.json
+      6. Write status.json with scene_count
+
+    Does NOT generate audio or concatenate video.
+    """
+    from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.image_renderer import render_scene_image
+    from app.application.content_video.storyboard import build_storyboard
+
+    snapshot = request.source_snapshot
+    source_key = snapshot.source_key
+    job_id = job_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    input_hash = compute_input_hash(request)
+    storage = video_storage_for(source_key, input_hash)
+    ensure_video_dirs(storage.base_dir)
+
+    storage.save_input_hash(input_hash)
+    storage.save_input_snapshot(snapshot)
+
+    storage.write_status(
+        job_id=job_id,
+        input_hash=input_hash,
+        status=_STATUS_RUNNING,
+        current_step="building_storyboard",
+    )
+
+    try:
+        # Build storyboard
+        scenes = build_storyboard(snapshot)
+        storage.save_storyboard(scenes)
+
+        storage.write_status(
+            job_id=job_id,
+            input_hash=input_hash,
+            status=_STATUS_RUNNING,
+            current_step="rendering_scene_images",
+        )
+
+        # Render each scene image
+        for scene in scenes:
+            img_path = storage.scene_image_path(scene.scene_id)
+            render_scene_image(scene, img_path, size=request.output_size)
+            scene.image_path = str(img_path)
+
+        storage.write_status(
+            job_id=job_id,
+            input_hash=input_hash,
+            status=_STATUS_RUNNING,
+            current_step="saving_artifacts",
+        )
+
+        # Generate poster: copy scene 1 image
+        poster_path = storage.poster_path
+        scene1_img = Path(scenes[0].image_path) if scenes else None
+        if scene1_img and scene1_img.exists():
+            import shutil
+            shutil.copy(scene1_img, poster_path)
+
+        scene_count = len(scenes)
+
+        # Update status extra
+        storage.update_status_extra(
+            scene_count=scene_count,
+            tts_mode="none",
+        )
+
+        storage.write_status(
+            job_id=job_id,
+            input_hash=input_hash,
+            status=_STATUS_SUCCESS,
+            current_step="done",
+            video_path=None,
+            poster_path=str(poster_path) if poster_path.exists() else None,
+        )
+
+        return VideoGenerationResult(
+            job_id=job_id,
+            input_hash=input_hash,
+            status=_STATUS_SUCCESS,
+            video_path=None,
+            poster_path=str(poster_path) if poster_path.exists() else None,
+            current_step="done",
+        )
+
+    except Exception as exc:
+        tb = traceback.format_exc()
+        if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL":
+            user_message = "缺少 Pillow，无法生成视频图片。请执行 pip install Pillow>=10.0.0。"
+        else:
+            user_message = str(exc)
+        storage.write_status(
+            job_id=job_id,
+            input_hash=input_hash,
+            status=_STATUS_FAILED,
+            current_step="rendering_scene_images",
+            error=f"{user_message}\n{tb}",
+        )
+        logger.exception("Storyboard image generation failed")
+        return VideoGenerationResult(
+            job_id=job_id,
+            input_hash=input_hash,
+            status=_STATUS_FAILED,
+            error=user_message,
+            current_step="rendering_scene_images",
+        )

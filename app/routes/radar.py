@@ -2329,6 +2329,65 @@ def get_share_today_video_poster(input_hash: str | None = Query(None)):
         db.close()
 
 
+# ── Storyboard image-only routes ──────────────────────────────────────────────
+
+@router.post("/share/today/storyboard/generate")
+def generate_share_today_storyboard():
+    """Generate storyboard images only (no audio/video) for today's share page.
+
+    Returns immediately — storyboard images are written synchronously.
+    """
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import generate_storyboard_images
+    from app.application.content_video.hashing import compute_input_hash
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, None)
+        request = VideoGenerationRequest(source_snapshot=video_snapshot)
+        result = generate_storyboard_images(request)
+        return {
+            "job_id": result.job_id,
+            "input_hash": result.input_hash,
+            "status": result.status,
+            "current_step": result.current_step,
+            "poster_path": result.poster_path,
+            "error": result.error,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/share/today/storyboard/status")
+def get_share_today_storyboard_status(input_hash: str | None = Query(None)):
+    """Poll storyboard generation status for today's share page."""
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.storage import video_storage_for
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, None)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        storage = video_storage_for(video_snapshot.source_key, input_hash)
+        status = storage.read_status()
+        if status is None:
+            return {"status": "not_found", "input_hash": input_hash}
+        return {
+            "status": status.get("status"),
+            "current_step": status.get("current_step"),
+            "poster_path": status.get("poster_path"),
+            "error": status.get("error"),
+            "input_hash": status.get("input_hash"),
+            "job_id": status.get("job_id"),
+            "scene_count": status.get("scene_count"),
+        }
+    finally:
+        db.close()
+
+
 # ── Historical share video routes ─────────────────────────────────────────────
 
 @router.post("/share/{date_label}/video/generate")
@@ -2454,5 +2513,69 @@ def download_share_history_video(date_label: str, input_hash: str | None = Query
             filename=filename,
             content_disposition_type="attachment",
         )
+    finally:
+        db.close()
+
+
+@router.post("/share/{date_label}/storyboard/generate")
+def generate_share_history_storyboard(date_label: str):
+    """Generate storyboard images only for a historical share page."""
+    import re as _re
+
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import generate_storyboard_images
+    from app.application.content_video.hashing import compute_input_hash
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, date_label)
+        request = VideoGenerationRequest(source_snapshot=video_snapshot)
+        result = generate_storyboard_images(request)
+        return {
+            "job_id": result.job_id,
+            "input_hash": result.input_hash,
+            "status": result.status,
+            "current_step": result.current_step,
+            "poster_path": result.poster_path,
+            "error": result.error,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/share/{date_label}/storyboard/status")
+def get_share_history_storyboard_status(date_label: str, input_hash: str | None = Query(None)):
+    """Poll storyboard generation status for a historical share page."""
+    import re as _re
+
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.storage import video_storage_for
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, date_label)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        storage = video_storage_for(video_snapshot.source_key, input_hash)
+        status = storage.read_status()
+        if status is None:
+            return {"status": "not_found", "input_hash": input_hash}
+        return {
+            "status": status.get("status"),
+            "current_step": status.get("current_step"),
+            "poster_path": status.get("poster_path"),
+            "error": status.get("error"),
+            "input_hash": status.get("input_hash"),
+            "job_id": status.get("job_id"),
+            "scene_count": status.get("scene_count"),
+        }
     finally:
         db.close()

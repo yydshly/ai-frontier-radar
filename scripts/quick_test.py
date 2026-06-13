@@ -1976,12 +1976,12 @@ def main():
             takeaways=["结论一", "结论二"],
         )
         scenes = build_storyboard(snap_with_sections)
-        check("storyboard returns at least 4 scenes (cover+summary+2sections+ending)", len(scenes) >= 4)
-        check("scene 1 is cover", scenes[0].scene_type == "cover")
+        check("storyboard returns at least 4 scenes (opening_summary+summary+2sections+closing)", len(scenes) >= 4)
+        check("scene 1 is opening_summary", scenes[0].scene_type == "opening_summary")
         check("scene 1 has narration_text", bool(scenes[0].narration_text))
         check("all scenes have scene_id", all(s.scene_id for s in scenes))
-        check("cover scene uses radar greeting", "AI 前沿雷达" in scenes[0].narration_text)
-        check("last scene is ending", scenes[-1].scene_type == "ending")
+        check("opening_summary scene uses radar greeting", "AI 前沿雷达" in scenes[0].narration_text)
+        check("last scene is closing_cta", scenes[-1].scene_type == "closing_cta")
 
         # Generic (non-radar) source_key uses generic greeting
         generic_snap = VideoSourceSnapshot(
@@ -9747,14 +9747,14 @@ def main():
               "video tag should use poster URL and preload=metadata")
         img_renderer_src = (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")
         check("image_renderer uses opaque card background (not near-invisible)",
-              "C_CARD_BG" in img_renderer_src and "220" in img_renderer_src,
-              "card background should be opaque, not fill=(255,255,255,8)")
+              "C_PANEL" in img_renderer_src and "230" in img_renderer_src,
+              "card background should be opaque C_PANEL with alpha 230")
         check("image_renderer body text uses bright C_TEXT (not dim)",
               "C_TEXT" in img_renderer_src,
               "body text should use C_TEXT (bright white) not C_TEXT_DIM for contrast")
         check("image_renderer has C_TEXT defined",
-              "C_TEXT = " in img_renderer_src and "(234, 241, 246)" in img_renderer_src,
-              "C_TEXT should be bright white #eaf1f6")
+              "C_TEXT = " in img_renderer_src and "(248, 250, 252)" in img_renderer_src,
+              "C_TEXT should be bright white #f8fafc")
         check("scripts/make_content_video_montage.py exists",
               (proj69 / "scripts" / "make_content_video_montage.py").exists(),
               "montage debug script should exist")
@@ -9764,6 +9764,60 @@ def main():
         check("montage script outputs montage.jpg",
               "montage.jpg" in (proj69 / "scripts" / "make_content_video_montage.py").read_text(encoding="utf-8"),
               "montage script should output montage.jpg")
+
+        # ── 69j. storyboard-first generation ────────────────────────────────
+        check("image_renderer has _render_opening_summary",
+              "_render_opening_summary" in img_renderer_src,
+              "_render_opening_summary renderer should exist")
+        check("image_renderer has _render_summary_overview",
+              "_render_summary_overview" in img_renderer_src,
+              "_render_summary_overview renderer should exist")
+        check("image_renderer has _render_signal",
+              "_render_signal" in img_renderer_src,
+              "_render_signal renderer should exist")
+        check("image_renderer has _render_supporting_notes",
+              "_render_supporting_notes" in img_renderer_src,
+              "_render_supporting_notes renderer should exist")
+        check("image_renderer has _render_closing_cta",
+              "_render_closing_cta" in img_renderer_src,
+              "_render_closing_cta renderer should exist")
+        check("image_renderer has _draw_waveform helper",
+              "_draw_waveform" in img_renderer_src,
+              "_draw_waveform decorative helper should exist for signal pages")
+        check("closing_cta has QR placeholder or real QR logic",
+              "closing_cta" in img_renderer_src and ("qr" in img_renderer_src.lower() or "QR" in img_renderer_src),
+              "closing_cta renderer should have QR placeholder or real QR logic")
+        check("service.py has generate_storyboard_images function",
+              "def generate_storyboard_images" in (proj69 / "app" / "application" / "content_video" / "service.py").read_text(encoding="utf-8"),
+              "service.py should expose generate_storyboard_images for image-first generation")
+        check("storyboard route exists for today",
+              "/share/today/storyboard/generate" in radar_src,
+              "POST /share/today/storyboard/generate route should exist")
+        check("storyboard status route exists for today",
+              "/share/today/storyboard/status" in radar_src,
+              "GET /share/today/storyboard/status route should exist")
+        check("share HTML has generateStoryboardImages function",
+              "generateStoryboardImages" in share_html,
+              "share page JS should have generateStoryboardImages function")
+        check("share HTML has openStoryboardMontage function",
+              "openStoryboardMontage" in share_html,
+              "share page JS should have openStoryboardMontage function")
+        check("share panel has 生成图片版分镜 button",
+              "生成图片版分镜" in share_html,
+              "share panel should have 生成图片版分镜 button")
+        check("share panel has 查看分镜总览 button",
+              "查看分镜总览" in share_html,
+              "share panel should have 查看分镜总览 button")
+        storyboard_src = (proj69 / "app" / "application" / "content_video" / "storyboard.py").read_text(encoding="utf-8")
+        check("storyboard.py has opening_summary scene type",
+              '"opening_summary"' in storyboard_src or "'opening_summary'" in storyboard_src,
+              "storyboard.py should produce opening_summary scenes")
+        check("storyboard.py has closing_cta scene type",
+              '"closing_cta"' in storyboard_src or "'closing_cta'" in storyboard_src,
+              "storyboard.py should produce closing_cta scenes")
+        check("montage script prints visual inspection message",
+              "请打开 montage.jpg" in (proj69 / "scripts" / "make_content_video_montage.py").read_text(encoding="utf-8"),
+              "montage script should tell user to open montage.jpg for inspection")
     except Exception as e:
         check("public share page checks", False, str(e))
 

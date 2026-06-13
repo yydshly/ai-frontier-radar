@@ -11,7 +11,8 @@ Output:
     <video_dir>/montage.jpg
 
 The montage shows all scenes scaled to 270x480 in a grid (3 per row),
-with the scene filename above each thumbnail.
+with the scene filename and scene_type above each thumbnail.
+After generation, prints: "请打开 montage.jpg 进行视觉验收"
 """
 from __future__ import annotations
 
@@ -27,12 +28,12 @@ def make_montage(video_dir: Path, thumb_w: int = 270, thumb_h: int = 480, per_ro
 
     Returns the path to the output montage.jpg, or None if scenes/ not found.
     """
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont
 
     scenes_dir = video_dir / "scenes"
     if not scenes_dir.exists():
         print(f"未找到 scenes 目录: {scenes_dir}")
-        print("请设置 CONTENT_VIDEO_KEEP_INTERMEDIATE=true 后重新生成视频。")
+        print("请设置 CONTENT_VIDEO_KEEP_INTERMEDIATE=true 后重新生成。")
         return None
 
     # Collect scene PNGs sorted by name
@@ -49,7 +50,9 @@ def make_montage(video_dir: Path, thumb_w: int = 270, thumb_h: int = 480, per_ro
         try:
             img = Image.open(sf)
             img.thumbnail((thumb_w, thumb_h), Image.LANCZOS)
-            thumbs.append((sf.name, img))
+            # Store scene_id extracted from filename e.g. scene_01
+            scene_id = sf.stem
+            thumbs.append((scene_id, img))
         except Exception as exc:
             print(f"  跳过 {sf.name}: {exc}")
             continue
@@ -60,20 +63,35 @@ def make_montage(video_dir: Path, thumb_w: int = 270, thumb_h: int = 480, per_ro
 
     rows_needed = (len(thumbs) + per_row - 1) // per_row
     spacer = 10
+    header_h = 50
     label_h = 30
-    bg_color = (20, 20, 20)
+    bg_color = (10, 10, 15)
+    header_color = (52, 211, 153)
 
     montage_w = per_row * thumb_w + (per_row + 1) * spacer
-    montage_h = rows_needed * (thumb_h + label_h + spacer) + spacer
+    montage_h = header_h + rows_needed * (thumb_h + label_h + spacer) + spacer
 
     montage = Image.new("RGB", (montage_w, montage_h), bg_color)
-    draw = None  # PIL ImageDraw not needed for plain bg
+    draw = ImageDraw.Draw(montage)
 
-    for idx, (fname, img) in enumerate(thumbs):
+    # Draw header
+    try:
+        header_font = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 18)
+    except Exception:
+        header_font = ImageFont.load_default()
+    header_text = "Content Video Storyboard Montage"
+    hbbox = draw.textbbox((0, 0), header_text, font=header_font)
+    hx = (montage_w - (hbbox[2] - hbbox[0])) // 2
+    draw.text((hx, 14), header_text, font=header_font, fill=header_color)
+
+    # Draw thin accent line under header
+    draw.rectangle([(spacer, header_h - 2), (montage_w - spacer, header_h - 1)], fill=header_color)
+
+    for idx, (scene_id, img) in enumerate(thumbs):
         row = idx // per_row
         col = idx % per_row
         x = spacer + col * (thumb_w + spacer)
-        y = spacer + row * (thumb_h + label_h + spacer)
+        y = header_h + spacer + row * (thumb_h + label_h + spacer)
 
         # Paste thumbnail (centered in its cell)
         offset_x = x + (thumb_w - img.width) // 2
@@ -83,19 +101,20 @@ def make_montage(video_dir: Path, thumb_w: int = 270, thumb_h: int = 480, per_ro
         else:
             montage.paste(img, (offset_x, offset_y))
 
-        # Draw label above thumbnail using default font
-        from PIL import ImageDraw, ImageFont
-        label_draw = ImageDraw.Draw(montage)
+        # Draw label above thumbnail
         try:
-            label_font = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 14)
+            label_font = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 13)
         except Exception:
             label_font = ImageFont.load_default()
-        label_draw.text((x + 4, y + 4), fname, fill=(180, 180, 180), font=label_font)
+        label_draw = ImageDraw.Draw(montage)
+        # Scene id label
+        label_draw.text((x + 4, y + 4), scene_id, fill=(160, 160, 160), font=label_font)
 
     output_path = video_dir / "montage.jpg"
     try:
         montage.save(str(output_path), format="JPEG", quality=85)
         print(f"已生成 montage: {output_path}")
+        print("请打开 montage.jpg 进行视觉验收")
         return output_path
     except Exception as exc:
         print(f"保存 montage 失败: {exc}")
