@@ -9658,6 +9658,61 @@ def main():
         check("CSS uses core-video- prefix (does not pollute long-image)",
               share_html.count("core-video-") >= 8,
               "core-video- prefix CSS should not interfere with long-image preview styles")
+
+        # ── 69h. preflight, metadata, error messages, TTS mode ────────────────
+        preflight_py = (proj69 / "app" / "application" / "content_video" / "preflight.py")
+        check("preflight.py exists",
+              preflight_py.exists(),
+              "preflight.py should exist for runtime dependency checks")
+        preflight_src = preflight_py.read_text(encoding="utf-8") if preflight_py.exists() else ""
+        check("preflight.py has ContentVideoPreflightResult",
+              "ContentVideoPreflightResult" in preflight_src,
+              "preflight should define ContentVideoPreflightResult dataclass")
+        check("preflight.py checks ffmpeg",
+              "ffmpeg" in preflight_src and "_check_ffmpeg" in preflight_src,
+              "preflight should check ffmpeg availability")
+        check("preflight.py checks ffprobe",
+              "ffprobe" in preflight_src and "_check_ffprobe" in preflight_src,
+              "preflight should check ffprobe availability")
+        check("preflight.py checks Pillow",
+              "pillow" in preflight_src.lower() and "_check_pillow" in preflight_src,
+              "preflight should check Pillow availability")
+        check("preflight.py checks CJK font",
+              "cjk_font" in preflight_src and "_check_cjk_font" in preflight_src,
+              "preflight should check CJK font availability")
+        check("preflight.py checks TTS / DEV_FAKE_TTS",
+              "_check_tts" in preflight_src and "DEV_FAKE_TTS" in preflight_src,
+              "preflight should check TTS configuration")
+        check("preflight.py has run_preflight function",
+              "def run_preflight" in preflight_src,
+              "preflight should expose run_preflight function")
+        check("storage.py has write_metadata method",
+              "def write_metadata" in storage_src,
+              "storage should have write_metadata method for metadata.json")
+        check("storage.py has update_status_extra method",
+              "def update_status_extra" in storage_src,
+              "storage should have update_status_extra for scene_count/duration/file_size")
+        check("service.py writes metadata.json after success",
+              "write_metadata" in (proj69 / "app" / "application" / "content_video" / "service.py").read_text(encoding="utf-8"),
+              "service.py should call storage.write_metadata after successful generation")
+        check("service.py has improved error messages",
+              "未检测到 ffmpeg" in (proj69 / "app" / "application" / "content_video" / "service.py").read_text(encoding="utf-8"),
+              "service.py should have clear Chinese error messages for missing ffmpeg")
+        check("status route returns scene_count/duration/tts_mode",
+              "scene_count" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8"),
+              "video status route should return scene_count, duration_seconds, file_size_bytes, tts_mode")
+        check("share page JS shows TTS mode warning",
+              "tts_mode" in share_html and "ttsWarning" in share_html,
+              "share page JS should check tts_mode and show a warning if using fake TTS")
+        check("scripts/check_content_video_runtime.py exists",
+              (proj69 / "scripts" / "check_content_video_runtime.py").exists(),
+              "check_content_video_runtime.py script should exist")
+        check("preflight route exists in radar.py",
+              "/video/preflight" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8"),
+              "preflight route should be registered in radar.py")
+        check("composer.py has get_video_duration",
+              "def get_video_duration" in (proj69 / "app" / "application" / "content_video" / "composer.py").read_text(encoding="utf-8"),
+              "composer should expose get_video_duration for metadata")
     except Exception as e:
         check("public share page checks", False, str(e))
 

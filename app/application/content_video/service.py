@@ -42,6 +42,7 @@ from app.application.content_video.audio_renderer import (
     render_scene_audio,
     TTSProviderError,
     TTSProvider,
+    FakeTTSProvider,
 )
 from app.application.content_video import composer
 
@@ -211,6 +212,41 @@ def generate_video(
         if not keep:
             cleanup_intermediate_artifacts(storage)
 
+        # Collect video metadata
+        duration_seconds: float | None = composer.get_video_duration(output_mp4)
+        file_size_bytes = output_mp4.stat().st_size if output_mp4.exists() else None
+        scene_count = len(scenes)
+        tts_mode = "fake" if isinstance(tts_provider, FakeTTSProvider) else "real"
+
+        # Write metadata.json
+        from app.application.content_video.hashing import VIDEO_ENGINE_VERSION
+        from datetime import datetime, timezone
+        metadata_payload = {
+            "source_key": source_key,
+            "input_hash": input_hash,
+            "video_engine_version": VIDEO_ENGINE_VERSION,
+            "template_id": request.template_id,
+            "output_size": request.output_size,
+            "scene_count": scene_count,
+            "duration_seconds": round(duration_seconds, 1) if duration_seconds else None,
+            "file_size_bytes": file_size_bytes,
+            "tts_mode": tts_mode,
+            "voice_id": request.voice_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "output_mp4": "output.mp4",
+            "poster": "poster.png" if poster_path.exists() else None,
+        }
+        storage.write_metadata(metadata_payload)
+
+        # Update status.json with extra fields
+        storage.update_status_extra(
+            scene_count=scene_count,
+            duration_seconds=duration_seconds,
+            file_size_bytes=file_size_bytes,
+            tts_mode=tts_mode,
+            intermediate_kept=keep,
+        )
+
         storage.write_status(
             job_id=job_id,
             input_hash=input_hash,
@@ -230,34 +266,50 @@ def generate_video(
         )
 
     except TTSProviderError as exc:
+        user_message = (
+            "TTS 未配置，无法生成正式语音。"
+            "本地测试可设置 DEV_FAKE_TTS=true。"
+        )
         storage.write_status(
             job_id=job_id,
             input_hash=input_hash,
             status=_STATUS_FAILED,
             current_step="generating_scene_audio",
-            error=str(exc),
+            error=user_message,
         )
         logger.error("TTS provider error during video generation: %s", exc)
         return VideoGenerationResult(
             job_id=job_id,
             input_hash=input_hash,
             status=_STATUS_FAILED,
-            error=str(exc),
+            error=user_message,
             current_step="generating_scene_audio",
         )
 
     except Exception as exc:
         tb = traceback.format_exc()
-        # Provide a clear user-facing message for missing Pillow
+        # Provide clear user-facing messages for common errors
         if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL":
             user_message = (
-                "Pillow is not installed. "
-                "Please install Pillow>=10.0.0 to generate scene images: "
-                "pip install Pillow>=10.0.0"
+                "缺少 Pillow，无法生成视频图片。"
+                "请执行 pip install Pillow>=10.0.0。"
             )
             error_for_status = user_message
+        elif isinstance(exc, FileNotFoundError) and ("ffmpeg" in str(exc).lower() or "ffprobe" in str(exc).lower()):
+            user_message = (
+                "未检测到 ffmpeg，无法合成视频。"
+                "请安装 ffmpeg 并确保命令行可访问。"
+            )
+            error_for_status = user_message
+        elif isinstance(exc, TTSProviderError):
+            user_message = (
+                "TTS 未配置，无法生成正式语音。"
+                "本地测试可设置 DEV_FAKE_TTS=true。"
+            )
+            error_for_status = str(exc)
         else:
             error_for_status = f"{exc}\n{tb}"
+            user_message = str(exc)
         storage.write_status(
             job_id=job_id,
             input_hash=input_hash,
@@ -270,7 +322,7 @@ def generate_video(
             job_id=job_id,
             input_hash=input_hash,
             status=_STATUS_FAILED,
-            error=user_message if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL" else str(exc),
+            error=user_message,
             current_step="rendering_scene_images" if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL" else "failed",
         )
 

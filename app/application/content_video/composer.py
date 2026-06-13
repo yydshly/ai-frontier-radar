@@ -30,6 +30,28 @@ def _find_binary(name: str) -> str | None:
     return None
 
 
+def get_video_duration(path: Path) -> float | None:
+    """Get video duration in seconds using ffprobe.
+
+    Returns None if ffprobe is unavailable or fails.
+    """
+    ffprobe = _find_binary("ffprobe")
+    if not ffprobe:
+        return None
+    try:
+        out = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(path)],
+            capture_output=True, timeout=30,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if out.returncode == 0:
+            return max(0.1, float(out.stdout.decode().strip()))
+    except Exception:
+        pass
+    return None
+
+
 def _resolve_ffmpeg() -> str:
     ffmpeg = _find_binary("ffmpeg")
     if ffmpeg is None:

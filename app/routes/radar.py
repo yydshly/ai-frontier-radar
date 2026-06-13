@@ -2011,6 +2011,34 @@ def get_daily_broadcast_audio_file(filename: str):
 
 # ── Content-video generation routes (structured content → 9:16 MP4) ──────────
 
+@router.get("/share/{date_label}/video/preflight")
+@router.get("/share/today/video/preflight", name="share_today_video_preflight")
+async def get_share_video_preflight(request: Request, date_label: str | None = None):
+    """Return the result of running content-video preflight checks.
+
+    Used by the share page to show the user what dependencies are available
+    before attempting video generation.
+    """
+    from app.application.content_video.preflight import run_preflight, ContentVideoPreflightResult
+
+    result = run_preflight(require_tts=True)
+    items = [
+        {
+            "name": item.name,
+            "ok": item.ok,
+            "message": item.message,
+            "detail": item.detail,
+        }
+        for item in result.items
+    ]
+    return {
+        "ok": result.ok,
+        "items": items,
+    }
+
+
+
+
 def _build_video_source_from_share(db, date_label: str):
     """Build VideoSourceSnapshot from the share page snapshot for a date."""
     from app.application.radar.share_snapshot import build_today_share_snapshot
@@ -2208,6 +2236,10 @@ def get_share_today_video_status(input_hash: str | None = Query(None)):
             "error": status.get("error"),
             "input_hash": status.get("input_hash"),
             "job_id": status.get("job_id"),
+            "scene_count": status.get("scene_count"),
+            "duration_seconds": status.get("duration_seconds"),
+            "file_size_bytes": status.get("file_size_bytes"),
+            "tts_mode": status.get("tts_mode"),
         }
     finally:
         db.close()
@@ -2298,6 +2330,10 @@ def get_share_history_video_status(date_label: str, input_hash: str | None = Que
             "error": status.get("error"),
             "input_hash": status.get("input_hash"),
             "job_id": status.get("job_id"),
+            "scene_count": status.get("scene_count"),
+            "duration_seconds": status.get("duration_seconds"),
+            "file_size_bytes": status.get("file_size_bytes"),
+            "tts_mode": status.get("tts_mode"),
         }
     finally:
         db.close()

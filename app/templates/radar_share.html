@@ -507,12 +507,33 @@ function cvShowInOverlay(data, inputHash) {
         tip.textContent = '核心报告视频 · 生成成功';
         var videoUrl = cvDownloadPath(inputHash);
         var poster = data.poster_path || '';
+
+        // Build video info string
+        var infoParts = [];
+        if (data.duration_seconds) {
+            infoParts.push('约 ' + Math.round(data.duration_seconds) + ' 秒');
+        }
+        if (data.scene_count) {
+            infoParts.push(data.scene_count + ' 页');
+        }
+        infoParts.push('1080×1920');
+        if (data.file_size_bytes) {
+            var mb = (data.file_size_bytes / (1024 * 1024)).toFixed(1);
+            infoParts.push(mb + ' MB');
+        }
+
+        var ttsWarning = '';
+        if (data.tts_mode === 'fake') {
+            ttsWarning = '<div style="background:#fff3cd;color:#856404;font-size:12px;padding:6px 12px;border-radius:8px;margin-top:8px;text-align:center">⚠️ 当前使用本地测试音频，不是正式语音</div>';
+        }
+
         body.innerHTML =
             '<div class="core-video-modal">' +
             '<div class="core-video-preview">' +
             '<video controls playsinline' + (poster ? ' poster="' + poster + '"' : '') + ' src="' + videoUrl + '"></video>' +
             '</div>' +
-            '<div class="core-video-meta">竖屏 9:16 · 1080×1920</div>' +
+            '<div class="core-video-meta">' + infoParts.join(' · ') + '</div>' +
+            ttsWarning +
             '</div>';
         actions.innerHTML =
             '<div class="core-video-actions">' +

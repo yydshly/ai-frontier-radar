@@ -98,6 +98,10 @@ class VideoStorage:
     def clips_dir(self) -> Path:
         return self.base_dir / "clips"
 
+    @property
+    def metadata_path(self) -> Path:
+        return self.base_dir / "metadata.json"
+
     def scene_image_path(self, scene_id: str) -> Path:
         return self.scenes_dir / f"{scene_id}.png"
 
@@ -195,6 +199,48 @@ class VideoStorage:
         }
         self.status_path.write_text(
             json.dumps(payload, sort_keys=True, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    def write_metadata(self, metadata: dict) -> None:
+        """Write metadata.json for the generated video."""
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.metadata_path.write_text(
+            json.dumps(metadata, sort_keys=True, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def read_metadata(self) -> dict | None:
+        """Read metadata.json if it exists."""
+        if not self.metadata_path.exists():
+            return None
+        with open(self.metadata_path, encoding="utf-8") as f:
+            return json.load(f)
+
+    def update_status_extra(
+        self,
+        scene_count: int | None = None,
+        duration_seconds: float | None = None,
+        file_size_bytes: int | None = None,
+        tts_mode: str | None = None,
+        intermediate_kept: bool | None = None,
+    ) -> None:
+        """Append extra fields to an existing status.json without overwriting."""
+        status = self.read_status()
+        if status is None:
+            return
+        if scene_count is not None:
+            status["scene_count"] = scene_count
+        if duration_seconds is not None:
+            status["duration_seconds"] = round(duration_seconds, 1)
+        if file_size_bytes is not None:
+            status["file_size_bytes"] = file_size_bytes
+        if tts_mode is not None:
+            status["tts_mode"] = tts_mode
+        if intermediate_kept is not None:
+            status["intermediate_kept"] = intermediate_kept
+        self.status_path.write_text(
+            json.dumps(status, sort_keys=True, ensure_ascii=False),
             encoding="utf-8",
         )
 
