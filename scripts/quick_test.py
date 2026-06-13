@@ -9166,6 +9166,34 @@ def main():
         check("today page links to the share page",
               "/radar/share/today" in (proj69 / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8"),
               "the radar should expose a 分享 entry")
+
+        # ── 69b. share-OUT capability: panel + QR + long image + video ──
+        share_html = (proj69 / "app" / "templates" / "radar_share.html").read_text(encoding="utf-8")
+        share_py = (proj69 / "app" / "application" / "radar" / "share.py").read_text(encoding="utf-8")
+        video_py = proj69 / "app" / "application" / "radar" / "share_video.py"
+        check("share panel: copy-link + QR present",
+              "share-fab" in share_html and "copyShareUrl" in share_html
+              and "qr_svg" in share_html and "def build_qr_svg" in share_py,
+              "share page needs a copy-link + server-rendered QR panel")
+        check("QR uses pure-python segno (no JS/CDN)",
+              "import segno" in share_py
+              and "segno" in (proj69 / "requirements.txt").read_text(encoding="utf-8"),
+              "QR should be server-rendered via segno, pinned in requirements")
+        check("long-image: html2canvas vendored locally + wired",
+              (proj69 / "app" / "static" / "vendor" / "html2canvas.min.js").exists()
+              and "generateLongImage" in share_html
+              and "html2canvas.min.js" in share_html,
+              "长图 needs a locally-vendored html2canvas and a generate hook")
+        check("short-video: module + route + ffmpeg gate",
+              video_py.exists()
+              and "def compose_audiogram" in video_py.read_text(encoding="utf-8")
+              and "def resolve_ffmpeg" in video_py.read_text(encoding="utf-8")
+              and '/share/{date_label}/video' in radar_route
+              and "video_enabled" in share_html,
+              "短视频 needs share_video.py, a /video route, and an ffmpeg-availability gate")
+        check("share view still links every article to 原文",
+              ">原文<" in _c69.get("/radar/share/today").text or not _ldrd(),
+              "each shared article must link to its source 原文")
     except Exception as e:
         check("public share page checks", False, str(e))
 

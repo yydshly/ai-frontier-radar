@@ -73,6 +73,13 @@ class ShareView:
     stats: ShareStats | None = None
 
 
+def build_qr_svg(url: str, *, scale: int = 4, border: int = 2) -> str:
+    """Return an inline SVG QR code for `url` (pure-python segno, no JS/CDN)."""
+    import segno
+
+    return segno.make(url, error="m").svg_inline(scale=scale, border=border)
+
+
 def _important_ids(report: dict | None) -> set[int]:
     ids: set[int] = set()
     if not report:

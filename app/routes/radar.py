@@ -14,8 +14,8 @@ from pathlib import Path
 from urllib.parse import urlencode
 import os
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.db import get_db
@@ -1517,16 +1517,75 @@ def radar_history_day(request: Request, date_label: str):
 
 
 def _render_share(request: Request, date_label: str):
-    from app.application.radar.share import build_share_view
+    from app.application.radar.share import build_share_view, build_qr_svg
+    from app.application.radar.share_video import video_enabled
 
     db = next(get_db())
     try:
         view = build_share_view(db, date_label)
     finally:
         db.close()
+    share_url = str(request.url)
+    try:
+        qr_svg = build_qr_svg(share_url)
+    except Exception:
+        qr_svg = None  # never let QR generation break the page
     return _radar_templates.TemplateResponse(
         "radar_share.html",
-        {"request": request, "view": view, "safe_external_url": safe_external_url},
+        {
+            "request": request,
+            "view": view,
+            "safe_external_url": safe_external_url,
+            "share_url": share_url,
+            "qr_svg": qr_svg,
+            "video_enabled": bool(view.audio_job) and video_enabled(),
+        },
+    )
+
+
+@router.post("/share/{date_label}/video")
+async def radar_share_video(date_label: str, cover: UploadFile = File(...)):
+    """Mux a client-rendered cover image + the day's audio into a short MP4.
+
+    The cover is the 9:16 video card rendered by html2canvas on the share page.
+    Returns the MP4 bytes for download. 400 if no audio / bad input, 503 if the
+    server has no ffmpeg.
+    """
+    import re as _re
+    from app.application.radar.share import build_share_view
+    from app.application.radar.share_video import compose_audiogram, resolve_ffmpeg
+    from app.application.radar.daily_broadcast import get_daily_broadcast_audio_path
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return Response("无效日期。", status_code=400)
+    if resolve_ffmpeg() is None:
+        return Response("服务器未安装 ffmpeg，无法生成视频。", status_code=503)
+
+    db = next(get_db())
+    try:
+        view = build_share_view(db, date_label)
+    finally:
+        db.close()
+    job = view.audio_job
+    if not job or not job.audio_filename:
+        return Response("当日无可用音频。", status_code=400)
+    audio_path = get_daily_broadcast_audio_path(job.audio_filename)
+    if not audio_path or not audio_path.is_file():
+        return Response("音频文件不存在。", status_code=400)
+
+    cover_bytes = await cover.read()
+    if not cover_bytes:
+        return Response("封面图为空。", status_code=400)
+    try:
+        mp4 = compose_audiogram(cover_bytes, audio_path)
+    except Exception as exc:
+        return Response(f"视频生成失败：{exc}", status_code=500)
+
+    filename = f"AI_Frontier_Radar_{date_label}.mp4"
+    return Response(
+        content=mp4,
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

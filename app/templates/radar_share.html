@@ -45,6 +45,49 @@
         .empty { color:var(--muted); font-size:14px; }
         footer { padding:18px; color:var(--muted); font-size:12px; text-align:center; }
         .imp-badge { display:inline-block; background:#fff4e5; color:#a85b00; font-size:11px; padding:1px 7px; border-radius:10px; margin-left:6px; vertical-align:1px; }
+        /* ── share panel ── */
+        .share-fab { position:fixed; right:16px; bottom:16px; z-index:50; background:var(--accent); color:#fff; border:none; border-radius:24px; padding:11px 20px; font-size:14px; font-weight:600; box-shadow:0 4px 14px rgba(0,0,0,.18); cursor:pointer; }
+        .share-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; display:none; align-items:flex-end; justify-content:center; }
+        .share-overlay.open { display:flex; }
+        .share-sheet { background:#fff; width:100%; max-width:680px; border-radius:16px 16px 0 0; padding:20px 18px 24px; animation:sheetUp .2s ease; }
+        @keyframes sheetUp { from { transform:translateY(24px); opacity:.5; } to { transform:none; opacity:1; } }
+        .share-sheet h3 { margin:0 0 4px; font-size:17px; }
+        .share-sheet .hint { color:var(--muted); font-size:12.5px; margin:0 0 16px; }
+        .qr-box { display:flex; justify-content:center; margin:6px 0 14px; }
+        .qr-box svg { width:150px; height:150px; }
+        .url-row { display:flex; gap:8px; margin-bottom:14px; }
+        .url-row input { flex:1; min-width:0; font-size:13px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; color:var(--fg); background:#fafbfc; }
+        .url-row button { padding:9px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-size:13px; cursor:pointer; white-space:nowrap; }
+        .share-btns { display:flex; flex-direction:column; gap:9px; }
+        .share-btns button { width:100%; padding:11px; font-size:14px; border-radius:9px; border:1px solid var(--accent); background:#fff; color:var(--accent); cursor:pointer; font-weight:600; }
+        .share-btns button[disabled] { opacity:.5; cursor:default; }
+        .share-close { display:block; width:100%; margin-top:12px; padding:10px; background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; }
+        .toast { position:fixed; left:50%; bottom:80px; transform:translateX(-50%); background:rgba(0,0,0,.82); color:#fff; padding:9px 16px; border-radius:20px; font-size:13px; z-index:70; opacity:0; transition:opacity .2s; pointer-events:none; max-width:80%; text-align:center; }
+        .toast.show { opacity:1; }
+        .capturing .share-fab, .capturing .share-overlay, .capturing audio { display:none !important; }
+        /* ── generated-image / busy overlay ── */
+        .result-overlay { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:80; display:none; flex-direction:column; align-items:center; padding:16px; overflow:auto; }
+        .result-overlay.open { display:flex; }
+        .result-overlay .tip { color:#fff; font-size:13px; margin:6px 0 12px; text-align:center; }
+        .result-overlay img, .result-overlay video { max-width:100%; height:auto; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.4); }
+        .result-overlay .actions { display:flex; gap:10px; margin:14px 0; flex-wrap:wrap; justify-content:center; }
+        .result-overlay .actions a, .result-overlay .actions button { padding:9px 16px; border-radius:9px; border:1px solid #fff; background:#fff; color:#111; font-size:14px; cursor:pointer; text-decoration:none; }
+        .result-overlay .actions button.ghost { background:transparent; color:#fff; }
+        .spinner { width:34px; height:34px; border:3px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; margin:30px 0 10px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        /* ── hidden 9:16 video cover (rendered to an image by html2canvas) ── */
+        .video-cover { position:fixed; left:-99999px; top:0; width:360px; height:640px; box-sizing:border-box; padding:30px 26px; color:#fff; background:linear-gradient(160deg,#0E1726,#0a1018); display:flex; flex-direction:column; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+        .vc-brand { font-size:13px; color:#34D399; letter-spacing:1px; font-weight:700; }
+        .vc-date { font-size:12px; color:#8aa3b0; margin-top:3px; }
+        .vc-title { font-size:22px; line-height:1.35; font-weight:700; margin:18px 0 14px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+        .vc-points { flex:1; margin:0; padding:0; overflow:hidden; }
+        .vc-points li { font-size:13.5px; line-height:1.55; color:#d8e0e8; margin-bottom:11px; list-style:none; padding-left:16px; position:relative; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .vc-points li::before { content:''; position:absolute; left:0; top:8px; width:6px; height:6px; border-radius:50%; background:#34D399; }
+        .vc-stats { font-size:11.5px; color:#7d8a96; margin:6px 0 12px; }
+        .vc-foot { display:flex; align-items:center; gap:12px; border-top:1px solid rgba(255,255,255,.12); padding-top:14px; }
+        .vc-qr { width:64px; height:64px; background:#fff; border-radius:8px; padding:5px; box-sizing:border-box; flex:none; }
+        .vc-qr svg { width:100%; height:100%; }
+        .vc-cta { font-size:12px; color:#9fe3c4; line-height:1.55; }
     </style>
 </head>
 <body>
@@ -148,5 +191,163 @@
 
     <footer>AI Frontier Radar · {{ view.date_label }} · 仅展示当日公开内容</footer>
 </div>
+
+{# ── 分享面板 ── #}
+<button class="share-fab" onclick="openShare()">分享 ↗</button>
+<div class="share-overlay" id="shareOverlay" onclick="if(event.target===this)closeShare()">
+    <div class="share-sheet">
+        <h3>分享这份情报</h3>
+        <p class="hint">公开只读页 · 扫码或复制链接转发，文中每条都可点「原文」跳转来源</p>
+        {% if qr_svg %}<div class="qr-box">{{ qr_svg|safe }}</div>{% endif %}
+        <div class="url-row">
+            <input id="shareUrl" type="text" readonly value="{{ share_url }}">
+            <button onclick="copyShareUrl()">复制</button>
+        </div>
+        <div class="share-btns">
+            <button onclick="generateLongImage()">生成长图</button>
+            {% if video_enabled %}<button onclick="generateVideo()">生成短视频（含语音）</button>{% endif %}
+        </div>
+        <button class="share-close" onclick="closeShare()">关闭</button>
+    </div>
+</div>
+
+{# ── 短视频封面(隐藏,html2canvas 渲染成图后送服务端合成) ── #}
+<div class="video-cover" id="videoCover" aria-hidden="true">
+    <div class="vc-brand">AI 前沿雷达</div>
+    <div class="vc-date">{{ view.date_label }} · 每日 AI 情报</div>
+    <div class="vc-title">{{ _title }}</div>
+    <ul class="vc-points">
+        {% for h in view.highlights[:4] %}<li>{{ h.text }}</li>{% endfor %}
+        {% if not view.highlights and view.report and view.report.overview %}<li>{{ view.report.overview }}</li>{% endif %}
+    </ul>
+    <div class="vc-stats">新增 {{ view.stats.new_items if view.stats else 0 }} · 重要 {{ view.stats.important if view.stats else 0 }} · 来源 {{ view.stats.sources if view.stats else 0 }}</div>
+    <div class="vc-foot">
+        {% if qr_svg %}<div class="vc-qr">{{ qr_svg|safe }}</div>{% endif %}
+        <div class="vc-cta">扫码看完整报告<br>收听语音播报 · 跳转原文</div>
+    </div>
+</div>
+<div class="result-overlay" id="resultOverlay">
+    <div class="tip" id="resultTip"></div>
+    <div id="resultBody"></div>
+    <div class="actions" id="resultActions"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var SHARE_DATE = "{{ view.date_label }}";
+function openShare(){ document.getElementById('shareOverlay').classList.add('open'); }
+function closeShare(){ document.getElementById('shareOverlay').classList.remove('open'); }
+function closeResult(){
+    var o=document.getElementById('resultOverlay');
+    o.classList.remove('open');
+    document.getElementById('resultBody').innerHTML='';
+    document.getElementById('resultActions').innerHTML='';
+}
+function showBusy(msg){
+    var o=document.getElementById('resultOverlay');
+    document.getElementById('resultTip').textContent=msg||'生成中…';
+    document.getElementById('resultBody').innerHTML='<div class="spinner"></div>';
+    document.getElementById('resultActions').innerHTML='';
+    o.classList.add('open');
+}
+function loadScript(src){
+    return new Promise(function(resolve, reject){
+        if(window.__h2c_loaded){ resolve(); return; }
+        var s=document.createElement('script');
+        s.src=src;
+        s.onload=function(){ window.__h2c_loaded=true; resolve(); };
+        s.onerror=function(){ reject(new Error('load failed: '+src)); };
+        document.head.appendChild(s);
+    });
+}
+function toast(msg){
+    var t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
+    clearTimeout(t._h); t._h=setTimeout(function(){ t.classList.remove('show'); }, 1800);
+}
+function copyShareUrl(){
+    var url=document.getElementById('shareUrl').value;
+    function ok(){ toast('链接已复制'); }
+    function fallback(){
+        var i=document.getElementById('shareUrl'); i.focus(); i.select();
+        try{ document.execCommand('copy'); ok(); }catch(e){ toast('复制失败，请手动复制'); }
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(ok, fallback);
+    } else { fallback(); }
+}
+function captureWrap(){
+    // Render the main column to a canvas at 2x for crispness; hide UI chrome.
+    document.body.classList.add('capturing');
+    var scale = Math.min(2, window.devicePixelRatio || 1) || 2;
+    return loadScript('/static/vendor/html2canvas.min.js')
+        .then(function(){
+            return html2canvas(document.querySelector('.wrap'), {
+                backgroundColor: '#ffffff',
+                scale: scale,
+                useCORS: true,
+                logging: false,
+                windowWidth: document.querySelector('.wrap').scrollWidth
+            });
+        })
+        .then(function(canvas){
+            document.body.classList.remove('capturing');
+            return canvas;
+        })
+        .catch(function(err){
+            document.body.classList.remove('capturing');
+            throw err;
+        });
+}
+function generateLongImage(){
+    closeShare();
+    showBusy('正在生成长图…');
+    captureWrap().then(function(canvas){
+        var dataUrl = canvas.toDataURL('image/png');
+        var fname = 'AI前沿雷达_' + SHARE_DATE + '.png';
+        document.getElementById('resultTip').textContent = '长按图片保存，或点下载';
+        document.getElementById('resultBody').innerHTML = '';
+        var img = new Image(); img.src = dataUrl; document.getElementById('resultBody').appendChild(img);
+        document.getElementById('resultActions').innerHTML =
+            '<a download="'+fname+'" href="'+dataUrl+'">下载长图</a>' +
+            '<button class="ghost" onclick="closeResult()">关闭</button>';
+    }).catch(function(err){
+        closeResult(); toast('长图生成失败：'+(err&&err.message||err));
+    });
+}
+function generateVideo(){
+    closeShare();
+    showBusy('正在合成短视频（含语音，约十几秒）…');
+    var cover = document.getElementById('videoCover');
+    loadScript('/static/vendor/html2canvas.min.js')
+        .then(function(){
+            return html2canvas(cover, { backgroundColor:null, scale:3, useCORS:true, logging:false, width:360, height:640 });
+        })
+        .then(function(canvas){
+            return new Promise(function(res, rej){
+                canvas.toBlob(function(b){ b ? res(b) : rej(new Error('封面渲染失败')); }, 'image/png');
+            });
+        })
+        .then(function(blob){
+            var fd = new FormData();
+            fd.append('cover', blob, 'cover.png');
+            return fetch('/radar/share/' + SHARE_DATE + '/video', { method:'POST', body:fd });
+        })
+        .then(function(r){
+            if(!r.ok){ return r.text().then(function(t){ throw new Error(t || ('HTTP ' + r.status)); }); }
+            return r.blob();
+        })
+        .then(function(mp4){
+            var url = URL.createObjectURL(mp4);
+            var fname = 'AI前沿雷达_' + SHARE_DATE + '.mp4';
+            document.getElementById('resultTip').textContent = '短视频已生成，可播放或下载转发';
+            document.getElementById('resultBody').innerHTML = '<video controls playsinline style="max-height:70vh" src="' + url + '"></video>';
+            document.getElementById('resultActions').innerHTML =
+                '<a download="' + fname + '" href="' + url + '">下载视频</a>' +
+                '<button class="ghost" onclick="closeResult()">关闭</button>';
+        })
+        .catch(function(err){ closeResult(); toast('短视频生成失败：' + (err && err.message || err)); });
+}
+</script>
 </body>
 </html>
