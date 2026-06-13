@@ -9203,6 +9203,14 @@ def main():
     leaked = [k for k in sensitive if k in local_status_template]
     check("local_status template does NOT leak API keys", not leaked,
           f"found: {leaked}" if leaked else "")
+    # local_status.py project root fix — uses parents[2], not parents[1]
+    local_status_py = (proj70 / "app" / "routes" / "local_status.py").read_text(encoding="utf-8")
+    check("local_status.py defines _project_root()",
+          "def _project_root()" in local_status_py)
+    check("local_status.py uses parents[2] for project root",
+          "parents[2]" in local_status_py)
+    check("local_status.py _load_latest_report uses _project_root()",
+          "_project_root()" in local_status_py and "def _load_latest_report" in local_status_py)
 
     # ── Leave the working DB clean ───────────────────────────────────────────
     # Several checks (and the app under test) seed throwaway sources via the real

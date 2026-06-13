@@ -14,11 +14,20 @@ _templates = Jinja2Templates(
 )
 
 
+def _project_root() -> Path:
+    """Return the project root directory.
+
+    This file lives at app/routes/local_status.py, so:
+      parents[0] = app/routes/
+      parents[1] = app/
+      parents[2] = <project root>/
+    """
+    return Path(__file__).resolve().parents[2]
+
+
 def _load_latest_report() -> dict | None:
     """Load runtime/daily_cycle_runs/latest.json safely. Returns None if absent or corrupt."""
-    # Derive the project root from this file: app/routes/../ -> project root
-    project_root = Path(__file__).resolve().parents[1]
-    latest_path = project_root / "runtime" / "daily_cycle_runs" / "latest.json"
+    latest_path = _project_root() / "runtime" / "daily_cycle_runs" / "latest.json"
     try:
         return json.loads(latest_path.read_text(encoding="utf-8"))
     except (OSError, ValueError, json.JSONDecodeError):
@@ -37,8 +46,7 @@ def local_status(request: Request):
     """
     report = _load_latest_report()
 
-    # Derive the project root for directory display.
-    project_root = Path(__file__).resolve().parents[1]
+    project_root = _project_root()
     logs_dir = project_root / "logs"
     runtime_dir = project_root / "runtime"
 
