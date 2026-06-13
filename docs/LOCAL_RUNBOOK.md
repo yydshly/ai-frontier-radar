@@ -457,6 +457,8 @@ python scripts/make_app_icon.py
 | `CONTENT_VIDEO_FONT_PATH` | 字体文件路径 | 强制使用指定路径的中文字体（覆盖默认字体查找） |
 | `CONTENT_VIDEO_BOLD_FONT_PATH` | 字体文件路径 | 强制使用指定路径的粗体中文字体 |
 | `CONTENT_VIDEO_KEEP_INTERMEDIATE` | `true` | 保留 scenes/audio/clips 中间产物（默认 false，生成后自动清理） |
+| `CONTENT_VIDEO_MAX_SCENES` | `7` | 最多生成 scene 数量（影响总时长） |
+| `CONTENT_VIDEO_MAX_NARRATION_CHARS` | `90` | 单个 scene 语音文案最多字符数（控制每句 TTS 时长） |
 
 ### 16.3 中间产物清理
 
@@ -487,24 +489,21 @@ export CONTENT_VIDEO_KEEP_INTERMEDIATE=true
 
 失败时不会清理中间产物，方便排查问题。
 
-### 16.4 视频 Scene 结构（V1 短格式）
+### 16.4 视频 Scene 结构（V1.1 短格式）
 
-视频采用适合手机观看的短格式，每页一个重点：
+视频采用适合手机观看的短格式（目标 60-75 秒），每页一个重点：
 
 ```
-Scene 01  封面       — 品牌 + 日期 + 信号数量（无长标题）
-Scene 02  今日总判断 — 核心判断（1-2 行）
-Scene 03  信号 1 标题 — 信号标题 + 一句话摘要
-Scene 04  为什么重要 — 信号重要性（why_it_matters 拆分）
-Scene 05  信号 2 标题 — 同上
-Scene 06  为什么重要
-Scene 07  信号 3 标题
-Scene 08  为什么重要
-Scene 09  今日结论   — 压缩后的要点（每条 ≤28 字）
-Scene 10  结语       — CTA
+Scene 01  封面       — 品牌 + 日期 + 信号数量
+Scene 02  今日总判断 — 核心判断（≤3 行）
+Scene 03  信号 1     — 短标题 + 1-2 行解释说明
+Scene 04  信号 2     — 同上
+Scene 05  信号 3     — 同上
+Scene 06  今日结论   — 压缩后的要点（每条 ≤26 字）
+Scene 07  结语       — CTA
 ```
 
-默认取前 3 个信号，避免一页塞太多内容。长段落在进入 scene 前会经过 `compact_title` / `compact_line` / `split_to_visual_lines` 压缩处理。
+默认取前 3 个信号，每个信号只生成 1 个 scene（不是 2 个）。文案经过 `to_video_signal_title` / `to_video_explanation_lines` / `to_video_narration` 处理，更像视频讲解语言而非报告摘要。总时长约 60-75 秒（由 CONTENT_VIDEO_MAX_NARRATION_CHARS 控制每句 TTS 长度）。
 
 ### 16.5 视频生成原理
 

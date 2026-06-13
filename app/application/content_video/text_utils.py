@@ -106,6 +106,155 @@ def compact_narration(text: str, max_chars: int = 120) -> str:
     return text[: max_chars - 1] + "…"
 
 
+# ── Video language helpers ─────────────────────────────────────────────────────────
+
+def to_video_signal_title(title: str, max_chars: int = 18) -> str:
+    """Convert a signal title to short, punchy video title.
+
+    Examples:
+      "Agent Safety Evaluations Are Becoming a Key Focus"
+        → "Agent 安全评估成为焦点"
+
+    Rules (no LLM — pure text rules):
+      - Strip prefix verbs: "研究", "发现", "证明" etc.
+      - Keep the core noun phrase
+      - Cap at max_chars
+    """
+    if not title:
+        return ""
+    title = title.strip()
+
+    # Strip common report-style prefixes
+    prefixes = [
+        "研究发现",
+        "研究显示",
+        "研究表表明",
+        "数据显示",
+        "报告指出",
+        "文章称",
+        "据悉",
+        "根据",
+        "通过",
+        "实现",
+        "成功",
+        "首次",
+    ]
+    for p in prefixes:
+        if title.startswith(p):
+            title = title[len(p):].strip()
+            if title:
+                break
+
+    # Strip trailing punctuation
+    title = title.rstrip("，。、；：")
+
+    # Cap length
+    if len(title) > max_chars:
+        return title[:max_chars - 1] + "…"
+    return title
+
+
+def to_video_explanation_lines(
+    summary: str | None,
+    why_it_matters: str | None,
+    key_points: list[str],
+    max_lines: int = 3,
+    max_chars_per_line: int = 24,
+) -> list[str]:
+    """Convert section content into 1-3 punchy explanation lines for a signal card.
+
+    Output is short, conversational, and suitable for a mobile video card.
+    Not a direct summary — sentences are restructured for spoken delivery.
+
+    Returns a list of up to max_lines short Chinese lines.
+    """
+    # Collect candidate source lines
+    candidates: list[str] = []
+
+    if why_it_matters:
+        # Split why_it_matters into sentences, compact each
+        import re as _re
+        parts = _re.split(r"(?<=[，。；！？、])", why_it_matters)
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            # Strip leading conjunctions
+            for prefix in ("因为", "由于", "所以", "这说明", "这表明", "这意味着"):
+                if part.startswith(prefix):
+                    part = part[len(prefix):].strip()
+            if part:
+                candidates.append(part)
+    elif summary:
+        # Fallback: use first sentence of summary
+        import re as _re
+        parts = _re.split(r"(?<=[，。；！？])", summary)
+        if parts:
+            first = parts[0].strip()
+            if first:
+                candidates.append(first)
+
+    # If still empty, use key_points
+    if not candidates and key_points:
+        for kp in key_points[:2]:
+            kp = kp.strip()
+            if kp:
+                candidates.append(kp)
+
+    # Build short lines using split_to_visual_lines on the candidates
+    combined = "。".join(candidates)
+    lines = split_to_visual_lines(combined, max_lines=max_lines, max_chars_per_line=max_chars_per_line)
+    return [ln.strip() for ln in lines if ln.strip()]
+
+
+def to_video_narration(
+    index: int,
+    title: str,
+    summary: str | None,
+    why_it_matters: str | None,
+    *,
+    max_chars: int = 90,
+) -> str:
+    """Build a short, spoken narration for a signal scene.
+
+    Structure: "第N个信号是：{title}。{concise explanation}。"
+    Total cap: max_chars characters.
+    """
+    label = _cn_number(index) if 1 <= index <= 10 else str(index)
+    title_part = f"第{label}个信号是：{to_video_signal_title(title, 20)}"
+
+    # Build explanation from why_it_matters or summary
+    explanation_parts: list[str] = []
+    if why_it_matters:
+        # Take first sentence of why_it_matters, compact
+        import re as _re
+        sentences = _re.split(r"(?<=[，。；！？])", why_it_matters)
+        if sentences:
+            first = sentences[0].strip()
+            # Strip leading conjunction
+            for prefix in ("因为", "由于", "这说明", "这表明"):
+                if first.startswith(prefix):
+                    first = first[len(prefix):].strip()
+            if first:
+                explanation_parts.append(first)
+    elif summary:
+        # Take first sentence
+        import re as _re
+        sentences = _re.split(r"(?<=[，。；！？])", summary)
+        if sentences:
+            first = sentences[0].strip()
+            if first:
+                explanation_parts.append(first)
+
+    explanation_text = "。".join(explanation_parts)
+    if explanation_text:
+        full = f"{title_part}。{explanation_text}。"
+    else:
+        full = title_part + "。"
+
+    return compact_narration(full, max_chars=max_chars)
+
+
 def split_highlight_scenes(
     section,
     scene_index: int,

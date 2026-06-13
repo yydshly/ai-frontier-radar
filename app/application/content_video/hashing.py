@@ -17,7 +17,7 @@ from app.application.content_video.models import VideoSourceSnapshot, VideoGener
 
 # Bump this whenever the rendering / scene / audio algorithm changes meaningfully.
 # Old hashes will still resolve to their existing output; new inputs get a new hash.
-VIDEO_ENGINE_VERSION = "content_video_v1"
+VIDEO_ENGINE_VERSION = "content_video_v2_mobile_briefing"
 
 
 def _stable_dict(obj: Any) -> Any:

@@ -98,76 +98,96 @@ def _choose_font_size(draw: ImageDraw.ImageDraw, text: str, max_width: int,
 
 
 def _render_cover(scene, w: int, h: int) -> Image.Image:
-    """Render a cover scene — simplified: brand, date, signal count.
+    """Render a cover scene — vertically centered, minimal.
 
-    New cover structure (no long title):
-      - Brand: ◎ AI 前沿雷达
-      - Date + signal count from visual_lines
-      - Short tagline
+    Structure:
+      - Brand centered near top
+      - Visual lines centered in middle
+      - Tagline and footer centered at bottom
     """
     img = Image.new("RGBA", (w, h), C_BG)
     draw = ImageDraw.Draw(img)
 
-    # Use bold for brand and date; regular for subtitle lines
-    brand_font = _load_font(52, bold=True)
-    date_font = _load_font(30)
-    tagline_font = _load_font(26)
+    brand_font = _load_font(50, bold=True)
+    tagline_font = _load_font(24)
 
-    # Brand label centered top
+    # Brand centered in top 25%
     brand = "◎ AI 前沿雷达"
     brand_bbox = draw.textbbox((0, 0), brand, font=brand_font)
-    draw.text(((w - brand_bbox[2]) // 2, 80), brand, font=brand_font, fill=C_ACCENT)
+    brand_x = (w - brand_bbox[2]) // 2
+    draw.text((brand_x, 60), brand, font=brand_font, fill=C_ACCENT)
 
-    # Horizontal accent rule below brand
-    draw.rectangle([(w // 4, 148), (w - w // 4, 151)], fill=C_ACCENT)
+    # Accent rule below brand
+    draw.rectangle([(w // 4, 130), (w - w // 4, 133)], fill=C_ACCENT)
 
-    # Visual lines: usually [date_label, "N 个重点信号", ...]
-    # Show first 2 lines centered
-    line_y = 200
+    # Visual lines: date + signal count — centered in middle of card
+    mid_start = int(h * 0.30)
+    mid_end = int(h * 0.65)
+    line_y = mid_start
     for vl in (scene.visual_lines or [])[:2]:
         vl = vl.strip()
         if not vl:
             continue
-        vl_font = _choose_font_size(draw, vl, w - 160, 24, 54)
+        vl_font = _choose_font_size(draw, vl, w - 120, 24, 52)
         vl_font_obj = _load_font(vl_font)
         vl_bbox = draw.textbbox((0, 0), vl, font=vl_font_obj)
-        draw.text(((w - vl_bbox[2]) // 2, line_y), vl, font=vl_font_obj, fill=C_TEXT)
-        line_y += vl_bbox[3] - vl_bbox[1] + 24
+        vl_x = (w - vl_bbox[2]) // 2
+        draw.text((vl_x, line_y), vl, font=vl_font_obj, fill=C_TEXT)
+        line_y += vl_bbox[3] - vl_bbox[1] + 20
 
-    # Bottom tagline
+    # Tagline centered above footer
     tagline = "扫码查看完整报告 · 语音播报 · 全部文章原文"
     tag_bbox = draw.textbbox((0, 0), tagline, font=tagline_font)
-    draw.text(((w - tag_bbox[2]) // 2, h - tag_bbox[3] - 70), tagline,
-              font=tagline_font, fill=C_SOURCE)
+    tag_x = (w - tag_bbox[2]) // 2
+    draw.text((tag_x, mid_end), tagline, font=tagline_font, fill=C_SOURCE)
 
-    # Auto-gen footer
+    # Footer centered at very bottom
     footer = "AI Frontier Radar · 视频由系统自动生成"
     ft_bbox = draw.textbbox((0, 0), footer, font=tagline_font)
-    draw.text(((w - ft_bbox[2]) // 2, h - ft_bbox[3] - 35), footer,
-              font=tagline_font, fill=C_SOURCE)
+    ft_x = (w - ft_bbox[2]) // 2
+    draw.text((ft_x, h - ft_bbox[3] - 20), footer, font=tagline_font, fill=C_SOURCE)
 
     return img
 
 
 def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
-    """Render a generic content card scene (summary/highlight/takeaways/ending)."""
+    """Render a generic content card scene (signal/summary/takeaways/ending).
+
+    Layout: vertically centered card area with semi-transparent card background.
+    """
     img = Image.new("RGBA", (w, h), C_BG)
     draw = ImageDraw.Draw(img)
 
-    # Wider margins → narrower content for mobile readability
-    MARGIN = 72
-    content_w = w - 2 * MARGIN
-    # Safety zone: don't draw below this y
-    BOTTOM_SAFE = h - 120
+    # Layout constants
+    SIDE_MARGIN = 72
+    content_w = w - 2 * SIDE_MARGIN
+    BOTTOM_SAFE = h - 110
 
-    y = 80
+    # ── Semi-transparent card background ─────────────────────────────────────
+    # Draw a subtle rounded card area in the center 60% of the image
+    card_top = int(h * 0.18)
+    card_bottom = int(h * 0.82)
+    card_left = SIDE_MARGIN
+    card_right = w - SIDE_MARGIN
 
-    # Section title (small caps label, bold)
+    # Subtle card fill
+    draw.rounded_rectangle(
+        [card_left, card_top, card_right, card_bottom],
+        radius=24,
+        fill=(255, 255, 255, 8),
+    )
+    # Subtle card border
+    draw.rounded_rectangle(
+        [card_left, card_top, card_right, card_bottom],
+        radius=24,
+        outline=(52, 211, 153, 38),
+        width=1,
+    )
+
+    # ── Label (top-left of card) ───────────────────────────────────────────
     label_text = scene.scene_type.upper()
-    if scene.scene_type == "highlight":
+    if scene.scene_type == "signal":
         label_text = "信号"
-    elif scene.scene_type == "highlight_detail":
-        label_text = "重点"
     elif scene.scene_type == "summary":
         label_text = "总判断"
     elif scene.scene_type == "takeaways":
@@ -175,54 +195,52 @@ def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
     elif scene.scene_type == "ending":
         label_text = "结语"
 
-    label_font = _load_font(20, bold=True)
-    draw.text((MARGIN, y), label_text, font=label_font, fill=title_color)
-    y += 48
+    label_font = _load_font(18, bold=True)
+    draw.text((SIDE_MARGIN + 20, card_top + 20), label_text, font=label_font, fill=title_color)
 
-    # Divider
-    draw.rectangle([(MARGIN, y), (w - MARGIN, y + 3)], fill=title_color)
-    y += 28
+    # ── Visual title (centered in card) ─────────────────────────────────
+    y = card_top + 70
 
-    # Visual title (bold) — only if not cover
     if scene.visual_title and scene.scene_type != "cover":
-        vt_font_size = _choose_font_size(draw, scene.visual_title, content_w, 30, 54, bold=True)
+        vt_font_size = _choose_font_size(draw, scene.visual_title, content_w - 40, 28, 56, bold=True)
         vt_font = _load_font(vt_font_size, bold=True)
         vt_bbox = draw.textbbox((0, 0), scene.visual_title, font=vt_font)
-        # Check bounds
-        if y + (vt_bbox[3] - vt_bbox[1]) < BOTTOM_SAFE:
-            draw.text((MARGIN, y), scene.visual_title, font=vt_font, fill=C_TEXT)
-            y += vt_bbox[3] - vt_bbox[1] + 16
+        vt_x = (w - vt_bbox[2]) // 2
+        draw.text((vt_x, y), scene.visual_title, font=vt_font, fill=C_TEXT)
+        y += vt_bbox[3] - vt_bbox[1] + 24
 
-    # Visual lines (body, regular weight) — smaller font, tighter line height
-    body_font = _load_font(32)
-    line_height = 52  # ~1.6x for readability
-    for line in scene.visual_lines[:5]:
+    # ── Visual lines (centered body text) ──────────────────────────────────
+    body_font = _load_font(30)
+    line_height = 50  # ~1.65x for readability
+
+    for line in scene.visual_lines[:4]:
         line = line.strip()
         if not line:
             continue
-        wrapped = _wrap_text(draw, line, body_font, content_w, line_height)
+        wrapped = _wrap_text(draw, line, body_font, content_w - 40, line_height)
         for wl in wrapped:
-            if y + line_height > BOTTOM_SAFE:
-                # Draw ellipsis and stop
-                draw.text((MARGIN, y), "…", font=body_font, fill=C_TEXT_DIM)
+            if y + line_height > card_bottom - 20:
+                draw.text((SIDE_MARGIN + 20, y), "…", font=body_font, fill=C_TEXT_DIM)
                 y += line_height
                 break
-            draw.text((MARGIN, y), wl, font=body_font, fill=C_TEXT_DIM)
+            wl_bbox = draw.textbbox((0, 0), wl, font=body_font)
+            wl_x = (w - wl_bbox[2]) // 2
+            draw.text((wl_x, y), wl, font=body_font, fill=C_TEXT_DIM)
             y += line_height
-        y += 8
+        y += 6  # small gap between lines
 
-    # Source label bottom-right
+    # ── Source label (bottom-right of card) ────────────────────────────────
     if scene.source_label:
-        src_font = _load_font(22)
-        draw.text((w - MARGIN, h - 80), scene.source_label, font=src_font, fill=C_SOURCE)
+        src_font = _load_font(20)
+        src_bbox = draw.textbbox((0, 0), scene.source_label, font=src_font)
+        draw.text((card_right - src_bbox[2] - 10, card_bottom - 36), scene.source_label, font=src_font, fill=C_SOURCE)
 
-    # Footer
+    # ── Footer (centered at very bottom) ────────────────────────────────
     footer = "AI Frontier Radar · 视频由系统自动生成"
-    ft_font = _load_font(18)
+    ft_font = _load_font(16)
     ft_bbox = draw.textbbox((0, 0), footer, font=ft_font)
-    ft_y = h - ft_bbox[3] - 30
-    if ft_y > y + 10:  # only if there's room
-        draw.text(((w - ft_bbox[2]) // 2, ft_y), footer, font=ft_font, fill=C_SOURCE)
+    ft_x = (w - ft_bbox[2]) // 2
+    draw.text((ft_x, h - ft_bbox[3] - 16), footer, font=ft_font, fill=C_SOURCE)
 
     return img
 

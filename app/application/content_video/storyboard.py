@@ -2,14 +2,15 @@
 
 Converts a VideoSourceSnapshot into a list of VideoScene objects.
 
-Scene breakdown (V1 — short-form, mobile-first)
-───────────────────────────────────────────────
-1. Cover        — brand + date + "N 个重点信号" (no long title)
-2. Overall      — today's core judgment (brief)
-3..N           — per highlight (max 3), split into:
-                   A. Signal title page (信号 N)
-                   B. Why important page (为什么重要)
-N+1             — Today's conclusion (今日结论) — compressed
+Scene breakdown (V1.1 — mobile briefing, ~60s)
+─────────────────────────────────────────────
+1. Cover        — brand + date + signal count
+2. Summary      — today's core judgment (brief)
+3..N           — per highlight/signal (max 3), ONE scene each:
+                   visual_title = short signal name
+                   visual_lines = 1-2 punchy explanation lines
+                   narration_text = spoken narration (~90 chars)
+N+1             — Takeaways (compressed)
 N+2             — Ending / CTA
 """
 from __future__ import annotations
@@ -20,7 +21,14 @@ from app.application.content_video.text_utils import (
     compact_line,
     split_to_visual_lines,
     compact_narration,
-    split_highlight_scenes,
+    to_video_signal_title,
+    to_video_explanation_lines,
+    to_video_narration,
+)
+from app.application.content_video.settings import (
+    get_max_scenes,
+    get_max_highlights,
+    get_max_narration_chars,
 )
 
 
@@ -57,39 +65,24 @@ def _clean_text(text: str, max_chars: int = 200) -> str:
     return text
 
 
-def _build_narration_for_highlight(idx: int, section, *, prefix: str = "") -> str:
-    """Build narration text for a highlight scene."""
-    label = _cn_number(idx)
-    parts = []
-    if prefix:
-        parts.append(prefix)
-    else:
-        parts.append(f"第{label}个值得关注的信号是：{compact_title(section.title, 22)}。")
-    if section.summary:
-        parts.append(compact_narration(section.summary, 100))
-    if section.why_it_matters:
-        parts.append(f"这值得关注，因为{compact_narration(section.why_it_matters, 100)}。")
-    return "".join(parts)
-
-
 def build_storyboard(snapshot: VideoSourceSnapshot) -> list[VideoScene]:
     """Split a VideoSourceSnapshot into a list of VideoScene objects.
 
-    V1 short-form template (mobile-first):
-      1. Cover          — brand, date, N signals count (no long title)
-      2. Overall        — today's core judgment (brief)
-      3..N             — per highlight (max 3):
-                           A. Signal title page
-                           B. Why important page (split from same section)
-      N+1               — Today's conclusion (compressed takeaways)
-      N+2               — Ending
+    V1.1 mobile briefing template:
+      1. Cover          — brand, date, signal count (no long title)
+      2. Summary       — today's core judgment (brief)
+      3..N            — per highlight (max 3, from settings):
+                           ONE scene per signal (title + explanation lines)
+      N+1              — Takeaways (compressed)
+      N+2              — Ending
     """
     scenes: list[VideoScene] = []
     scene_index = 1
+    max_highlights = get_max_highlights()
+    max_narration_chars = get_max_narration_chars()
 
     # ── Scene 1: Cover ────────────────────────────────────────────────────
-    # Simplified cover: brand + date + signal count, NOT long title
-    signal_count = len(snapshot.sections[:3])
+    signal_count = len(snapshot.sections[:max_highlights])
     count_label = _cn_number(signal_count) if signal_count <= 10 else str(signal_count)
     cover_lines = [
         snapshot.date_label or "",
@@ -108,107 +101,89 @@ def build_storyboard(snapshot: VideoSourceSnapshot) -> list[VideoScene]:
             scene_type="cover",
             visual_title="AI 前沿雷达",
             visual_lines=cover_lines,
-            narration_text=cover_narration,
+            narration_text=compact_narration(cover_narration, max_narration_chars),
             source_label=snapshot.date_label,
         )
     )
     scene_index += 1
 
-    # ── Scene 2: Overall judgment ───────────────────────────────────────
+    # ── Scene 2: Overall summary ──────────────────────────────────────────
     if snapshot.summary:
-        summary_short = compact_narration(snapshot.summary, 120)
         summary_lines = split_to_visual_lines(
-            snapshot.summary, max_lines=2, max_chars_per_line=28
+            snapshot.summary,
+            max_lines=3,
+            max_chars_per_line=24,
+        )
+        summary_narration = compact_narration(
+            "今天的核心判断是：" + _clean_text(snapshot.summary, 80),
+            max_chars=max_narration_chars,
         )
         scenes.append(
             VideoScene(
                 scene_id=f"scene_{scene_index:02d}",
                 scene_type="summary",
                 visual_title="今日总判断",
-                visual_lines=summary_lines[:2],
-                narration_text=summary_short,
+                visual_lines=summary_lines[:3],
+                narration_text=summary_narration,
             )
         )
         scene_index += 1
 
-    # ── Scenes 3..N: Highlights (max 3, each may produce 1–2 scenes) ─────
-    max_highlights = 3
+    # ── Scenes 3..N: Signals (1 scene each) ──────────────────────────────
     selected_sections = snapshot.sections[:max_highlights]
 
     for idx, section in enumerate(selected_sections, start=1):
-        # Split each highlight into up to 2 scenes: title + detail
-        highlight_scenes = split_highlight_scenes(
-            section,
-            scene_index,
-            max_chars_title=22,
-            max_chars_body=36,
+        # Video-language title: short and punchy
+        signal_title = to_video_signal_title(section.title, max_chars=18)
+        # Explanation lines: why it matters condensed into 1-3 short lines
+        explanation_lines = to_video_explanation_lines(
+            summary=section.summary,
+            why_it_matters=section.why_it_matters,
+            key_points=section.key_points or [],
+            max_lines=3,
+            max_chars_per_line=24,
+        )
+        # Spoken narration
+        narration = to_video_narration(
+            index=idx,
+            title=section.title,
+            summary=section.summary,
+            why_it_matters=section.why_it_matters,
+            max_chars=max_narration_chars,
         )
 
-        for hs in highlight_scenes:
-            # Build narration: prefix + section content
-            if hs["scene_type"] == "highlight":
-                # Signal title page: use prefix + title + summary
-                summary_short = compact_narration(section.summary, 80) if section.summary else ""
-                narration = (
-                    f"第{_cn_number(idx)}个值得关注的信号是："
-                    f"{compact_title(section.title, 22)}。"
-                    + (f" {summary_short}" if summary_short else "")
-                )
-                visual_lines = hs["visual_lines"]
-                scenes.append(
-                    VideoScene(
-                        scene_id=f"scene_{scene_index:02d}",
-                        scene_type="highlight",
-                        visual_title=compact_title(section.title, 22),
-                        visual_lines=visual_lines,
-                        narration_text=compact_narration(narration, 120),
-                        source_label=section.source_name,
-                    )
-                )
-            else:
-                # Why important page: use why_it_matters or key_points
-                narration_prefix = hs.get("narration_prefix", "")
-                if section.why_it_matters:
-                    why_text = compact_narration(section.why_it_matters, 100)
-                elif section.key_points:
-                    why_text = compact_narration(section.key_points[0], 80)
-                else:
-                    why_text = ""
-                narration = compact_narration(narration_prefix + why_text, 120)
-                scenes.append(
-                    VideoScene(
-                        scene_id=f"scene_{scene_index:02d}",
-                        scene_type="highlight_detail",
-                        visual_title="为什么重要",
-                        visual_lines=hs["visual_lines"],
-                        narration_text=narration,
-                        source_label=section.source_name,
-                    )
-                )
-            scene_index += 1
+        scenes.append(
+            VideoScene(
+                scene_id=f"scene_{scene_index:02d}",
+                scene_type="signal",
+                visual_title=signal_title,
+                visual_lines=explanation_lines[:3],
+                narration_text=narration,
+                source_label=section.source_name,
+            )
+        )
+        scene_index += 1
 
     # ── Takeaways / Conclusion ───────────────────────────────────────────
     if snapshot.takeaways:
-        # Compress each takeaway to ≤28 chars
         compressed: list[str] = []
         for t in snapshot.takeaways[:5]:
-            line = compact_line(t, max_chars=28)
+            line = compact_line(t, max_chars=26)
             if line:
                 compressed.append(line)
 
         if compressed:
-            takeaway_lines = [f"{idx}. {t}" for idx, t in enumerate(compressed, start=1)]
+            takeaway_lines = [f"{idx}. {t}" for idx, t in enumerate(compressed[:4], start=1)]
             takeaway_narration = compact_narration(
-                "总结来看，今天最值得记住的是："
-                + "；".join(compressed),
-                120,
+                "总结来看，今天最值得记住的是：" + "；".join(compressed[:4]),
+                max_chars=max_narration_chars,
             )
             scenes.append(
                 VideoScene(
                     scene_id=f"scene_{scene_index:02d}",
                     scene_type="takeaways",
                     visual_title="今日结论",
-                    visual_lines=takeaway_lines[:4],  # max 4 lines
+                    visual_lines=takeaway_lines,
                     narration_text=takeaway_narration,
                 )
             )

@@ -1928,7 +1928,7 @@ def main():
 
         # 4. hashing.py
         from app.application.content_video.hashing import compute_input_hash, VIDEO_ENGINE_VERSION
-        check("VIDEO_ENGINE_VERSION is 'content_video_v1'", VIDEO_ENGINE_VERSION == "content_video_v1")
+        check("VIDEO_ENGINE_VERSION is 'content_video_v2_mobile_briefing'", VIDEO_ENGINE_VERSION == "content_video_v2_mobile_briefing")
         check("compute_input_hash is callable", callable(compute_input_hash))
 
         req1 = VideoGenerationRequest(source_snapshot=snap, template_id="mobile_briefing_v1")
@@ -9546,15 +9546,21 @@ def main():
               "split_highlight_scenes function should exist for highlight splitting")
 
         storyboard_src = (proj69 / "app" / "application" / "content_video" / "storyboard.py").read_text(encoding="utf-8")
-        check("storyboard.py limits highlights to 3 (not 5)",
-              "max_highlights = 3" in storyboard_src or "[:3]" in storyboard_src,
-              "Highlights should be limited to 3 for short-form video")
-        check("storyboard.py uses split_highlight_scenes for 2-scene highlight",
-              "split_highlight_scenes" in storyboard_src,
-              "Highlights should be split into title + detail scenes")
+        check("storyboard.py limits highlights via get_max_highlights()",
+              "get_max_highlights()" in storyboard_src,
+              "Highlights should use settings.get_max_highlights()")
+        check("storyboard.py does NOT use split_highlight_scenes (V1.1 uses 1 scene/signal)",
+              "split_highlight_scenes" not in storyboard_src,
+              "split_highlight_scenes removed in V1.1; use to_video_explanation_lines instead")
         check("storyboard.py imports text_utils compact functions",
               "from app.application.content_video.text_utils import" in storyboard_src,
               "storyboard.py should use text_utils compact functions")
+        check("storyboard.py uses to_video_explanation_lines for card body",
+              "to_video_explanation_lines" in storyboard_src,
+              "V1.1 should use to_video_explanation_lines for signal card body")
+        check("storyboard.py uses to_video_narration for signal narration",
+              "to_video_narration" in storyboard_src,
+              "V1.1 should use to_video_narration for spoken narration")
 
         storage_src = (proj69 / "app" / "application" / "content_video" / "storage.py").read_text(encoding="utf-8")
         check("storage.py defines should_keep_intermediate",
@@ -9573,6 +9579,58 @@ def main():
         check("image_renderer.py uses BOTTOM_SAFE overflow protection",
               "BOTTOM_SAFE" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8"),
               "image_renderer should check bounds to avoid drawing outside canvas")
+
+        # ── 69f. V1.1 mobile briefing (duration + layout) ─────────────────
+        settings_py = proj69 / "app" / "application" / "content_video" / "settings.py"
+        check("settings.py exists with duration config",
+              settings_py.exists(),
+              "settings.py should exist with get_max_scenes/get_max_narration_chars")
+        settings_src = settings_py.read_text(encoding="utf-8") if settings_py.exists() else ""
+        check("settings.py defines get_max_scenes",
+              "def get_max_scenes" in settings_src,
+              "get_max_scenes function should exist")
+        check("settings.py defines get_max_narration_chars",
+              "def get_max_narration_chars" in settings_src,
+              "get_max_narration_chars function should exist")
+        check("CONTENT_VIDEO_MAX_SCENES is checked in settings",
+              "CONTENT_VIDEO_MAX_SCENES" in settings_src,
+              "CONTENT_VIDEO_MAX_SCENES env var should be checked")
+        check("CONTENT_VIDEO_MAX_NARRATION_CHARS is checked in settings",
+              "CONTENT_VIDEO_MAX_NARRATION_CHARS" in settings_src,
+              "CONTENT_VIDEO_MAX_NARRATION_CHARS env var should be checked")
+
+        check("hashing.py version updated to v2 mobile_briefing",
+              "content_video_v2_mobile_briefing" in (proj69 / "app" / "application" / "content_video" / "hashing.py").read_text(encoding="utf-8"),
+              "hashing.py VIDEO_ENGINE_VERSION should be bumped to v2_mobile_briefing")
+
+        check("text_utils.py defines to_video_signal_title",
+              "def to_video_signal_title" in tu_src,
+              "to_video_signal_title function should exist for video language")
+        check("text_utils.py defines to_video_narration",
+              "def to_video_narration" in tu_src,
+              "to_video_narration function should exist for spoken narration")
+        check("text_utils.py defines to_video_explanation_lines",
+              "def to_video_explanation_lines" in tu_src,
+              "to_video_explanation_lines function should exist for card body lines")
+
+        check("storyboard.py imports settings for max scenes",
+              "from app.application.content_video.settings import" in storyboard_src,
+              "storyboard.py should use settings.get_max_scenes/get_max_highlights")
+        check("storyboard.py no longer forces 2 scenes per highlight",
+              "split_highlight_scenes" not in storyboard_src,
+              "split_highlight_scenes (2-scene-per-highlight) should be removed")
+        check("storyboard.py uses to_video_narration for signal narration",
+              "to_video_narration" in storyboard_src,
+              "storyboard.py should use to_video_narration for spoken signal narration")
+
+        check("image_renderer.py has card background (C_CARD)",
+              "C_CARD" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")
+              or "rounded_rectangle" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8"),
+              "image_renderer should use rounded card background for visual body")
+        check("image_renderer.py has centered layout",
+              "centered" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8").lower()
+              or "(w - " in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8"),
+              "image_renderer should center content horizontally")
     except Exception as e:
         check("public share page checks", False, str(e))
 
