@@ -5,10 +5,11 @@ V1 uses a fixed dark tech-style template — no browser, no html2canvas.
 """
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
+
+from app.application.content_video.fonts import load_cjk_font
 
 # Default output size (9:16 portrait)
 DEFAULT_W = 1080
@@ -26,32 +27,45 @@ C_DIVIDER = (255, 255, 255, 19)  # rgba white 12%
 C_TAG = (52, 211, 153, 30)
 
 
-def _load_font(size: int, *, fallback: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """Load a proportional font. Falls back to default if font file unavailable."""
-    # Try system fonts first (works on Linux/macOS/Windows)
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "C:\\Windows\\Fonts\\seguisb.ttf",   # Segoe UI Semibold (Windows)
-        "C:\\Windows\\Fonts\\msyh.ttc",      # Microsoft YaHei (fallback)
-    ]
-    for fp in font_paths:
-        try:
-            return ImageFont.truetype(fp, size)
-        except Exception:
-            continue
-    # Pillow default
-    return ImageFont.load_default()
+def _load_font(size: int, *, bold: bool = False):
+    """Load a CJK-capable font at the given size.
+
+    Uses load_cjk_font which raises ContentVideoFontError on failure —
+    no silent fallback to load_default() (which would render boxes).
+    """
+    return load_cjk_font(size, bold=bold)
 
 
-def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
-               max_width: int, line_height: int) -> list[str]:
-    """Wrap text into lines that fit within max_width pixels."""
-    words = text.split()
+def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int, line_height: int) -> list[str]:
+    """Wrap text into lines that fit within max_width pixels.
+
+    Handles both space-separated words (English) and continuous text (Chinese)
+    by accumulating characters and measuring width via textbbox.
+    """
+    # Fast path: if text has spaces, use word-based wrap
+    if " " in text:
+        words = text.split()
+        lines = []
+        current = ""
+        for word in words:
+            test = (current + " " + word).strip()
+            bbox = draw.textbbox((0, 0), test, font=font)
+            w = bbox[2] - bbox[0]
+            if w <= max_width:
+                current = test
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        return lines
+
+    # Chinese / continuous text: character-level wrap
     lines = []
     current = ""
-    for word in words:
-        test = (current + " " + word).strip()
+    for char in text:
+        test = current + char
         bbox = draw.textbbox((0, 0), test, font=font)
         w = bbox[2] - bbox[0]
         if w <= max_width:
@@ -59,20 +73,20 @@ def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFon
         else:
             if current:
                 lines.append(current)
-            current = word
+            current = char
     if current:
         lines.append(current)
     return lines
 
 
 def _choose_font_size(draw: ImageDraw.ImageDraw, text: str, max_width: int,
-                      min_size: int, max_size: int) -> int:
+                      min_size: int, max_size: int, *, bold: bool = False) -> int:
     """Binary-search for the largest font size that fits max_width."""
     lo, hi = min_size, max_size
     best = min_size
     while lo <= hi:
         mid = (lo + hi) // 2
-        font = _load_font(mid)
+        font = _load_font(mid, bold=bold)
         bbox = draw.textbbox((0, 0), text, font=font)
         w = bbox[2] - bbox[0]
         if w <= max_width:
@@ -88,7 +102,8 @@ def _render_cover(scene, w: int, h: int) -> Image.Image:
     img = Image.new("RGBA", (w, h), C_BG)
     draw = ImageDraw.Draw(img)
 
-    title_font = _load_font(64, fallback=True)
+    # Titles use bold CJK font
+    title_font = _load_font(64, bold=True)
     subtitle_font = _load_font(32)
     date_font = _load_font(28)
 
@@ -105,15 +120,15 @@ def _render_cover(scene, w: int, h: int) -> Image.Image:
     # Horizontal rule
     draw.rectangle([(60, 145), (w - 60, 148)], fill=C_ACCENT)
 
-    # Title block
+    # Title block (bold)
     title_text = scene.visual_lines[0] if scene.visual_lines else scene.visual_title
-    title_size = _choose_font_size(draw, title_text, w - 120, 36, 80)
-    title_font_used = _load_font(title_size)
+    title_size = _choose_font_size(draw, title_text, w - 120, 36, 80, bold=True)
+    title_font_used = _load_font(title_size, bold=True)
     bbox = draw.textbbox((0, 0), title_text, font=title_font_used)
     title_y = 200
     draw.text(((w - bbox[2]) // 2, title_y), title_text, font=title_font_used, fill=C_TEXT)
 
-    # Subtitle
+    # Subtitle (regular weight)
     if len(scene.visual_lines) > 1:
         sub_text = scene.visual_lines[1]
         sub_font = _load_font(36)
@@ -147,7 +162,7 @@ def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
 
     y = 80
 
-    # Section title (small caps label)
+    # Section title (small caps label, bold)
     label_text = scene.scene_type.upper()
     if scene.scene_type == "highlight":
         label_text = "重点内容"
@@ -158,7 +173,7 @@ def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
     elif scene.scene_type == "ending":
         label_text = "结语"
 
-    label_font = _load_font(22)
+    label_font = _load_font(22, bold=True)
     draw.text((MARGIN, y), label_text, font=label_font, fill=title_color)
     y += 50
 
@@ -166,14 +181,14 @@ def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
     draw.rectangle([(MARGIN, y), (w - MARGIN, y + 3)], fill=title_color)
     y += 30
 
-    # Visual title
-    vt_font_size = _choose_font_size(draw, scene.visual_title, content_w, 32, 64)
-    vt_font = _load_font(vt_font_size)
+    # Visual title (bold)
+    vt_font_size = _choose_font_size(draw, scene.visual_title, content_w, 32, 64, bold=True)
+    vt_font = _load_font(vt_font_size, bold=True)
     vt_bbox = draw.textbbox((0, 0), scene.visual_title, font=vt_font)
     draw.text((MARGIN, y), scene.visual_title, font=vt_font, fill=C_TEXT)
     y += vt_bbox[3] - vt_bbox[1] + 20
 
-    # Visual lines (body)
+    # Visual lines (body, regular weight)
     body_font = _load_font(34)
     line_height = 56
     for line in scene.visual_lines[:6]:

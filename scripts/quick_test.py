@@ -9491,6 +9491,40 @@ def main():
               "deprecated" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8").lower()
               or "legacy" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8").lower(),
               "old /share/{date_label}/video html2canvas route must be marked deprecated/legacy")
+
+        # ── 69d. CJK font loading ─────────────────────────────────────────────
+        fonts_py = (proj69 / "app" / "application" / "content_video" / "fonts.py")
+        check("fonts.py exists for CJK font loading",
+              fonts_py.exists(),
+              "fonts.py should exist with CJK font loading logic")
+        fonts_src = fonts_py.read_text(encoding="utf-8") if fonts_py.exists() else ""
+        check("fonts.py defines ContentVideoFontError",
+              "class ContentVideoFontError" in fonts_src,
+              "ContentVideoFontError should be defined")
+        check("fonts.py defines load_cjk_font",
+              "def load_cjk_font" in fonts_src,
+              "load_cjk_font function should exist")
+        check("fonts.py supports CONTENT_VIDEO_FONT_PATH env var",
+              "CONTENT_VIDEO_FONT_PATH" in fonts_src,
+              "CONTENT_VIDEO_FONT_PATH env var should be supported")
+        check("fonts.py supports CONTENT_VIDEO_BOLD_FONT_PATH env var",
+              "CONTENT_VIDEO_BOLD_FONT_PATH" in fonts_src,
+              "CONTENT_VIDEO_BOLD_FONT_PATH env var should be supported")
+        check("fonts.py raises ContentVideoFontError when no CJK font found",
+              "raise ContentVideoFontError" in fonts_src,
+              "Should raise ContentVideoFontError instead of silently falling back")
+        check("image_renderer.py imports from fonts.py",
+              "from app.application.content_video.fonts import load_cjk_font"
+              in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8"),
+              "image_renderer should use load_cjk_font from fonts.py")
+        check("image_renderer.py does NOT use DejaVuSans as default",
+              "DejaVuSans" not in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8"),
+              "DejaVuSans should not be used as default font")
+        check("_wrap_text supports Chinese character-level wrap",
+              "char in text" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")
+              or ("Chinese" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")
+                  and "_wrap_text" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")),
+              "_wrap_text should handle Chinese continuous text (char-level wrapping)")
     except Exception as e:
         check("public share page checks", False, str(e))
 

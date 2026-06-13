@@ -440,6 +440,12 @@ python scripts/make_app_icon.py
 - 设置 `MIMO_API_KEY` 环境变量
 - 若未配置且 `DEV_FAKE_TTS=true`，系统使用静音音频（可完成 pipeline 测试）
 
+**中文字体**（必须，用于渲染 scene 图片中的中文）：
+- Windows：默认使用 Microsoft YaHei（`C:\Windows\Fonts\msyh.ttc`）和 SimHei
+- Linux：需安装 Noto Sans CJK（如 `fonts-noto-cjk` 包）
+- macOS：使用系统内置 PingFang
+- 如系统字体缺失，生成时会报 `ContentVideoFontError`，不会静默生成方框视频
+
 ### 16.2 视频生成配置
 
 | 环境变量 | 值 | 说明 |
@@ -448,6 +454,8 @@ python scripts/make_app_icon.py
 | `MIMO_API_KEY` | `sk-...` 或 `tp-...` | MiMo V2.5 TTS API Key |
 | `MIMO_TTS_VOICE` | 冰糖（默认）| TTS 音色 |
 | `MIMO_TTS_STYLE` | （默认播报语气）| TTS 风格 |
+| `CONTENT_VIDEO_FONT_PATH` | 字体文件路径 | 强制使用指定路径的中文字体（覆盖默认字体查找） |
+| `CONTENT_VIDEO_BOLD_FONT_PATH` | 字体文件路径 | 强制使用指定路径的粗体中文字体 |
 
 ### 16.3 视频生成原理
 
