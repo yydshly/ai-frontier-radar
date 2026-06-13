@@ -137,7 +137,7 @@ if (-not (Test-Path $sgmllibDst)) {
 
 # Smoke-test the bundled interpreter so a broken bundle can never ship silently.
 Write-Host "      Verifying bundled imports ..." -ForegroundColor Gray
-& $PyExe -c "import feedparser, trafilatura, lxml, sqlalchemy, uvicorn, fastapi, httpx, pydantic, yaml; print('bundled imports OK')"
+& $PyExe -c "import feedparser, trafilatura, lxml, sqlalchemy, uvicorn, fastapi, httpx, pydantic, yaml, segno; print('bundled imports OK')"
 if ($LASTEXITCODE -ne 0) { throw "Bundled-import smoke test failed (exit $LASTEXITCODE)" }
 
 # --- 4. Copy application payload ---------------------------------------------
@@ -162,15 +162,17 @@ Copy-Tree "scripts"
 Copy-Tree "config"
 Copy-Tree "assets"
 if (-not $NoData) {
-    # Bundle current data (db + reports + audio) but not local backups.
+    # Bundle current data: the DB (data\) AND the generated reports/audio/snapshots
+    # (runtime\). Exclude local backups and machine-specific run logs.
     Copy-Tree "data" -excludeDirs @("backups")
-    Write-Host "      (bundled current data\; excluded data\backups\)" -ForegroundColor DarkGray
+    Copy-Tree "runtime" -excludeDirs @("daily_cycle_runs")
+    Write-Host "      (bundled data\ + runtime\ reports/audio; excluded backups + daily_cycle_runs)" -ForegroundColor DarkGray
 } else {
     New-Item -ItemType Directory -Force -Path (Join-Path $OutDir "data") | Out-Null
     Write-Host "      (empty data\ - fresh start)" -ForegroundColor DarkGray
 }
 
-# Empty runtime dirs the app/scheduler expect.
+# Empty runtime dirs the app/scheduler expect (daily_cycle_runs is always fresh).
 New-Item -ItemType Directory -Force -Path (Join-Path $OutDir "logs") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $OutDir "runtime\daily_cycle_runs") | Out-Null
 
