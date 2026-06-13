@@ -75,19 +75,30 @@
         .result-overlay .actions button.ghost { background:transparent; color:#fff; }
         .spinner { width:34px; height:34px; border:3px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; margin:30px 0 10px; }
         @keyframes spin { to { transform:rotate(360deg); } }
-        /* ── hidden 9:16 video cover (rendered to an image by html2canvas) ── */
-        .video-cover { position:fixed; left:-99999px; top:0; width:360px; height:640px; box-sizing:border-box; padding:30px 26px; color:#fff; background:linear-gradient(160deg,#0E1726,#0a1018); display:flex; flex-direction:column; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
-        .vc-brand { font-size:13px; color:#34D399; letter-spacing:1px; font-weight:700; }
-        .vc-date { font-size:12px; color:#8aa3b0; margin-top:3px; }
-        .vc-title { font-size:22px; line-height:1.35; font-weight:700; margin:18px 0 14px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-        .vc-points { flex:1; margin:0; padding:0; overflow:hidden; }
-        .vc-points li { font-size:13.5px; line-height:1.55; color:#d8e0e8; margin-bottom:11px; list-style:none; padding-left:16px; position:relative; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-        .vc-points li::before { content:''; position:absolute; left:0; top:8px; width:6px; height:6px; border-radius:50%; background:#34D399; }
-        .vc-stats { font-size:11.5px; color:#7d8a96; margin:6px 0 12px; }
-        .vc-foot { display:flex; align-items:center; gap:12px; border-top:1px solid rgba(255,255,255,.12); padding-top:14px; }
-        .vc-qr { width:64px; height:64px; background:#fff; border-radius:8px; padding:5px; box-sizing:border-box; flex:none; }
-        .vc-qr svg { width:100%; height:100%; }
-        .vc-cta { font-size:12px; color:#9fe3c4; line-height:1.55; }
+        /* ── shared core-report poster (rendered to an image by html2canvas;
+              used for BOTH the long image and the short-video frame) ── */
+        .report-card { position:fixed; left:-99999px; top:0; width:540px; box-sizing:border-box;
+            padding:46px 44px 40px; color:#eaf1f6; font-family:"PingFang SC","Microsoft YaHei",sans-serif;
+            background:radial-gradient(120% 80% at 80% -10%, #15324a 0%, #0E1726 42%, #080f18 100%); }
+        .rc-top { display:flex; justify-content:space-between; align-items:baseline; }
+        .rc-brand { font-size:18px; font-weight:800; color:#34D399; letter-spacing:.5px; }
+        .rc-brand span { color:#eaf1f6; }
+        .rc-date { font-size:14px; color:#7f95a4; }
+        .rc-rule { height:3px; width:54px; background:linear-gradient(90deg,#34D399,#34D39900); border-radius:2px; margin:16px 0 0; }
+        .rc-title { font-size:30px; line-height:1.32; font-weight:800; margin:18px 0 0; color:#fff; }
+        .rc-overview { font-size:16.5px; line-height:1.8; color:#c4d2dd; margin:18px 0 0; }
+        .rc-section { font-size:14px; font-weight:700; color:#34D399; letter-spacing:1px; margin:26px 0 14px; }
+        .rc-points { margin:0; padding:0; counter-reset:rc; }
+        .rc-points li { list-style:none; position:relative; padding:0 0 16px 40px; font-size:16px; line-height:1.7; color:#dde7ee; }
+        .rc-points li::before { counter-increment:rc; content:counter(rc); position:absolute; left:0; top:1px;
+            width:26px; height:26px; border-radius:50%; background:rgba(52,211,153,.16); color:#34D399;
+            font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+        .rc-stats { font-size:13px; color:#7f95a4; margin:22px 0 0; }
+        .rc-foot { display:flex; align-items:center; gap:16px; margin:30px 0 0; padding:22px 0 0; border-top:1px solid rgba(255,255,255,.12); }
+        .rc-qr { width:88px; height:88px; background:#fff; border-radius:10px; padding:7px; box-sizing:border-box; flex:none; }
+        .rc-qr svg { width:100%; height:100%; display:block; }
+        .rc-cta b { display:block; font-size:16px; color:#fff; margin-bottom:4px; }
+        .rc-cta { font-size:13.5px; color:#9fe3c4; line-height:1.6; }
     </style>
 </head>
 <body>
@@ -211,19 +222,25 @@
     </div>
 </div>
 
-{# ── 短视频封面(隐藏,html2canvas 渲染成图后送服务端合成) ── #}
-<div class="video-cover" id="videoCover" aria-hidden="true">
-    <div class="vc-brand">AI 前沿雷达</div>
-    <div class="vc-date">{{ view.date_label }} · 每日 AI 情报</div>
-    <div class="vc-title">{{ _title }}</div>
-    <ul class="vc-points">
-        {% for h in view.highlights[:4] %}<li>{{ h.text }}</li>{% endfor %}
-        {% if not view.highlights and view.report and view.report.overview %}<li>{{ view.report.overview }}</li>{% endif %}
-    </ul>
-    <div class="vc-stats">新增 {{ view.stats.new_items if view.stats else 0 }} · 重要 {{ view.stats.important if view.stats else 0 }} · 来源 {{ view.stats.sources if view.stats else 0 }}</div>
-    <div class="vc-foot">
-        {% if qr_svg %}<div class="vc-qr">{{ qr_svg|safe }}</div>{% endif %}
-        <div class="vc-cta">扫码看完整报告<br>收听语音播报 · 跳转原文</div>
+{# ── 核心报告海报卡(隐藏;html2canvas 渲染成图,长图与短视频共用) ── #}
+<div class="report-card" id="reportCard" aria-hidden="true">
+    <div class="rc-top">
+        <div class="rc-brand">◎ AI <span>前沿雷达</span></div>
+        <div class="rc-date">{{ view.date_label }}</div>
+    </div>
+    <div class="rc-rule"></div>
+    <div class="rc-title">{{ _title }}</div>
+    {% if view.report and view.report.overview %}<div class="rc-overview">{{ view.report.overview }}</div>{% endif %}
+    {% if view.highlights %}
+    <div class="rc-section">今日要点</div>
+    <ol class="rc-points">
+        {% for h in view.highlights %}<li>{{ h.text }}</li>{% endfor %}
+    </ol>
+    {% endif %}
+    <div class="rc-stats">新增 {{ view.stats.new_items if view.stats else 0 }} 篇 · 重要 {{ view.stats.important if view.stats else 0 }} 篇 · 覆盖 {{ view.stats.sources if view.stats else 0 }} 个来源</div>
+    <div class="rc-foot">
+        {% if qr_svg %}<div class="rc-qr">{{ qr_svg|safe }}</div>{% endif %}
+        <div class="rc-cta"><b>扫码查看完整报告</b>查看原始链接和更多信息<br>· 语音播报 · 全部文章原文</div>
     </div>
 </div>
 <div class="result-overlay" id="resultOverlay">
@@ -276,36 +293,29 @@ function copyShareUrl(){
         navigator.clipboard.writeText(url).then(ok, fallback);
     } else { fallback(); }
 }
-function captureWrap(){
-    // Render the main column to a canvas at 2x for crispness; hide UI chrome.
-    document.body.classList.add('capturing');
-    var scale = Math.min(2, window.devicePixelRatio || 1) || 2;
-    return loadScript('/static/vendor/html2canvas.min.js')
-        .then(function(){
-            return html2canvas(document.querySelector('.wrap'), {
-                backgroundColor: '#ffffff',
-                scale: scale,
-                useCORS: true,
-                logging: false,
-                windowWidth: document.querySelector('.wrap').scrollWidth
-            });
-        })
-        .then(function(canvas){
-            document.body.classList.remove('capturing');
-            return canvas;
-        })
-        .catch(function(err){
-            document.body.classList.remove('capturing');
-            throw err;
+function captureCard(){
+    // Render the dedicated core-report poster (#reportCard) at 2x. It is laid
+    // out off-screen, so no page chrome needs hiding. Same image feeds both the
+    // long image and the video frame.
+    var card = document.getElementById('reportCard');
+    return loadScript('/static/vendor/html2canvas.min.js').then(function(){
+        return html2canvas(card, {
+            backgroundColor: null,
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            width: card.offsetWidth,
+            height: card.offsetHeight
         });
+    });
 }
 function generateLongImage(){
     closeShare();
     showBusy('正在生成长图…');
-    captureWrap().then(function(canvas){
+    captureCard().then(function(canvas){
         var dataUrl = canvas.toDataURL('image/png');
         var fname = 'AI前沿雷达_' + SHARE_DATE + '.png';
-        document.getElementById('resultTip').textContent = '长按图片保存，或点下载';
+        document.getElementById('resultTip').textContent = '核心报告长图 · 长按保存或点下载';
         document.getElementById('resultBody').innerHTML = '';
         var img = new Image(); img.src = dataUrl; document.getElementById('resultBody').appendChild(img);
         document.getElementById('resultActions').innerHTML =
@@ -317,12 +327,8 @@ function generateLongImage(){
 }
 function generateVideo(){
     closeShare();
-    showBusy('正在合成短视频（含语音，约十几秒）…');
-    var cover = document.getElementById('videoCover');
-    loadScript('/static/vendor/html2canvas.min.js')
-        .then(function(){
-            return html2canvas(cover, { backgroundColor:null, scale:3, useCORS:true, logging:false, width:360, height:640 });
-        })
+    showBusy('正在合成短视频（报告滚动 + 语音 + 声波，约十几秒）…');
+    captureCard()
         .then(function(canvas){
             return new Promise(function(res, rej){
                 canvas.toBlob(function(b){ b ? res(b) : rej(new Error('封面渲染失败')); }, 'image/png');
