@@ -325,11 +325,32 @@ function generateLongImage(){
         closeResult(); toast('长图生成失败：'+(err&&err.message||err));
     });
 }
+function collectBlockRects(scale){
+    // Pixel boxes (in captured-image coordinates) of the readable blocks, so the
+    // server can draw a read-along highlight stepping through them. scale must
+    // match captureCard's html2canvas scale.
+    var card = document.getElementById('reportCard');
+    var cr = card.getBoundingClientRect();
+    var blocks = [];
+    var ov = card.querySelector('.rc-overview'); if (ov) blocks.push(ov);
+    card.querySelectorAll('.rc-points li').forEach(function(li){ blocks.push(li); });
+    return blocks.map(function(el){
+        var r = el.getBoundingClientRect();
+        return {
+            x: Math.round((r.left - cr.left) * scale),
+            y: Math.round((r.top - cr.top) * scale),
+            w: Math.round(r.width * scale),
+            h: Math.round(r.height * scale)
+        };
+    });
+}
 function generateVideo(){
     closeShare();
-    showBusy('正在合成短视频（报告滚动 + 语音 + 声波，约十几秒）…');
+    showBusy('正在合成短视频（语音跟读高亮 + 声波，约十几秒）…');
+    var rects = [];
     captureCard()
         .then(function(canvas){
+            rects = collectBlockRects(2);  // 2 == captureCard scale
             return new Promise(function(res, rej){
                 canvas.toBlob(function(b){ b ? res(b) : rej(new Error('封面渲染失败')); }, 'image/png');
             });
@@ -337,6 +358,7 @@ function generateVideo(){
         .then(function(blob){
             var fd = new FormData();
             fd.append('cover', blob, 'cover.png');
+            fd.append('lines', JSON.stringify(rects));
             return fetch('/radar/share/' + SHARE_DATE + '/video', { method:'POST', body:fd });
         })
         .then(function(r){

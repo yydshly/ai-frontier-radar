@@ -1544,14 +1544,20 @@ def _render_share(request: Request, date_label: str):
 
 
 @router.post("/share/{date_label}/video")
-async def radar_share_video(date_label: str, cover: UploadFile = File(...)):
-    """Mux a client-rendered cover image + the day's audio into a short MP4.
+async def radar_share_video(
+    date_label: str,
+    cover: UploadFile = File(...),
+    lines: str = Form("[]"),
+):
+    """Mux a client-rendered poster image + the day's audio into a portrait MP4.
 
-    The cover is the 9:16 video card rendered by html2canvas on the share page.
-    Returns the MP4 bytes for download. 400 if no audio / bad input, 503 if the
-    server has no ffmpeg.
+    The cover is the core-report poster rendered by html2canvas. `lines` is a JSON
+    array of {x,y,w,h} boxes (cover px) for each readable block, used to drive the
+    read-along highlight. Returns the MP4 bytes for download. 400 on bad input,
+    503 if the server has no ffmpeg.
     """
     import re as _re
+    import json as _json
     from app.application.radar.share import build_share_view
     from app.application.radar.share_video import compose_audiogram, resolve_ffmpeg
     from app.application.radar.daily_broadcast import get_daily_broadcast_audio_path
@@ -1577,7 +1583,13 @@ async def radar_share_video(date_label: str, cover: UploadFile = File(...)):
     if not cover_bytes:
         return Response("封面图为空。", status_code=400)
     try:
-        mp4 = compose_audiogram(cover_bytes, audio_path)
+        parsed_lines = _json.loads(lines) if lines else []
+        if not isinstance(parsed_lines, list):
+            parsed_lines = []
+    except (ValueError, TypeError):
+        parsed_lines = []
+    try:
+        mp4 = compose_audiogram(cover_bytes, audio_path, lines=parsed_lines)
     except Exception as exc:
         return Response(f"视频生成失败：{exc}", status_code=500)
 

@@ -1,12 +1,15 @@
-"""Compose a short, lively "video card" from the core-report poster + audio.
+"""Compose a static-but-lively "video card" from the core-report poster + audio.
 
-The client renders the core-report poster (a tall PNG) with html2canvas and uploads
-it. This module muxes it against the day's narration WAV via ffmpeg into a 9:16 MP4
-with motion:
-  - the poster scrolls top->bottom over the narration (so the whole report plays,
-    paced to the voice). Short posters are centered instead.
-  - an audio-reactive waveform sits along the bottom — it moves with the speech,
-    which is the "lively / 拟人化" element.
+The client renders the core-report poster (a single full PNG showing the whole
+report — no scrolling) with html2canvas and uploads it together with the pixel
+boxes of each readable block (overview + each highlight). This module muxes the
+poster against the day's narration WAV via ffmpeg into a portrait MP4 where:
+  - the poster stays static and fully readable;
+  - a read-along highlight steps through the blocks, paced by playback progress
+    (audio duration / block count) — an approximate "跟读" marker, NOT word-level
+    sync (we have no transcript timing);
+  - an audio-reactive waveform sits in a strip below the poster — it moves with
+    the actual voice (the genuinely voice-synced element);
   - a gentle fade-in.
 
 ffmpeg is optional: if unavailable the feature is disabled (the button is hidden).
@@ -18,10 +21,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-FRAME_W = 1080
-FRAME_H = 1920
-WAVE_H = 150
-WAVE_COLOR = "0x34D399"
+WAVE_H = 140          # waveform render height
+WAVE_STRIP = 168      # bottom strip added under the poster to hold the waveform
+HILITE_COLOR = "0x34D399"
+HILITE_ALPHA = 0.16
 BG_COLOR = "0x080f18"
 
 
@@ -67,42 +70,68 @@ def _audio_duration(audio_path: Path) -> float:
     return 30.0  # best-effort fallback when ffprobe is unavailable
 
 
-def _build_filter(scaled_h: int, duration: float) -> str:
-    """Filtergraph: scroll-or-center the poster + bottom waveform + fade-in."""
-    wave = (
-        f"[1:a]showwaves=s={FRAME_W}x{WAVE_H}:mode=cline:rate=25:colors={WAVE_COLOR},"
+def _sanitize_lines(lines, cover_w: int, cover_h: int) -> list[dict]:
+    """Keep only well-formed, in-bounds boxes."""
+    clean: list[dict] = []
+    for ln in lines or []:
+        try:
+            x, y, w, h = int(ln["x"]), int(ln["y"]), int(ln["w"]), int(ln["h"])
+        except (TypeError, KeyError, ValueError):
+            continue
+        if w <= 0 or h <= 0:
+            continue
+        x = max(0, min(x, cover_w - 1))
+        y = max(0, min(y, cover_h - 1))
+        w = min(w, cover_w - x)
+        h = min(h, cover_h - y)
+        if w > 0 and h > 0:
+            clean.append({"x": x, "y": y, "w": w, "h": h})
+    return clean
+
+
+def _build_filter(cover_w: int, duration: float, lines: list[dict]) -> str:
+    parts = [
+        f"[0:v]scale={cover_w}:-2,setsar=1,"
+        f"pad=iw:ih+{WAVE_STRIP}:0:0:color={BG_COLOR}[base0]"
+    ]
+    label = "base0"
+    if lines:
+        seg = duration / len(lines)
+        for i, ln in enumerate(lines):
+            s, e = i * seg, (i + 1) * seg
+            out = f"hl{i}"
+            parts.append(
+                f"[{label}]drawbox=x={ln['x']}:y={ln['y']}:w={ln['w']}:h={ln['h']}:"
+                f"color={HILITE_COLOR}@{HILITE_ALPHA}:t=fill:"
+                f"enable='between(t,{s:.2f},{e:.2f})'[{out}]"
+            )
+            label = out
+    parts.append(
+        f"[1:a]showwaves=s={cover_w}x{WAVE_H}:mode=cline:rate=25:colors={HILITE_COLOR},"
         f"format=rgba,colorchannelmixer=aa=0.85[wave]"
     )
-    if scaled_h > FRAME_H:
-        # Pan a full-frame window from the top to the bottom over `duration`.
-        span = scaled_h - FRAME_H
-        base = (
-            f"[0:v]scale={FRAME_W}:-1,setsar=1[card];"
-            f"[card]crop={FRAME_W}:{FRAME_H}:0:"
-            f"'min({span}\\,{span}*(t/{duration:.3f}))'[base]"
-        )
-    else:
-        base = (
-            f"[0:v]scale={FRAME_W}:-1,setsar=1,"
-            f"pad={FRAME_W}:{FRAME_H}:0:(oh-ih)/2:color={BG_COLOR}[base]"
-        )
-    return (
-        f"{base};{wave};"
-        f"[base][wave]overlay=0:{FRAME_H - WAVE_H - 24}:shortest=1,"
+    parts.append(
+        f"[{label}][wave]overlay=0:H-{WAVE_H + 14}:shortest=1,"
         f"fade=t=in:st=0:d=0.6,format=yuv420p[v]"
     )
+    return ";".join(parts)
 
 
 def compose_audiogram(
     cover_png: bytes,
     audio_path: Path,
     *,
+    lines=None,
     max_seconds: int = 600,
     timeout: int = 240,
 ) -> bytes:
-    """Mux the poster image + audio into a 9:16 MP4 with motion. Returns mp4 bytes.
+    """Mux the static poster + audio into a portrait MP4 with a read-along
+    highlight and a voice-reactive waveform. Returns mp4 bytes.
 
-    Raises RuntimeError on any failure (no ffmpeg, bad input, ffmpeg error).
+    `lines` is an optional list of {x,y,w,h} pixel boxes (in cover coordinates)
+    for each readable block, used to drive the read-along highlight.
+
+    Raises RuntimeError on any failure.
     """
     ffmpeg = resolve_ffmpeg()
     if not ffmpeg:
@@ -113,9 +142,10 @@ def compose_audiogram(
         raise RuntimeError("封面图为空")
 
     cover_w, cover_h = _png_size(cover_png)
-    scaled_h = round(FRAME_W * cover_h / max(1, cover_w))
+    even_w = cover_w - (cover_w % 2)
     duration = min(float(max_seconds), _audio_duration(audio_path))
-    filtergraph = _build_filter(scaled_h, duration)
+    clean_lines = _sanitize_lines(lines, cover_w, cover_h)
+    filtergraph = _build_filter(even_w, duration, clean_lines)
 
     tmpdir = Path(tempfile.mkdtemp(prefix="share_video_"))
     cover = tmpdir / "cover.png"
