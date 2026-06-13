@@ -431,6 +431,11 @@ python scripts/make_app_icon.py
 - 将 `ffmpeg.exe` 放在项目根目录的 `bin/` 文件夹，或确保系统 PATH 中有 ffmpeg
 - 验证：`ffmpeg -version`
 
+**Pillow**（必须，用于渲染场景图片）：
+- 已包含在 `requirements.txt` 中：`pip install -r requirements.txt`
+- 若手动安装：`pip install Pillow>=10.0.0`
+- 验证：`python -c "from PIL import Image; print('Pillow OK')"`
+
 **MiMo TTS**（可选，用于语音）：
 - 设置 `MIMO_API_KEY` 环境变量
 - 若未配置且 `DEV_FAKE_TTS=true`，系统使用静音音频（可完成 pipeline 测试）

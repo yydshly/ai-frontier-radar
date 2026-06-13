@@ -9451,16 +9451,46 @@ def main():
               '/share/today/video/generate' in radar_route
               and '/share/{date_label}/video/generate' in radar_route,
               "new video generation routes should exist for today and per-date")
-        check("share page has new cvGenerate() video UI",
-              "cvGenerate" in share_html
-              and "核心报告视频" in share_html,
-              "share page should have the new cv-based video generation UI")
-        check("share page does NOT expose old generateVideo() button",
-              "生成短视频（含语音）" not in share_html,
-              "old html2canvas-based video button should be removed from UI")
+        # Video section is in share panel, NOT in body content flow
+        check("share body does NOT contain <section id=videoSection>",
+              '<section id="videoSection">' not in share_html,
+              "videoSection must be removed from body content flow")
+        check("share body does NOT contain onclick=generateVideo()",
+              'onclick="generateVideo()' not in share_html,
+              "old generateVideo() button must be removed")
+        check("share body does NOT contain function generateVideo(",
+              'function generateVideo(' not in share_html,
+              "old generateVideo function must be removed")
+        check("share panel has 生成核心报告视频 button",
+              "生成核心报告视频" in share_html,
+              "share panel must have 生成核心报告视频 button")
+        check("share page does NOT auto-poll cvPollStatus on load",
+              "DOMContentLoaded" not in share_html or "cvPollStatus()" not in share_html.split("DOMContentLoaded")[-1].split("<script")[0],
+              "cvPollStatus should not be called automatically on page load")
         check("share view still links every article to 原文",
               ">原文<" in _c69.get("/radar/share/today").text or not _ldrd(),
               "each shared article must link to its source 原文")
+
+        # ── 69c. content_video lazy-loading + dependency hygiene ───────────────
+        cv_init = (proj69 / "app" / "application" / "content_video" / "__init__.py").read_text(encoding="utf-8")
+        check("content_video.__init__ does NOT import service",
+              "from app.application.content_video.service import" not in cv_init
+              and "import service" not in cv_init,
+              "service should not be imported at package level (lazy loading)")
+        check("content_video.__init__ does NOT import image_renderer",
+              "from app.application.content_video.image_renderer import" not in cv_init
+              and "import image_renderer" not in cv_init,
+              "image_renderer (PIL) should not be imported at package level")
+        check("status route does NOT import content_video.service",
+              "from app.application.content_video.service import get_video_paths" not in radar_route,
+              "status route should use storage.read_status() directly, not service.get_video_paths")
+        check("Pillow is declared in requirements.txt",
+              "Pillow" in (proj69 / "requirements.txt").read_text(encoding="utf-8"),
+              "Pillow must be declared in requirements.txt")
+        check("old /share/{date_label}/video route is marked deprecated",
+              "deprecated" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8").lower()
+              or "legacy" in (proj69 / "app" / "routes" / "radar.py").read_text(encoding="utf-8").lower(),
+              "old /share/{date_label}/video html2canvas route must be marked deprecated/legacy")
     except Exception as e:
         check("public share page checks", False, str(e))
 

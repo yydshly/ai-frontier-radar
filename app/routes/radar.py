@@ -1549,13 +1549,13 @@ async def radar_share_video(
     cover: UploadFile = File(...),
     lines: str = Form("[]"),
 ):
-    """Mux a client-rendered poster image + the day's audio into a portrait MP4.
+    """Deprecated legacy html2canvas audiogram route.
 
-    The cover is the core-report poster rendered by html2canvas. `lines` is a JSON
-    array of {x,y,w,h} boxes (cover px) for each readable block, used to drive the
-    read-along highlight. Returns the MP4 bytes for download. 400 on bad input,
-    503 if the server has no ffmpeg.
+    Kept only for backward compatibility.
+    New video generation uses POST /share/{date_label}/video/generate
+    (structured-content → 9:16 MP4 via Pillow scenes + TTS).
     """
+    import re as _re
     import re as _re
     import json as _json
     from app.application.radar.share import build_share_view
@@ -2187,8 +2187,8 @@ def generate_share_today_video(
 def get_share_today_video_status(input_hash: str | None = Query(None)):
     """Poll the video generation status for today's share page."""
     from app.application.content_video.models import VideoGenerationRequest
-    from app.application.content_video.service import get_video_paths
     from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.storage import video_storage_for
 
     db = next(get_db())
     try:
@@ -2196,10 +2196,19 @@ def get_share_today_video_status(input_hash: str | None = Query(None)):
         if input_hash is None:
             request = VideoGenerationRequest(source_snapshot=video_snapshot)
             input_hash = compute_input_hash(request)
-        paths = get_video_paths(video_snapshot.source_key, input_hash)
-        if paths is None:
+        storage = video_storage_for(video_snapshot.source_key, input_hash)
+        status = storage.read_status()
+        if status is None:
             return {"status": "not_found", "input_hash": input_hash}
-        return {**paths, "input_hash": input_hash}
+        return {
+            "status": status.get("status"),
+            "current_step": status.get("current_step"),
+            "video_path": status.get("video_path"),
+            "poster_path": status.get("poster_path"),
+            "error": status.get("error"),
+            "input_hash": status.get("input_hash"),
+            "job_id": status.get("job_id"),
+        }
     finally:
         db.close()
 
@@ -2265,8 +2274,8 @@ def get_share_history_video_status(date_label: str, input_hash: str | None = Que
     import re as _re
 
     from app.application.content_video.models import VideoGenerationRequest
-    from app.application.content_video.service import get_video_paths
     from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.storage import video_storage_for
 
     if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
         return HTMLResponse("无效日期。", status_code=400)
@@ -2277,10 +2286,19 @@ def get_share_history_video_status(date_label: str, input_hash: str | None = Que
         if input_hash is None:
             request = VideoGenerationRequest(source_snapshot=video_snapshot)
             input_hash = compute_input_hash(request)
-        paths = get_video_paths(video_snapshot.source_key, input_hash)
-        if paths is None:
+        storage = video_storage_for(video_snapshot.source_key, input_hash)
+        status = storage.read_status()
+        if status is None:
             return {"status": "not_found", "input_hash": input_hash}
-        return {**paths, "input_hash": input_hash}
+        return {
+            "status": status.get("status"),
+            "current_step": status.get("current_step"),
+            "video_path": status.get("video_path"),
+            "poster_path": status.get("poster_path"),
+            "error": status.get("error"),
+            "input_hash": status.get("input_hash"),
+            "job_id": status.get("job_id"),
+        }
     finally:
         db.close()
 

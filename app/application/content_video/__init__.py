@@ -17,7 +17,19 @@ Future re-use cases:
   - Emotional copy explanation videos
   - Course knowledge-card videos
   - Product report videos
+
+Lazy-loading note
+─────────────────
+Only lightweight, dependency-free modules are imported here:
+  - models
+  - hashing
+  - storage
+
+Heavy modules (service, image_renderer, audio_renderer, composer) are NOT
+imported at package level to avoid pulling in Pillow and other heavy
+dependencies when only status queries are needed.
 """
+
 from app.application.content_video.models import (
     VideoSourceSnapshot,
     VideoSourceSection,
@@ -25,7 +37,6 @@ from app.application.content_video.models import (
     VideoGenerationRequest,
     VideoGenerationResult,
 )
-from app.application.content_video.service import generate_video, get_existing_video_status
 
 __all__ = [
     "VideoSourceSnapshot",
@@ -33,6 +44,4 @@ __all__ = [
     "VideoScene",
     "VideoGenerationRequest",
     "VideoGenerationResult",
-    "generate_video",
-    "get_existing_video_status",
 ]

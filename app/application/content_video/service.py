@@ -36,7 +36,6 @@ from app.application.content_video.storage import (
     ensure_video_dirs,
 )
 from app.application.content_video.storyboard import build_storyboard
-from app.application.content_video.image_renderer import render_scene_image
 from app.application.content_video.audio_renderer import (
     render_scene_audio,
     TTSProviderError,
@@ -138,6 +137,8 @@ def generate_video(
             status=_STATUS_RUNNING,
             current_step="rendering_scene_images",
         )
+        # Lazy import so missing Pillow is caught by the exception handler
+        from app.application.content_video.image_renderer import render_scene_image
         for scene in scenes:
             img_path = storage.scene_image_path(scene.scene_id)
             render_scene_image(scene, img_path, size=request.output_size)
@@ -240,20 +241,30 @@ def generate_video(
 
     except Exception as exc:
         tb = traceback.format_exc()
+        # Provide a clear user-facing message for missing Pillow
+        if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL":
+            user_message = (
+                "Pillow is not installed. "
+                "Please install Pillow>=10.0.0 to generate scene images: "
+                "pip install Pillow>=10.0.0"
+            )
+            error_for_status = user_message
+        else:
+            error_for_status = f"{exc}\n{tb}"
         storage.write_status(
             job_id=job_id,
             input_hash=input_hash,
             status=_STATUS_FAILED,
-            current_step="failed",
-            error=f"{exc}\n{tb}",
+            current_step="rendering_scene_images" if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL" else "failed",
+            error=error_for_status,
         )
         logger.exception("Video generation failed for source_key=%s", source_key)
         return VideoGenerationResult(
             job_id=job_id,
             input_hash=input_hash,
             status=_STATUS_FAILED,
-            error=str(exc),
-            current_step="failed",
+            error=user_message if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL" else str(exc),
+            current_step="rendering_scene_images" if isinstance(exc, ModuleNotFoundError) and exc.name == "PIL" else "failed",
         )
 
 
