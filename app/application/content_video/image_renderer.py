@@ -187,7 +187,7 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
     date_text = getattr(scene, 'source_label', None) or "最新前沿情报"
     sub_font = _font(26)
     sub_y = title_y + (bbox[3] - bbox[1]) + 16
-    _centered_text(draw, date_text, sub_y=sub_y, font=sub_font, w=w, fill=C_TEXT_DIM)
+    _centered_text(draw, date_text, sub_font, sub_y, w, fill=C_TEXT_DIM)
 
     # Signal chips row (from visual_lines or hardcoded from metadata)
     chips = []
