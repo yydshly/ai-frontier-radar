@@ -146,33 +146,55 @@ def select_increment_summary_targets(db, *, limit: int | None = None) -> list[in
 
 
 def run_summary_batch_in_background(item_ids: list[int]) -> None:
-    """Generate summaries sequentially in an isolated background DB session."""
+    """Generate summaries in an isolated background DB session.
+
+    The LLM call is the slow part (~6s each). Generation is parallelized via
+    CandidateOneLinerService.generate_for_items_concurrent (thread pool over
+    the network calls), while every SQLite write — the per-item batch state
+    AND the summary result — stays on this thread (single writer). Order:
+
+      A. load items, short-circuit already-complete ones, mark the rest
+         "running" (one commit).
+      B. concurrent generation + serial result persistence (inside the service).
+      C. per item, reconcile batch state to "completed"/"failed".
+    """
     if not item_ids:
         return
 
     db = SessionLocal()
     try:
         service = CandidateOneLinerService(db, settings=get_one_liner_settings())
+
+        # Phase A — load + mark pending "running" (serial).
+        pending: list[SourceItem] = []
         for item_id in item_ids:
             item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
             if item is None:
                 continue
-
             raw = _metadata(item)
             if _has_complete_summary(raw):
                 _write_batch_state(item, raw, "completed")
                 db.commit()
                 continue
-
             _write_batch_state(item, raw, "running")
             db.commit()
+            pending.append(item)
 
+        if not pending:
+            return
+
+        # Phase B — concurrent generation + serial result writes (in service).
+        results = service.generate_for_items_concurrent(
+            pending,
+            limit=len(pending),
+            fill_missing_summary=True,
+            force=False,
+        )
+        errors_by_id = {r.item_id: r.error for r in results if r.error}
+
+        # Phase C — reconcile per-item batch state (serial).
+        for item in pending:
             try:
-                result = service.generate_for_item(
-                    item,
-                    fill_missing_summary=True,
-                    force=False,
-                )
                 db.refresh(item)
                 raw = _metadata(item)
                 if _has_complete_summary(raw):
@@ -182,14 +204,14 @@ def run_summary_batch_in_background(item_ids: list[int]) -> None:
                         item,
                         raw,
                         "failed",
-                        result.error or "模型未返回完整中文摘要",
+                        errors_by_id.get(item.id) or "模型未返回完整中文摘要",
                     )
                 db.commit()
             except Exception as exc:
                 db.rollback()
-                item = db.query(SourceItem).filter(SourceItem.id == item_id).first()
-                if item is not None:
-                    _write_batch_state(item, _metadata(item), "failed", str(exc))
+                reloaded = db.query(SourceItem).filter(SourceItem.id == item.id).first()
+                if reloaded is not None:
+                    _write_batch_state(reloaded, _metadata(reloaded), "failed", str(exc))
                     db.commit()
     finally:
         db.close()

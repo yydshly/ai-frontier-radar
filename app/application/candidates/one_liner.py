@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
@@ -68,6 +69,7 @@ class OneLinerSettings:
     max_per_run: int = 10
     max_per_day: int = 50
     max_input_chars: int = 1200
+    concurrency: int = 6
 
 
 class OneLinerProvider(Protocol):
@@ -113,6 +115,7 @@ def get_one_liner_settings() -> OneLinerSettings:
         max_per_run=_env_int("ONE_LINER_MAX_PER_RUN", 20, 1, 100),
         max_per_day=_env_int("ONE_LINER_MAX_PER_DAY", 50, 1, 1000),
         max_input_chars=_env_int("ONE_LINER_MAX_INPUT_CHARS", 1200, 100, 8000),
+        concurrency=_env_int("ONE_LINER_CONCURRENCY", 6, 1, 16),
     )
 
 
@@ -320,6 +323,111 @@ class CandidateOneLinerService:
                 continue
             results.append(self.generate_for_item(item, fill_missing_summary=fill_missing_summary, force=force))
             processed += 1
+        return results
+
+    def generate_for_items_concurrent(
+        self,
+        items: list[SourceItem],
+        limit: int | None = None,
+        *,
+        fill_missing_summary: bool = False,
+        force: bool = False,
+        max_workers: int | None = None,
+    ) -> list[OneLinerResult]:
+        """Concurrent variant of generate_for_items.
+
+        The slow part is the network/LLM call (provider.generate), which is
+        parallelized across a thread pool. SQLite is single-writer, so all DB
+        access stays on the calling thread in three phases:
+
+          A. (serial, this thread) filter eligible items and build the plain
+             OneLinerInput payloads via _build_input — the only step that
+             touches the Session.
+          B. (parallel) provider.generate(payload) per payload. Payloads are
+             detached dataclasses and the active provider builds a fresh
+             httpx.Client per call, so this is thread-safe.
+          C. (serial, this thread) _write_result per item, preserving order.
+
+        Falls back to the sequential path when concurrency <= 1, no provider,
+        or only one eligible item (avoids thread overhead).
+        """
+        workers = max_workers if max_workers is not None else self.settings.concurrency
+        if not self.settings.enabled:
+            return []
+
+        # Phase A — eligibility + payload build (serial, touches the Session).
+        targets: list[SourceItem] = []
+        for item in items:
+            if limit is not None and len(targets) >= limit:
+                break
+            if not self.should_generate(item, fill_missing_summary=fill_missing_summary, force=force):
+                continue
+            targets.append(item)
+
+        if not targets:
+            return []
+        if workers <= 1 or self.provider is None or len(targets) == 1:
+            return [
+                self.generate_for_item(item, fill_missing_summary=fill_missing_summary, force=force)
+                for item in targets
+            ]
+
+        prepared: list[tuple[SourceItem, OneLinerInput, bool]] = []
+        for item in targets:
+            raw = _parse_metadata(item.raw_metadata_json)
+            has_one_liner = bool(str(raw.get("zh_one_liner") or "").strip())
+            overwrite_one_liner = force or not has_one_liner
+            prepared.append((item, self._build_input(item), overwrite_one_liner))
+
+        # Phase B — parallel network/LLM generation (no Session access).
+        def _gen(payload: OneLinerInput) -> tuple[OneLinerGeneratedText | None, str | None]:
+            try:
+                return self.provider.generate(payload), None
+            except Exception as exc:  # noqa: BLE001 — surfaced as a failed write below
+                return None, str(exc)
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            generated = list(executor.map(_gen, [payload for _, payload, _ in prepared]))
+
+        # Phase C — serial persistence (single SQLite writer), preserves order.
+        # A failed write (e.g. a transient lock) is isolated per item so it can
+        # never abort the whole batch, mirroring the old sequential behaviour.
+        results: list[OneLinerResult] = []
+        for (item, _payload, overwrite_one_liner), (text, error) in zip(prepared, generated):
+            try:
+                if error is not None:
+                    results.append(
+                        self._write_result(
+                            item, "failed", None, error,
+                            summary=None, summary_status="failed",
+                            overwrite_one_liner=overwrite_one_liner,
+                        )
+                    )
+                elif text is None or not text.one_liner.strip():
+                    results.append(
+                        self._write_result(
+                            item, "failed", None, "empty provider response",
+                            summary=None, summary_status="failed",
+                            overwrite_one_liner=overwrite_one_liner,
+                        )
+                    )
+                else:
+                    summary_status = "success" if text.summary else "skipped"
+                    results.append(
+                        self._write_result(
+                            item, "success", text.one_liner, None,
+                            summary=text.summary, summary_status=summary_status,
+                            overwrite_one_liner=overwrite_one_liner,
+                        )
+                    )
+            except Exception as exc:  # noqa: BLE001 — persistence failure for one item
+                self.db.rollback()
+                results.append(
+                    OneLinerResult(
+                        success=False, text=None, status="failed",
+                        error=str(exc), model=self._model_name(), item_id=item.id,
+                    )
+                )
         return results
 
     def _build_provider(self) -> OneLinerProvider | None:

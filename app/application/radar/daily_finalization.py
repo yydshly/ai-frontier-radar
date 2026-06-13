@@ -110,21 +110,23 @@ def _complete_missing_summaries(
     # it is bounded only by `limit` above — NOT the per-run/per-day caps that
     # throttle incidental background auto-summary. Otherwise a busy day would
     # freeze a report that references only the first ~20 summarized articles.
+    #
+    # The LLM call is the slow part (~6s each); generate_for_items_concurrent
+    # parallelizes those network calls while keeping all SQLite writes on this
+    # thread (single writer). On error it records a failed write rather than
+    # raising, so one bad item cannot abort the batch.
+    service.generate_for_items_concurrent(
+        targets,
+        limit=len(targets),
+        fill_missing_summary=True,
+        force=False,
+    )
     completed = failed = 0
     for item in targets:
-        try:
-            service.generate_for_item(
-                item,
-                fill_missing_summary=True,
-                force=False,
-            )
-            db.refresh(item)
-            if _has_complete_summary(item):
-                completed += 1
-            else:
-                failed += 1
-        except Exception:
-            db.rollback()
+        db.refresh(item)
+        if _has_complete_summary(item):
+            completed += 1
+        else:
             failed += 1
     return completed, failed
 
