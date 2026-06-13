@@ -448,6 +448,9 @@ function cvGeneratePath() {
 function cvDownloadPath(hash) {
     return '/radar/share/' + SHARE_DATE + '/video/download?input_hash=' + encodeURIComponent(hash);
 }
+function cvPosterPath(hash) {
+    return '/radar/share/' + SHARE_DATE + '/video/poster?input_hash=' + encodeURIComponent(hash);
+}
 
 function openCoreVideoPanel() {
     closeShare();
@@ -506,7 +509,7 @@ function cvShowInOverlay(data, inputHash) {
     if (status === 'success' || status === 'existing') {
         tip.textContent = '核心报告视频 · 生成成功';
         var videoUrl = cvDownloadPath(inputHash);
-        var poster = data.poster_path || '';
+        var posterUrl = cvPosterPath(inputHash);
 
         // Build video info string
         var infoParts = [];
@@ -530,7 +533,7 @@ function cvShowInOverlay(data, inputHash) {
         body.innerHTML =
             '<div class="core-video-modal">' +
             '<div class="core-video-preview">' +
-            '<video controls playsinline' + (poster ? ' poster="' + poster + '"' : '') + ' src="' + videoUrl + '"></video>' +
+            '<video controls playsinline preload="metadata" poster="' + posterUrl + '" src="' + videoUrl + '"></video>' +
             '</div>' +
             '<div class="core-video-meta">' + infoParts.join(' · ') + '</div>' +
             ttsWarning +

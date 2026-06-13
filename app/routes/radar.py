@@ -2303,6 +2303,32 @@ def download_share_today_video(input_hash: str | None = Query(None)):
         db.close()
 
 
+@router.get("/share/today/video/poster")
+def get_share_today_video_poster(input_hash: str | None = Query(None)):
+    """Return the poster PNG for today's share video."""
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.service import get_existing_video_status
+    from app.application.content_video.hashing import compute_input_hash
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, None)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        storage = video_storage_for(video_snapshot.source_key, input_hash)
+        poster_path = storage.poster_path
+        if not poster_path.exists():
+            return HTMLResponse("封面图不存在。", status_code=404)
+        return FileResponse(
+            str(poster_path),
+            media_type="image/png",
+            content_disposition_type="inline",
+        )
+    finally:
+        db.close()
+
+
 # ── Historical share video routes ─────────────────────────────────────────────
 
 @router.post("/share/{date_label}/video/generate")
@@ -2362,6 +2388,37 @@ def get_share_history_video_status(date_label: str, input_hash: str | None = Que
             "file_size_bytes": status.get("file_size_bytes"),
             "tts_mode": status.get("tts_mode"),
         }
+    finally:
+        db.close()
+
+
+@router.get("/share/{date_label}/video/poster")
+def get_share_history_video_poster(date_label: str, input_hash: str | None = Query(None)):
+    """Return the poster PNG for a historical share page."""
+    import re as _re
+
+    from app.application.content_video.models import VideoGenerationRequest
+    from app.application.content_video.hashing import compute_input_hash
+    from app.application.content_video.storage import video_storage_for
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_label):
+        return HTMLResponse("无效日期。", status_code=400)
+
+    db = next(get_db())
+    try:
+        video_snapshot = _build_video_source_from_share(db, date_label)
+        if input_hash is None:
+            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            input_hash = compute_input_hash(request)
+        storage = video_storage_for(video_snapshot.source_key, input_hash)
+        poster_path = storage.poster_path
+        if not poster_path.exists():
+            return HTMLResponse("封面图不存在。", status_code=404)
+        return FileResponse(
+            str(poster_path),
+            media_type="image/png",
+            content_disposition_type="inline",
+        )
     finally:
         db.close()
 

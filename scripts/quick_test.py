@@ -9731,6 +9731,39 @@ def main():
         check("composer.py has get_video_duration",
               "def get_video_duration" in (proj69 / "app" / "application" / "content_video" / "composer.py").read_text(encoding="utf-8"),
               "composer should expose get_video_duration for metadata")
+
+        # ── 69i. poster route, template visual quality, montage ───────────────
+        check("poster route exists for today",
+              "/share/today/video/poster" in radar_src,
+              "GET /share/today/video/poster route should exist")
+        check("poster route exists for history",
+              "/share/{date_label}/video/poster" in radar_src,
+              "GET /share/{date_label}/video/poster route should exist")
+        check("cvPosterPath() function in share HTML",
+              "cvPosterPath" in share_html,
+              "share page JS should have cvPosterPath() function")
+        check("video element uses poster and preload=metadata",
+              'preload="metadata"' in share_html and 'poster="' in share_html,
+              "video tag should use poster URL and preload=metadata")
+        img_renderer_src = (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")
+        check("image_renderer uses opaque card background (not near-invisible)",
+              "C_CARD_BG" in img_renderer_src and "220" in img_renderer_src,
+              "card background should be opaque, not fill=(255,255,255,8)")
+        check("image_renderer body text uses bright C_TEXT (not dim)",
+              "C_TEXT" in img_renderer_src,
+              "body text should use C_TEXT (bright white) not C_TEXT_DIM for contrast")
+        check("image_renderer has C_TEXT defined",
+              "C_TEXT = " in img_renderer_src and "(234, 241, 246)" in img_renderer_src,
+              "C_TEXT should be bright white #eaf1f6")
+        check("scripts/make_content_video_montage.py exists",
+              (proj69 / "scripts" / "make_content_video_montage.py").exists(),
+              "montage debug script should exist")
+        check("montage script checks scenes directory",
+              "scenes" in (proj69 / "scripts" / "make_content_video_montage.py").read_text(encoding="utf-8"),
+              "montage script should reference scenes/ directory")
+        check("montage script outputs montage.jpg",
+              "montage.jpg" in (proj69 / "scripts" / "make_content_video_montage.py").read_text(encoding="utf-8"),
+              "montage script should output montage.jpg")
     except Exception as e:
         check("public share page checks", False, str(e))
 

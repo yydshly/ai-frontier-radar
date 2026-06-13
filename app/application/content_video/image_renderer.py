@@ -17,14 +17,12 @@ DEFAULT_H = 1920
 
 # Colour palette (dark tech theme)
 C_BG = (8, 15, 24)           # #080f18
-C_CARD_BG = (13, 23, 35)     # #0d1723
 C_ACCENT = (52, 211, 153)     # #34D399
-C_ACCENT_DIM = (52, 211, 153, 25)  # transparent accent fill
-C_TEXT = (234, 241, 246)      # #eaf1f6
-C_TEXT_DIM = (196, 210, 221)  # #c4d2dd
-C_SOURCE = (127, 149, 164)    # #7f95a4
-C_DIVIDER = (255, 255, 255, 19)  # rgba white 12%
-C_TAG = (52, 211, 153, 30)
+C_TEXT = (234, 241, 246)      # #eaf1f6  bright white
+C_TEXT_DIM = (148, 163, 184)  # #94a3b8  medium gray (for less important text)
+C_SOURCE = (100, 116, 139)    # #64748b  muted gray
+C_CARD_BG = (15, 23, 42, 220)    # rgba dark blue-gray, opaque
+C_CARD_BORDER = (52, 211, 153, 90)  # rgba green border
 
 
 def _load_font(size: int, *, bold: bool = False):
@@ -163,24 +161,22 @@ def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
     content_w = w - 2 * SIDE_MARGIN
     BOTTOM_SAFE = h - 110
 
-    # ── Semi-transparent card background ─────────────────────────────────────
-    # Draw a subtle rounded card area in the center 60% of the image
+    # ── Card background ─────────────────────────────────────────────────────
+    # Dark opaque card with subtle green border
     card_top = int(h * 0.18)
     card_bottom = int(h * 0.82)
     card_left = SIDE_MARGIN
     card_right = w - SIDE_MARGIN
 
-    # Subtle card fill
     draw.rounded_rectangle(
         [card_left, card_top, card_right, card_bottom],
         radius=24,
-        fill=(255, 255, 255, 8),
+        fill=C_CARD_BG,
     )
-    # Subtle card border
     draw.rounded_rectangle(
         [card_left, card_top, card_right, card_bottom],
         radius=24,
-        outline=(52, 211, 153, 38),
+        outline=C_CARD_BORDER,
         width=1,
     )
 
@@ -209,7 +205,7 @@ def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
         draw.text((vt_x, y), scene.visual_title, font=vt_font, fill=C_TEXT)
         y += vt_bbox[3] - vt_bbox[1] + 24
 
-    # ── Visual lines (centered body text) ──────────────────────────────────
+    # ── Visual lines (centered body text, high contrast) ─────────────────
     body_font = _load_font(30)
     line_height = 50  # ~1.65x for readability
 
@@ -220,12 +216,12 @@ def _render_card(scene, w: int, h: int, title_color=C_ACCENT) -> Image.Image:
         wrapped = _wrap_text(draw, line, body_font, content_w - 40, line_height)
         for wl in wrapped:
             if y + line_height > card_bottom - 20:
-                draw.text((SIDE_MARGIN + 20, y), "…", font=body_font, fill=C_TEXT_DIM)
+                draw.text((SIDE_MARGIN + 20, y), "…", font=body_font, fill=C_TEXT)
                 y += line_height
                 break
             wl_bbox = draw.textbbox((0, 0), wl, font=body_font)
             wl_x = (w - wl_bbox[2]) // 2
-            draw.text((wl_x, y), wl, font=body_font, fill=C_TEXT_DIM)
+            draw.text((wl_x, y), wl, font=body_font, fill=C_TEXT)
             y += line_height
         y += 6  # small gap between lines
 
