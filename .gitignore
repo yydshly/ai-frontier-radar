@@ -11,3 +11,6 @@ venv/
 *.log
 config/llm_profiles.yaml
 config/sources.yaml
+
+# Portable build output
+dist/

@@ -10,9 +10,14 @@ $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path (Join-Path $ProjectRoot "..")).Path
 Set-Location $ProjectRoot
 
-$PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-if (-not (Test-Path $PythonExe)) {
-    Write-Host "[INFO] .venv not found, using python from PATH." -ForegroundColor Yellow
+$BundledPython = Join-Path $ProjectRoot "python\python.exe"      # portable bundle
+$VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"   # dev venv
+if (Test-Path $BundledPython) {
+    $PythonExe = $BundledPython
+} elseif (Test-Path $VenvPython) {
+    $PythonExe = $VenvPython
+} else {
+    Write-Host "[INFO] No bundled python\ or .venv\ found, using python from PATH." -ForegroundColor Yellow
     $PythonExe = "python"
 }
 

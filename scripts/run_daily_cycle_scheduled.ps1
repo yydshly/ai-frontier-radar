@@ -15,8 +15,9 @@ $LogsDir = Join-Path $ProjectRoot "logs"
 if (-not (Test-Path $LogsDir)) { New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null }
 $DailyLog = Join-Path $LogsDir "daily_cycle.log"
 
-$PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-if (-not (Test-Path $PythonExe)) { $PythonExe = "python" }
+$PythonExe = Join-Path $ProjectRoot "python\python.exe"          # portable bundle
+if (-not (Test-Path $PythonExe)) { $PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe" }  # dev venv
+if (-not (Test-Path $PythonExe)) { $PythonExe = "python" }       # system PATH
 
 $ScriptPath = Join-Path $ProjectRoot "scripts\run_daily_cycle.py"
 

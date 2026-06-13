@@ -37,8 +37,11 @@ function Start-ScriptInNewWindow {
 function Start-PythonScriptInNewWindow {
     param([string]$ScriptPath, [string]$PythonArgs = "")
     $fullPath = Join-Path $ProjectRoot $ScriptPath
-    $venvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-    $python = if (Test-Path $venvPython) { $venvPython } else { "python" }
+    $bundledPython = Join-Path $ProjectRoot "python\python.exe"   # portable bundle
+    $venvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"  # dev venv
+    $python = if (Test-Path $bundledPython) { $bundledPython }
+              elseif (Test-Path $venvPython) { $venvPython }
+              else { "python" }
     $pwsh = "powershell.exe"
     $cmd = "& `"$python`" `"$fullPath`" $PythonArgs"
     $psArgs = @(

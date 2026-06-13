@@ -34,11 +34,15 @@ foreach ($dir in $dirs) {
     }
 }
 
-# ── Python selection ────────────────────────────────────────────────────────
-$PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-if (-not (Test-Path $PythonExe)) {
-    Write-Host "[INFO] .venv not found at $PythonExe" -ForegroundColor Yellow
-    Write-Host "[INFO] Falling back to python from PATH" -ForegroundColor Yellow
+# ── Python selection (portable bundle > dev venv > system PATH) ──────────────
+$BundledPython = Join-Path $ProjectRoot "python\python.exe"
+$VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+if (Test-Path $BundledPython) {
+    $PythonExe = $BundledPython
+} elseif (Test-Path $VenvPython) {
+    $PythonExe = $VenvPython
+} else {
+    Write-Host "[INFO] No bundled python\ or .venv\ found; falling back to python from PATH" -ForegroundColor Yellow
     $PythonExe = "python"
 }
 Write-Host "Python: $PythonExe" -ForegroundColor Gray
