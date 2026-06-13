@@ -14,3 +14,6 @@ config/sources.yaml
 
 # Portable build output
 dist/
+
+# Generated shortcuts (machine-specific absolute paths)
+*.lnk

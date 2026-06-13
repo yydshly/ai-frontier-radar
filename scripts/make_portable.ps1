@@ -160,6 +160,7 @@ function Copy-Tree($name, [string[]]$excludeDirs = @(), [string[]]$excludeFiles 
 Copy-Tree "app"
 Copy-Tree "scripts"
 Copy-Tree "config"
+Copy-Tree "assets"
 if (-not $NoData) {
     # Bundle current data (db + reports + audio) but not local backups.
     Copy-Tree "data" -excludeDirs @("backups")
@@ -175,7 +176,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $OutDir "runtime\daily_cycl
 
 # Loose files.
 Copy-Item (Join-Path $ProjectRoot "requirements.txt") $OutDir -Force
-foreach ($bat in @("start_app.bat", "control_panel.bat")) {
+foreach ($bat in @("start_app.bat", "control_panel.bat", "create_desktop_icon.bat")) {
     $p = Join-Path $ProjectRoot $bat
     if (Test-Path $p) { Copy-Item $p $OutDir -Force }
 }
@@ -220,24 +221,33 @@ First-time setup
        MINIMAX_API_KEY=your-real-key-here
    (Leave the other values as-is unless you know you need to change them.)
 
+3. (Optional) Double-click  create_desktop_icon.bat
+   Creates nice radar-icon shortcuts ("启动 AI前沿雷达", "AI前沿雷达 控制台")
+   in this folder and on your Desktop, so you don't have to hunt for the .bat.
+
 ------------------------------------------------------------
 Start the app
 ------------------------------------------------------------
-- Double-click  start_app.bat
+- Double-click  start_app.bat   (or the "启动 AI前沿雷达" shortcut)
   Starts the web service and opens http://127.0.0.1:8765 in your browser.
 
-- Double-click  control_panel.bat
+- Double-click  control_panel.bat   (or the "AI前沿雷达 控制台" shortcut)
   A small control window: start / stop / status / run the daily cycle.
 
 ------------------------------------------------------------
-Daily auto-report (optional but recommended)
+Daily auto-report - IMPORTANT: NOT automatic until you install it
 ------------------------------------------------------------
-To have the report build itself every morning (and catch up if the PC was
-off), open PowerShell IN THIS FOLDER and run:
+A fresh copy does NOT run on a schedule by itself. To have the report build
+itself every morning at 08:05 (and catch up if the PC was off), open PowerShell
+IN THIS FOLDER once and run:
 
     powershell -ExecutionPolicy Bypass -File scripts\install_windows_daily_task.ps1
 
-Logs go to logs\daily_cycle.log. Remove the task later with:
+After that it runs daily on its own while you are logged in. Check it with:
+
+    powershell -ExecutionPolicy Bypass -File scripts\status_local.ps1
+
+Logs go to logs\daily_cycle.log. Remove the schedule later with:
 
     powershell -ExecutionPolicy Bypass -File scripts\uninstall_windows_daily_task.ps1
 

@@ -1,5 +1,26 @@
 # AI Frontier Radar — 本地运行手册
 
+## 0. 最快启动方式（TL;DR）
+
+> 下次不知道怎么启动时，看这一节就够了。
+
+**日常启动 Web 服务**（已配置好的机器）：
+- 双击根目录 **`start_app.bat`**，或双击桌面 **「启动 AI前沿雷达」** 快捷方式。
+- 它会启动服务并自动打开浏览器：http://127.0.0.1:8765
+- 想要更多操作（启停/状态/手动跑每日任务）：双击 **`control_panel.bat`** 或 **「AI前沿雷达 控制台」**。
+
+**第一次没有桌面图标？** 双击 **`create_desktop_icon.bat`** 生成带雷达图标的快捷方式（本目录 + 桌面）。
+
+**每日报告会自动生成吗？** 只有装过定时任务的机器才会自动跑（见 [第 8 节](#8-安装每日定时任务)）。本机若已执行过 `install_windows_daily_task.ps1`，则**每天 08:05 自动执行**（关机错过会在开机后补跑）。换台机器/解压便携包后需要**重新安装一次**。
+
+**两种运行形态：**
+| 形态 | 适合 | 启动 | 见 |
+|------|------|------|----|
+| 源码 + .venv | 开发本机 | `start_app.bat` / `scripts\start_local.ps1` | 第 2–7 节 |
+| 便携文件夹 | 分发/无 Python 的机器 | 解压后双击 `start_app.bat` | [第 15 节](#15-便携版打包与分发) |
+
+---
+
 ## 1. 本地运行版定位
 
 本地运行版适合：
@@ -101,16 +122,28 @@ Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
 
 ## 8. 安装每日定时任务
 
+> **默认会自动执行吗？** 不会——**装了才会**。`install_windows_daily_task.ps1`
+> 向 Windows 任务计划程序注册一个任务；**注册之后**才会每天自动跑。这个注册是
+> *按机器、按目录*的：换一台机器、或把便携包解压到新位置，都要**重新执行一次**。
+
 ```powershell
 .\scripts\install_windows_daily_task.ps1
 ```
 
 - **任务名**：AI Frontier Radar Daily Cycle
-- **执行时间**：每天 08:05
+- **执行时间**：每天 08:05（登录状态下运行）
+- **可靠性**：`StartWhenAvailable` —— 到点时机器关着/睡眠，开机后会尽快补跑，
+  每日任务再自行回填错过的日期。失败自动重试 2 次。
 - **执行内容**：`python scripts/run_daily_cycle.py --apply`
-- **日志输出**：`logs/daily_cycle.log`（追加）
+- **日志输出**：`logs/daily_cycle.log`（追加，UTF-8）
 
-安装完成后会显示任务摘要信息。
+安装完成后会显示任务摘要信息。确认是否已装、下次何时跑：
+
+```powershell
+.\scripts\status_local.ps1
+# 或
+Get-ScheduledTaskInfo -TaskName "AI Frontier Radar Daily Cycle"
+```
 
 ## 9. 卸载每日定时任务
 
@@ -326,3 +359,61 @@ python scripts/run_daily_cycle.py --apply
 # 查看每日任务状态（Python）
 python scripts/show_daily_cycle_status.py
 ```
+
+## 15. 便携版打包与分发
+
+把整个软件打成一个**自带 Python 运行时**的文件夹，拷到任何 64 位 Windows
+机器上双击即用，**目标机无需安装 Python**。
+
+### 15.1 打包
+
+在源码 + .venv 的开发机上运行：
+
+```powershell
+.\scripts\make_portable.ps1            # 默认：含现有数据、只放 .env.example（不含密钥）
+.\scripts\make_portable.ps1 -Zip       # 顺便压成 dist\AIFrontierRadar.zip
+.\scripts\make_portable.ps1 -NoData    # 空库从头跑
+.\scripts\make_portable.ps1 -IncludeEnv  # 含真实 .env（仅自己备份用，勿外发）
+```
+
+产物在 `dist\AIFrontierRadar\`（约 150MB）：
+
+| 内容 | 说明 |
+|------|------|
+| `python\` | 内嵌 CPython 3.10 + 全部依赖 |
+| `app\ scripts\ config\ data\ assets\` | 应用、脚本、配置、数据、图标 |
+| `.env.example` | 配置模板（默认**不含**密钥） |
+| `start_app.bat` / `control_panel.bat` | 启动入口 |
+| `create_desktop_icon.bat` | 生成带图标的快捷方式 |
+| `README_PORTABLE.txt` | 给接收者的使用说明 |
+
+> 构建脚本内置两道冒烟自检（`import feedparser…` 和 `import app.main`），
+> 任一失败构建即报错，避免发出跑不起来的包。
+
+### 15.2 接收者使用
+
+1. 解压文件夹。
+2. 复制 `.env.example` 为 `.env`，填入自己的 `MINIMAX_API_KEY`。
+3. （可选）双击 `create_desktop_icon.bat` 生成桌面图标。
+4. 双击 `start_app.bat` 启动。
+5. （可选）需要每天自动出报告：在该文件夹内执行
+   `powershell -ExecutionPolicy Bypass -File scripts\install_windows_daily_task.ps1`。
+
+### 15.3 图标与快捷方式
+
+`.bat` 文件无法自带图标（永远是系统通用图标）。解决办法是用带图标的
+**快捷方式（.lnk）**：
+
+```powershell
+.\scripts\create_shortcuts.ps1            # 在本目录创建快捷方式
+.\scripts\create_shortcuts.ps1 -Desktop   # 同时放到桌面
+```
+
+图标文件是 `assets\app.ico`（雷达主题）。如需重绘：
+
+```bash
+python scripts/make_app_icon.py
+```
+
+> 快捷方式带的是**绝对路径**，请在软件实际所在的机器上生成，不要把别人机器上
+> 生成的 .lnk 直接拷过来。
