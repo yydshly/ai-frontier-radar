@@ -131,7 +131,25 @@ def generate_video(
 
     try:
         # Step: building_storyboard
-        scenes = build_storyboard(snapshot)
+        # Forward share_url / qr_code_data_url (if any) from snapshot metadata
+        # so the closing scene can embed them.
+        meta = snapshot.metadata or {}
+        share_url = (
+            meta.get("share_url")
+            if isinstance(meta, dict)
+            else None
+        ) or snapshot.source_url
+        qr_code_data_url = (
+            meta.get("qr_code_data_url")
+            if isinstance(meta, dict)
+            else None
+        )
+
+        scenes = build_storyboard(
+            snapshot,
+            share_url=share_url,
+            qr_code_data_url=qr_code_data_url,
+        )
         storage.save_storyboard(scenes)
 
         # Step: generating_scene_audio
@@ -171,11 +189,21 @@ def generate_video(
                     render_report_video,
                 )
 
+                # Pull share URL / QR code (if any) from the snapshot metadata.
+                share_url = snapshot.source_url
+                qr_code_data_url = None
+                meta = snapshot.metadata or {}
+                if isinstance(meta, dict):
+                    share_url = meta.get("share_url") or share_url
+                    qr_code_data_url = meta.get("qr_code_data_url") or qr_code_data_url
+
                 props = build_report_props(
                     scenes,
                     title=snapshot.title,
                     subtitle=snapshot.subtitle,
                     date_label=snapshot.date_label,
+                    share_url=share_url,
+                    qr_code_data_url=qr_code_data_url,
                 )
                 render_report_video(
                     props,

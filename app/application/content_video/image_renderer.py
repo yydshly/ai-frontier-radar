@@ -162,12 +162,12 @@ def _centered_text(draw: ImageDraw.Image, text: str, font, y: int, w: int,
 # ── Scene-specific renderers ──────────────────────────────────────────────────
 
 def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
-    """Scene 1: Opening summary — brand + date + top-3 signal chips.
+    """Scene 1: Opening — brand + date + full report title + core count.
 
     Layout:
       top: brand header
-      upper-mid: main title + subtitle
-      mid: 3 signal chips in a row
+      upper-mid: kicker + main title + (subtitle)
+      mid: report core-count statement
       lower-mid: tagline
       bottom: footer
     """
@@ -176,39 +176,31 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
 
     header_y = _draw_brand_header(draw, w, getattr(scene, 'source_label', None))
 
-    # Main title
-    title_font = _font(60, bold=True)
-    title_text = "今日 AI 前沿简报"
-    bbox = draw.textbbox((0, 0), title_text, font=title_font)
-    title_y = header_y + 30
-    _centered_text(draw, title_text, title_font, title_y, w)
+    # Kicker
+    kicker_font = _font(24, bold=True)
+    kicker = "AI FRONTIER RADAR"
+    _centered_text(draw, kicker, kicker_font, header_y + 30, w, fill=C_ACCENT_2)
 
-    # Subtitle / date
-    date_text = getattr(scene, 'source_label', None) or "最新前沿情报"
-    sub_font = _font(26)
-    sub_y = title_y + (bbox[3] - bbox[1]) + 16
-    _centered_text(draw, date_text, sub_font, sub_y, w, fill=C_TEXT_DIM)
+    # Main title (FULL report title — never truncated)
+    title_font = _font(54, bold=True)
+    lines = getattr(scene, 'visual_lines', []) or ["今日 AI 前沿简报"]
+    title_text = lines[0] if lines else "今日 AI 前沿简报"
+    title_y = header_y + 80
+    title_wrapped = _wrap_text(draw, title_text, title_font, w - 2 * SIDE_MARGIN - 40)
+    for idx, tl in enumerate(title_wrapped[:3]):
+        _centered_text(draw, tl, title_font, title_y + idx * 64, w)
 
-    # Signal chips row (from visual_lines or hardcoded from metadata)
-    chips = []
-    for vl in getattr(scene, 'visual_lines', [])[:3]:
-        vl = vl.strip()
-        if vl:
-            chips.append(vl)
-
-    chip_y = sub_y + (bbox[3] - bbox[1]) + 60
-    total_chip_width = sum(len(c) * 28 + 40 for c in chips[:3])
-    start_x = (w - total_chip_width) // 2
-
-    cx = start_x
-    for chip_text in chips[:3]:
-        cw = _draw_chip(draw, chip_text, cx, chip_y, font_size=20)
-        cx += cw + 20
+    # Sub-line (e.g. "本期包含 N 个核心观察")
+    sub_y = title_y + max(1, len(title_wrapped[:3])) * 64 + 20
+    sub_font = _font(28)
+    if len(lines) > 1:
+        for idx, sl in enumerate(lines[1:4]):
+            _centered_text(draw, sl, sub_font, sub_y + idx * 42, w, fill=C_TEXT_DIM)
 
     # Tagline
-    tag_y = chip_y + 60
+    tag_y = sub_y + 42 * max(0, len(lines) - 1) + 60
     tagline_font = _font(22)
-    tagline_text = "扫码查看完整报告 · 语音播报 · 全部文章原文"
+    tagline_text = "接下来按顺序展开核心观察 · 完整报告见分享页"
     _centered_text(draw, tagline_text, tagline_font, tag_y, w, fill=C_TEXT_MUTED)
 
     _draw_footer(draw, w, h)
@@ -216,12 +208,13 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
 
 
 def _render_summary_overview(scene, w: int, h: int) -> Image.Image:
-    """Scene 2: Summary overview — numbered list of core judgments.
+    """Scene: Summary overview — paginated numbered list of sentences.
 
     Layout:
       top: brand header
-      title: 今日最值得关注
-      body: numbered items 01 02 03 with left number + right text
+      title: 今日整体判断
+      page kicker (e.g. "TODAY'S OVERVIEW · 2/3")
+      body: numbered items (full sentences, no truncation)
       bottom: footer
     """
     img = Image.new("RGBA", (w, h), C_BG)
@@ -230,65 +223,97 @@ def _render_summary_overview(scene, w: int, h: int) -> Image.Image:
 
     # Page title
     title_font = _font(44, bold=True)
-    title_text = getattr(scene, 'visual_title', '') or "今日最值得关注"
+    title_text = getattr(scene, 'visual_title', '') or "今日整体判断"
     title_y = header_y + 20
     _centered_text(draw, title_text, title_font, title_y, w)
 
-    # Numbered items
-    content_top = title_y + (draw.textbbox((0, 0), title_text, font=title_font)[3] - draw.textbbox((0, 0), title_text, font=title_font)[1]) + 40
+    # Page kicker
+    md = getattr(scene, 'metadata', {}) or {}
+    page = md.get("page")
+    total = md.get("total_pages")
+    if page and total and total > 1:
+        kicker_font = _font(18)
+        _centered_text(
+            draw,
+            f"TODAY'S OVERVIEW · {page}/{total}",
+            kicker_font,
+            title_y + 60,
+            w,
+            fill=C_TEXT_MUTED,
+        )
+
+    # Numbered items — show ALL lines from the page (no truncation)
+    content_top = title_y + 130
     content_left = SIDE_MARGIN + 20
     content_right = w - SIDE_MARGIN - 20
-    item_h = 120
+    item_h = 170
 
     lines = getattr(scene, 'visual_lines', [])
     if not lines:
         lines = [getattr(scene, 'visual_title', '')]
 
-    for idx, line in enumerate(lines[:3], start=1):
+    # Allow up to 4 sentences per page; auto-wrap inside the panel.
+    n = min(len(lines), 4)
+    for idx, line in enumerate(lines[:n], start=1):
         iy = content_top + (idx - 1) * item_h
         # Number badge
         _draw_number_badge(draw, idx, content_left, iy)
-        # Panel behind text
+        # Panel
         panel_left = content_left + 80
         panel_right = content_right
         panel_top = iy - 8
-        panel_bottom = iy + 70
+        panel_bottom = iy + 130
         _draw_panel(draw, panel_left, panel_top, panel_right, panel_bottom,
                     fill=C_PANEL_ALT, radius=12)
-        # Text
-        text_lines = _wrap_text(draw, line.strip(), _font(26), panel_right - panel_left - 30)
-        for t_idx, tl in enumerate(text_lines[:2]):
-            ty = panel_top + 16 + t_idx * 38
-            draw.text((panel_left + 14, ty), tl, font=_font(26), fill=C_TEXT)
+        # Text — wrap full sentence inside the panel
+        text_lines = _wrap_text(
+            draw,
+            line.strip(),
+            _font(28),
+            panel_right - panel_left - 30,
+        )
+        for t_idx, tl in enumerate(text_lines[:3]):
+            ty = panel_top + 16 + t_idx * 42
+            draw.text((panel_left + 14, ty), tl, font=_font(28), fill=C_TEXT)
 
     _draw_footer(draw, w, h)
     return img
 
 
 def _render_signal(scene, w: int, h: int) -> Image.Image:
-    """Signal page — one signal per scene with waveform decoration.
+    """Core insight / signal page — one section per scene.
 
     Layout:
-      top: SIGNAL badge + source label
-      upper-mid: signal title
-      mid: explanation lines in a card panel
+      top: CORE INSIGHT chip + section index chip + source label
+      upper-mid: section title (full, no truncation)
+      mid: bullet lines in a card panel (full sentences, no truncation)
       lower-mid: waveform decoration
-      bottom: footer + page number
+      bottom: footer
     """
     img = Image.new("RGBA", (w, h), C_BG)
     draw = _draw_background(img, w, h)
     _draw_brand_header(draw, w)
 
+    md = getattr(scene, 'metadata', {}) or {}
+
     # Top label row
     label_y = TOP_SAFE + 80
-    # "SIGNAL" chip
-    _draw_chip(draw, "SIGNAL", SIDE_MARGIN, label_y, font_size=18)
+    # Section label chip — prefer storyboard's kicker
+    kicker = md.get("kicker") if isinstance(md, dict) else None
+    if not kicker:
+        section_idx = md.get("section_index") if isinstance(md, dict) else None
+        part = md.get("part") if isinstance(md, dict) else None
+        if section_idx is not None and part is not None:
+            kicker = f"CORE INSIGHT {section_idx:02d} · PART {part}"
+        else:
+            kicker = "CORE INSIGHT"
+    _draw_chip(draw, kicker, SIDE_MARGIN, label_y, font_size=18)
 
     # Signal index (if available from metadata)
-    signal_idx = getattr(scene, 'metadata', {}).get('signal_index', None)
-    if signal_idx is not None:
-        idx_label = f"#{signal_idx + 1}"
-        _draw_chip(draw, idx_label, SIDE_MARGIN + 110, label_y, font_size=18,
+    section_idx = md.get("section_index") if isinstance(md, dict) else None
+    if section_idx is not None:
+        idx_label = f"#{section_idx}"
+        _draw_chip(draw, idx_label, SIDE_MARGIN + 280, label_y, font_size=18,
                    bg=(59, 130, 246, 40), fg=C_ACCENT_2)
 
     # Source label top-right
@@ -299,43 +324,40 @@ def _render_signal(scene, w: int, h: int) -> Image.Image:
         sx = w - SIDE_MARGIN - (sbbox[2] - sbbox[0])
         draw.text((sx, label_y), source, font=sf, fill=C_TEXT_MUTED)
 
-    # Signal title
+    # Signal title (FULL — never truncated)
     title_y = label_y + 56
-    title_text = getattr(scene, 'visual_title', '') or "信号"
-    # Try large font first, scale down if needed
-    title_font = _font(48, bold=True)
-    tbbox = draw.textbbox((0, 0), title_text, font=title_font)
-    if tbbox[2] - tbbox[0] > w - 2 * SIDE_MARGIN - 20:
-        title_font = _font(36, bold=True)
-        tbbox = draw.textbbox((0, 0), title_text, font=title_font)
-    _centered_text(draw, title_text, title_font, title_y, w)
+    title_text = getattr(scene, 'visual_title', '') or "核心观察"
+    title_font = _font(44, bold=True)
+    title_wrapped = _wrap_text(draw, title_text, title_font, w - 2 * SIDE_MARGIN - 20)
+    for tidx, tl in enumerate(title_wrapped[:2]):
+        _centered_text(draw, tl, title_font, title_y + tidx * 56, w)
 
     # Card panel with explanation
-    card_top = title_y + (tbbox[3] - tbbox[1]) + 30
+    card_top = title_y + max(1, len(title_wrapped[:2])) * 56 + 20
     card_bottom = h - BOTTOM_SAFE - 100
     card_left = SIDE_MARGIN
     card_right = w - SIDE_MARGIN
     _draw_panel(draw, card_left, card_top, card_right, card_bottom, radius=20)
 
-    # Explanation lines
-    body_font = _font(28)
-    line_y = card_top + 24
+    # Explanation lines — full sentences, wrap inside the panel
+    body_font = _font(30)
+    line_y = card_top + 28
     body_lines = getattr(scene, 'visual_lines', [])
-    for line in body_lines[:4]:
+    for line in body_lines[:5]:
         line = line.strip()
         if not line:
             continue
-        wrapped = _wrap_text(draw, line, body_font, card_right - card_left - 40)
+        wrapped = _wrap_text(draw, line, body_font, card_right - card_left - 50)
         for wl in wrapped:
-            if line_y + 42 > card_bottom - 10:
-                draw.text((card_left + 20, line_y), "…", font=body_font, fill=C_TEXT_DIM)
-                line_y += 42
+            # If the panel would overflow, stop (the storyboard should have
+            # paginated — but we don't truncate text here either).
+            if line_y + 50 > card_bottom - 16:
                 break
             wl_bbox = draw.textbbox((0, 0), wl, font=body_font)
             lx = (w - (wl_bbox[2] - wl_bbox[0])) // 2
             draw.text((lx, line_y), wl, font=body_font, fill=C_TEXT)
-            line_y += 42
-        line_y += 8
+            line_y += 52
+        line_y += 12
 
     # Waveform decoration above footer
     wf_y = h - BOTTOM_SAFE - 40
@@ -351,8 +373,8 @@ def _render_supporting_notes(scene, w: int, h: int) -> Image.Image:
 
     Layout:
       top: brand header
-      title: 补充观察
-      body: bullet-like cards for each note
+      title: 补充观察 + page indicator
+      body: bullet-like cards for each note (no truncation)
       bottom: footer
     """
     img = Image.new("RGBA", (w, h), C_BG)
@@ -365,36 +387,62 @@ def _render_supporting_notes(scene, w: int, h: int) -> Image.Image:
     title_y = header_y + 20
     _centered_text(draw, title_text, title_font, title_y, w)
 
+    # Page kicker (e.g. "MORE SIGNALS · 2/3")
+    md = getattr(scene, 'metadata', {}) or {}
+    page = md.get("page")
+    total = md.get("total_pages")
+    if page and total and total > 1:
+        kicker_font = _font(18)
+        _centered_text(
+            draw,
+            f"MORE SIGNALS · {page}/{total}",
+            kicker_font,
+            title_y + 60,
+            w,
+            fill=C_TEXT_MUTED,
+        )
+
     # Items
-    content_top = title_y + 60
+    content_top = title_y + 110
     content_left = SIDE_MARGIN + 10
     content_right = w - SIDE_MARGIN - 10
-    item_h = 100
+    item_h = 110
 
     lines = getattr(scene, 'visual_lines', [])
+    # Allow up to 4 items per page; wrap freely without truncation
     for idx, line in enumerate(lines[:4], start=1):
         iy = content_top + (idx - 1) * item_h
-        # Small bullet
-        bx = content_left
-        by = iy + 8
-        draw.ellipse([bx, by, bx + 8, by + 8], fill=C_ACCENT)
-        # Text
-        text_lines = _wrap_text(draw, line.strip(), _font(26), content_right - content_left - 30)
-        for t_idx, tl in enumerate(text_lines[:2]):
-            ty = iy + t_idx * 36
-            draw.text((bx + 20, ty), tl, font=_font(26), fill=C_TEXT_DIM)
+        # Number badge
+        _draw_number_badge(draw, idx, content_left, iy)
+        # Panel
+        panel_left = content_left + 80
+        panel_right = content_right
+        panel_top = iy - 8
+        panel_bottom = iy + 90
+        _draw_panel(draw, panel_left, panel_top, panel_right, panel_bottom,
+                    fill=C_PANEL_ALT, radius=12)
+        # Text (full sentence, wraps inside panel)
+        text_lines = _wrap_text(
+            draw,
+            line.strip(),
+            _font(26),
+            panel_right - panel_left - 30,
+        )
+        for t_idx, tl in enumerate(text_lines[:3]):
+            ty = panel_top + 14 + t_idx * 38
+            draw.text((panel_left + 14, ty), tl, font=_font(26), fill=C_TEXT)
 
     _draw_footer(draw, w, h)
     return img
 
 
 def _render_closing_cta(scene, w: int, h: int) -> Image.Image:
-    """Closing CTA — QR + call to action.
+    """Closing CTA — report summary + QR + share URL.
 
     Layout:
       top: brand header
-      center: title + subtitle
-      QR area: centered placeholder or real QR
+      upper-mid: title + report summary lines (no truncation)
+      mid: QR code (placeholder or real data URL) + share link
       bottom: footer
     """
     img = Image.new("RGBA", (w, h), C_BG)
@@ -402,40 +450,88 @@ def _render_closing_cta(scene, w: int, h: int) -> Image.Image:
     _draw_brand_header(draw, w)
 
     # Title
-    title_font = _font(52, bold=True)
-    title_text = "查看完整报告"
-    title_y = TOP_SAFE + 140
+    title_font = _font(48, bold=True)
+    title_text = getattr(scene, 'visual_title', '') or "查看完整报告"
+    title_y = TOP_SAFE + 130
     _centered_text(draw, title_text, title_font, title_y, w)
 
-    # Subtitle
-    sub_font = _font(26)
-    sub_text = "扫码查看完整报告 · 语音播报 · 全部原文链接"
-    sub_y = title_y + 70
-    _centered_text(draw, sub_text, sub_font, sub_y, w, fill=C_TEXT_DIM)
+    # Summary lines from visual_lines (without scan/share lines)
+    summary_lines = [
+        ln for ln in (getattr(scene, 'visual_lines', []) or [])
+        if ln and "扫码" not in ln and "访问" not in ln
+    ]
+    sum_y = title_y + 80
+    sum_font = _font(26)
+    for idx, sl in enumerate(summary_lines[:4]):
+        _centered_text(draw, sl, sum_font, sum_y + idx * 42, w, fill=C_TEXT_DIM)
 
-    # QR code area (placeholder rectangle with label)
-    qr_left = (w - 200) // 2
-    qr_right = qr_left + 200
-    qr_top = sub_y + 50
-    qr_bottom = qr_top + 200
-    # Draw a styled QR placeholder
+    # QR + share link block
+    md = getattr(scene, 'metadata', {}) or {}
+    qr_data_url = md.get("qr_code_data_url")
+    share_url = md.get("share_url")
+
+    block_top = sum_y + max(1, len(summary_lines[:4])) * 42 + 30
+    qr_size = 240
+    qr_left = (w - qr_size) // 2
+    qr_top = block_top
+    qr_right = qr_left + qr_size
+    qr_bottom = qr_top + qr_size
+
+    # Draw QR placeholder
     _draw_panel(draw, qr_left, qr_top, qr_right, qr_bottom,
                 fill=(15, 23, 42, 200), outline=C_CARD_BORDER, radius=16)
+    if qr_data_url and isinstance(qr_data_url, str) and qr_data_url.startswith("data:image"):
+        # Real QR data URL — try to decode and paste
+        try:
+            import base64
+            from io import BytesIO
+            import re as _re
+            m = _re.match(r"data:image/(png|jpeg);base64,(.+)", qr_data_url)
+            if m:
+                img_bytes = base64.b64decode(m.group(2))
+                qr_img = Image.open(BytesIO(img_bytes)).convert("RGBA")
+                qr_img = qr_img.resize((qr_size - 16, qr_size - 16))
+                img.paste(qr_img, (qr_left + 8, qr_top + 8), qr_img)
+            else:
+                _draw_qr_label(draw, qr_left, qr_top, qr_right, qr_bottom)
+        except Exception:
+            _draw_qr_label(draw, qr_left, qr_top, qr_right, qr_bottom)
+    else:
+        _draw_qr_label(draw, qr_left, qr_top, qr_right, qr_bottom)
 
-    # QR label inside
-    qr_label = "[ 扫码区域 ]"
-    qr_label_font = _font(20)
-    qlbbox = draw.textbbox((0, 0), qr_label, font=qr_label_font)
-    qlx = (w - (qlbbox[2] - qlbbox[0])) // 2
-    draw.text((qlx, qr_top + 88), qr_label, font=qr_label_font, fill=C_TEXT_MUTED)
+    # Share URL
+    if share_url:
+        url_font = _font(20)
+        url_y = qr_bottom + 24
+        url_text = str(share_url)
+        url_bbox = draw.textbbox((0, 0), url_text, font=url_font)
+        ux = (w - (url_bbox[2] - url_bbox[0])) // 2
+        # Truncate display if too long, but keep the visible form
+        max_url_chars = 36
+        if len(url_text) > max_url_chars:
+            url_text = url_text[: max_url_chars - 1] + "…"
+            url_bbox = draw.textbbox((0, 0), url_text, font=url_font)
+            ux = (w - (url_bbox[2] - url_bbox[0])) // 2
+        draw.text((ux, url_y), url_text, font=url_font, fill=C_ACCENT_2)
 
     # Hint text
     hint_font = _font(18)
+    hint_y = qr_bottom + (24 + 30 if share_url else 24)
     hint_text = "完整报告包含全文、来源链接和语音播报"
-    _centered_text(draw, hint_text, hint_font, qr_bottom + 24, w, fill=C_TEXT_MUTED)
+    _centered_text(draw, hint_text, hint_font, hint_y, w, fill=C_TEXT_MUTED)
 
     _draw_footer(draw, w, h)
     return img
+
+
+def _draw_qr_label(draw, qr_left, qr_top, qr_right, qr_bottom) -> None:
+    """Draw a placeholder QR label inside the QR panel."""
+    qr_label = "[ 扫码区域 ]"
+    qr_label_font = _font(20)
+    qlbbox = draw.textbbox((0, 0), qr_label, font=qr_label_font)
+    qlx = ((qr_left + qr_right) - (qlbbox[2] - qlbbox[0])) // 2
+    qly = (qr_top + qr_bottom - (qlbbox[3] - qlbbox[1])) // 2
+    draw.text((qlx, qly), qr_label, font=qr_label_font, fill=C_TEXT_MUTED)
 
 
 # ── Legacy renderers (kept for compatibility) ─────────────────────────────────
@@ -465,15 +561,15 @@ def render_scene_image(scene, output_path: Path, *, size: str = "1080x1920") -> 
 
     scene_type = getattr(scene, 'scene_type', None)
 
-    if scene_type == "opening_summary":
+    if scene_type in ("opening_summary", "opening"):
         img = _render_opening_summary(scene, w, h)
-    elif scene_type == "summary_overview":
+    elif scene_type in ("summary_overview", "overview_paged"):
         img = _render_summary_overview(scene, w, h)
-    elif scene_type == "signal":
+    elif scene_type in ("signal", "core_insight", "core_insight_continuation"):
         img = _render_signal(scene, w, h)
     elif scene_type == "supporting_notes":
         img = _render_supporting_notes(scene, w, h)
-    elif scene_type == "closing_cta":
+    elif scene_type in ("closing_cta", "closing"):
         img = _render_closing_cta(scene, w, h)
     elif scene_type == "cover":
         img = _render_cover(scene, w, h)

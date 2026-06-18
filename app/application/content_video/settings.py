@@ -10,23 +10,29 @@ import os
 # ── Scene count ────────────────────────────────────────────────────────────────
 
 def get_max_scenes() -> int:
-    """Maximum number of scenes to generate (excluding cover)."""
+    """Maximum number of scenes to generate (excluding cover).
+
+    V2 (full-report storyboard): default is 24 so the video can hold
+    every section + every paginated overview/supporting-notes page.
+    Long content is paginated by adding scenes, not by truncating."""
     raw = os.getenv("CONTENT_VIDEO_MAX_SCENES", "").strip()
     if raw:
         try:
             val = int(raw)
-            if 1 <= val <= 20:
+            if 1 <= val <= 40:
                 return val
         except ValueError:
             pass
-    return 8  # cover + summary + 3 signals + takeaways + ending ≈ 7 scenes
+    return 24  # enough for opening + 4 overview pages + 7 sections + 3 supporting + closing
 
 
 def get_max_highlights() -> int:
-    """Maximum number of highlight/signal sections to include."""
+    """Maximum number of highlight/signal sections to include.
+
+    Back-compat helper used by the older storyboard; the V2 storyboard
+    does not enforce this.  We return a generous default so legacy
+    callers still work."""
     max_scenes = get_max_scenes()
-    # Reserve: 1 cover + 1 summary + 1 takeaways + 1 ending = 4
-    # Remaining slots are for signals
     return max(1, max_scenes - 4)
 
 

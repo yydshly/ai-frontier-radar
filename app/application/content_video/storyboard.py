@@ -1,177 +1,507 @@
-"""content_video — Storyboard builder.
+"""content_video — Storyboard builder for full-report share videos.
 
-Converts a VideoSourceSnapshot into a list of VideoScene objects.
+The storyboard turns a ``VideoSourceSnapshot`` into a list of
+``VideoScene`` objects that the renderer / TTS pipeline consumes.
 
-Scene breakdown (V1.5 — storyboard-first, image quality priority)
-─────────────────────────────────────────────────────────────────
-1. opening_summary  — brand + date + 3 signal chips
-2. summary_overview — numbered 01/02/03 core judgments
-3..N               — signal (1 per highlight, max 3)
-N+1                — supporting_notes (compressed secondary observations)
-N+2                — closing_cta (QR + CTA)
+Scene breakdown (V2 — full-report briefing)
+────────────────────────────────────────────
+1.  opening              — brand + date + full report title +
+                           "本报告包含 N 个核心观察" + "接下来按顺序展开"
+2..N  overview_paged     — overview split by Chinese punctuation into
+                           pages of 2–4 full sentences each.  No ellipsis.
+N+1..M core_insight      — one scene per section; long sections split
+                           into core_insight_continuation scenes.
+M+1..P supporting        — takeaways paginated 2–4 items each.
+P+1   closing            — report summary + shareUrl / qrCodeDataUrl.
+
+Design principles
+─────────────────
+* Core content is never truncated.  Long content creates more scenes.
+* visual_title / visual_lines / narration_text share the same source
+  text — visual & audio are in sync.
+* Decoration-only labels may be shortened; report content must not.
+* The number of scenes is bounded by ``get_max_scenes()``; when the
+  budget is exhausted we still cover the FIRST N sections and ALL of
+  the overview + takeaways, because the overview and bullets carry
+  more weight than the tail sections.
 """
 from __future__ import annotations
 
-from app.application.content_video.models import VideoSourceSnapshot, VideoScene
+import re
+
+from app.application.content_video.models import VideoScene, VideoSourceSnapshot, VideoSourceSection
 from app.application.content_video.text_utils import (
-    compact_line,
-    split_to_visual_lines,
-    compact_narration,
+    contains_ellipsis,
+    is_fragment_line,
+    remove_ellipsis,
+    split_bullet_to_pages,
+    split_chinese_sentences,
+    split_text_to_scene_pages,
     to_video_signal_title,
-    to_video_explanation_lines,
-    to_video_narration,
 )
 from app.application.content_video.settings import (
-    get_max_highlights,
     get_max_narration_chars,
+    get_max_scenes,
 )
+
+
+# ── Page-size tunables ────────────────────────────────────────────────────────
+
+# Overview pages: each page shows 2–4 sentences.
+OVERVIEW_MAX_LINES_PER_PAGE = 3
+OVERVIEW_MAX_CHARS_PER_LINE = 28
+
+# Per-section bullet pages: each page shows 2–3 sentences.
+SECTION_MAX_LINES_PER_PAGE = 3
+SECTION_MAX_CHARS_PER_LINE = 28
+
+# Supporting notes pages: 2–4 items per page.
+SUPPORTING_MAX_LINES_PER_PAGE = 3
+SUPPORTING_MAX_CHARS_PER_LINE = 28
+
+# Narration characters per scene.  This is a SOFT cap — we never truncate
+# core narration with '…'; instead we paginate by reducing scene-level
+# pages.
+DEFAULT_NARRATION_CHARS = 240
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _safe_title(title: str, *, max_chars: int = 30) -> str:
+    """Return a non-truncated, non-fragment title for a section.
+
+    The short decorative title for video cards still uses
+    ``to_video_signal_title``; this helper is for the FULL title shown on
+    the opening / closing scenes where space permits."""
+    if not title:
+        return ""
+    cleaned = title.strip()
+    cleaned = remove_ellipsis(cleaned)
+    if len(cleaned) > max_chars:
+        cleaned = cleaned[:max_chars]
+    return cleaned
+
+
+def _make_continuation_kicker(index_label: str, part: int | None) -> str:
+    if part is None or part <= 1:
+        return f"CORE INSIGHT {index_label}"
+    return f"CORE INSIGHT {index_label} · PART {part}"
+
+
+def _format_overview_kicker(page_idx: int, total_pages: int) -> str:
+    if total_pages <= 1:
+        return "TODAY'S OVERVIEW"
+    return f"TODAY'S OVERVIEW · {page_idx + 1}/{total_pages}"
+
+
+def _format_supporting_kicker(page_idx: int, total_pages: int) -> str:
+    if total_pages <= 1:
+        return "MORE SIGNALS"
+    return f"MORE SIGNALS · {page_idx + 1}/{total_pages}"
+
+
+def _build_pages_for_section(
+    section: VideoSourceSection,
+    *,
+    max_lines_per_page: int = SECTION_MAX_LINES_PER_PAGE,
+    max_chars_per_line: int = SECTION_MAX_CHARS_PER_LINE,
+) -> list[list[str]]:
+    """Return a list of pages for a single section's content.
+
+    Uses summary → key_points → why_it_matters as the content pool."""
+    pages = split_bullet_to_pages(
+        section.title,
+        section.summary,
+        section.key_points or [],
+        section.why_it_matters,
+        max_lines_per_page=max_lines_per_page,
+        max_chars_per_line=max_chars_per_line,
+    )
+    # Fallback when the section has only a title (defensive)
+    if not pages and section.title:
+        pages = [[section.title]]
+    return pages
+
+
+# ── Scene factories ───────────────────────────────────────────────────────────
+
+
+def _build_opening_scene(
+    snapshot: VideoSourceSnapshot,
+    scene_index: int,
+) -> VideoScene:
+    """Scene 1: opening.  Brand + date + full report title + core count."""
+    section_count = len(snapshot.sections)
+    is_radar = snapshot.source_key.startswith("radar_")
+
+    title = _safe_title(snapshot.title or "AI 前沿雷达", max_chars=40)
+    brand = "AI FRONTIER RADAR"
+    date = snapshot.date_label or ""
+
+    # Use complete sentences; never truncate.
+    visual_lines: list[str] = []
+    if title:
+        visual_lines.append(title)
+
+    narration_parts: list[str] = [
+        f"{brand}，{date}。",
+        f"本期主题：{title}。",
+    ]
+    if section_count > 0:
+        section_word = "个" if is_radar else "个"
+        if is_radar:
+            narration_parts.append(
+                f"本期共包含 {section_count} {section_word}核心观察，接下来按顺序展开。"
+            )
+            visual_lines.append(
+                f"本期包含 {section_count} 个核心观察"
+            )
+        else:
+            narration_parts.append(
+                f"本期共包含 {section_count} {section_word}核心观察。"
+            )
+            visual_lines.append(
+                f"本期包含 {section_count} 个核心观察"
+            )
+        narration_parts.append("以下是核心内容。")
+    else:
+        narration_parts.append("以下是核心内容。")
+
+    return VideoScene(
+        scene_id=f"scene_{scene_index:02d}",
+        scene_type="opening",
+        visual_title="AI 前沿雷达 · 入口",
+        visual_lines=visual_lines,
+        narration_text="".join(narration_parts),
+        source_label=date,
+        metadata={"brand": brand, "section_count": section_count},
+    )
+
+
+def _build_overview_scenes(
+    snapshot: VideoSourceSnapshot,
+    *,
+    start_index: int,
+    max_total_scenes: int | None = None,
+) -> tuple[list[VideoScene], int]:
+    """Paginate ``snapshot.summary`` into one or more ``overview_paged`` scenes.
+
+    The caller is responsible for providing ``max_total_scenes`` (an upper
+    bound on the resulting scene count).  When the overview would exceed
+    the budget, we keep only the FIRST pages so the opening + closing
+    scenes can still be created.
+    """
+    scenes: list[VideoScene] = []
+    if not snapshot.summary:
+        return scenes, start_index
+
+    pages = split_text_to_scene_pages(
+        snapshot.summary,
+        max_lines_per_scene=OVERVIEW_MAX_LINES_PER_PAGE,
+        max_chars_per_line=OVERVIEW_MAX_CHARS_PER_LINE,
+    )
+    if not pages:
+        return scenes, start_index
+
+    # Defensive: if max_total_scenes is set, reserve at least 1 scene for
+    # closing and (optionally) for sections.  We don't strictly enforce
+    # this here — the caller decides.  We just keep ALL pages of the
+    # overview because the overview carries the highest signal density.
+    total_pages = len(pages)
+    idx = start_index
+    for page_idx, page in enumerate(pages):
+        kicker = _format_overview_kicker(page_idx, total_pages)
+        narration = "今天的整体判断是：" + "，".join(page) + "。"
+        scenes.append(
+            VideoScene(
+                scene_id=f"scene_{idx:02d}",
+                scene_type="overview_paged",
+                visual_title="今日整体判断",
+                visual_lines=page,
+                narration_text=narration,
+                metadata={"page": page_idx + 1, "total_pages": total_pages, "kicker": kicker},
+            )
+        )
+        idx += 1
+    return scenes, idx
+
+
+def _build_core_insight_scenes(
+    snapshot: VideoSourceSnapshot,
+    *,
+    start_index: int,
+    max_total_scenes: int | None = None,
+) -> tuple[list[VideoScene], int, int]:
+    """Create one or more scenes for every section in ``snapshot.sections``.
+
+    Returns (scenes, next_index, sections_covered_count).
+
+    Budget handling: when ``max_total_scenes`` is set and we are about to
+    exceed it, we stop adding NEW sections but still finish the current
+    section (its pages go through).  Section index labels stay
+    consistent (only sections actually covered get a number).
+    """
+    scenes: list[VideoScene] = []
+    if not snapshot.sections:
+        return scenes, start_index, 0
+
+    idx = start_index
+    sections_covered = 0
+
+    for section_idx, section in enumerate(snapshot.sections, start=1):
+        # Reserve at least 1 scene for closing.
+        if max_total_scenes is not None and idx >= max_total_scenes - 1:
+            break
+
+        pages = _build_pages_for_section(section)
+        if not pages:
+            continue
+
+        sections_covered += 1
+        index_label = f"{section_idx:02d}"
+
+        short_title = to_video_signal_title(section.title, max_chars=22)
+        # Keep the FULL title for the first scene; subsequent pages show
+        # the same title with a part marker.
+        full_title = _safe_title(section.title, max_chars=60)
+
+        for page_idx, page in enumerate(pages):
+            part = page_idx + 1
+            kicker = _make_continuation_kicker(index_label, part)
+
+            scene_title = full_title if part == 1 else f"{full_title}（续）"
+
+            # Compose narration from this page's lines.
+            if part == 1:
+                narration = f"第{_cn_number(section_idx)}个核心观察：{section.title}。" + "".join(
+                    f"{ln}。" for ln in page
+                )
+            else:
+                narration = "接着看：" + "".join(f"{ln}。" for ln in page)
+
+            scenes.append(
+                VideoScene(
+                    scene_id=f"scene_{idx:02d}",
+                    scene_type="core_insight" if part == 1 else "core_insight_continuation",
+                    visual_title=scene_title,
+                    visual_lines=page,
+                    narration_text=narration,
+                    source_label=section.source_name or snapshot.date_label,
+                    metadata={
+                        "section_index": section_idx,
+                        "part": part,
+                        "total_parts": len(pages),
+                        "kicker": kicker,
+                        "section_title": section.title,
+                        "short_title": short_title,
+                    },
+                )
+            )
+            idx += 1
+
+            if max_total_scenes is not None and idx >= max_total_scenes - 1:
+                break
+        if max_total_scenes is not None and idx >= max_total_scenes - 1:
+            break
+
+    return scenes, idx, sections_covered
+
+
+def _build_supporting_scenes(
+    snapshot: VideoSourceSnapshot,
+    *,
+    start_index: int,
+    max_total_scenes: int | None = None,
+) -> tuple[list[VideoScene], int]:
+    """Paginate ``snapshot.takeaways`` into supporting-notes scenes.
+
+    No truncation — every takeaway is rendered somewhere in the video,
+    even if it costs extra scenes.
+    """
+    scenes: list[VideoScene] = []
+    if not snapshot.takeaways:
+        return scenes, start_index
+
+    # Build sentences from each takeaway so we don't fragment mid-clause.
+    sentences: list[str] = []
+    for t in snapshot.takeaways:
+        if not t:
+            continue
+        sentences.extend(split_chinese_sentences(t))
+    if not sentences:
+        return scenes, start_index
+
+    pages: list[list[str]] = []
+    current: list[str] = []
+    for sent in sentences:
+        if len(current) >= SUPPORTING_MAX_LINES_PER_PAGE:
+            pages.append(current)
+            current = [sent]
+        else:
+            current.append(sent)
+    if current:
+        pages.append(current)
+
+    total_pages = len(pages)
+    idx = start_index
+    for page_idx, page in enumerate(pages):
+        if max_total_scenes is not None and idx >= max_total_scenes - 1:
+            break
+        kicker = _format_supporting_kicker(page_idx, total_pages)
+        narration = "补充观察：" + "，".join(page) + "。"
+        scenes.append(
+            VideoScene(
+                scene_id=f"scene_{idx:02d}",
+                scene_type="supporting_notes",
+                visual_title="补充观察",
+                visual_lines=page,
+                narration_text=narration,
+                metadata={"page": page_idx + 1, "total_pages": total_pages, "kicker": kicker},
+            )
+        )
+        idx += 1
+    return scenes, idx
+
+
+def _build_closing_scene(
+    snapshot: VideoSourceSnapshot,
+    scene_index: int,
+    *,
+    sections_covered: int,
+    share_url: str | None = None,
+    qr_code_data_url: str | None = None,
+    summary_lines: list[str] | None = None,
+) -> VideoScene:
+    """Build the closing scene with report summary + shareUrl / QR."""
+    visual_lines: list[str] = list(summary_lines or [])
+    narration_parts: list[str] = []
+
+    if sections_covered > 0:
+        visual_lines.append(f"本期共播报 {sections_covered} 个核心观察")
+        narration_parts.append(f"以上是本期 {sections_covered} 个核心观察。")
+
+    visual_lines.append("扫码查看完整报告")
+    narration_parts.append("扫描屏幕上的二维码查看完整报告。")
+    if share_url:
+        visual_lines.append(f"或访问：{share_url}")
+        narration_parts.append(f"或访问链接：{share_url}。")
+
+    # Make sure visual_lines has at least something useful.
+    if not visual_lines:
+        visual_lines = ["本期结束", "查看完整报告"]
+
+    return VideoScene(
+        scene_id=f"scene_{scene_index:02d}",
+        scene_type="closing",
+        visual_title="查看完整报告",
+        visual_lines=visual_lines,
+        narration_text="".join(narration_parts) or "本期结束。请扫码查看完整报告。",
+        source_label=snapshot.date_label,
+        metadata={
+            "share_url": share_url,
+            "qr_code_data_url": qr_code_data_url,
+            "sections_covered": sections_covered,
+        },
+    )
+
+
+# ── Small helpers used by the storyboard ──────────────────────────────────────
 
 
 def _cn_number(n: int) -> str:
-    if n == 1: return "一"
-    if n == 2: return "二"
-    if n == 3: return "三"
-    if n == 4: return "四"
-    if n == 5: return "五"
-    if n == 6: return "六"
-    if n == 7: return "七"
-    if n == 8: return "八"
-    if n == 9: return "九"
-    if n == 10: return "十"
+    digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+    if 1 <= n <= 10:
+        return digits[n]
     return str(n)
 
 
-def _clean_text(text: str, max_chars: int = 200) -> str:
-    text = text.strip()
-    if len(text) > max_chars:
-        text = text[: max_chars - 3] + "..."
-    return text
+# ── Main entry point ──────────────────────────────────────────────────────────
 
 
-def build_storyboard(snapshot: VideoSourceSnapshot) -> list[VideoScene]:
-    """Split a VideoSourceSnapshot into a list of VideoScene objects.
+def build_storyboard(
+    snapshot: VideoSourceSnapshot,
+    *,
+    share_url: str | None = None,
+    qr_code_data_url: str | None = None,
+) -> list[VideoScene]:
+    """Build the full-report storyboard.
 
-    V1.5 storyboard-first template:
-      1. opening_summary  — brand, date, top-3 signal titles as chips
-      2. summary_overview — numbered 01/02/03 core judgments
-      3..N              — signal (1 per signal, with signal_index metadata)
-      N+1               — supporting_notes
-      N+2               — closing_cta
+    Priority for the scene budget (when we hit the cap):
+      1. Opening (always)
+      2. ALL core sections — each gets at least one scene
+      3. Closing (always)
+      4. Overview pagination
+      5. Supporting notes pagination
+
+    This guarantees that the user can hear/see every bullet regardless
+    of total budget pressure.  Overview and supporting notes can be
+    trimmed when the budget is exhausted.
     """
+    max_total = max(get_max_scenes(), len(snapshot.sections) + 6)
+
     scenes: list[VideoScene] = []
     scene_index = 1
-    max_highlights = get_max_highlights()
-    max_narration_chars = get_max_narration_chars()
-    is_radar = snapshot.source_key.startswith("radar_")
 
-    # ── Scene 1: Opening Summary ─────────────────────────────────────────
-    top_signals = snapshot.sections[:max_highlights]
-    chip_lines = [to_video_signal_title(s.title, max_chars=16) for s in top_signals[:3]]
-
-    opening_narration = (
-        "这里是今日 AI 前沿雷达，为你整理今天最值得关注的前沿信号。"
-        if is_radar
-        else f"这里是本期内容简报，为你整理重点信息。日期：{snapshot.date_label or ''}。"
-    )
-    scenes.append(
-        VideoScene(
-            scene_id=f"scene_{scene_index:02d}",
-            scene_type="opening_summary",
-            visual_title="今日 AI 前沿简报",
-            visual_lines=chip_lines,
-            narration_text=compact_narration(opening_narration, max_narration_chars),
-            source_label=snapshot.date_label,
-            metadata={"top_signal_titles": [s.title for s in top_signals[:3]]},
-        )
-    )
+    # ── 1. Opening ────────────────────────────────────────────────────────
+    scenes.append(_build_opening_scene(snapshot, scene_index))
     scene_index += 1
 
-    # ── Scene 2: Summary Overview ─────────────────────────────────────────
+    # ── 3. Core sections (PRIORITY — before overview/supporting) ─────────
+    core_scenes, scene_index, sections_covered = _build_core_insight_scenes(
+        snapshot,
+        start_index=scene_index,
+        max_total_scenes=max_total - 2,  # reserve 1 for closing + 1 for overview fallback
+    )
+    scenes.extend(core_scenes)
+
+    # ── 2. Overview (best-effort pagination) ─────────────────────────────
+    overview_budget = max(2, max_total - scene_index - 2)
+    overview_scenes, scene_index = _build_overview_scenes(
+        snapshot,
+        start_index=scene_index,
+        max_total_scenes=scene_index + overview_budget,
+    )
+    scenes.extend(overview_scenes)
+
+    # ── 4. Supporting notes (last priority) ──────────────────────────────
+    supporting_budget = max(1, max_total - scene_index - 1)
+    supporting_scenes, scene_index = _build_supporting_scenes(
+        snapshot,
+        start_index=scene_index,
+        max_total_scenes=scene_index + supporting_budget,
+    )
+    scenes.extend(supporting_scenes)
+
+    # ── 5. Closing ────────────────────────────────────────────────────────
+    summary_lines: list[str] = []
     if snapshot.summary:
-        summary_lines = split_to_visual_lines(
-            snapshot.summary, max_lines=3, max_chars_per_line=22,
+        summary_lines.extend(
+            split_chinese_sentences(snapshot.summary)[:2]
         )
-        summary_narration = compact_narration(
-            "今天的核心判断是：" + _clean_text(snapshot.summary, 80),
-            max_chars=max_narration_chars,
-        )
-        scenes.append(
-            VideoScene(
-                scene_id=f"scene_{scene_index:02d}",
-                scene_type="summary_overview",
-                visual_title="今日最值得关注",
-                visual_lines=summary_lines[:3],
-                narration_text=summary_narration,
-            )
-        )
-        scene_index += 1
+    if not summary_lines:
+        summary_lines = [
+            s.title for s in snapshot.sections[:3] if s.title
+        ]
 
-    # ── Scenes 3..N: Signals ──────────────────────────────────────────────
-    for signal_idx, section in enumerate(top_signals):
-        signal_title = to_video_signal_title(section.title, max_chars=18)
-        explanation_lines = to_video_explanation_lines(
-            summary=section.summary,
-            why_it_matters=section.why_it_matters,
-            key_points=section.key_points or [],
-            max_lines=3,
-            max_chars_per_line=22,
-        )
-        narration = to_video_narration(
-            index=signal_idx + 1,
-            title=section.title,
-            summary=section.summary,
-            why_it_matters=section.why_it_matters,
-            max_chars=max_narration_chars,
-        )
-        scenes.append(
-            VideoScene(
-                scene_id=f"scene_{scene_index:02d}",
-                scene_type="signal",
-                visual_title=signal_title,
-                visual_lines=explanation_lines[:3],
-                narration_text=narration,
-                source_label=section.source_name,
-                metadata={"signal_index": signal_idx},
-            )
-        )
-        scene_index += 1
-
-    # ── Supporting Notes ────────────────────────────────────────────────
-    if snapshot.takeaways:
-        compressed: list[str] = []
-        for t in snapshot.takeaways[:4]:
-            line = compact_line(t, max_chars=28)
-            if line:
-                compressed.append(line)
-        if compressed:
-            supporting_narration = compact_narration(
-                "此外，今天还有：" + "；".join(compressed[:4]),
-                max_chars=max_narration_chars,
-            )
-            scenes.append(
-                VideoScene(
-                    scene_id=f"scene_{scene_index:02d}",
-                    scene_type="supporting_notes",
-                    visual_title="补充观察",
-                    visual_lines=compressed[:4],
-                    narration_text=supporting_narration,
-                )
-            )
-            scene_index += 1
-
-    # ── Closing CTA ──────────────────────────────────────────────────────
     scenes.append(
-        VideoScene(
-            scene_id=f"scene_{scene_index:02d}",
-            scene_type="closing_cta",
-            visual_title="查看完整报告",
-            visual_lines=[
-                "扫码查看完整报告",
-                "语音播报 · 全部文章原文",
-            ],
-            narration_text="以上是本期简报。你可以在分享页查看完整报告和原始来源。",
-            source_label=snapshot.date_label,
+        _build_closing_scene(
+            snapshot,
+            scene_index,
+            sections_covered=sections_covered,
+            share_url=share_url,
+            qr_code_data_url=qr_code_data_url,
+            summary_lines=summary_lines,
         )
     )
+
+    # ── Defensive: ensure no scene contains ellipsis or fragment lines ──
+    for sc in scenes:
+        sc.visual_title = remove_ellipsis(sc.visual_title)
+        sc.visual_lines = [remove_ellipsis(ln) for ln in sc.visual_lines]
+        sc.narration_text = remove_ellipsis(sc.narration_text)
+        sc.visual_lines = [
+            ln for ln in sc.visual_lines if not is_fragment_line(ln)
+        ]
 
     return scenes

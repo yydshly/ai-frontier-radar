@@ -17,6 +17,26 @@ const clamp = {
   extrapolateRight: "clamp" as const
 };
 
+// Per-scene-type font sizes for body lines (prevent overflow).
+// We size DOWN automatically when the content is too long.
+const SCENE_FONT_SIZE: Record<string, number> = {
+  opening: 38,
+  overview_paged: 32,
+  core_insight: 30,
+  core_insight_continuation: 30,
+  supporting_notes: 28,
+  closing: 30
+};
+
+const SCENE_TITLE_SIZE: Record<string, number> = {
+  opening: 64,
+  overview_paged: 56,
+  core_insight: 56,
+  core_insight_continuation: 50,
+  supporting_notes: 50,
+  closing: 56
+};
+
 const Background: React.FC<{accent: string; highlight: string}> = ({
   accent,
   highlight
@@ -117,6 +137,201 @@ const Brand: React.FC<{dateLabel: string; accent: string}> = ({
   </div>
 );
 
+// Auto-scale font size so the longest line fits inside a target width.
+const fitFontSize = (line: string, base: number, maxChars: number): number => {
+  const len = Array.from(line).length;
+  if (len <= maxChars) {
+    return base;
+  }
+  const scaled = Math.max(18, Math.floor((base * maxChars) / len));
+  return scaled;
+};
+
+const LinesBlock: React.FC<{
+  scene: ReportScene;
+  exit: number;
+  accent: string;
+  highlight: string;
+}> = ({scene, exit, accent, highlight}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const isOpening = scene.type === "opening";
+  const isClosing = scene.type === "closing";
+
+  const baseFont = SCENE_FONT_SIZE[scene.type] ?? 30;
+  const maxCharsPerLine = scene.lines.reduce(
+    (acc, ln) => Math.max(acc, Array.from(ln).length),
+    0
+  );
+
+  // Adjust base font if any line is unusually long.
+  const fontSize = maxCharsPerLine > 24 ? Math.max(22, baseFont - 4) : baseFont;
+
+  const lineDelay = 6;
+
+  return (
+    <div style={{display: "flex", flexDirection: "column", gap: 18}}>
+      {scene.lines.map((line, index) => {
+        const lineIn = spring({
+          frame: frame - 10 - index * lineDelay,
+          fps,
+          config: {damping: 22, stiffness: 120}
+        });
+        const lineFont = fitFontSize(line, fontSize, 22);
+        return (
+          <div
+            key={`${scene.id}-${index}`}
+            style={{
+              display: "flex",
+              gap: 18,
+              alignItems: "flex-start",
+              padding: isOpening ? "16px 22px" : "20px 24px",
+              borderRadius: 20,
+              opacity: Math.max(0, lineIn) * exit,
+              transform: `translateX(${interpolate(
+                lineIn,
+                [0, 1],
+                [35, 0],
+                clamp
+              )}px)`,
+              background:
+                "linear-gradient(135deg,rgba(20,39,68,.84),rgba(8,20,36,.7))",
+              border: "1px solid rgba(126,168,218,.22)",
+              boxShadow: "0 18px 55px rgba(0,0,0,.22)",
+              backdropFilter: "blur(18px)"
+            }}
+          >
+            {isOpening || isClosing ? null : (
+              <div
+                style={{
+                  flex: "0 0 auto",
+                  width: 36,
+                  height: 36,
+                  marginTop: 3,
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#08111f",
+                  background: index === 0 ? highlight : accent,
+                  fontWeight: 900,
+                  fontSize: 19
+                }}
+              >
+                {String(index + 1).padStart(2, "0")}
+              </div>
+            )}
+            <div
+              style={{
+                fontSize: lineFont,
+                lineHeight: 1.45,
+                fontWeight: index === 0 ? 750 : 600,
+                color: "#ffffff",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word"
+              }}
+            >
+              {line}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const ClosingExtras: React.FC<{
+  scene: ReportScene;
+  accent: string;
+  highlight: string;
+}> = ({scene, accent, highlight}) => {
+  const qrUrl = scene.qrCodeDataUrl || null;
+  const shareUrl = scene.shareUrl || null;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 36,
+        alignItems: "center",
+        marginTop: 20,
+        padding: 20,
+        borderRadius: 20,
+        background:
+          "linear-gradient(135deg,rgba(20,39,68,.74),rgba(8,20,36,.6))",
+        border: "1px solid rgba(126,168,218,.22)",
+        boxShadow: "0 18px 55px rgba(0,0,0,.22)",
+        backdropFilter: "blur(18px)"
+      }}
+    >
+      <div
+        style={{
+          width: 220,
+          height: 220,
+          flex: "0 0 auto",
+          borderRadius: 18,
+          background: qrUrl
+            ? `url(${qrUrl}) center/cover no-repeat #0a1322`
+            : "linear-gradient(135deg,#0a1322,#050a14)",
+          border: `1px solid ${accent}55`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#b9c8dc",
+          fontSize: 18,
+          fontFamily: FONT,
+          textAlign: "center",
+          padding: 12
+        }}
+      >
+        {!qrUrl ? (
+          <span>扫码查看完整报告</span>
+        ) : null}
+      </div>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          fontFamily: FONT,
+          color: "#f7fbff"
+        }}
+      >
+        <div
+          style={{
+            color: highlight,
+            fontSize: 26,
+            fontWeight: 800,
+            letterSpacing: 3
+          }}
+        >
+          READ THE FULL REPORT
+        </div>
+        <div style={{fontSize: 24, lineHeight: 1.4, color: "#dbe7f4"}}>
+          扫描二维码或在浏览器打开下方链接，查看完整报告、全部来源与原文链接。
+        </div>
+        {shareUrl ? (
+          <div
+            style={{
+              marginTop: 6,
+              padding: "10px 14px",
+              borderRadius: 12,
+              background: "rgba(8,20,36,.6)",
+              border: "1px solid rgba(126,168,218,.22)",
+              fontSize: 20,
+              color: accent,
+              wordBreak: "break-all"
+            }}
+          >
+            {shareUrl}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
 const SceneBody: React.FC<{
   scene: ReportScene;
   reportTitle: string;
@@ -133,22 +348,40 @@ const SceneBody: React.FC<{
     config: {damping: 20, stiffness: 115, mass: 0.85}
   });
   const exitStart = Math.max(15, scene.durationInFrames - 14);
-  const exit = interpolate(frame, [exitStart, scene.durationInFrames], [1, 0], clamp);
+  const exit = interpolate(
+    frame,
+    [exitStart, scene.durationInFrames],
+    [1, 0],
+    clamp
+  );
   const opacity = enter * exit;
   const y = interpolate(enter, [0, 1], [55, 0], clamp);
-  const lineDelay = 7;
-  const isOpening = scene.type === "opening_summary";
-  const isClosing = scene.type === "closing_cta";
+
+  const isOpening = scene.type === "opening";
+  const isClosing = scene.type === "closing";
   const kicker =
-    scene.type === "summary_overview"
+    scene.kicker ||
+    (scene.type === "overview_paged"
       ? "TODAY'S OVERVIEW"
-      : scene.type === "signal"
-        ? `CORE INSIGHT ${String(scene.index).padStart(2, "0")}`
-        : scene.type === "supporting_notes"
-          ? "MORE SIGNALS"
-          : isClosing
-            ? "READ THE FULL REPORT"
-            : "DAILY INTELLIGENCE";
+      : scene.type === "core_insight"
+        ? `CORE INSIGHT ${String(scene.index + 1).padStart(2, "0")}`
+        : scene.type === "core_insight_continuation"
+          ? "CORE INSIGHT · CONTINUED"
+          : scene.type === "supporting_notes"
+            ? "MORE SIGNALS"
+            : isClosing
+              ? "READ THE FULL REPORT"
+              : "DAILY INTELLIGENCE");
+
+  // Title shows reportTitle on opening, scene.title otherwise.  We do NOT
+  // apply overflow:hidden to the title — long titles wrap onto the next
+  // line.  Storyboard pages content instead of CSS-clipping it.
+  const displayTitle = isOpening ? reportTitle : scene.title;
+  const titleFontSize = SCENE_TITLE_SIZE[scene.type] ?? 56;
+  const titleFontSizeAdjusted = Math.max(
+    32,
+    titleFontSize - Math.max(0, Array.from(displayTitle).length - 18) * 2
+  );
 
   return (
     <AbsoluteFill style={{fontFamily: FONT, color: "#f7fbff"}}>
@@ -159,7 +392,7 @@ const SceneBody: React.FC<{
           position: "absolute",
           left: 76,
           right: 76,
-          top: isOpening ? 355 : 300,
+          top: 220,
           opacity,
           transform: `translateY(${y}px)`
         }}
@@ -170,32 +403,33 @@ const SceneBody: React.FC<{
             fontSize: 25,
             fontWeight: 800,
             letterSpacing: 4,
-            marginBottom: 28
+            marginBottom: 24
           }}
         >
           {kicker}
         </div>
         <div
           style={{
-            fontSize: isOpening ? 78 : isClosing ? 66 : 64,
-            lineHeight: 1.19,
+            fontSize: titleFontSizeAdjusted,
+            lineHeight: 1.18,
             fontWeight: 900,
             letterSpacing: -2,
             textShadow: "0 14px 45px rgba(0,0,0,.38)",
-            maxHeight: 330,
-            overflow: "hidden"
+            marginBottom: 18,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word"
           }}
         >
-          {isOpening ? reportTitle : scene.title}
+          {displayTitle}
         </div>
         {isOpening && subtitle ? (
           <div
             style={{
-              marginTop: 30,
               maxWidth: 860,
-              fontSize: 34,
-              lineHeight: 1.55,
-              color: "#b9c8dc"
+              fontSize: 30,
+              lineHeight: 1.5,
+              color: "#b9c8dc",
+              marginBottom: 16
             }}
           >
             {subtitle}
@@ -205,69 +439,22 @@ const SceneBody: React.FC<{
           style={{
             width: 116,
             height: 7,
-            marginTop: 34,
-            marginBottom: 42,
+            marginTop: 4,
+            marginBottom: 28,
             borderRadius: 9,
             background: `linear-gradient(90deg,${accent},${highlight})`,
             boxShadow: `0 0 26px ${accent}88`
           }}
         />
-        <div style={{display: "flex", flexDirection: "column", gap: 22}}>
-          {scene.lines.slice(0, isOpening ? 3 : 4).map((line, index) => {
-            const lineIn = spring({
-              frame: frame - 12 - index * lineDelay,
-              fps,
-              config: {damping: 22, stiffness: 120}
-            });
-            return (
-              <div
-                key={`${scene.id}-${index}`}
-                style={{
-                  display: "flex",
-                  gap: 20,
-                  alignItems: "flex-start",
-                  padding: isOpening ? "17px 22px" : "24px 26px",
-                  borderRadius: 20,
-                  opacity: Math.max(0, lineIn) * exit,
-                  transform: `translateX(${interpolate(lineIn, [0, 1], [35, 0], clamp)}px)`,
-                  background: "linear-gradient(135deg,rgba(20,39,68,.84),rgba(8,20,36,.7))",
-                  border: "1px solid rgba(126,168,218,.22)",
-                  boxShadow: "0 18px 55px rgba(0,0,0,.22)",
-                  backdropFilter: "blur(18px)"
-                }}
-              >
-                <div
-                  style={{
-                    flex: "0 0 auto",
-                    width: 36,
-                    height: 36,
-                    marginTop: 3,
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#08111f",
-                    background: index === 0 ? highlight : accent,
-                    fontWeight: 900,
-                    fontSize: 19
-                  }}
-                >
-                  {String(index + 1).padStart(2, "0")}
-                </div>
-                <div
-                  style={{
-                    fontSize: isOpening ? 30 : 35,
-                    lineHeight: 1.48,
-                    fontWeight: index === 0 ? 750 : 600,
-                    color: index === 0 ? "#ffffff" : "#dbe7f4"
-                  }}
-                >
-                  {line}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <LinesBlock
+          scene={scene}
+          exit={exit}
+          accent={accent}
+          highlight={highlight}
+        />
+        {isClosing ? (
+          <ClosingExtras scene={scene} accent={accent} highlight={highlight} />
+        ) : null}
       </div>
       <div
         style={{
@@ -294,6 +481,8 @@ export const ReportVideo: React.FC<ReportVideoProps> = ({
   title,
   subtitle,
   dateLabel,
+  shareUrl,
+  qrCodeDataUrl,
   scenes,
   style
 }) => {
@@ -304,6 +493,9 @@ export const ReportVideo: React.FC<ReportVideoProps> = ({
         const from = offset;
         const duration = Math.max(30, scene.durationInFrames);
         offset += duration;
+        // Forward shareUrl/qrCodeDataUrl to the closing scene only —
+        // other scenes don't need them.
+        const isClosing = scene.type === "closing";
         return (
           <Sequence
             key={scene.id}
@@ -312,7 +504,14 @@ export const ReportVideo: React.FC<ReportVideoProps> = ({
             premountFor={30}
           >
             <SceneBody
-              scene={{...scene, durationInFrames: duration}}
+              scene={{
+                ...scene,
+                durationInFrames: duration,
+                shareUrl: isClosing ? scene.shareUrl || shareUrl || null : null,
+                qrCodeDataUrl: isClosing
+                  ? scene.qrCodeDataUrl || qrCodeDataUrl || null
+                  : null
+              }}
               reportTitle={title}
               subtitle={subtitle}
               dateLabel={dateLabel}

@@ -1,29 +1,219 @@
-"""content_video — Text compaction utilities for short-form video scenes.
+"""content_video — Text utilities for full-report video storyboard.
 
-Provides pure string-manipulation helpers to shorten text for mobile-friendly
-scene cards without calling any LLM or external service.
+Provides pure string-manipulation helpers that **preserve** report content
+rather than truncating it. Core principles:
+
+1. Core information (overview, bullets, supporting notes, conclusions)
+   is NEVER truncated with ellipsis ("…" or "...").  If a scene cannot
+   fit the content, the caller must create additional scenes.
+
+2. Visual lines must never be single-character fragments.  Splitting uses
+   Chinese / English punctuation (。；！？、,;:) and only falls back to
+   whitespace / character-level breaks when no punctuation exists.
+
+3. Helpers are pure: no LLM, no IO, deterministic given the same input.
+
+Available helpers:
+  compact_title / compact_line           — only for *non-core* decoration
+  split_chinese_sentences                 — semantic sentence split
+  split_text_to_scene_pages               — group sentences into pages
+  split_bullet_to_pages                   — paginate a single section
+  contains_ellipsis                       — assertion helper
+  is_fragment_line                        — assertion helper (e.g. "题；")
+  to_video_signal_title                   — short title for video cards
+  to_video_explanation_lines              — back-compat for old storyboard
+  to_video_narration                      — back-compat narration builder
 """
 from __future__ import annotations
 
+import re
+
+# ── Ellipsis & fragment detection ──────────────────────────────────────────────
+
+_ELLIPSIS_RE = re.compile(r"(\.{3}|…|。。。|……)")
+
+
+def contains_ellipsis(text: str) -> bool:
+    """True if the text contains any truncation marker (..., …, 。。。, ……)."""
+    if not text:
+        return False
+    return bool(_ELLIPSIS_RE.search(text))
+
+
+def remove_ellipsis(text: str) -> str:
+    """Strip any ellipsis markers from text.  Used defensively by callers."""
+    if not text:
+        return text
+    return _ELLIPSIS_RE.sub("", text)
+
+
+def is_fragment_line(text: str) -> bool:
+    """Detect pathological single-character lines like '题；' or '问，'.
+
+    Returns True when the line (after stripping whitespace) contains
+    only one CJK character plus a punctuation mark.
+    """
+    if not text:
+        return False
+    s = text.strip()
+    if not s:
+        return False
+    # Strip all punctuation
+    body = re.sub(r"[，。；！？、：,.;:!?。，、；：（）()【】\[\]·•\s]", "", s)
+    return len(body) < 2
+
+
+# ── Sentence splitting ─────────────────────────────────────────────────────────
+
+# Strong sentence terminators
+_TERMINATORS = "。！？!?；;\n"
+# Weaker separators (clause boundary)
+_SOFT_SEPARATORS = "，,、：: "
+
+
+def split_chinese_sentences(text: str) -> list[str]:
+    """Split text into a list of semantic sentences.
+
+    Rules:
+      - Strong terminators (。！？!?；;\n) always end a sentence.
+      - Soft separators (，,、：:) only end a sentence when the chunk is
+        already at least 14 chars long.
+      - Empty / whitespace-only chunks are dropped.
+
+    The function guarantees: no fragment lines (≥2 meaningful chars) and
+    no ellipsis.  The order of the original text is preserved.
+    """
+    if not text:
+        return []
+    text = text.strip()
+    if not text:
+        return []
+
+    sentences: list[str] = []
+    buf: list[str] = []
+
+    def _flush() -> None:
+        if buf:
+            chunk = "".join(buf).strip()
+            if chunk:
+                sentences.append(chunk)
+            buf.clear()
+
+    for ch in text:
+        buf.append(ch)
+        if ch in _TERMINATORS:
+            _flush()
+        elif ch in _SOFT_SEPARATORS and len(buf) >= 14:
+            _flush()
+
+    _flush()
+    return sentences
+
+
+# ── Pagination ─────────────────────────────────────────────────────────────────
+
+
+def split_text_to_scene_pages(
+    text: str,
+    max_lines_per_scene: int = 3,
+    max_chars_per_line: int = 22,
+) -> list[list[str]]:
+    """Split a block of text into a list of pages (each page is list[str]).
+
+    Every line is a complete semantic sentence/phrase — never truncated,
+    never a single-char fragment.  When content overflows the page budget,
+    additional pages are appended (caller creates more scenes).
+
+    Lines longer than ``max_chars_per_line`` are kept intact (so no
+    information is lost); the per-page count is used as the size budget.
+    """
+    sentences = split_chinese_sentences(text)
+    if not sentences:
+        return []
+
+    pages: list[list[str]] = []
+    current: list[str] = []
+
+    for sentence in sentences:
+        if len(current) >= max_lines_per_scene:
+            pages.append(current)
+            current = [sentence]
+        else:
+            current.append(sentence)
+
+    if current:
+        pages.append(current)
+    return pages
+
+
+def split_bullet_to_pages(
+    title: str,
+    summary: str | None,
+    key_points: list[str] | None = None,
+    why_it_matters: str | None = None,
+    *,
+    max_lines_per_page: int = 3,
+    max_chars_per_line: int = 22,
+) -> list[list[str]]:
+    """Paginate a single section's content across one or more pages.
+
+    The title is **not** part of the page text — it is shown as a separate
+    card heading on every continuation scene.  Pages 2..N get a part label
+    appended by the caller.
+
+    Each page has at most ``max_lines_per_page`` lines; long content is
+    split into additional pages instead of being truncated.
+
+    Content priority: summary → key_points → why_it_matters.
+    """
+    pool: list[str] = []
+
+    if summary:
+        pool.extend(split_chinese_sentences(summary))
+    if not pool and key_points:
+        for kp in key_points:
+            if kp:
+                pool.extend(split_chinese_sentences(kp))
+    if not pool and why_it_matters:
+        pool.extend(split_chinese_sentences(why_it_matters))
+
+    if not pool:
+        return []
+
+    pages: list[list[str]] = []
+    current: list[str] = []
+    for sentence in pool:
+        if len(current) >= max_lines_per_page:
+            pages.append(current)
+            current = [sentence]
+        else:
+            current.append(sentence)
+
+    if current:
+        pages.append(current)
+    return pages
+
+
+# ── Compact helpers (decorative labels only) ───────────────────────────────────
+
 
 def compact_title(text: str, max_chars: int = 22) -> str:
-    """Shorten a title to at most max_chars characters.
+    """Shorten a title to at most ``max_chars`` characters.
 
-    Truncates with '…' if over limit.
-    Preserves Chinese characters and ASCII.
+    Truncation is ONLY for decorative titles (e.g. card kickers, page
+    numbers).  For report-content titles use ``to_video_signal_title``.
     """
     if not text:
         return ""
     text = text.strip()
     if len(text) <= max_chars:
         return text
-    # Find a cut point that respects character boundary
-    # For mixed content, just use max_chars as a rough guide
     return text[: max_chars - 1] + "…"
 
 
 def compact_line(text: str, max_chars: int = 36) -> str:
-    """Shorten a body line to at most max_chars characters."""
+    """Shorten a decorative line.  Use sparingly — prefer content-preserving
+    helpers for any line that carries report information."""
     if not text:
         return ""
     text = text.strip()
@@ -37,67 +227,30 @@ def split_to_visual_lines(
     max_lines: int = 3,
     max_chars_per_line: int = 28,
 ) -> list[str]:
-    """Split a block of text into short visual lines for a scene card.
-
-    Does not call any LLM — pure character-level splitting.
-    Tries to break at natural pauses (，。；) before max_chars is exceeded.
-    Falls back to character-level wrap if no punctuation within limit.
-    """
+    """Back-compat helper: split text into short visual lines, **never**
+    truncating with ellipsis.  Long sentences are kept whole; when a
+    sentence exceeds ``max_chars_per_line`` it is kept intact and pushed
+    onto the result (the caller may decide to paginate)."""
     if not text:
         return []
     text = text.strip()
     if not text:
         return []
 
-    result: list[str] = []
+    sentences = split_chinese_sentences(text)
+    return sentences[:max_lines]
 
-    # Try to split by sentences first (Chinese punctuation)
-    import re as _re
 
-    # Split on Chinese + English sentence-ending punctuation
-    sentences: list[str] = _re.split(r"(?<=[，。；！？、])", text)
-    # Remove empties
-    sentences = [s.strip() for s in sentences if s.strip()]
-
-    current_line = ""
-
-    for sentence in sentences:
-        # Check if adding this sentence would exceed max_chars_per_line
-        test = current_line + sentence if not current_line else current_line + "，" + sentence
-        if len(test) <= max_chars_per_line and len(result) < max_lines - 1:
-            current_line = test
-        else:
-            # Commit current line if non-empty
-            if current_line:
-                result.append(current_line)
-            # Start new line with this sentence (truncated if needed)
-            if len(result) >= max_lines:
-                break
-            if len(sentence) <= max_chars_per_line:
-                current_line = sentence
-            else:
-                # Character-level fallback for long sentence
-                chars = []
-                for ch in sentence:
-                    chars.append(ch)
-                    line_so_far = "".join(chars)
-                    if len(line_so_far) >= max_chars_per_line:
-                        result.append("".join(chars[:-1]) + "…")
-                        chars = [ch]
-                        if len(result) >= max_lines:
-                            break
-                if chars and len(result) < max_lines:
-                    current_line = "".join(chars)
-
-    # Don't forget the last line
-    if current_line and len(result) < max_lines:
-        result.append(current_line)
-
-    return result[:max_lines]
+# ── Compact narration (no truncation in core scenes) ───────────────────────────
 
 
 def compact_narration(text: str, max_chars: int = 120) -> str:
-    """Shorten narration text to at most max_chars for TTS."""
+    """Shorten narration text to at most ``max_chars`` characters.
+
+    Used only for **decorative** narration snippets where the visual is
+    the primary information channel.  Core-scene narration should be
+    composed of full sentences and never truncated.
+    """
     if not text:
         return ""
     text = text.strip()
@@ -106,51 +259,46 @@ def compact_narration(text: str, max_chars: int = 120) -> str:
     return text[: max_chars - 1] + "…"
 
 
-# ── Video language helpers ─────────────────────────────────────────────────────────
+# ── Video-language helpers ────────────────────────────────────────────────────
+
+_PREFIXES_TO_STRIP = (
+    "研究发现",
+    "研究显示",
+    "研究表明",
+    "数据显示",
+    "报告指出",
+    "文章称",
+    "据悉",
+    "根据",
+    "通过",
+    "实现",
+    "成功",
+    "首次",
+)
+
 
 def to_video_signal_title(title: str, max_chars: int = 18) -> str:
-    """Convert a signal title to short, punchy video title.
+    """Convert a section title into a short video card title.
 
-    Examples:
-      "Agent Safety Evaluations Are Becoming a Key Focus"
-        → "Agent 安全评估成为焦点"
-
-    Rules (no LLM — pure text rules):
-      - Strip prefix verbs: "研究", "发现", "证明" etc.
-      - Keep the core noun phrase
-      - Cap at max_chars
+    Strips common report-style prefixes and caps length.  If truncation
+    is required, the result ends with '…' (this is the one allowed case
+    because a long title can be re-displayed in continuation scenes).
     """
     if not title:
         return ""
     title = title.strip()
 
-    # Strip common report-style prefixes
-    prefixes = [
-        "研究发现",
-        "研究显示",
-        "研究表表明",
-        "数据显示",
-        "报告指出",
-        "文章称",
-        "据悉",
-        "根据",
-        "通过",
-        "实现",
-        "成功",
-        "首次",
-    ]
-    for p in prefixes:
+    for p in _PREFIXES_TO_STRIP:
         if title.startswith(p):
-            title = title[len(p):].strip()
-            if title:
+            stripped = title[len(p):].strip()
+            if stripped:
+                title = stripped
                 break
 
-    # Strip trailing punctuation
     title = title.rstrip("，。、；：")
 
-    # Cap length
     if len(title) > max_chars:
-        return title[:max_chars - 1] + "…"
+        return title[: max_chars - 1] + "…"
     return title
 
 
@@ -161,50 +309,23 @@ def to_video_explanation_lines(
     max_lines: int = 3,
     max_chars_per_line: int = 24,
 ) -> list[str]:
-    """Convert section content into 1-3 punchy explanation lines for a signal card.
+    """Build a list of short explanation lines for a video card.
 
-    Output is short, conversational, and suitable for a mobile video card.
-    Not a direct summary — sentences are restructured for spoken delivery.
-
-    Returns a list of up to max_lines short Chinese lines.
+    Back-compat helper used by older storyboard callers.  **Does not**
+    truncate with ellipsis — long content is paginated by the caller.
     """
-    # Collect candidate source lines
     candidates: list[str] = []
 
-    if why_it_matters:
-        # Split why_it_matters into sentences, compact each
-        import re as _re
-        parts = _re.split(r"(?<=[，。；！？、])", why_it_matters)
-        for part in parts:
-            part = part.strip()
-            if not part:
-                continue
-            # Strip leading conjunctions
-            for prefix in ("因为", "由于", "所以", "这说明", "这表明", "这意味着"):
-                if part.startswith(prefix):
-                    part = part[len(prefix):].strip()
-            if part:
-                candidates.append(part)
-    elif summary:
-        # Fallback: use first sentence of summary
-        import re as _re
-        parts = _re.split(r"(?<=[，。；！？])", summary)
-        if parts:
-            first = parts[0].strip()
-            if first:
-                candidates.append(first)
-
-    # If still empty, use key_points
+    if summary:
+        candidates.extend(split_chinese_sentences(summary))
     if not candidates and key_points:
         for kp in key_points[:2]:
-            kp = kp.strip()
             if kp:
-                candidates.append(kp)
+                candidates.extend(split_chinese_sentences(kp))
+    if not candidates and why_it_matters:
+        candidates.extend(split_chinese_sentences(why_it_matters))
 
-    # Build short lines using split_to_visual_lines on the candidates
-    combined = "。".join(candidates)
-    lines = split_to_visual_lines(combined, max_lines=max_lines, max_chars_per_line=max_chars_per_line)
-    return [ln.strip() for ln in lines if ln.strip()]
+    return candidates[:max_lines]
 
 
 def to_video_narration(
@@ -215,44 +336,22 @@ def to_video_narration(
     *,
     max_chars: int = 90,
 ) -> str:
-    """Build a short, spoken narration for a signal scene.
+    """Build spoken narration for a single-section scene.
 
-    Structure: "第N个信号是：{title}。{concise explanation}。"
-    Total cap: max_chars characters.
+    Returns full sentences composed from the section's content.  Does not
+    truncate semantic content with '…' — long narration is the caller's
+    responsibility to paginate.
     """
     label = _cn_number(index) if 1 <= index <= 10 else str(index)
-    title_part = f"第{label}个信号是：{to_video_signal_title(title, 20)}"
+    title_short = to_video_signal_title(title, 20)
+    parts: list[str] = [f"第{label}个核心观察：{title_short}"]
 
-    # Build explanation from why_it_matters or summary
-    explanation_parts: list[str] = []
-    if why_it_matters:
-        # Take first sentence of why_it_matters, compact
-        import re as _re
-        sentences = _re.split(r"(?<=[，。；！？])", why_it_matters)
-        if sentences:
-            first = sentences[0].strip()
-            # Strip leading conjunction
-            for prefix in ("因为", "由于", "这说明", "这表明"):
-                if first.startswith(prefix):
-                    first = first[len(prefix):].strip()
-            if first:
-                explanation_parts.append(first)
-    elif summary:
-        # Take first sentence
-        import re as _re
-        sentences = _re.split(r"(?<=[，。；！？])", summary)
-        if sentences:
-            first = sentences[0].strip()
-            if first:
-                explanation_parts.append(first)
+    if summary:
+        parts.extend(split_chinese_sentences(summary))
+    if not summary and why_it_matters:
+        parts.extend(split_chinese_sentences(why_it_matters))
 
-    explanation_text = "。".join(explanation_parts)
-    if explanation_text:
-        full = f"{title_part}。{explanation_text}。"
-    else:
-        full = title_part + "。"
-
-    return compact_narration(full, max_chars=max_chars)
+    return "。".join(p for p in parts if p) + "。"
 
 
 def split_highlight_scenes(
@@ -264,11 +363,10 @@ def split_highlight_scenes(
 ) -> list[dict]:
     """Split a single highlight/section into 1–2 scenes: title + why-it-matters.
 
-    Returns a list of scene dicts ready for VideoScene construction.
+    Back-compat helper.  New code should use ``split_bullet_to_pages``.
     """
     scenes = []
 
-    # ── Scene A: Signal title page ────────────────────────────────────────────
     title = compact_title(section.title, max_chars=max_chars_title)
     if section.summary:
         summary_line = compact_line(section.summary, max_chars=max_chars_body)
@@ -286,7 +384,6 @@ def split_highlight_scenes(
         "narration_prefix": f"第{_cn_number(scene_index)}个值得关注的信号是：",
     })
 
-    # ── Scene B: Why it matters ──────────────────────────────────────────────
     if section.why_it_matters:
         why_lines = split_to_visual_lines(
             section.why_it_matters,
@@ -301,7 +398,6 @@ def split_highlight_scenes(
                 "narration_prefix": "这值得关注，因为",
             })
     elif section.key_points:
-        # Fallback: use first key point as explanation
         kp = section.key_points[0]
         kp_line = compact_line(kp, max_chars=max_chars_body)
         scenes.append({
