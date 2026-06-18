@@ -56,7 +56,7 @@ def _check_ffmpeg() -> ContentVideoPreflightItem:
             detail=ff,
         )
     # Fallback: check project bin/ dir
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     for fn in ("ffmpeg.exe", "ffmpeg"):
         candidate = root / "bin" / fn
         if candidate.is_file():
@@ -85,7 +85,7 @@ def _check_ffprobe() -> ContentVideoPreflightItem:
             message=f"ffprobe found: {fp}",
             detail=fp,
         )
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     for fn in ("ffprobe.exe", "ffprobe"):
         candidate = root / "bin" / fn
         if candidate.is_file():
@@ -173,7 +173,7 @@ def _check_tts() -> ContentVideoPreflightItem:
 
 def _check_output_dir() -> ContentVideoPreflightItem:
     """Check if the output directory is writable."""
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     out_dir = root / "runtime" / "generated_videos"
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -191,6 +191,26 @@ def _check_output_dir() -> ContentVideoPreflightItem:
             name="output_dir",
             ok=False,
             message=f"Output directory not writable: {exc}",
+            detail=None,
+        )
+
+
+def _check_remotion() -> ContentVideoPreflightItem:
+    """Check the optional preferred Remotion renderer."""
+    try:
+        from app.application.content_video.remotion_renderer import check_remotion_available
+        ok, message = check_remotion_available()
+        return ContentVideoPreflightItem(
+            name="remotion",
+            ok=ok,
+            message=message,
+            detail=message if ok else None,
+        )
+    except Exception as exc:
+        return ContentVideoPreflightItem(
+            name="remotion",
+            ok=False,
+            message=f"Remotion unavailable: {exc}",
             detail=None,
         )
 
@@ -214,15 +234,24 @@ def run_preflight(*, require_tts: bool = True) -> ContentVideoPreflightResult:
     # Always-checked items
     items.append(_check_ffmpeg())
     items.append(_check_ffprobe())
-    items.append(_check_pillow())
-    items.append(_check_cjk_font())
+    pillow = _check_pillow()
+    cjk_font = _check_cjk_font()
+    remotion = _check_remotion()
+    items.append(remotion)
+    items.append(pillow)
+    items.append(cjk_font)
     items.append(_check_output_dir())
 
     # Conditional TTS check
     if require_tts:
         items.append(_check_tts())
 
-    all_ok = all(item.ok for item in items)
+    required_names = {"ffmpeg", "ffprobe", "cjk_font", "output_dir"}
+    if require_tts:
+        required_names.add("tts")
+    required_ok = all(item.ok for item in items if item.name in required_names)
+    renderer_ok = remotion.ok or (pillow.ok and cjk_font.ok)
+    all_ok = required_ok and renderer_ok
     return ContentVideoPreflightResult(ok=all_ok, items=items)
 
 

@@ -21,3 +21,7 @@ dist/
 # Generated video artifacts
 runtime/generated_videos/
 runtime/share_videos/
+
+# Remotion local dependencies and outputs
+remotion/node_modules/
+remotion/out/

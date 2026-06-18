@@ -85,13 +85,23 @@ def build_today_share_snapshot(
     highlights: list[ShareReportHighlight] = []
     for h in (view.highlights or []):
         text = getattr(h, "text", "") or ""
+        references = list(getattr(h, "references", []) or [])
+        primary_reference = references[0] if references else None
         highlights.append(
             ShareReportHighlight(
                 title=text[:100] if text else "重点内容",
                 summary=text,
                 why_it_matters=None,
-                source_name=None,
-                source_url=None,
+                source_name=(
+                    getattr(primary_reference, "title", None)
+                    if primary_reference is not None
+                    else None
+                ),
+                source_url=(
+                    getattr(primary_reference, "url", None)
+                    if primary_reference is not None
+                    else None
+                ),
             )
         )
 

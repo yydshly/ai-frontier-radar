@@ -5,12 +5,11 @@ Orchestrates the full pipeline:
   2. Check existing success (reuse)
   3. Save input_snapshot.json
   4. Build storyboard
-  5. Render scene images
-  6. Generate scene audio
-  7. Compose scene clips
-  8. Concatenate output.mp4
-  9. Generate poster.png
-  10. Write status.json
+  5. Generate scene audio
+  6. Render with Remotion, or fall back to scene images
+  7. Compose narration and final output.mp4
+  8. Generate poster.png
+  9. Write status.json
 
 Provides:
   generate_video(request) → VideoGenerationResult
@@ -19,6 +18,7 @@ Provides:
 """
 from __future__ import annotations
 
+import json
 import logging
 import traceback
 from datetime import datetime, timezone
@@ -62,6 +62,7 @@ STEPS = [
     "building_storyboard",
     "rendering_scene_images",
     "generating_scene_audio",
+    "rendering_remotion_video",
     "composing_scene_videos",
     "concatenating_video",
     "saving_artifacts",
@@ -133,20 +134,6 @@ def generate_video(
         scenes = build_storyboard(snapshot)
         storage.save_storyboard(scenes)
 
-        # Step: rendering_scene_images
-        storage.write_status(
-            job_id=job_id,
-            input_hash=input_hash,
-            status=_STATUS_RUNNING,
-            current_step="rendering_scene_images",
-        )
-        # Lazy import so missing Pillow is caught by the exception handler
-        from app.application.content_video.image_renderer import render_scene_image
-        for scene in scenes:
-            img_path = storage.scene_image_path(scene.scene_id)
-            render_scene_image(scene, img_path, size=request.output_size)
-            scene.image_path = str(img_path)
-
         # Step: generating_scene_audio
         storage.write_status(
             job_id=job_id,
@@ -167,29 +154,74 @@ def generate_video(
             scene.audio_path = str(audio_path)
             scene.duration_seconds = duration
 
-        # Step: composing_scene_videos
-        storage.write_status(
-            job_id=job_id,
-            input_hash=input_hash,
-            status=_STATUS_RUNNING,
-            current_step="composing_scene_videos",
-        )
-        for scene in scenes:
-            img = Path(scene.image_path)
-            aud = Path(scene.audio_path)
-            clip = storage.scene_clip_path(scene.scene_id)
-            composer.compose_clip(img, aud, clip)
-            scene.image_path = str(img)
-            scene.audio_path = str(aud)
+        output_mp4 = storage.output_mp4_path
+        renderer = "pillow_ffmpeg"
+        render_warning: str | None = None
 
-        # Step: concatenating_video
-        storage.write_status(
-            job_id=job_id,
-            input_hash=input_hash,
-            status=_STATUS_RUNNING,
-            current_step="concatenating_video",
-        )
-        output_mp4 = composer.compose_video(scenes, storage)
+        if request.template_id == "remotion_report_v1":
+            try:
+                storage.write_status(
+                    job_id=job_id,
+                    input_hash=input_hash,
+                    status=_STATUS_RUNNING,
+                    current_step="rendering_remotion_video",
+                )
+                from app.application.content_video.remotion_renderer import (
+                    build_report_props,
+                    render_report_video,
+                )
+
+                props = build_report_props(
+                    scenes,
+                    title=snapshot.title,
+                    subtitle=snapshot.subtitle,
+                    date_label=snapshot.date_label,
+                )
+                render_report_video(
+                    props,
+                    storage.remotion_visual_path,
+                    storage.remotion_props_path,
+                )
+                composer.concatenate_audio(
+                    [Path(scene.audio_path) for scene in scenes if scene.audio_path],
+                    storage.narration_audio_path,
+                )
+                composer.mux_video_audio(
+                    storage.remotion_visual_path,
+                    storage.narration_audio_path,
+                    output_mp4,
+                )
+                composer.extract_poster(output_mp4, storage.poster_path)
+                renderer = "remotion"
+            except Exception as exc:
+                render_warning = f"Remotion unavailable; used Pillow fallback: {exc}"
+                logger.warning(render_warning)
+
+        if renderer != "remotion":
+            # Stable fallback: render static report cards and compose scene clips.
+            storage.write_status(
+                job_id=job_id,
+                input_hash=input_hash,
+                status=_STATUS_RUNNING,
+                current_step="rendering_scene_images",
+            )
+            from app.application.content_video.image_renderer import render_scene_image
+            for scene in scenes:
+                img_path = storage.scene_image_path(scene.scene_id)
+                render_scene_image(scene, img_path, size=request.output_size)
+                scene.image_path = str(img_path)
+
+            storage.write_status(
+                job_id=job_id,
+                input_hash=input_hash,
+                status=_STATUS_RUNNING,
+                current_step="composing_scene_videos",
+            )
+            output_mp4 = composer.compose_video(scenes, storage)
+            scene1_img = Path(scenes[0].image_path) if scenes else None
+            if scene1_img and scene1_img.exists():
+                import shutil
+                shutil.copy(scene1_img, storage.poster_path)
 
         # Step: saving_artifacts
         storage.write_status(
@@ -199,12 +231,7 @@ def generate_video(
             current_step="saving_artifacts",
         )
 
-        # Generate a simple poster: copy scene 1 image
         poster_path = storage.poster_path
-        scene1_img = Path(scenes[0].image_path) if scenes else None
-        if scene1_img and scene1_img.exists():
-            import shutil
-            shutil.copy(scene1_img, poster_path)
 
         # Step: done
         # Cleanup intermediates unless CONTENT_VIDEO_KEEP_INTERMEDIATE=true
@@ -232,6 +259,8 @@ def generate_video(
             "file_size_bytes": file_size_bytes,
             "tts_mode": tts_mode,
             "voice_id": request.voice_id,
+            "renderer": renderer,
+            "render_warning": render_warning,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "output_mp4": "output.mp4",
             "poster": "poster.png" if poster_path.exists() else None,
@@ -255,6 +284,17 @@ def generate_video(
             tts_mode=tts_mode,
             intermediate_kept=keep,
         )
+        if render_warning:
+            status_payload = storage.read_status() or {}
+            status_payload["warning"] = render_warning
+            storage.status_path.write_text(
+                json.dumps(
+                    status_payload,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
 
         return VideoGenerationResult(
             job_id=job_id,

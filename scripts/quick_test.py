@@ -1928,7 +1928,7 @@ def main():
 
         # 4. hashing.py
         from app.application.content_video.hashing import compute_input_hash, VIDEO_ENGINE_VERSION
-        check("VIDEO_ENGINE_VERSION is 'content_video_v2_mobile_briefing'", VIDEO_ENGINE_VERSION == "content_video_v2_mobile_briefing")
+        check("VIDEO_ENGINE_VERSION is 'content_video_v3_remotion_report'", VIDEO_ENGINE_VERSION == "content_video_v3_remotion_report")
         check("compute_input_hash is callable", callable(compute_input_hash))
 
         req1 = VideoGenerationRequest(source_snapshot=snap, template_id="mobile_briefing_v1")
@@ -9600,7 +9600,7 @@ def main():
               "CONTENT_VIDEO_MAX_NARRATION_CHARS env var should be checked")
 
         check("hashing.py version updated to v2 mobile_briefing",
-              "content_video_v2_mobile_briefing" in (proj69 / "app" / "application" / "content_video" / "hashing.py").read_text(encoding="utf-8"),
+              "content_video_v3_remotion_report" in (proj69 / "app" / "application" / "content_video" / "hashing.py").read_text(encoding="utf-8"),
               "hashing.py VIDEO_ENGINE_VERSION should be bumped to v2_mobile_briefing")
 
         check("text_utils.py defines to_video_signal_title",

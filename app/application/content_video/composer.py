@@ -172,6 +172,97 @@ def concatenate_clips(
             raise RuntimeError(f"ffmpeg concatenation failed: {tail}")
 
 
+def concatenate_audio(
+    audio_paths: list[Path],
+    output_path: Path,
+) -> None:
+    """Concatenate scene narration tracks into one AAC timeline."""
+    if not audio_paths:
+        raise RuntimeError("No audio tracks to concatenate.")
+
+    ffmpeg = _resolve_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="share_audio_concat_") as tmpdir:
+        list_file = Path(tmpdir) / "audio.txt"
+        with open(list_file, "w", encoding="utf-8") as f:
+            for audio_path in audio_paths:
+                f.write(f"file '{audio_path.as_posix()}'\n")
+        cmd = [
+            ffmpeg, "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(list_file),
+            "-vn",
+            "-c:a", "aac",
+            "-b:a", "160k",
+            str(output_path),
+        ]
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=300,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if proc.returncode != 0 or not output_path.exists():
+            tail = (proc.stderr or b"").decode("utf-8", "replace")[-500:]
+            raise RuntimeError(f"ffmpeg audio concatenation failed: {tail}")
+
+
+def mux_video_audio(
+    video_path: Path,
+    audio_path: Path,
+    output_path: Path,
+) -> None:
+    """Mux a Remotion visual track with the concatenated narration."""
+    ffmpeg = _resolve_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(video_path),
+        "-i", str(audio_path),
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "160k",
+        "-shortest",
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        timeout=300,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if proc.returncode != 0 or not output_path.exists():
+        tail = (proc.stderr or b"").decode("utf-8", "replace")[-500:]
+        raise RuntimeError(f"ffmpeg audio mux failed: {tail}")
+
+
+def extract_poster(video_path: Path, output_path: Path, *, at_seconds: float = 0.8) -> None:
+    """Extract a representative poster frame from a generated video."""
+    ffmpeg = _resolve_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        ffmpeg, "-y",
+        "-ss", str(max(0.0, at_seconds)),
+        "-i", str(video_path),
+        "-frames:v", "1",
+        "-q:v", "2",
+        str(output_path),
+    ]
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        timeout=60,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if proc.returncode != 0 or not output_path.exists():
+        tail = (proc.stderr or b"").decode("utf-8", "replace")[-500:]
+        raise RuntimeError(f"ffmpeg poster extraction failed: {tail}")
+
+
 def compose_video(
     scenes: list[VideoScene],
     storage,

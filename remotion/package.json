@@ -1,0 +1,21 @@
+{
+  "name": "ai-frontier-radar-remotion",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "preview": "remotion studio src/Root.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.200",
+    "@remotion/renderer": "^4.0.200",
+    "remotion": "^4.0.200",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.0"
+  }
+}

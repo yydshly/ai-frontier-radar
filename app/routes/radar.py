@@ -2128,7 +2128,11 @@ def _start_video_generation(db, date_label, force, background_tasks):
     from app.application.content_video.audio_renderer import TTSProviderError
 
     video_snapshot = _build_video_source_from_share(db, date_label)
-    request = VideoGenerationRequest(source_snapshot=video_snapshot, force=force)
+    request = VideoGenerationRequest(
+        source_snapshot=video_snapshot,
+        template_id="remotion_report_v1",
+        force=force,
+    )
     input_hash = compute_input_hash(request)
     storage = video_storage_for(video_snapshot.source_key, input_hash)
     ensure_video_dirs(storage.base_dir)
@@ -2249,7 +2253,10 @@ def get_share_today_video_status(input_hash: str | None = Query(None)):
     try:
         video_snapshot = _build_video_source_from_share(db, None)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         storage = video_storage_for(video_snapshot.source_key, input_hash)
         status = storage.read_status()
@@ -2283,7 +2290,10 @@ def download_share_today_video(input_hash: str | None = Query(None)):
     try:
         video_snapshot = _build_video_source_from_share(db, None)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         existing = get_existing_video_status(video_snapshot.source_key, input_hash)
         if existing is None:
@@ -2314,7 +2324,10 @@ def get_share_today_video_poster(input_hash: str | None = Query(None)):
     try:
         video_snapshot = _build_video_source_from_share(db, None)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         storage = video_storage_for(video_snapshot.source_key, input_hash)
         poster_path = storage.poster_path
@@ -2344,7 +2357,10 @@ def generate_share_today_storyboard():
     db = next(get_db())
     try:
         video_snapshot = _build_video_source_from_share(db, None)
-        request = VideoGenerationRequest(source_snapshot=video_snapshot)
+        request = VideoGenerationRequest(
+            source_snapshot=video_snapshot,
+            template_id="remotion_report_v1",
+        )
         result = generate_storyboard_images(request)
         return {
             "job_id": result.job_id,
@@ -2369,7 +2385,10 @@ def get_share_today_storyboard_status(input_hash: str | None = Query(None)):
     try:
         video_snapshot = _build_video_source_from_share(db, None)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         storage = video_storage_for(video_snapshot.source_key, input_hash)
         status = storage.read_status()
@@ -2428,7 +2447,10 @@ def get_share_history_video_status(date_label: str, input_hash: str | None = Que
     try:
         video_snapshot = _build_video_source_from_share(db, date_label)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         storage = video_storage_for(video_snapshot.source_key, input_hash)
         status = storage.read_status()
@@ -2467,7 +2489,10 @@ def get_share_history_video_poster(date_label: str, input_hash: str | None = Que
     try:
         video_snapshot = _build_video_source_from_share(db, date_label)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         storage = video_storage_for(video_snapshot.source_key, input_hash)
         poster_path = storage.poster_path
@@ -2498,7 +2523,10 @@ def download_share_history_video(date_label: str, input_hash: str | None = Query
     try:
         video_snapshot = _build_video_source_from_share(db, date_label)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         existing = get_existing_video_status(video_snapshot.source_key, input_hash)
         if existing is None:
@@ -2532,7 +2560,10 @@ def generate_share_history_storyboard(date_label: str):
     db = next(get_db())
     try:
         video_snapshot = _build_video_source_from_share(db, date_label)
-        request = VideoGenerationRequest(source_snapshot=video_snapshot)
+        request = VideoGenerationRequest(
+            source_snapshot=video_snapshot,
+            template_id="remotion_report_v1",
+        )
         result = generate_storyboard_images(request)
         return {
             "job_id": result.job_id,
@@ -2562,7 +2593,10 @@ def get_share_history_storyboard_status(date_label: str, input_hash: str | None 
     try:
         video_snapshot = _build_video_source_from_share(db, date_label)
         if input_hash is None:
-            request = VideoGenerationRequest(source_snapshot=video_snapshot)
+            request = VideoGenerationRequest(
+                source_snapshot=video_snapshot,
+                template_id="remotion_report_v1",
+            )
             input_hash = compute_input_hash(request)
         storage = video_storage_for(video_snapshot.source_key, input_hash)
         status = storage.read_status()

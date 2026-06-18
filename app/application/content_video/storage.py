@@ -102,6 +102,18 @@ class VideoStorage:
     def metadata_path(self) -> Path:
         return self.base_dir / "metadata.json"
 
+    @property
+    def remotion_props_path(self) -> Path:
+        return self.base_dir / "remotion_props.json"
+
+    @property
+    def remotion_visual_path(self) -> Path:
+        return self.base_dir / "remotion_visual.mp4"
+
+    @property
+    def narration_audio_path(self) -> Path:
+        return self.base_dir / "narration.m4a"
+
     def scene_image_path(self, scene_id: str) -> Path:
         return self.scenes_dir / f"{scene_id}.png"
 
@@ -280,3 +292,5 @@ def cleanup_intermediate_artifacts(storage: "VideoStorage") -> None:
     for subdir in (storage.scenes_dir, storage.audio_dir, storage.clips_dir):
         if subdir.exists() and subdir.is_dir():
             shutil.rmtree(subdir)
+    for path in (storage.remotion_visual_path, storage.narration_audio_path):
+        path.unlink(missing_ok=True)
