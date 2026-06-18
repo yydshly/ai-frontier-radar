@@ -2131,9 +2131,24 @@ def _start_video_generation(db, date_label, force, background_tasks):
     from app.application.content_video.storage import video_storage_for, ensure_video_dirs
     from app.application.content_video.audio_renderer import TTSProviderError
 
+    # Resolve actual date_label before checking final report
+    # /share/today uses None → resolve to latest final report date
+    # /share/{date} uses explicit date → use as-is
+    resolved_date_label = date_label
+    if resolved_date_label is None:
+        from app.application.radar.daily_report_store import (
+            list_final_daily_report_dates,
+        )
+        from app.application.radar.daily_scope import latest_completed_date_label
+        final_dates = list_final_daily_report_dates()
+        if final_dates:
+            resolved_date_label = final_dates[0]
+        else:
+            resolved_date_label = latest_completed_date_label()
+
     # Enforce final report requirement for formal core-report video generation
     from app.application.radar.daily_report_store import load_final_daily_report
-    final_report = load_final_daily_report(date_label)
+    final_report = load_final_daily_report(resolved_date_label)
     if final_report is None:
         error_msg = (
             "当前日期尚未生成最终日报，无法生成正式分享视频。"
@@ -2149,10 +2164,10 @@ def _start_video_generation(db, date_label, force, background_tasks):
             "error": error_msg,
         }
 
-    video_snapshot = _build_video_source_from_share(db, date_label)
+    video_snapshot = _build_video_source_from_share(db, resolved_date_label)
     request = VideoGenerationRequest(
         source_snapshot=video_snapshot,
-        template_id="mobile_briefing_v1",
+        template_id="remotion_report_v1",
         force=force,
     )
     input_hash = compute_input_hash(request)
@@ -2164,7 +2179,7 @@ def _start_video_generation(db, date_label, force, background_tasks):
     if existing is not None and not force:
         return existing.job_id, input_hash, {
             "job_id": existing.job_id,
-            "input_input_hash": input_hash,
+            "input_hash": input_hash,
             "status": "existing",
             "current_step": "done",
             "video_path": existing.video_path,
@@ -2199,14 +2214,15 @@ def _start_video_generation(db, date_label, force, background_tasks):
             error_lines = "\n".join(f"- {item.message}" for item in failed_items)
             error_msg = f"生成环境检查失败：\n{error_lines}"
         storage.write_status(
-            job_id="none",
+            job_id=job_id,
             input_hash=input_hash,
             status="failed",
             current_step="preflight",
             error=error_msg,
         )
-        return "none", input_hash, {
-            "job_id": "none",
+        storage.release_lock(job_id)
+        return job_id, input_hash, {
+            "job_id": job_id,
             "input_hash": input_hash,
             "status": "failed",
             "current_step": "preflight",
@@ -2221,14 +2237,15 @@ def _start_video_generation(db, date_label, force, background_tasks):
     except TTSProviderError as exc:
         # TTS not available — write failed status immediately
         storage.write_status(
-            job_id="none",
+            job_id=job_id,
             input_hash=input_hash,
             status="failed",
             current_step="generating_scene_audio",
             error=str(exc),
         )
-        return "none", input_hash, {
-            "job_id": "none",
+        storage.release_lock(job_id)
+        return job_id, input_hash, {
+            "job_id": job_id,
             "input_hash": input_hash,
             "status": "failed",
             "current_step": "generating_scene_audio",
@@ -2245,6 +2262,7 @@ def _start_video_generation(db, date_label, force, background_tasks):
     )
 
     # Dispatch background task (only the request dataclass — no DB session)
+    # Lock will be released by _run_content_video_job's finally block
     background_tasks.add_task(_run_content_video_job, request, job_id, input_hash)
 
     return job_id, input_hash, {
