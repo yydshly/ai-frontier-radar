@@ -128,7 +128,7 @@ class TestBuildDailyDigestSourceCode:
 
 
 class TestSettingsDAILYREPORTMAXITEMS:
-    """Verify DAILY_REPORT_MAX_ITEMS maximum has been raised to 200."""
+    """Verify DAILY_REPORT_MAX_ITEMS accepts values up to 2000."""
 
     def test_daily_report_max_items_can_be_set_to_100(self):
         """DAILY_REPORT_MAX_ITEMS should accept 100 (was capped at 50)."""
@@ -156,8 +156,8 @@ class TestSettingsDAILYREPORTMAXITEMS:
             result = settings_module.get_daily_report_max_items()
             assert result == 200, f"Expected 200, got {result}"
 
-    def test_daily_report_max_items_still_rejects_over_200(self):
-        """DAILY_REPORT_MAX_ITEMS > 200 should fall back to default."""
+    def test_daily_report_max_items_accepts_values_up_to_2000(self):
+        """DAILY_REPORT_MAX_ITEMS up to 2000 should be accepted without fallback."""
         from app.application.radar.settings import get_daily_report_max_items
         from unittest.mock import patch
 
@@ -167,17 +167,17 @@ class TestSettingsDAILYREPORTMAXITEMS:
             importlib.reload(settings_module)
 
             result = settings_module.get_daily_report_max_items()
-            # Should fall back to default (50) because 500 > 200
-            assert result == 50, f"Expected fallback to 50, got {result}"
+            # 500 is within the valid range [1, 2000], so it should be accepted
+            assert result == 500, f"Expected 500, got {result}"
 
-    def test_maximum_in_source_code_is_200(self):
-        """The function's _env_int call should specify maximum=200."""
+    def test_maximum_in_source_code_is_2000(self):
+        """The function's _env_int call should specify maximum=2000."""
         import app.application.radar.settings as settings_module
         source = inspect.getsource(settings_module.get_daily_report_max_items)
 
-        # Should have maximum=200, not maximum=50
-        assert "maximum=200" in source, \
-            "get_daily_report_max_items should specify maximum=200 in _env_int call"
+        # Should have maximum=2000
+        assert "maximum=2000" in source, \
+            "get_daily_report_max_items should specify maximum=2000 in _env_int call"
 
 
 class TestTodaySummaryPanelUsesDailyDateLabel:
