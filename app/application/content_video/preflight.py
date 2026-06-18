@@ -150,13 +150,18 @@ def _check_tts() -> ContentVideoPreflightItem:
     Validation mirrors MiMoTTSSettings.from_env() to catch config errors
     before a real generation attempt.
     """
-    dev_fake = os.getenv("DEV_FAKE_TTS", "").strip().lower() == "true"
-    if dev_fake:
+    from app.application.content_video.audio_renderer import get_content_video_tts_mode
+
+    tts_mode = get_content_video_tts_mode()
+    if tts_mode == "fake":
         return ContentVideoPreflightItem(
             name="tts",
             ok=True,
-            message="Using DEV_FAKE_TTS for local testing",
-            detail="DEV_FAKE_TTS=true",
+            message="Using fake TTS for local testing",
+            detail=(
+                "CONTENT_VIDEO_TTS_MODE=fake "
+                "(legacy DEV_FAKE_TTS=true is also supported)"
+            ),
         )
     # Validate real TTS config the same way MiMoTTSSettings.from_env() does
     try:

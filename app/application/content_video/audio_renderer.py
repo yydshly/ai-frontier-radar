@@ -16,6 +16,16 @@ import tempfile
 from pathlib import Path
 
 
+def get_content_video_tts_mode() -> str:
+    """Return the configured TTS mode: ``real`` or ``fake``."""
+    configured = os.getenv("CONTENT_VIDEO_TTS_MODE", "").strip().lower()
+    if configured in {"real", "fake"}:
+        return configured
+    if os.getenv("DEV_FAKE_TTS", "").strip().lower() == "true":
+        return "fake"
+    return "real"
+
+
 def _make_silent_wav(duration_seconds: float = 1.0, sample_rate: int = 16000) -> bytes:
     """Generate a valid silent WAV file in memory.
 
@@ -179,7 +189,7 @@ def make_dev_tts_provider() -> TTSProvider:
     Returns FakeTTSProvider if DEV_FAKE_TTS=true, otherwise raises
     TTSProviderError indicating no TTS is configured.
     """
-    if os.getenv("DEV_FAKE_TTS", "").strip().lower() == "true":
+    if get_content_video_tts_mode() == "fake":
         return FakeTTSProvider()
     raise TTSProviderError(
         "TTS provider is not configured. "

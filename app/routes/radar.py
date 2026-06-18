@@ -2108,11 +2108,14 @@ def _resolve_share_tts_provider():
     - DEV_FAKE_TTS=true → FakeTTSProvider (dev only)
     - Otherwise → real MiMo TTS; if not configured → raise TTSProviderError
     """
-    import os
     from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSError
-    from app.application.content_video.audio_renderer import FakeTTSProvider, TTSProviderError
+    from app.application.content_video.audio_renderer import (
+        FakeTTSProvider,
+        TTSProviderError,
+        get_content_video_tts_mode,
+    )
 
-    if os.getenv("DEV_FAKE_TTS", "").strip().lower() == "true":
+    if get_content_video_tts_mode() == "fake":
         return FakeTTSProvider()
     try:
         client = MiMoTTSClient()

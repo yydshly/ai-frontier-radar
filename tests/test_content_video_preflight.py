@@ -109,7 +109,11 @@ class TestPreflightTTS:
 
     def test_dev_fake_tts_passes(self):
         """DEV_FAKE_TTS=true → TTS preflight passes."""
-        with patch.dict("os.environ", {"DEV_FAKE_TTS": "true"}, clear=False):
+        with patch.dict(
+            "os.environ",
+            {"CONTENT_VIDEO_TTS_MODE": "", "DEV_FAKE_TTS": "true"},
+            clear=False,
+        ):
             from app.application.content_video.preflight import _check_tts
             item = _check_tts()
             assert item.ok is True

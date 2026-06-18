@@ -41,3 +41,14 @@ def test_hash_changes_with_video_engine_version():
     ):
         changed = compute_input_hash(request)
     assert changed != original
+
+
+def test_hash_changes_between_fake_and_real_tts(monkeypatch):
+    request = _request()
+    monkeypatch.setenv("CONTENT_VIDEO_TTS_MODE", "fake")
+    fake_hash = compute_input_hash(request)
+    monkeypatch.setenv("CONTENT_VIDEO_TTS_MODE", "real")
+    monkeypatch.setenv("MIMO_TTS_MODEL", "mimo-v2.5-tts")
+    monkeypatch.setenv("MIMO_TTS_VOICE", "冰糖")
+    real_hash = compute_input_hash(request)
+    assert real_hash != fake_hash

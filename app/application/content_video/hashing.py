@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from typing import Any
 
 from app.application.content_video.models import VideoSourceSnapshot, VideoGenerationRequest
+from app.application.content_video.audio_renderer import get_content_video_tts_mode
 
 # Bump this whenever the rendering / scene / audio algorithm changes meaningfully.
 # Old hashes will still resolve to their existing output; new inputs get a new hash.
@@ -48,6 +50,9 @@ def compute_input_hash(request: VideoGenerationRequest) -> str:
         "snapshot": snapshot.to_dict(),
         "template_id": request.template_id,
         "voice_id": request.voice_id,
+        "tts_mode": get_content_video_tts_mode(),
+        "tts_model": os.getenv("MIMO_TTS_MODEL", "").strip(),
+        "tts_voice": os.getenv("MIMO_TTS_VOICE", "").strip(),
         "bgm_id": request.bgm_id,
         "output_size": request.output_size,
         "video_engine_version": VIDEO_ENGINE_VERSION,

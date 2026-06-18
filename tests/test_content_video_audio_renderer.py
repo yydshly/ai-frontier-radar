@@ -7,6 +7,7 @@ from app.application.content_video.audio_renderer import (
     _make_silent_wav,
     estimate_fake_tts_duration,
     FakeTTSProvider,
+    get_content_video_tts_mode,
     TTSProviderError,
 )
 
@@ -56,6 +57,18 @@ def test_fake_tts_provider_uses_estimated_duration():
     data_size = struct.unpack("<I", wav[data_start + 4:data_start + 8])[0]
     duration = data_size / (16000 * 2)
     assert duration == pytest.approx(estimate_fake_tts_duration(text), abs=0.02)
+
+
+def test_explicit_real_tts_mode_overrides_legacy_fake_flag(monkeypatch):
+    monkeypatch.setenv("CONTENT_VIDEO_TTS_MODE", "real")
+    monkeypatch.setenv("DEV_FAKE_TTS", "true")
+    assert get_content_video_tts_mode() == "real"
+
+
+def test_explicit_fake_tts_mode(monkeypatch):
+    monkeypatch.setenv("CONTENT_VIDEO_TTS_MODE", "fake")
+    monkeypatch.delenv("DEV_FAKE_TTS", raising=False)
+    assert get_content_video_tts_mode() == "fake"
 
     def test_stereo_params_rejected_or_adjusted(self):
         """The function uses mono 16-bit PCM."""
