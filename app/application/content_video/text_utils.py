@@ -68,7 +68,7 @@ def is_fragment_line(text: str) -> bool:
 # Strong sentence terminators
 _TERMINATORS = "。！？!?；;\n"
 # Weaker separators (clause boundary)
-_SOFT_SEPARATORS = "，,、：: "
+_SOFT_SEPARATORS = "，,、：:"
 
 
 def split_chinese_sentences(text: str) -> list[str]:
@@ -170,12 +170,21 @@ def split_bullet_to_pages(
 
     if summary:
         pool.extend(split_chinese_sentences(summary))
-    if not pool and key_points:
+    if key_points:
         for kp in key_points:
             if kp:
                 pool.extend(split_chinese_sentences(kp))
-    if not pool and why_it_matters:
+    if why_it_matters:
         pool.extend(split_chinese_sentences(why_it_matters))
+
+    deduplicated: list[str] = []
+    seen: set[str] = set()
+    for sentence in pool:
+        normalized = sentence.strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            deduplicated.append(sentence)
+    pool = deduplicated
 
     if not pool:
         return []
@@ -280,9 +289,9 @@ _PREFIXES_TO_STRIP = (
 def to_video_signal_title(title: str, max_chars: int = 18) -> str:
     """Convert a section title into a short video card title.
 
-    Strips common report-style prefixes and caps length.  If truncation
-    is required, the result ends with '…' (this is the one allowed case
-    because a long title can be re-displayed in continuation scenes).
+    Strips common report-style prefixes and shortens at semantic boundaries.
+    The result never uses an ellipsis; the complete title remains available
+    in scene metadata and narration.
     """
     if not title:
         return ""
@@ -298,7 +307,46 @@ def to_video_signal_title(title: str, max_chars: int = 18) -> str:
     title = title.rstrip("，。、；：")
 
     if len(title) > max_chars:
-        return title[: max_chars - 1] + "…"
+        entity = re.match(r"^([A-Za-z][A-Za-z0-9./+_-]*(?:\s+[A-Za-z0-9./+_-]+){0,3})", title)
+        metric = re.search(r"(\d+(?:\.\d+)?\s*(?:亿|万亿)?参数)", title)
+        model = re.search(r"(MoE|Mamba-Transformer|混合专家|线性注意力|多语言|安全基准)", title, re.I)
+        parts = []
+        if entity:
+            entity_text = entity.group(1).strip()
+            if len(entity_text) > 12:
+                entity_text = entity_text.split()[0]
+            parts.append(entity_text)
+        if metric:
+            parts.append(metric.group(1).replace(" ", ""))
+        if model:
+            parts.append(model.group(1))
+        semantic = "：".join(parts[:1]) + (
+            " " + " ".join(parts[1:]) if len(parts) > 1 else ""
+        )
+        if semantic and len(semantic) <= max_chars + 12:
+            return semantic
+
+        clauses = [
+            part.strip()
+            for part in re.split(r"[，。；：!?！？]", title)
+            if part.strip()
+        ]
+        for clause in clauses:
+            if 4 <= len(clause) <= max_chars:
+                return clause
+
+        first_clause = clauses[0] if clauses else title
+        words = first_clause.split()
+        if len(words) > 1:
+            kept: list[str] = []
+            for word in words:
+                candidate = " ".join([*kept, word])
+                if kept and len(candidate) > max_chars:
+                    break
+                kept.append(word)
+            if kept:
+                return " ".join(kept)
+        return first_clause
     return title
 
 

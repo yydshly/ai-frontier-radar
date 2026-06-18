@@ -332,6 +332,18 @@ class VideoStorage:
         with open(self.metadata_path, encoding="utf-8") as f:
             return json.load(f)
 
+    def clear_generated_outputs(self) -> None:
+        """Remove replaceable outputs before a forced regeneration."""
+        for path in (
+            self.output_mp4_path,
+            self.poster_path,
+            self.metadata_path,
+            self.remotion_visual_path,
+            self.remotion_props_path,
+            self.narration_audio_path,
+        ):
+            path.unlink(missing_ok=True)
+
     def update_status_extra(
         self,
         scene_count: int | None = None,

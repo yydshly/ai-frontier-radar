@@ -306,6 +306,50 @@ class TestLockReleaseOnFailure:
         # Verify release_lock was called on the storage instance
         mock_storage_instance.release_lock.assert_called_once()
 
+    def test_force_regeneration_clears_replaceable_outputs(self):
+        from app.routes.radar import _start_video_generation
+        from app.application.content_video.models import VideoSourceSnapshot
+
+        snapshot = VideoSourceSnapshot(
+            source_key="radar_2026-06-18",
+            title="AI 前沿雷达",
+            subtitle="今日要闻",
+            date_label="2026-06-18",
+            summary="概述",
+            sections=[],
+        )
+        with patch(
+            "app.application.radar.daily_report_store.load_final_daily_report",
+            return_value={"title": "Report"},
+        ):
+            with patch(
+                "app.routes.radar._build_video_source_from_share",
+                return_value=snapshot,
+            ):
+                with patch(
+                    "app.application.content_video.service.get_existing_video_status",
+                    return_value=MagicMock(),
+                ):
+                    with patch(
+                        "app.application.content_video.storage.video_storage_for"
+                    ) as mock_storage:
+                        storage = MagicMock()
+                        storage.acquire_lock.return_value = True
+                        mock_storage.return_value = storage
+                        with patch(
+                            "app.application.content_video.preflight.run_preflight"
+                        ) as preflight:
+                            preflight.return_value.ok = False
+                            preflight.return_value.items = []
+                            _start_video_generation(
+                                MagicMock(),
+                                "2026-06-18",
+                                force=True,
+                                background_tasks=MagicMock(),
+                            )
+
+        storage.clear_generated_outputs.assert_called_once_with()
+
     def test_tts_failure_releases_lock(self):
         """TTS eager resolve failure should release the lock before returning."""
         from app.routes.radar import _start_video_generation

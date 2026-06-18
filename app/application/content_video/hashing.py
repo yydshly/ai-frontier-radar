@@ -17,7 +17,8 @@ from app.application.content_video.models import VideoSourceSnapshot, VideoGener
 
 # Bump this whenever the rendering / scene / audio algorithm changes meaningfully.
 # Old hashes will still resolve to their existing output; new inputs get a new hash.
-VIDEO_ENGINE_VERSION = "content_video_v3_remotion_report"
+VIDEO_ENGINE_VERSION = "content_video_v4_full_report"
+STORYBOARD_VERSION = "full_report_storyboard_v4"
 
 
 def _stable_dict(obj: Any) -> Any:
@@ -50,6 +51,7 @@ def compute_input_hash(request: VideoGenerationRequest) -> str:
         "bgm_id": request.bgm_id,
         "output_size": request.output_size,
         "video_engine_version": VIDEO_ENGINE_VERSION,
+        "storyboard_version": STORYBOARD_VERSION,
     }
 
     normalized = _stable_dict(payload)

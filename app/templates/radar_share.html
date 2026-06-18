@@ -448,11 +448,23 @@ function cvStatusPath() {
 function cvGeneratePath() {
     return '/radar/share/' + SHARE_DATE + '/video/generate';
 }
-function cvDownloadPath(hash) {
-    return '/radar/share/' + SHARE_DATE + '/video/download?input_hash=' + encodeURIComponent(hash);
+function cvDownloadPath(hash, version) {
+    var url = '/radar/share/' + SHARE_DATE + '/video/download?input_hash=' + encodeURIComponent(hash);
+    if (version) url += '&v=' + encodeURIComponent(version);
+    return url;
 }
-function cvPosterPath(hash) {
-    return '/radar/share/' + SHARE_DATE + '/video/poster?input_hash=' + encodeURIComponent(hash);
+function cvPosterPath(hash, version) {
+    var url = '/radar/share/' + SHARE_DATE + '/video/poster?input_hash=' + encodeURIComponent(hash);
+    if (version) url += '&v=' + encodeURIComponent(version);
+    return url;
+}
+function cvEscape(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function openCoreVideoPanel() {
@@ -511,8 +523,9 @@ function cvShowInOverlay(data, inputHash) {
 
     if (status === 'success' || status === 'existing') {
         tip.textContent = '核心报告视频 · 生成成功';
-        var videoUrl = cvDownloadPath(inputHash);
-        var posterUrl = cvPosterPath(inputHash);
+        var cacheVersion = data.updated_at || data.job_id || Date.now();
+        var videoUrl = cvDownloadPath(inputHash, cacheVersion);
+        var posterUrl = cvPosterPath(inputHash, cacheVersion);
 
         // Build video info string
         var infoParts = [];
@@ -527,6 +540,21 @@ function cvShowInOverlay(data, inputHash) {
             var mb = (data.file_size_bytes / (1024 * 1024)).toFixed(1);
             infoParts.push(mb + ' MB');
         }
+        var debugRows = [
+            ['input_hash', inputHash],
+            ['scene_count', data.scene_count],
+            ['duration', data.duration_seconds ? data.duration_seconds + 's' : ''],
+            ['renderer', data.renderer],
+            ['template', data.template_id],
+            ['engine', data.video_engine_version],
+            ['storyboard', data.storyboard_version],
+            ['tts_mode', data.tts_mode]
+        ].filter(function(row){ return row[1] !== null && row[1] !== undefined && row[1] !== ''; });
+        var debugHtml = '<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.08);font:11px/1.55 monospace;color:#cbd5e1;text-align:left">' +
+            debugRows.map(function(row){
+                return '<div><span style="color:#7dd3fc">' + cvEscape(row[0]) + '</span>: ' + cvEscape(row[1]) + '</div>';
+            }).join('') +
+            '</div>';
 
         var ttsWarning = '';
         if (data.tts_mode === 'fake') {
@@ -540,6 +568,7 @@ function cvShowInOverlay(data, inputHash) {
             '</div>' +
             '<div class="core-video-meta">' + infoParts.join(' · ') + '</div>' +
             ttsWarning +
+            debugHtml +
             '</div>';
         actions.innerHTML =
             '<div class="core-video-actions">' +

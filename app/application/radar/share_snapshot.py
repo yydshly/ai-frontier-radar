@@ -105,8 +105,20 @@ def build_today_share_snapshot(
             )
         )
 
-    # Takeaways: first 3 highlights as key takeaways
-    takeaways = [h.summary for h in highlights[:3] if h.summary]
+    raw_takeaways = []
+    if report:
+        raw_takeaways = (
+            report.get("takeaways")
+            or report.get("supporting_notes")
+            or []
+        )
+    takeaways = [
+        str(item).strip()
+        for item in raw_takeaways
+        if str(item).strip()
+    ]
+    if not takeaways:
+        takeaways = [h.summary for h in highlights if h.summary]
 
     share_key = f"radar_{date_label}" if date_label else "radar_today"
 

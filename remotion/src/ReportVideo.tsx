@@ -285,7 +285,7 @@ const ClosingExtras: React.FC<{
         }}
       >
         {!qrUrl ? (
-          <span>扫码查看完整报告</span>
+          <span>{shareUrl ? "完整报告链接见右侧" : "完整报告入口暂不可用"}</span>
         ) : null}
       </div>
       <div
@@ -335,11 +335,10 @@ const ClosingExtras: React.FC<{
 const SceneBody: React.FC<{
   scene: ReportScene;
   reportTitle: string;
-  subtitle: string;
   dateLabel: string;
   accent: string;
   highlight: string;
-}> = ({scene, reportTitle, subtitle, dateLabel, accent, highlight}) => {
+}> = ({scene, reportTitle, dateLabel, accent, highlight}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const enter = spring({
@@ -379,8 +378,8 @@ const SceneBody: React.FC<{
   const displayTitle = isOpening ? reportTitle : scene.title;
   const titleFontSize = SCENE_TITLE_SIZE[scene.type] ?? 56;
   const titleFontSizeAdjusted = Math.max(
-    32,
-    titleFontSize - Math.max(0, Array.from(displayTitle).length - 18) * 2
+    24,
+    titleFontSize - Math.max(0, Array.from(displayTitle).length - 18) * 1.5
   );
 
   return (
@@ -422,19 +421,6 @@ const SceneBody: React.FC<{
         >
           {displayTitle}
         </div>
-        {isOpening && subtitle ? (
-          <div
-            style={{
-              maxWidth: 860,
-              fontSize: 30,
-              lineHeight: 1.5,
-              color: "#b9c8dc",
-              marginBottom: 16
-            }}
-          >
-            {subtitle}
-          </div>
-        ) : null}
         <div
           style={{
             width: 116,
@@ -479,7 +465,6 @@ const SceneBody: React.FC<{
 
 export const ReportVideo: React.FC<ReportVideoProps> = ({
   title,
-  subtitle,
   dateLabel,
   shareUrl,
   qrCodeDataUrl,
@@ -513,7 +498,6 @@ export const ReportVideo: React.FC<ReportVideoProps> = ({
                   : null
               }}
               reportTitle={title}
-              subtitle={subtitle}
               dateLabel={dateLabel}
               accent={style.accentColor}
               highlight={style.highlightColor}

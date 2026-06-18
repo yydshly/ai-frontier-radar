@@ -144,6 +144,12 @@ def generate_video(
             if isinstance(meta, dict)
             else None
         )
+        if share_url and not qr_code_data_url:
+            try:
+                from app.application.content_video.qr import build_qr_code_data_url
+                qr_code_data_url = build_qr_code_data_url(share_url)
+            except Exception as exc:
+                logger.warning("Could not build share-video QR code: %s", exc)
 
         scenes = build_storyboard(
             snapshot,
@@ -188,14 +194,6 @@ def generate_video(
                     build_report_props,
                     render_report_video,
                 )
-
-                # Pull share URL / QR code (if any) from the snapshot metadata.
-                share_url = snapshot.source_url
-                qr_code_data_url = None
-                meta = snapshot.metadata or {}
-                if isinstance(meta, dict):
-                    share_url = meta.get("share_url") or share_url
-                    qr_code_data_url = meta.get("qr_code_data_url") or qr_code_data_url
 
                 props = build_report_props(
                     scenes,
@@ -274,12 +272,16 @@ def generate_video(
         tts_mode = "fake" if isinstance(tts_provider, FakeTTSProvider) else "real"
 
         # Write metadata.json
-        from app.application.content_video.hashing import VIDEO_ENGINE_VERSION
+        from app.application.content_video.hashing import (
+            STORYBOARD_VERSION,
+            VIDEO_ENGINE_VERSION,
+        )
         from datetime import datetime, timezone
         metadata_payload = {
             "source_key": source_key,
             "input_hash": input_hash,
             "video_engine_version": VIDEO_ENGINE_VERSION,
+            "storyboard_version": STORYBOARD_VERSION,
             "template_id": request.template_id,
             "output_size": request.output_size,
             "scene_count": scene_count,

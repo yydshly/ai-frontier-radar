@@ -5,6 +5,7 @@ import struct
 import pytest
 from app.application.content_video.audio_renderer import (
     _make_silent_wav,
+    estimate_fake_tts_duration,
     FakeTTSProvider,
     TTSProviderError,
 )
@@ -36,6 +37,25 @@ class TestMakeSilentWav:
         data_size = struct.unpack("<I", wav[data_start + 4:data_start + 8])[0]
         # 16-bit mono = 2 bytes per sample
         assert data_size == 16000 * 2  # 32000 bytes = 1 second
+
+
+def test_fake_tts_duration_scales_with_text_length():
+    short = estimate_fake_tts_duration("短句")
+    medium = estimate_fake_tts_duration("这是一段用于人工验收视频节奏的中文播报文本。" * 2)
+    long = estimate_fake_tts_duration("长文本" * 100)
+
+    assert short == 2.0
+    assert medium > short
+    assert long == 10.0
+
+
+def test_fake_tts_provider_uses_estimated_duration():
+    text = "人工验收需要足够时间阅读画面内容。" * 3
+    wav = FakeTTSProvider().synthesize(text)
+    data_start = wav.find(b"data")
+    data_size = struct.unpack("<I", wav[data_start + 4:data_start + 8])[0]
+    duration = data_size / (16000 * 2)
+    assert duration == pytest.approx(estimate_fake_tts_duration(text), abs=0.02)
 
     def test_stereo_params_rejected_or_adjusted(self):
         """The function uses mono 16-bit PCM."""

@@ -150,3 +150,28 @@ def test_types_include_shareurl_and_qrcode():
     )
     assert "shareUrl" in types_ts
     assert "qrCodeDataUrl" in types_ts
+
+
+def test_share_page_displays_video_generation_metadata_and_cache_buster():
+    project_root = Path(__file__).resolve().parents[1]
+    template = (project_root / "app" / "templates" / "radar_share.html").read_text(
+        encoding="utf-8"
+    )
+    for field in (
+        "input_hash",
+        "scene_count",
+        "renderer",
+        "template_id",
+        "video_engine_version",
+        "storyboard_version",
+    ):
+        assert field in template
+    assert "data.updated_at || data.job_id" in template
+
+
+def test_opening_does_not_render_overview_subtitle():
+    project_root = Path(__file__).resolve().parents[1]
+    report_tsx = (project_root / "remotion" / "src" / "ReportVideo.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "isOpening && subtitle" not in report_tsx

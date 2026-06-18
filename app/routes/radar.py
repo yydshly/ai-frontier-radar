@@ -2038,14 +2038,67 @@ async def get_share_video_preflight(request: Request, date_label: str | None = N
 
 
 
-def _build_video_source_from_share(db, date_label: str):
+def _share_video_url(request: Request, date_label: str) -> str:
+    """Build the public share-page URL embedded in the video and QR code."""
+    return f"{str(request.base_url).rstrip('/')}/radar/share/{date_label}"
+
+
+def load_final_daily_report_date_for_video() -> str:
+    """Resolve the same latest finalized date used by video generation."""
+    from app.application.radar.daily_report_store import list_final_daily_report_dates
+    from app.application.radar.daily_scope import latest_completed_date_label
+
+    final_dates = list_final_daily_report_dates()
+    return final_dates[0] if final_dates else latest_completed_date_label()
+
+
+def _build_video_source_from_share(db, date_label: str, share_url: str | None = None):
     """Build VideoSourceSnapshot from the share page snapshot for a date."""
+    from dataclasses import replace
     from app.application.radar.share_snapshot import build_today_share_snapshot
     from app.application.radar.share_video_adapter import build_video_source_snapshot_from_share_report
 
     snapshot = build_today_share_snapshot(db, date_label)
     video_snapshot = build_video_source_snapshot_from_share_report(snapshot)
+    if share_url:
+        metadata = dict(video_snapshot.metadata or {})
+        metadata["share_url"] = share_url
+        video_snapshot = replace(
+            video_snapshot,
+            source_url=share_url,
+            metadata=metadata,
+        )
     return video_snapshot
+
+
+def _content_video_status_payload(storage, status: dict) -> dict:
+    """Merge status.json and metadata.json into a browser-facing payload."""
+    raw_metadata = storage.read_metadata()
+    metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+    fields = (
+        "scene_count",
+        "duration_seconds",
+        "file_size_bytes",
+        "tts_mode",
+        "renderer",
+        "template_id",
+        "video_engine_version",
+        "storyboard_version",
+        "created_at",
+    )
+    payload = {
+        "status": status.get("status"),
+        "current_step": status.get("current_step"),
+        "video_path": status.get("video_path"),
+        "poster_path": status.get("poster_path"),
+        "error": status.get("error"),
+        "input_hash": status.get("input_hash"),
+        "job_id": status.get("job_id"),
+        "updated_at": status.get("updated_at"),
+    }
+    for field in fields:
+        payload[field] = metadata.get(field, status.get(field))
+    return payload
 
 
 def _resolve_share_tts_provider():
@@ -2116,7 +2169,14 @@ def _run_content_video_job(request, job_id, input_hash):
         storage.release_lock(job_id)
 
 
-def _start_video_generation(db, date_label, force, background_tasks):
+def _start_video_generation(
+    db,
+    date_label,
+    force,
+    background_tasks,
+    *,
+    share_url: str | None = None,
+):
     """Shared logic for starting a video generation job (used by today and history routes).
 
     Returns (job_id, input_hash, immediate_response_dict).
@@ -2164,7 +2224,14 @@ def _start_video_generation(db, date_label, force, background_tasks):
             "error": error_msg,
         }
 
-    video_snapshot = _build_video_source_from_share(db, resolved_date_label)
+    if share_url:
+        video_snapshot = _build_video_source_from_share(
+            db,
+            resolved_date_label,
+            share_url=share_url,
+        )
+    else:
+        video_snapshot = _build_video_source_from_share(db, resolved_date_label)
     request = VideoGenerationRequest(
         source_snapshot=video_snapshot,
         template_id="remotion_report_v1",
@@ -2177,7 +2244,10 @@ def _start_video_generation(db, date_label, force, background_tasks):
     # Check for existing video
     existing = get_existing_video_status(video_snapshot.source_key, input_hash)
     if existing is not None and not force:
-        return existing.job_id, input_hash, {
+        raw_status = storage.read_status()
+        status = raw_status if isinstance(raw_status, dict) else {}
+        payload = _content_video_status_payload(storage, status)
+        payload.update({
             "job_id": existing.job_id,
             "input_hash": input_hash,
             "status": "existing",
@@ -2185,7 +2255,8 @@ def _start_video_generation(db, date_label, force, background_tasks):
             "video_path": existing.video_path,
             "poster_path": existing.poster_path,
             "error": None,
-        }
+        })
+        return existing.job_id, input_hash, payload
 
     # Generate job_id early so we can attempt lock acquisition
     job_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -2202,6 +2273,9 @@ def _start_video_generation(db, date_label, force, background_tasks):
             "poster_path": None,
             "error": None,
         }
+
+    if force:
+        storage.clear_generated_outputs()
 
     # Run full preflight — fail fast before starting background task
     from app.application.content_video.preflight import run_preflight
@@ -2278,6 +2352,7 @@ def _start_video_generation(db, date_label, force, background_tasks):
 
 @router.post("/share/today/video/generate")
 def generate_share_today_video(
+    request: Request,
     background_tasks: BackgroundTasks,
     force: bool = Query(False),
 ):
@@ -2289,7 +2364,14 @@ def generate_share_today_video(
     db = next(get_db())
     try:
         job_id, input_hash, payload = _start_video_generation(
-            db, None, force, background_tasks
+            db,
+            None,
+            force,
+            background_tasks,
+            share_url=_share_video_url(
+                request,
+                load_final_daily_report_date_for_video(),
+            ),
         )
         return payload
     finally:
@@ -2297,7 +2379,10 @@ def generate_share_today_video(
 
 
 @router.get("/share/today/video/status")
-def get_share_today_video_status(input_hash: str | None = Query(None)):
+def get_share_today_video_status(
+    request: Request,
+    input_hash: str | None = Query(None),
+):
     """Poll the video generation status for today's share page."""
     from app.application.content_video.models import VideoGenerationRequest
     from app.application.content_video.hashing import compute_input_hash
@@ -2305,7 +2390,12 @@ def get_share_today_video_status(input_hash: str | None = Query(None)):
 
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, None)
+        resolved_date = load_final_daily_report_date_for_video()
+        video_snapshot = _build_video_source_from_share(
+            db,
+            resolved_date,
+            share_url=_share_video_url(request, resolved_date),
+        )
         if input_hash is None:
             request = VideoGenerationRequest(
                 source_snapshot=video_snapshot,
@@ -2316,25 +2406,16 @@ def get_share_today_video_status(input_hash: str | None = Query(None)):
         status = storage.read_status()
         if status is None:
             return {"status": "not_found", "input_hash": input_hash}
-        return {
-            "status": status.get("status"),
-            "current_step": status.get("current_step"),
-            "video_path": status.get("video_path"),
-            "poster_path": status.get("poster_path"),
-            "error": status.get("error"),
-            "input_hash": status.get("input_hash"),
-            "job_id": status.get("job_id"),
-            "scene_count": status.get("scene_count"),
-            "duration_seconds": status.get("duration_seconds"),
-            "file_size_bytes": status.get("file_size_bytes"),
-            "tts_mode": status.get("tts_mode"),
-        }
+        return _content_video_status_payload(storage, status)
     finally:
         db.close()
 
 
 @router.get("/share/today/video/download")
-def download_share_today_video(input_hash: str | None = Query(None)):
+def download_share_today_video(
+    request: Request,
+    input_hash: str | None = Query(None),
+):
     """Download the generated MP4 for today's share page."""
     from app.application.content_video.models import VideoGenerationRequest
     from app.application.content_video.service import get_existing_video_status
@@ -2342,7 +2423,12 @@ def download_share_today_video(input_hash: str | None = Query(None)):
 
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, None)
+        resolved_date = load_final_daily_report_date_for_video()
+        video_snapshot = _build_video_source_from_share(
+            db,
+            resolved_date,
+            share_url=_share_video_url(request, resolved_date),
+        )
         if input_hash is None:
             request = VideoGenerationRequest(
                 source_snapshot=video_snapshot,
@@ -2362,13 +2448,17 @@ def download_share_today_video(input_hash: str | None = Query(None)):
             media_type="video/mp4",
             filename=filename,
             content_disposition_type="attachment",
+            headers={"Cache-Control": "no-store, max-age=0"},
         )
     finally:
         db.close()
 
 
 @router.get("/share/today/video/poster")
-def get_share_today_video_poster(input_hash: str | None = Query(None)):
+def get_share_today_video_poster(
+    request: Request,
+    input_hash: str | None = Query(None),
+):
     """Return the poster PNG for today's share video."""
     from app.application.content_video.models import VideoGenerationRequest
     from app.application.content_video.service import get_existing_video_status
@@ -2376,7 +2466,12 @@ def get_share_today_video_poster(input_hash: str | None = Query(None)):
 
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, None)
+        resolved_date = load_final_daily_report_date_for_video()
+        video_snapshot = _build_video_source_from_share(
+            db,
+            resolved_date,
+            share_url=_share_video_url(request, resolved_date),
+        )
         if input_hash is None:
             request = VideoGenerationRequest(
                 source_snapshot=video_snapshot,
@@ -2391,6 +2486,7 @@ def get_share_today_video_poster(input_hash: str | None = Query(None)):
             str(poster_path),
             media_type="image/png",
             content_disposition_type="inline",
+            headers={"Cache-Control": "no-store, max-age=0"},
         )
     finally:
         db.close()
@@ -2466,6 +2562,7 @@ def get_share_today_storyboard_status(input_hash: str | None = Query(None)):
 @router.post("/share/{date_label}/video/generate")
 def generate_share_history_video(
     date_label: str,
+    request: Request,
     background_tasks: BackgroundTasks,
     force: bool = Query(False),
 ):
@@ -2478,7 +2575,11 @@ def generate_share_history_video(
     db = next(get_db())
     try:
         job_id, input_hash, payload = _start_video_generation(
-            db, date_label, force, background_tasks
+            db,
+            date_label,
+            force,
+            background_tasks,
+            share_url=_share_video_url(request, date_label),
         )
         return payload
     finally:
@@ -2486,7 +2587,11 @@ def generate_share_history_video(
 
 
 @router.get("/share/{date_label}/video/status")
-def get_share_history_video_status(date_label: str, input_hash: str | None = Query(None)):
+def get_share_history_video_status(
+    date_label: str,
+    request: Request,
+    input_hash: str | None = Query(None),
+):
     """Poll the video generation status for a historical share page."""
     import re as _re
 
@@ -2499,7 +2604,11 @@ def get_share_history_video_status(date_label: str, input_hash: str | None = Que
 
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, date_label)
+        video_snapshot = _build_video_source_from_share(
+            db,
+            date_label,
+            share_url=_share_video_url(request, date_label),
+        )
         if input_hash is None:
             request = VideoGenerationRequest(
                 source_snapshot=video_snapshot,
@@ -2510,25 +2619,17 @@ def get_share_history_video_status(date_label: str, input_hash: str | None = Que
         status = storage.read_status()
         if status is None:
             return {"status": "not_found", "input_hash": input_hash}
-        return {
-            "status": status.get("status"),
-            "current_step": status.get("current_step"),
-            "video_path": status.get("video_path"),
-            "poster_path": status.get("poster_path"),
-            "error": status.get("error"),
-            "input_hash": status.get("input_hash"),
-            "job_id": status.get("job_id"),
-            "scene_count": status.get("scene_count"),
-            "duration_seconds": status.get("duration_seconds"),
-            "file_size_bytes": status.get("file_size_bytes"),
-            "tts_mode": status.get("tts_mode"),
-        }
+        return _content_video_status_payload(storage, status)
     finally:
         db.close()
 
 
 @router.get("/share/{date_label}/video/poster")
-def get_share_history_video_poster(date_label: str, input_hash: str | None = Query(None)):
+def get_share_history_video_poster(
+    date_label: str,
+    request: Request,
+    input_hash: str | None = Query(None),
+):
     """Return the poster PNG for a historical share page."""
     import re as _re
 
@@ -2541,7 +2642,11 @@ def get_share_history_video_poster(date_label: str, input_hash: str | None = Que
 
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, date_label)
+        video_snapshot = _build_video_source_from_share(
+            db,
+            date_label,
+            share_url=_share_video_url(request, date_label),
+        )
         if input_hash is None:
             request = VideoGenerationRequest(
                 source_snapshot=video_snapshot,
@@ -2556,13 +2661,18 @@ def get_share_history_video_poster(date_label: str, input_hash: str | None = Que
             str(poster_path),
             media_type="image/png",
             content_disposition_type="inline",
+            headers={"Cache-Control": "no-store, max-age=0"},
         )
     finally:
         db.close()
 
 
 @router.get("/share/{date_label}/video/download")
-def download_share_history_video(date_label: str, input_hash: str | None = Query(None)):
+def download_share_history_video(
+    date_label: str,
+    request: Request,
+    input_hash: str | None = Query(None),
+):
     """Download the generated MP4 for a historical share page."""
     import re as _re
 
@@ -2575,7 +2685,11 @@ def download_share_history_video(date_label: str, input_hash: str | None = Query
 
     db = next(get_db())
     try:
-        video_snapshot = _build_video_source_from_share(db, date_label)
+        video_snapshot = _build_video_source_from_share(
+            db,
+            date_label,
+            share_url=_share_video_url(request, date_label),
+        )
         if input_hash is None:
             request = VideoGenerationRequest(
                 source_snapshot=video_snapshot,
@@ -2594,6 +2708,7 @@ def download_share_history_video(date_label: str, input_hash: str | None = Query
             media_type="video/mp4",
             filename=filename,
             content_disposition_type="attachment",
+            headers={"Cache-Control": "no-store, max-age=0"},
         )
     finally:
         db.close()

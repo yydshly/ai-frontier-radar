@@ -80,7 +80,23 @@ class FakeTTSProvider(TTSProvider):
     """
 
     def synthesize(self, text: str) -> bytes:
-        return _make_silent_wav(duration_seconds=1.0, sample_rate=16000)
+        return _make_silent_wav(
+            duration_seconds=estimate_fake_tts_duration(text),
+            sample_rate=16000,
+        )
+
+
+def estimate_fake_tts_duration(
+    text: str,
+    *,
+    chars_per_second: float = 4.5,
+    minimum_seconds: float = 2.0,
+    maximum_seconds: float = 10.0,
+) -> float:
+    """Estimate readable silent-audio duration for local visual acceptance."""
+    meaningful_chars = sum(1 for char in (text or "") if not char.isspace())
+    estimated = meaningful_chars / max(1.0, chars_per_second)
+    return round(min(maximum_seconds, max(minimum_seconds, estimated)), 2)
 
 
 def _find_ffmpeg() -> str | None:

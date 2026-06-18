@@ -78,8 +78,6 @@ def _safe_title(title: str, *, max_chars: int = 30) -> str:
         return ""
     cleaned = title.strip()
     cleaned = remove_ellipsis(cleaned)
-    if len(cleaned) > max_chars:
-        cleaned = cleaned[:max_chars]
     return cleaned
 
 
@@ -141,8 +139,6 @@ def _build_opening_scene(
 
     # Use complete sentences; never truncate.
     visual_lines: list[str] = []
-    if title:
-        visual_lines.append(title)
 
     narration_parts: list[str] = [
         f"{brand}，{date}。",
@@ -167,6 +163,7 @@ def _build_opening_scene(
         narration_parts.append("以下是核心内容。")
     else:
         narration_parts.append("以下是核心内容。")
+    visual_lines.append("接下来按顺序展开")
 
     return VideoScene(
         scene_id=f"scene_{scene_index:02d}",
@@ -261,16 +258,14 @@ def _build_core_insight_scenes(
         sections_covered += 1
         index_label = f"{section_idx:02d}"
 
-        short_title = to_video_signal_title(section.title, max_chars=22)
-        # Keep the FULL title for the first scene; subsequent pages show
-        # the same title with a part marker.
+        short_title = to_video_signal_title(section.title, max_chars=24)
         full_title = _safe_title(section.title, max_chars=60)
 
         for page_idx, page in enumerate(pages):
             part = page_idx + 1
             kicker = _make_continuation_kicker(index_label, part)
 
-            scene_title = full_title if part == 1 else f"{full_title}（续）"
+            scene_title = short_title if part == 1 else f"{short_title}（续）"
 
             # Compose narration from this page's lines.
             if part == 1:
@@ -295,6 +290,7 @@ def _build_core_insight_scenes(
                         "kicker": kicker,
                         "section_title": section.title,
                         "short_title": short_title,
+                        "full_title": full_title,
                     },
                 )
             )
@@ -381,8 +377,12 @@ def _build_closing_scene(
         visual_lines.append(f"本期共播报 {sections_covered} 个核心观察")
         narration_parts.append(f"以上是本期 {sections_covered} 个核心观察。")
 
-    visual_lines.append("扫码查看完整报告")
-    narration_parts.append("扫描屏幕上的二维码查看完整报告。")
+    if qr_code_data_url:
+        visual_lines.append("扫码查看完整报告")
+        narration_parts.append("扫描屏幕上的二维码查看完整报告。")
+    else:
+        visual_lines.append("通过下方链接查看完整报告")
+        narration_parts.append("通过屏幕上的链接查看完整报告。")
     if share_url:
         visual_lines.append(f"或访问：{share_url}")
         narration_parts.append(f"或访问链接：{share_url}。")
@@ -438,8 +438,6 @@ def build_storyboard(
     of total budget pressure.  Overview and supporting notes can be
     trimmed when the budget is exhausted.
     """
-    max_total = max(get_max_scenes(), len(snapshot.sections) + 6)
-
     scenes: list[VideoScene] = []
     scene_index = 1
 
@@ -447,29 +445,24 @@ def build_storyboard(
     scenes.append(_build_opening_scene(snapshot, scene_index))
     scene_index += 1
 
-    # ── 3. Core sections (PRIORITY — before overview/supporting) ─────────
-    core_scenes, scene_index, sections_covered = _build_core_insight_scenes(
-        snapshot,
-        start_index=scene_index,
-        max_total_scenes=max_total - 2,  # reserve 1 for closing + 1 for overview fallback
-    )
-    scenes.extend(core_scenes)
-
-    # ── 2. Overview (best-effort pagination) ─────────────────────────────
-    overview_budget = max(2, max_total - scene_index - 2)
+    # ── 2. Overview ──────────────────────────────────────────────────────
     overview_scenes, scene_index = _build_overview_scenes(
         snapshot,
         start_index=scene_index,
-        max_total_scenes=scene_index + overview_budget,
     )
     scenes.extend(overview_scenes)
 
-    # ── 4. Supporting notes (last priority) ──────────────────────────────
-    supporting_budget = max(1, max_total - scene_index - 1)
+    # ── 3. Core sections ─────────────────────────────────────────────────
+    core_scenes, scene_index, sections_covered = _build_core_insight_scenes(
+        snapshot,
+        start_index=scene_index,
+    )
+    scenes.extend(core_scenes)
+
+    # ── 4. Supporting notes ──────────────────────────────────────────────
     supporting_scenes, scene_index = _build_supporting_scenes(
         snapshot,
         start_index=scene_index,
-        max_total_scenes=scene_index + supporting_budget,
     )
     scenes.extend(supporting_scenes)
 

@@ -215,6 +215,18 @@ class TestStoryboardStructure:
         scenes = build_storyboard(snapshot)
         assert scenes[-1].scene_type == "closing"
 
+    def test_overview_precedes_core_sections(self):
+        scenes = build_storyboard(_make_snapshot())
+        overview_index = next(
+            i for i, scene in enumerate(scenes)
+            if scene.scene_type == "overview_paged"
+        )
+        core_index = next(
+            i for i, scene in enumerate(scenes)
+            if scene.scene_type == "core_insight"
+        )
+        assert overview_index < core_index
+
     def test_closing_has_share_url(self):
         snapshot = _make_snapshot()
         scenes = build_storyboard(
@@ -242,6 +254,44 @@ class TestStoryboardStructure:
         assert "7" in opening.narration_text  # 7 sections
         # Should NOT include top-3 chip list as the only content
         assert len(opening.visual_lines) <= 4
+        assert all("AdaMame" not in line for line in opening.visual_lines)
+
+    def test_long_title_uses_semantic_display_title_and_keeps_full_metadata(self):
+        snapshot = dataclasses.replace(
+            _make_snapshot(),
+            sections=[
+                VideoSourceSection(
+                    title=(
+                        "NVIDIA Nemotron 3 Ultra开源5500亿参数MoE模型，"
+                        "推理吞吐量提升约6倍，精度相当。"
+                    ),
+                    summary=(
+                        "NVIDIA Nemotron 3 Ultra开源5500亿参数MoE模型，"
+                        "推理吞吐量提升约6倍，精度相当。"
+                    ),
+                )
+            ],
+        )
+        core = next(
+            scene for scene in build_storyboard(snapshot)
+            if scene.scene_type == "core_insight"
+        )
+        assert "…" not in core.visual_title
+        assert len(core.visual_title) < len(core.metadata["full_title"])
+        assert "5500亿参数" in core.visual_title
+        assert core.metadata["section_title"] in core.narration_text
+
+    def test_all_supporting_notes_are_preserved(self):
+        takeaways = [f"补充信息第{i}条包含完整结论。" for i in range(1, 8)]
+        snapshot = dataclasses.replace(_make_snapshot(), takeaways=takeaways)
+        scenes = build_storyboard(snapshot)
+        supporting_text = " ".join(
+            " ".join(scene.visual_lines)
+            for scene in scenes
+            if scene.scene_type == "supporting_notes"
+        )
+        for takeaway in takeaways:
+            assert takeaway in supporting_text
 
 
 class TestAudioVisualSync:

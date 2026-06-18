@@ -96,6 +96,14 @@ class TestSplitChineseSentences:
         for keyword in ["今日 AI", "AdaMame", "OSGuard", "CoRA", "NVIDIA", "5500"]:
             assert keyword in joined, f"{keyword!r} missing from sentences"
 
+    def test_keeps_latin_model_name_together(self):
+        text = (
+            "NVIDIA Nemotron 3 Ultra开源5500亿参数MoE模型，"
+            "推理吞吐量提升约6倍。"
+        )
+        sentences = split_chinese_sentences(text)
+        assert sentences[0].startswith("NVIDIA Nemotron 3 Ultra")
+
 
 class TestSplitTextToScenePages:
     def test_pagination_respects_lines_per_page(self):
