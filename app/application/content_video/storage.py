@@ -62,6 +62,109 @@ class VideoStorage:
     """Manages read/write access to a single video generation job's artifacts."""
     base_dir: Path
 
+    # ── Lock management ──────────────────────────────────────────────────────
+
+    @property
+    def lock_path(self) -> Path:
+        return self.base_dir / "job.lock"
+
+    def _lock_timeout_seconds(self) -> int:
+        """Return lock timeout in seconds from env var, default 30 minutes."""
+        val = os.getenv("CONTENT_VIDEO_LOCK_TIMEOUT_MINUTES", "").strip()
+        try:
+            return max(1, int(float(val) * 60))
+        except (ValueError, TypeError):
+            return 30 * 60  # 30 minutes default
+
+    def acquire_lock(self, job_id: str) -> bool:
+        """Acquire an exclusive lock for this job directory.
+
+        Returns True if lock was acquired.
+        Returns False if lock exists and has not expired.
+        If the existing lock has expired, it is overwritten.
+        """
+        lock_path = self.lock_path
+        now = datetime.now(timezone.utc)
+        timeout_seconds = self._lock_timeout_seconds()
+
+        if lock_path.exists():
+            try:
+                with open(lock_path, encoding="utf-8") as f:
+                    lock_data = json.load(f)
+                lock_time = datetime.fromisoformat(lock_data["locked_at"])
+                age_seconds = (now - lock_time).total_seconds()
+                if age_seconds < timeout_seconds:
+                    # Lock exists and has not expired — check if same job_id
+                    if lock_data.get("job_id") == job_id:
+                        # Same job, refresh timestamp and proceed
+                        lock_path.write_text(
+                            json.dumps({
+                                "job_id": job_id,
+                                "locked_at": now.isoformat(),
+                            }, ensure_ascii=False),
+                            encoding="utf-8",
+                        )
+                        return True
+                    return False  # Different job holding the lock
+                # Lock expired — proceed to overwrite
+            except (json.JSONDecodeError, OSError):
+                pass  # Corrupt or unreadable lock — overwrite
+
+        # No lock or expired — create new lock
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(
+            json.dumps({
+                "job_id": job_id,
+                "locked_at": now.isoformat(),
+            }, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return True
+
+    def release_lock(self, job_id: str | None = None) -> None:
+        """Release the lock if it is still held by the given job_id.
+
+        If job_id is None, the lock is always released.
+        If the lock is held by a different job_id, it is NOT released.
+        """
+        lock_path = self.lock_path
+        if not lock_path.exists():
+            return
+        try:
+            with open(lock_path, encoding="utf-8") as f:
+                lock_data = json.load(f)
+            # Only release if job_id matches or no job_id given
+            if job_id is None or lock_data.get("job_id") == job_id:
+                lock_path.unlink(missing_ok=True)
+        except (json.JSONDecodeError, OSError):
+            lock_path.unlink(missing_ok=True)
+
+    def get_lock_info(self) -> dict | None:
+        """Return lock info dict if lock exists and is not expired, else None."""
+        lock_path = self.lock_path
+        if not lock_path.exists():
+            return None
+        try:
+            with open(lock_path, encoding="utf-8") as f:
+                lock_data = json.load(f)
+            lock_time = datetime.fromisoformat(lock_data["locked_at"])
+            age_seconds = (datetime.now(timezone.utc) - lock_time).total_seconds()
+            if age_seconds < self._lock_timeout_seconds():
+                return {
+                    "job_id": lock_data.get("job_id"),
+                    "locked_at": lock_data.get("locked_at"),
+                    "age_seconds": age_seconds,
+                    "expired": False,
+                }
+            return {
+                "job_id": lock_data.get("job_id"),
+                "locked_at": lock_data.get("locked_at"),
+                "age_seconds": age_seconds,
+                "expired": True,
+            }
+        except (json.JSONDecodeError, OSError, ValueError, KeyError):
+            return None
+
     @property
     def input_snapshot_path(self) -> Path:
         return self.base_dir / "input_snapshot.json"

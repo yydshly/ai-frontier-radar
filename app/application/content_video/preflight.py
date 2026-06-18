@@ -145,7 +145,11 @@ def _check_cjk_font() -> ContentVideoPreflightItem:
 
 
 def _check_tts() -> ContentVideoPreflightItem:
-    """Check TTS configuration (DEV_FAKE_TTS or real provider)."""
+    """Check TTS configuration (DEV_FAKE_TTS or real MiMo provider).
+
+    Validation mirrors MiMoTTSSettings.from_env() to catch config errors
+    before a real generation attempt.
+    """
     dev_fake = os.getenv("DEV_FAKE_TTS", "").strip().lower() == "true"
     if dev_fake:
         return ContentVideoPreflightItem(
@@ -154,21 +158,23 @@ def _check_tts() -> ContentVideoPreflightItem:
             message="Using DEV_FAKE_TTS for local testing",
             detail="DEV_FAKE_TTS=true",
         )
-    # Check for real TTS provider
-    mimo_key = os.getenv("MIMO_API_KEY", "").strip()
-    if mimo_key:
+    # Validate real TTS config the same way MiMoTTSSettings.from_env() does
+    try:
+        from app.application.radar.mimo_tts import MiMoTTSSettings
+        settings = MiMoTTSSettings.from_env()
         return ContentVideoPreflightItem(
             name="tts",
             ok=True,
-            message="TTS provider configured (MIMO_API_KEY set)",
-            detail="MIMO_API_KEY=***",
+            message=f"TTS provider configured: voice={settings.voice}",
+            detail=f"MIMO_API_KEY=***, voice={settings.voice}",
         )
-    return ContentVideoPreflightItem(
-        name="tts",
-        ok=False,
-        message="TTS provider is not configured",
-        detail=None,
-    )
+    except Exception as exc:
+        return ContentVideoPreflightItem(
+            name="tts",
+            ok=False,
+            message=f"TTS provider not configured: {exc}",
+            detail=None,
+        )
 
 
 def _check_output_dir() -> ContentVideoPreflightItem:
@@ -246,11 +252,15 @@ def run_preflight(*, require_tts: bool = True) -> ContentVideoPreflightResult:
     if require_tts:
         items.append(_check_tts())
 
-    required_names = {"ffmpeg", "ffprobe", "cjk_font", "output_dir"}
+    # Hard requirements: ffmpeg, ffprobe, output_dir, and optionally TTS
+    required_names = {"ffmpeg", "ffprobe", "output_dir"}
     if require_tts:
         required_names.add("tts")
     required_ok = all(item.ok for item in items if item.name in required_names)
+
+    # Renderer: either Remotion is available, OR (Pillow + CJK font) fallback is available
     renderer_ok = remotion.ok or (pillow.ok and cjk_font.ok)
+
     all_ok = required_ok and renderer_ok
     return ContentVideoPreflightResult(ok=all_ok, items=items)
 

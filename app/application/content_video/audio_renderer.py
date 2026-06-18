@@ -10,26 +10,55 @@ video pipeline can still be tested end-to-end without a real TTS key.
 from __future__ import annotations
 
 import os
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
-# Minimal WAV header for a silent audio file (1 second, 16-bit mono 16kHz)
-_SILENT_WAV = (
-    b"RIFF"
-    b"\x24\x00\x00\x00"  # file size - 8
-    b"WAVE"
-    b"fmt "
-    b"\x10\x00\x00\x00"  # chunk size
-    b"\x01\x00"          # PCM
-    b"\x01\x00"          # mono
-    b"\x80\x3e\x00\x00"  # 16000 Hz
-    b"\x00\x7d\x00\x00"  # byte rate
-    b"\x02\x00"          # block align
-    b"\x10\x00"          # 16-bit
-    b"data"
-    b"\x00\x00\x00\x00"  # data size
-)
+
+def _make_silent_wav(duration_seconds: float = 1.0, sample_rate: int = 16000) -> bytes:
+    """Generate a valid silent WAV file in memory.
+
+    Args:
+        duration_seconds: length of silence (default 1.0s)
+        sample_rate: samples per second (default 16000 Hz)
+
+    Returns:
+        bytes representing a valid WAV file with PCM mono 16-bit silence.
+    """
+    num_channels = 1
+    bits_per_sample = 16
+    byte_rate = sample_rate * num_channels * bits_per_sample // 8
+    block_align = num_channels * bits_per_sample // 8
+    num_samples = int(sample_rate * duration_seconds)
+    data_size = num_samples * block_align
+
+    # RIFF header
+    riff = b"RIFF"
+    file_size = 36 + data_size  # total file size - 8
+    wave = b"WAVE"
+
+    # fmt chunk
+    fmt_chunk_id = b"fmt "
+    fmt_chunk_size = 16  # PCM
+    audio_format = 1  # PCM
+    fmt_chunk = struct.pack(
+        "<4sIHHIIHH",
+        fmt_chunk_id,
+        fmt_chunk_size,
+        audio_format,
+        num_channels,
+        sample_rate,
+        byte_rate,
+        block_align,
+        bits_per_sample,
+    )
+
+    # data chunk
+    data_chunk_id = b"data"
+    data_chunk = struct.pack("<4sI", data_chunk_id, data_size) + b"\x00" * data_size
+
+    return riff + struct.pack("<I", file_size) + wave + fmt_chunk + data_chunk
 
 
 class TTSProviderError(RuntimeError):
@@ -51,7 +80,7 @@ class FakeTTSProvider(TTSProvider):
     """
 
     def synthesize(self, text: str) -> bytes:
-        return _SILENT_WAV
+        return _make_silent_wav(duration_seconds=1.0, sample_rate=16000)
 
 
 def _find_ffmpeg() -> str | None:
@@ -69,11 +98,16 @@ def _find_ffmpeg() -> str | None:
 
 
 def _wav_to_mp3(wav_bytes: bytes, output_path: Path) -> None:
-    """Convert WAV bytes to MP3 using ffmpeg. Falls back to saving WAV as .mp3."""
+    """Convert WAV bytes to MP3 using ffmpeg.
+
+    Raises TTSProviderError if ffmpeg is unavailable or conversion fails.
+    """
     ffmpeg = _find_ffmpeg()
     if ffmpeg is None:
-        output_path.write_bytes(wav_bytes)
-        return
+        raise TTSProviderError(
+            "ffmpeg not available — cannot convert audio. "
+            "Please install ffmpeg to enable video generation."
+        )
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
         tmp_wav.write(wav_bytes)
@@ -94,7 +128,10 @@ def _wav_to_mp3(wav_bytes: bytes, output_path: Path) -> None:
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if proc.returncode != 0:
-            output_path.write_bytes(wav_bytes)
+            stderr = (proc.stderr or b"").decode("utf-8", "replace")[-300:]
+            raise TTSProviderError(
+                f"ffmpeg WAV-to-MP3 conversion failed (return code {proc.returncode}): {stderr}"
+            )
     finally:
         tmp_wav_path.unlink(missing_ok=True)
 

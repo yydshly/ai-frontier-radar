@@ -1553,9 +1553,8 @@ async def radar_share_video(
 
     Kept only for backward compatibility.
     New video generation uses POST /share/{date_label}/video/generate
-    (structured-content → 9:16 MP4 via Pillow scenes + TTS).
+    (structured-content → 9:16 MP4 via content_video pipeline).
     """
-    import re as _re
     import re as _re
     import json as _json
     from app.application.radar.share import build_share_view
@@ -2091,11 +2090,12 @@ def _run_content_video_job(request, job_id, input_hash):
     from app.application.content_video.service import generate_video
     from app.application.content_video.storage import video_storage_for
 
+    storage = video_storage_for(request.source_snapshot.source_key, input_hash)
+
     try:
         tts_provider = _resolve_share_tts_provider()
     except TTSProviderError as exc:
         # TTS not configured — write failed status using the known input_hash
-        storage = video_storage_for(request.source_snapshot.source_key, input_hash)
         storage.write_status(
             job_id=job_id,
             input_hash=input_hash,
@@ -2103,6 +2103,7 @@ def _run_content_video_job(request, job_id, input_hash):
             current_step="generating_scene_audio",
             error=str(exc),
         )
+        storage.release_lock(job_id)
         return
 
     try:
@@ -2110,6 +2111,9 @@ def _run_content_video_job(request, job_id, input_hash):
     except Exception:
         # Error is already written to status.json inside generate_video
         pass
+    finally:
+        # Always release lock when done (success or failure)
+        storage.release_lock(job_id)
 
 
 def _start_video_generation(db, date_label, force, background_tasks):
@@ -2127,10 +2131,28 @@ def _start_video_generation(db, date_label, force, background_tasks):
     from app.application.content_video.storage import video_storage_for, ensure_video_dirs
     from app.application.content_video.audio_renderer import TTSProviderError
 
+    # Enforce final report requirement for formal core-report video generation
+    from app.application.radar.daily_report_store import load_final_daily_report
+    final_report = load_final_daily_report(date_label)
+    if final_report is None:
+        error_msg = (
+            "当前日期尚未生成最终日报，无法生成正式分享视频。"
+            "请先完成日报最终化后再试。"
+        )
+        return "none", "none", {
+            "job_id": "none",
+            "input_hash": "none",
+            "status": "failed",
+            "current_step": "finalization_check",
+            "video_path": None,
+            "poster_path": None,
+            "error": error_msg,
+        }
+
     video_snapshot = _build_video_source_from_share(db, date_label)
     request = VideoGenerationRequest(
         source_snapshot=video_snapshot,
-        template_id="remotion_report_v1",
+        template_id="mobile_briefing_v1",
         force=force,
     )
     input_hash = compute_input_hash(request)
@@ -2142,11 +2164,27 @@ def _start_video_generation(db, date_label, force, background_tasks):
     if existing is not None and not force:
         return existing.job_id, input_hash, {
             "job_id": existing.job_id,
-            "input_hash": input_hash,
+            "input_input_hash": input_hash,
             "status": "existing",
             "current_step": "done",
             "video_path": existing.video_path,
             "poster_path": existing.poster_path,
+            "error": None,
+        }
+
+    # Generate job_id early so we can attempt lock acquisition
+    job_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    # Even with force=true, must wait for or timeout any running lock
+    if not storage.acquire_lock(job_id):
+        lock_info = storage.get_lock_info()
+        return lock_info["job_id"], input_hash, {
+            "job_id": lock_info["job_id"],
+            "input_hash": input_hash,
+            "status": "running",
+            "current_step": "queued",
+            "video_path": None,
+            "poster_path": None,
             "error": None,
         }
 
@@ -2199,8 +2237,6 @@ def _start_video_generation(db, date_label, force, background_tasks):
             "error": str(exc),
         }
 
-    # Write initial queued status
-    job_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     storage.write_status(
         job_id=job_id,
         input_hash=input_hash,
