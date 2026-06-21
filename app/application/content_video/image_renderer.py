@@ -513,29 +513,45 @@ def _render_closing_cta(scene, w: int, h: int) -> Image.Image:
     draw = _draw_background(img, w, h)
     _draw_brand_header(draw, w)
 
-    # Title
     title_font = _font(48, bold=True)
     title_text = getattr(scene, 'visual_title', '') or "查看完整报告"
-    title_y = TOP_SAFE + 130
-    _centered_text(draw, title_text, title_font, title_y, w)
 
     # Summary lines from visual_lines (without scan/share lines)
     summary_lines = [
         ln for ln in (getattr(scene, 'visual_lines', []) or [])
         if ln and "扫码" not in ln and "访问" not in ln
-    ]
-    sum_y = title_y + 80
-    sum_font = _font(26)
-    for idx, sl in enumerate(summary_lines[:4]):
-        _centered_text(draw, sl, sum_font, sum_y + idx * 42, w, fill=C_TEXT_DIM)
+    ][:4]
 
-    # QR + share link block
     md = getattr(scene, 'metadata', {}) or {}
     qr_data_url = md.get("qr_code_data_url")
     share_url = md.get("share_url")
-
-    block_top = sum_y + max(1, len(summary_lines[:4])) * 42 + 30
     qr_size = 240
+
+    # Measure the whole block and vertically center it (no top-anchored gap).
+    sum_font = _font(26)
+    title_h = 70
+    sum_h = len(summary_lines) * 42 + (24 if summary_lines else 0)
+    qr_block_h = 30 + qr_size
+    url_h = 50 if share_url else 0
+    hint_h = 44
+    block_h = title_h + sum_h + qr_block_h + url_h + hint_h
+    avail_top = TOP_SAFE + 60
+    avail_bottom = h - BOTTOM_SAFE
+    y = avail_top + max(20, (avail_bottom - avail_top - block_h) // 2)
+
+    # Title
+    _centered_text(draw, title_text, title_font, y, w)
+    y += title_h
+
+    # Summary lines
+    for sl in summary_lines:
+        _centered_text(draw, sl, sum_font, y, w, fill=C_TEXT_DIM)
+        y += 42
+    if summary_lines:
+        y += 24
+
+    # QR + share link block
+    block_top = y + 30
     qr_left = (w - qr_size) // 2
     qr_top = block_top
     qr_right = qr_left + qr_size

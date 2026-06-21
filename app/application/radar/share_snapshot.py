@@ -117,8 +117,10 @@ def build_today_share_snapshot(
         for item in raw_takeaways
         if str(item).strip()
     ]
-    if not takeaways:
-        takeaways = [h.summary for h in highlights if h.summary]
+    # NOTE: do NOT fall back to copying the highlights here. Doing so made the
+    # video repeat every core observation a second time as "补充观察". When the
+    # report has no distinct takeaways, leave it empty so the video skips the
+    # supporting section entirely (tighter, no duplication).
 
     share_key = f"radar_{date_label}" if date_label else "radar_today"
 
