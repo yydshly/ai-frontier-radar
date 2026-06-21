@@ -240,6 +240,92 @@ const LinesBlock: React.FC<{
   );
 };
 
+const StatChart: React.FC<{
+  stats: Record<string, unknown>;
+  accent: string;
+  highlight: string;
+}> = ({stats, accent, highlight}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const items = [
+    {label: "新增", value: Number(stats.new) || 0},
+    {label: "已识别", value: Number(stats.summarized) || 0},
+    {label: "重要", value: Number(stats.important) || 0},
+    {label: "来源", value: Number(stats.sources) || 0}
+  ];
+  const max = Math.max(1, ...items.map((i) => i.value));
+  const maxBarH = 380;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+        gap: 30,
+        marginTop: 40
+      }}
+    >
+      {items.map((it, idx) => {
+        const grow = Math.max(
+          0,
+          spring({
+            frame: frame - 14 - idx * 6,
+            fps,
+            config: {damping: 18, stiffness: 120}
+          })
+        );
+        const h = Math.max(10, (it.value / max) * maxBarH * grow);
+        return (
+          <div
+            key={it.label}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center"
+            }}
+          >
+            <div
+              style={{
+                height: maxBarH,
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
+                alignItems: "center"
+              }}
+            >
+              <div
+                style={{
+                  color: "#ffffff",
+                  fontWeight: 800,
+                  fontSize: 40,
+                  marginBottom: 10
+                }}
+              >
+                {Math.round(it.value * grow)}
+              </div>
+              <div
+                style={{
+                  width: "72%",
+                  maxWidth: 150,
+                  height: h,
+                  borderRadius: 18,
+                  background: `linear-gradient(180deg,${accent},${highlight}cc)`,
+                  boxShadow: `0 0 32px ${accent}55`
+                }}
+              />
+            </div>
+            <div style={{color: "#9fb3c8", fontSize: 28, marginTop: 16}}>
+              {it.label}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const ClosingExtras: React.FC<{
   scene: ReportScene;
   accent: string;
@@ -432,12 +518,22 @@ const SceneBody: React.FC<{
             boxShadow: `0 0 26px ${accent}88`
           }}
         />
-        <LinesBlock
-          scene={scene}
-          exit={exit}
-          accent={accent}
-          highlight={highlight}
-        />
+        {isOpening && (scene.metadata as Record<string, unknown> | undefined)?.stats ? (
+          <StatChart
+            stats={
+              (scene.metadata as Record<string, Record<string, unknown>>).stats
+            }
+            accent={accent}
+            highlight={highlight}
+          />
+        ) : (
+          <LinesBlock
+            scene={scene}
+            exit={exit}
+            accent={accent}
+            highlight={highlight}
+          />
+        )}
         {isClosing ? (
           <ClosingExtras scene={scene} accent={accent} highlight={highlight} />
         ) : null}
