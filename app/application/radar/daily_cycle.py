@@ -82,6 +82,8 @@ def run_daily_cycle(
             pass
 
     result = DailyCycleResult(dry_run=dry_run)
+    from datetime import datetime as _dt
+    cycle_start_utc = _dt.utcnow()
 
     _progress(
         "cycle_start",
@@ -209,37 +211,48 @@ def run_daily_cycle(
             )
             result.fetch_due = r.eligible_sources
             result.fetch_started = r.started
-            # Source coverage so a silent partial/empty day is detectable.
             result.sources_total = r.total_sources
-            result.sources_succeeded = max(0, r.started - r.failed)
-            new_items = sum(getattr(sr, "items_new", 0) for sr in (r.source_results or []))
-            # A source that returned >= the per-run cap likely has more unseen
-            # items (truncated) — flag it so coverage gaps are visible.
-            from app.application.sources.fetch_service import (
-                get_source_fetch_max_items_per_run,
-            )
-            _cap = get_source_fetch_max_items_per_run()
-            result.truncated_sources = [
-                sr.source_key for sr in (r.source_results or [])
-                if getattr(sr, "items_found", 0) >= _cap
-            ]
+            # Coverage from the AUTHORITATIVE FetchRun rows of this cycle — the
+            # discovery source_results under-report items_new when fetches run
+            # asynchronously, so read the persisted runs instead.
+            new_items = 0
+            fetch_failed = r.failed
             if not dry_run:
-                if r.failed > 0:
+                from app.models import FetchRun
+                from app.application.sources.fetch_service import (
+                    get_source_fetch_max_items_per_run,
+                )
+                cap = get_source_fetch_max_items_per_run()
+                cycle_runs = (
+                    db.query(FetchRun)
+                    .filter(FetchRun.started_at >= cycle_start_utc)
+                    .all()
+                )
+                new_items = sum((cr.items_new or 0) for cr in cycle_runs)
+                result.sources_succeeded = sum(1 for cr in cycle_runs if cr.status == "success")
+                fetch_failed = sum(1 for cr in cycle_runs if cr.status == "failed")
+                result.truncated_sources = sorted({
+                    cr.source_key for cr in cycle_runs
+                    if (cr.items_found or 0) >= cap
+                })
+                if fetch_failed > 0:
                     result.coverage_status = "partial"
                 elif r.eligible_sources == 0 or new_items == 0:
                     result.coverage_status = "no_content"
                 else:
                     result.coverage_status = "complete"
+            else:
+                result.sources_succeeded = max(0, r.started - r.failed)
             result.steps.append(
                 f"fetch: due={r.eligible_sources} started={r.started} "
-                f"failed={r.failed} new_items={new_items} coverage={result.coverage_status}"
+                f"failed={fetch_failed} new_items={new_items} coverage={result.coverage_status}"
                 + (" (dry-run)" if dry_run else "")
             )
             _progress(
                 "fetch_done",
                 eligible_sources=r.eligible_sources,
                 started=r.started,
-                failed=r.failed,
+                failed=fetch_failed,
                 new_items=new_items,
                 coverage_status=result.coverage_status,
             )
