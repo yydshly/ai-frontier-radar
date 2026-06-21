@@ -176,32 +176,71 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
 
     header_y = _draw_brand_header(draw, w, getattr(scene, 'source_label', None))
 
-    # Kicker
-    kicker_font = _font(24, bold=True)
-    kicker = "AI FRONTIER RADAR"
-    _centered_text(draw, kicker, kicker_font, header_y + 30, w, fill=C_ACCENT_2)
-
-    # Main title (FULL report title — never truncated)
-    title_font = _font(54, bold=True)
     lines = getattr(scene, 'visual_lines', []) or ["今日 AI 前沿简报"]
     title_text = lines[0] if lines else "今日 AI 前沿简报"
-    title_y = header_y + 80
-    title_wrapped = _wrap_text(draw, title_text, title_font, w - 2 * SIDE_MARGIN - 40)
-    for idx, tl in enumerate(title_wrapped[:3]):
-        _centered_text(draw, tl, title_font, title_y + idx * 64, w)
+    title_font = _font(54, bold=True)
+    title_wrapped = _wrap_text(draw, title_text, title_font, w - 2 * SIDE_MARGIN - 40)[:3]
+    sub_lines = list(lines[1:4])
 
-    # Sub-line (e.g. "本期包含 N 个核心观察")
-    sub_y = title_y + max(1, len(title_wrapped[:3])) * 64 + 20
-    sub_font = _font(28)
-    if len(lines) > 1:
-        for idx, sl in enumerate(lines[1:4]):
-            _centered_text(draw, sl, sub_font, sub_y + idx * 42, w, fill=C_TEXT_DIM)
+    # Extract a headline count (e.g. "本期包含 6 个核心观察") for the big stat.
+    import re as _re
+    count = None
+    for sl in sub_lines + [title_text]:
+        m = _re.search(r"(\d+)", sl or "")
+        if m:
+            count = int(m.group(1)); break
+
+    # ── Measure the whole content block, then vertically center it ──
+    kicker_h = 30 + 30
+    title_h = len(title_wrapped) * 64
+    stat_h = 200 if count else 0
+    sub_h = len(sub_lines) * 42 + (24 if sub_lines else 0)
+    tag_h = 60 + 30
+    block_h = kicker_h + title_h + stat_h + sub_h + tag_h
+    avail_top = header_y
+    avail_bottom = h - BOTTOM_SAFE
+    y = avail_top + max(40, (avail_bottom - avail_top - block_h) // 2)
+
+    # Kicker
+    _centered_text(draw, "AI FRONTIER RADAR", _font(24, bold=True), y, w, fill=C_ACCENT_2)
+    y += kicker_h
+
+    # Title
+    for tl in title_wrapped:
+        _centered_text(draw, tl, title_font, y, w)
+        y += 64
+    y += 24
+
+    # Big stat graphic — a ring + count + segmented bar (visual interest, no
+    # external data needed). Falls back gracefully when no count is present.
+    if count:
+        cx, cy, r = w // 2, y + 70, 64
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=C_ACCENT, width=6)
+        nf = _font(64, bold=True)
+        nb = draw.textbbox((0, 0), str(count), font=nf)
+        draw.text((cx - (nb[2] - nb[0]) // 2, cy - (nb[3] - nb[1]) // 2 - nb[1]),
+                  str(count), font=nf, fill=C_TEXT)
+        # segmented bar under the ring, one segment per observation
+        seg_total_w = min(560, count * 70)
+        seg_w = seg_total_w // max(1, count) - 8
+        sx = cx - seg_total_w // 2
+        sby = cy + r + 26
+        for i in range(count):
+            col = C_ACCENT if i < count else C_TEXT_MUTED
+            draw.rounded_rectangle([sx, sby, sx + seg_w, sby + 10], radius=5, fill=col)
+            sx += seg_w + 8
+        y += stat_h
+
+    # Sub-lines (e.g. "本期包含 N 个核心观察")
+    if sub_lines:
+        for sl in sub_lines:
+            _centered_text(draw, sl, _font(28), y, w, fill=C_TEXT_DIM)
+            y += 42
+        y += 24
 
     # Tagline
-    tag_y = sub_y + 42 * max(0, len(lines) - 1) + 60
-    tagline_font = _font(22)
-    tagline_text = "接下来按顺序展开核心观察 · 完整报告见分享页"
-    _centered_text(draw, tagline_text, tagline_font, tag_y, w, fill=C_TEXT_MUTED)
+    _centered_text(draw, "接下来按顺序展开核心观察 · 完整报告见分享页",
+                   _font(22), y + 30, w, fill=C_TEXT_MUTED)
 
     _draw_footer(draw, w, h)
     return img
@@ -243,7 +282,6 @@ def _render_summary_overview(scene, w: int, h: int) -> Image.Image:
         )
 
     # Numbered items — show ALL lines from the page (no truncation)
-    content_top = title_y + 130
     content_left = SIDE_MARGIN + 20
     content_right = w - SIDE_MARGIN - 20
     item_h = 170
@@ -254,6 +292,10 @@ def _render_summary_overview(scene, w: int, h: int) -> Image.Image:
 
     # Allow up to 4 sentences per page; auto-wrap inside the panel.
     n = min(len(lines), 4)
+    # Vertically center the item block in the area below the title.
+    area_top = title_y + 130
+    area_bottom = h - BOTTOM_SAFE
+    content_top = area_top + max(0, (area_bottom - area_top - n * item_h) // 2)
     for idx, line in enumerate(lines[:n], start=1):
         iy = content_top + (idx - 1) * item_h
         # Number badge
@@ -339,25 +381,43 @@ def _render_signal(scene, w: int, h: int) -> Image.Image:
     card_right = w - SIDE_MARGIN
     _draw_panel(draw, card_left, card_top, card_right, card_bottom, radius=20)
 
-    # Explanation lines — full sentences, wrap inside the panel
-    body_font = _font(30)
-    line_y = card_top + 28
-    body_lines = getattr(scene, 'visual_lines', [])
-    for line in body_lines[:5]:
-        line = line.strip()
-        if not line:
-            continue
-        wrapped = _wrap_text(draw, line, body_font, card_right - card_left - 50)
-        for wl in wrapped:
-            # If the panel would overflow, stop (the storyboard should have
-            # paginated — but we don't truncate text here either).
-            if line_y + 50 > card_bottom - 16:
-                break
+    # Explanation lines — full sentences, wrapped inside the panel, then the
+    # whole block is vertically centered within the card so short bodies don't
+    # leave the card mostly empty. Font scales up when there is plenty of room.
+    body_lines = [ln.strip() for ln in getattr(scene, 'visual_lines', []) if ln.strip()][:5]
+    inner_w = card_right - card_left - 70
+    card_h = card_bottom - card_top
+    # Pick the largest body font (within a range) whose wrapped block fits the card.
+    body_size = 30
+    for trial in (44, 40, 36, 32, 30):
+        f = _font(trial)
+        block = []
+        for line in body_lines:
+            block.extend(_wrap_text(draw, line, f, inner_w))
+            block.append("")  # paragraph gap marker
+        if block and block[-1] == "":
+            block.pop()
+        line_h = int(trial * 1.5)
+        if len(block) * line_h <= card_h - 80:
+            body_size, body_font, display_lines = trial, f, block
+            break
+    else:
+        body_font = _font(30)
+        display_lines = []
+        for line in body_lines:
+            display_lines.extend(_wrap_text(draw, line, body_font, inner_w))
+            display_lines.append("")
+        if display_lines and display_lines[-1] == "":
+            display_lines.pop()
+    line_h = int(body_size * 1.5)
+    total_h = len(display_lines) * line_h
+    line_y = card_top + max(28, (card_h - total_h) // 2)
+    for wl in display_lines:
+        if wl:
             wl_bbox = draw.textbbox((0, 0), wl, font=body_font)
             lx = (w - (wl_bbox[2] - wl_bbox[0])) // 2
             draw.text((lx, line_y), wl, font=body_font, fill=C_TEXT)
-            line_y += 52
-        line_y += 12
+        line_y += line_h
 
     # Waveform decoration above footer
     wf_y = h - BOTTOM_SAFE - 40
@@ -403,12 +463,16 @@ def _render_supporting_notes(scene, w: int, h: int) -> Image.Image:
         )
 
     # Items
-    content_top = title_y + 110
     content_left = SIDE_MARGIN + 10
     content_right = w - SIDE_MARGIN - 10
     item_h = 110
 
     lines = getattr(scene, 'visual_lines', [])
+    # Vertically center the item block in the area below the title.
+    n_items = min(len(lines), 4)
+    area_top = title_y + 110
+    area_bottom = h - BOTTOM_SAFE
+    content_top = area_top + max(0, (area_bottom - area_top - n_items * item_h) // 2)
     # Allow up to 4 items per page; wrap freely without truncation
     for idx, line in enumerate(lines[:4], start=1):
         iy = content_top + (idx - 1) * item_h
