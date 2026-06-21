@@ -303,8 +303,19 @@ _SUBTITLE_PRESETS: dict[str, dict] = {
 }
 
 
-def _subtitle_config() -> tuple[bool, dict, int]:
-    """Return (enabled, preset_dict, max_chars_per_line) from env."""
+# Scene types whose on-screen body already shows the narrated text — subtitling
+# them again is redundant, so "smart" scope skips them.
+_TEXT_HEAVY_SCENES = {
+    "core_insight", "core_insight_continuation", "overview_paged", "supporting_notes",
+}
+
+
+def _subtitle_config() -> tuple[bool, dict, int, str]:
+    """Return (enabled, preset_dict, max_chars_per_line, scope) from env.
+
+    scope: 'smart' (default) burns captions only where the body does NOT already
+    show the text (e.g. cover/closing); 'all' burns on every scene; 'off' none.
+    """
     import os
     enabled = os.getenv("CONTENT_VIDEO_SUBTITLES", "on").strip().lower() not in {
         "0", "off", "false", "no"
@@ -315,7 +326,10 @@ def _subtitle_config() -> tuple[bool, dict, int]:
         max_chars = int(os.getenv("CONTENT_VIDEO_SUBTITLE_MAX_CHARS", "16"))
     except (TypeError, ValueError):
         max_chars = 16
-    return enabled, preset, max(8, min(28, max_chars))
+    scope = os.getenv("CONTENT_VIDEO_SUBTITLE_SCOPE", "smart").strip().lower()
+    if scope not in {"smart", "all", "off"}:
+        scope = "smart"
+    return enabled, preset, max(8, min(28, max_chars)), scope
 
 
 def subtitles_enabled() -> bool:
@@ -414,8 +428,8 @@ def build_ass_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0)
     are split at natural clause punctuation (，；。！？), with time allocated
     proportionally. Style/highlight come from the configured preset.
     """
-    enabled, preset, max_chars = _subtitle_config()
-    if not enabled:
+    enabled, preset, max_chars, scope = _subtitle_config()
+    if not enabled or scope == "off":
         return _ass_header(preset)  # header only → no Dialogue → burn is skipped
     do_hl = bool(preset.get("highlight"))
 
@@ -429,7 +443,10 @@ def build_ass_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0)
     offset_ms = 0.0
     for scene in scenes:
         dur_ms = (scene.duration_seconds or 0.0) * 1000.0
-        for seg in (getattr(scene, "subtitle_segments", None) or []):
+        # "smart" scope skips scenes whose body already shows the narrated text
+        # (avoids the body/subtitle duplication). Offset still advances below.
+        skip = scope == "smart" and scene.scene_type in _TEXT_HEAVY_SCENES
+        for seg in ([] if skip else (getattr(scene, "subtitle_segments", None) or [])):
             text = str(seg.get("text") or "").strip().replace("\n", " ")
             if not text:
                 continue
