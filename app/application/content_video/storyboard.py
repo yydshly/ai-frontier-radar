@@ -142,8 +142,10 @@ def _build_opening_scene(
     # "接下来按顺序展开" lines are dropped).
     visual_lines: list[str] = [title]
 
+    # Spoken brand is Chinese ("AI 前沿雷达"); the English "AI FRONTIER RADAR" is
+    # visual-only — TTS would otherwise spell it out letter by letter.
     narration_parts: list[str] = [
-        f"{brand}，{date}。",
+        f"AI 前沿雷达，{date}。",
         f"本期主题：{title}。",
     ]
     if section_count > 0:
@@ -366,8 +368,9 @@ def _build_closing_scene(
         visual_lines.append("通过下方链接查看完整报告")
         narration_parts.append("通过屏幕上的链接查看完整报告。")
     if share_url:
+        # Show the URL on screen, but do NOT read it aloud — TTS spells URLs out
+        # character by character.
         visual_lines.append(f"或访问：{share_url}")
-        narration_parts.append(f"或访问链接：{share_url}。")
 
     # Make sure visual_lines has at least something useful.
     if not visual_lines:
