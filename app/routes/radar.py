@@ -2106,24 +2106,22 @@ def _resolve_share_tts_provider():
 
     Rules:
     - DEV_FAKE_TTS=true → FakeTTSProvider (dev only)
-    - Otherwise → real MiMo TTS; if not configured → raise TTSProviderError
+    - Otherwise → MiniMax T2A v2 (returns subtitle timestamps for real captions);
+      if not configured → raise TTSProviderError.
     """
-    from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSError
     from app.application.content_video.audio_renderer import (
         FakeTTSProvider,
         TTSProviderError,
         get_content_video_tts_mode,
     )
+    from app.application.content_video.minimax_tts import MiniMaxT2AProvider
 
     if get_content_video_tts_mode() == "fake":
         return FakeTTSProvider()
     try:
-        client = MiMoTTSClient()
-        return _MiMoTTSProviderWrapper(client)
-    except MiMoTTSError as exc:
-        raise TTSProviderError(
-            f"TTS provider is not configured: {exc}"
-        ) from exc
+        return MiniMaxT2AProvider()
+    except TTSProviderError:
+        raise
 
 
 class _MiMoTTSProviderWrapper:

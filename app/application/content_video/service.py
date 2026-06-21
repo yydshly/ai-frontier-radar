@@ -249,6 +249,23 @@ def generate_video(
                 import shutil
                 shutil.copy(scene1_img, storage.poster_path)
 
+        # Burn real subtitles when the TTS captured per-scene timestamps. The
+        # Remotion mux has no inter-scene gap; the PIL path adds a per-clip
+        # buffer (see composer.compose_clip), so offset the SRT accordingly.
+        try:
+            gap = 0.0 if renderer == "remotion" else 0.5
+            srt_text = composer.build_srt_from_scenes(scenes, gap_seconds=gap)
+            if srt_text.strip():
+                srt_path = storage.base_dir / "subtitles.srt"
+                srt_path.write_text(srt_text, encoding="utf-8")
+                subbed = storage.base_dir / "output_subbed.mp4"
+                composer.burn_subtitles(output_mp4, srt_path, subbed)
+                import shutil as _sh
+                _sh.move(str(subbed), str(output_mp4))
+                logger.info("Burned subtitles for %s", source_key)
+        except Exception as exc:  # subtitles are best-effort
+            logger.warning("Subtitle burn skipped: %s", exc)
+
         # Step: saving_artifacts
         storage.write_status(
             job_id=job_id,

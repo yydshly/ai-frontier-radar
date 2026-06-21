@@ -263,6 +263,72 @@ def extract_poster(video_path: Path, output_path: Path, *, at_seconds: float = 0
         raise RuntimeError(f"ffmpeg poster extraction failed: {tail}")
 
 
+def _srt_timestamp(ms: float) -> str:
+    ms = max(0, int(round(ms)))
+    h, ms = divmod(ms, 3600000)
+    m, ms = divmod(ms, 60000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def build_srt_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0) -> str:
+    """Build SRT text from per-scene subtitle segments.
+
+    Each scene's segments are timed relative to its own audio; we offset them by
+    the cumulative scene placement. ``gap_seconds`` is the inter-scene padding the
+    compose path adds per clip (0 for the Remotion mux, the clip buffer for PIL).
+    """
+    lines: list[str] = []
+    idx = 1
+    offset_ms = 0.0
+    for scene in scenes:
+        dur_ms = (scene.duration_seconds or 0.0) * 1000.0
+        for seg in (getattr(scene, "subtitle_segments", None) or []):
+            text = str(seg.get("text") or "").strip()
+            if not text:
+                continue
+            begin = offset_ms + float(seg.get("begin_ms", 0.0))
+            end = min(offset_ms + float(seg.get("end_ms", 0.0)), offset_ms + dur_ms)
+            if end <= begin:
+                end = begin + 800
+            lines.append(str(idx))
+            lines.append(f"{_srt_timestamp(begin)} --> {_srt_timestamp(end)}")
+            lines.append(text)
+            lines.append("")
+            idx += 1
+        offset_ms += dur_ms + gap_seconds * 1000.0
+    return "\n".join(lines)
+
+
+def burn_subtitles(video_path: Path, srt_path: Path, output_path: Path) -> None:
+    """Burn an SRT onto a video (libass). Raises RuntimeError on failure.
+
+    Runs ffmpeg with cwd = the SRT's folder and references the bare filename so
+    Windows drive-colon paths don't break the subtitles filter parser.
+    """
+    ffmpeg = _resolve_ffmpeg()
+    style = (
+        "FontName=Microsoft YaHei,Fontsize=15,PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H99000000,BorderStyle=1,Outline=2,Shadow=0,"
+        "Alignment=2,MarginV=70"
+    )
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(video_path),
+        "-vf", f"subtitles={srt_path.name}:force_style='{style}'",
+        "-c:a", "copy",
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+    proc = subprocess.run(
+        cmd, capture_output=True, timeout=600, cwd=str(srt_path.parent),
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if proc.returncode != 0 or not output_path.exists():
+        tail = (proc.stderr or b"").decode("utf-8", "replace")[-500:]
+        raise RuntimeError(f"ffmpeg subtitle burn failed: {tail}")
+
+
 def compose_video(
     scenes: list[VideoScene],
     storage,

@@ -82,6 +82,9 @@ class VideoScene:
     image_path: str | None = None
     audio_path: str | None = None
     duration_seconds: float | None = None
+    # Per-scene subtitle segments captured from the TTS, each:
+    # {"text": str, "begin_ms": float, "end_ms": float} relative to THIS scene's audio.
+    subtitle_segments: list = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
 
 

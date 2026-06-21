@@ -224,6 +224,12 @@ def render_scene_audio(
             f"TTS failed for scene {scene.scene_id}: {exc}"
         ) from exc
 
+    # Capture per-scene subtitle segments if the provider supplies them
+    # (e.g. MiniMaxT2AProvider). Best-effort: absence just means no subtitles.
+    segments = getattr(prov, "last_subtitles", None)
+    if isinstance(segments, list):
+        scene.subtitle_segments = list(segments)
+
     _wav_to_mp3(wav_bytes, output_path)
     duration = _audio_duration_from_path(output_path)
     return duration
