@@ -39,6 +39,10 @@ class MiniMaxT2AProvider(TTSProvider):
                          or "https://api.minimaxi.com/v1/t2a_v2").strip()
         self.model = (model or os.getenv("MINIMAX_T2A_MODEL") or "speech-02-hd").strip()
         self.voice_id = (voice_id or os.getenv("MINIMAX_T2A_VOICE") or "male-qn-qingse").strip()
+        try:
+            self.speed = float(os.getenv("MINIMAX_T2A_SPEED", "1.1"))
+        except (TypeError, ValueError):
+            self.speed = 1.1
         self.timeout = timeout
         # Segments of the most recent synthesize() call:
         # list of {"text": str, "begin_ms": float, "end_ms": float}
@@ -51,7 +55,7 @@ class MiniMaxT2AProvider(TTSProvider):
             "text": text,
             "stream": False,
             "subtitle_enable": True,
-            "voice_setting": {"voice_id": self.voice_id, "speed": 1.0, "vol": 1.0, "pitch": 0},
+            "voice_setting": {"voice_id": self.voice_id, "speed": self.speed, "vol": 1.0, "pitch": 0},
             "audio_setting": {"sample_rate": 24000, "format": "mp3"},
         }
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}

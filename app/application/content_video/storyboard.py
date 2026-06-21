@@ -252,11 +252,12 @@ def _build_core_insight_scenes(
             # Page 1 shows the one-liner headline; continuations a short label.
             scene_title = headline if part == 1 else f"{short_title}（续）"
 
-            # The body (page) is now the DETAILED 依据 概述 (distinct from the
-            # headline), so page 1 narration reads the headline THEN the detail.
+            # The page text is the detailed 依据 概述. We do NOT also read the
+            # headline (it is a condensed version of the detail and is shown on
+            # screen as the title) — that would lengthen the video and repeat.
             page_text = "".join(f"{ln}。" for ln in page)
             if part == 1:
-                narration = f"第{_cn_number(section_idx)}个核心观察。{headline}。{page_text}"
+                narration = f"第{_cn_number(section_idx)}个核心观察。{page_text}"
             else:
                 narration = f"接着看。{page_text}"
 

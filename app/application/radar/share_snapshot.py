@@ -65,8 +65,13 @@ def _trim_to_sentences(text: str, *, max_chars: int = 120) -> str:
         return text
     out = ""
     for m in _SENT_END_RE.finditer(text):
-        out += m.group()
-        if len(out) >= max_chars:  # include the sentence that reaches the target
+        s = m.group()
+        # Stop before a sentence that would overshoot, once we already have a
+        # reasonable amount — keeps results near max_chars (whole sentences).
+        if out and len(out) + len(s) > max_chars and len(out) >= max_chars * 0.6:
+            break
+        out += s
+        if len(out) >= max_chars:
             break
     return out or text[:max_chars]
 
