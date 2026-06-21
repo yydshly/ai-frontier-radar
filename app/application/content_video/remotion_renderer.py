@@ -121,11 +121,14 @@ def build_report_props(
         "qrCodeDataUrl": qr_code_data_url,
         "scenes": scene_props,
         "style": {
-            "backgroundPreset": "tech_grid_dark",
+            # Background + motion are configurable (calmer = better reading):
+            #   CONTENT_VIDEO_BG_PRESET  calm | grid | plain   (default calm)
+            #   CONTENT_VIDEO_MOTION     low | medium          (default low)
+            "backgroundPreset": (os.getenv("CONTENT_VIDEO_BG_PRESET") or "calm").strip().lower(),
             "transitionStyle": "slide_fade",
-            "accentColor": "#3b82f6",
-            "highlightColor": "#f59e0b",
-            "motionIntensity": "medium",
+            "accentColor": (os.getenv("CONTENT_VIDEO_ACCENT") or "#3b82f6").strip(),
+            "highlightColor": (os.getenv("CONTENT_VIDEO_HIGHLIGHT") or "#f59e0b").strip(),
+            "motionIntensity": (os.getenv("CONTENT_VIDEO_MOTION") or "low").strip().lower(),
         },
     }
 

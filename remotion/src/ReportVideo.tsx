@@ -37,76 +37,78 @@ const SCENE_TITLE_SIZE: Record<string, number> = {
   closing: 56
 };
 
-const Background: React.FC<{accent: string; highlight: string}> = ({
-  accent,
-  highlight
-}) => {
+// Calm, reading-friendly background. Presets:
+//   "plain" — flat deep gradient, no motion
+//   "calm"  — gradient + faint STATIC grid + one slow drifting glow (default)
+//   "grid"/"tech_grid_dark" — the original animated tech grid (busier)
+// motion: "low" (gentler) | "medium". Reading comfort favours calm + low.
+const Background: React.FC<{
+  accent: string;
+  highlight: string;
+  preset?: string;
+  motion?: string;
+}> = ({accent, highlight, preset, motion}) => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const scan = ((frame / fps) * 105) % 130 - 15;
-  const breathe = 0.7 + Math.sin(frame / 38) * 0.12;
+  const p = (preset || "calm").toLowerCase();
+  const isGrid = p === "grid" || p === "tech_grid_dark";
+  const lowMotion = (motion || "low").toLowerCase() !== "medium";
+  const gradient =
+    "radial-gradient(circle at 72% 8%, #16263f 0%, #0b1626 42%, #060c16 82%)";
+
+  if (p === "plain") {
+    return <AbsoluteFill style={{background: gradient}} />;
+  }
+
+  // Slow drifting glow (one element). Period: ~16s low / ~8s medium.
+  const glow = Math.sin(frame / (lowMotion ? 150 : 80)) * (lowMotion ? 22 : 48);
+  const gridScroll = isGrid ? frame % 70 : 0; // calm keeps the grid static
+  const gridOpacity = isGrid ? 0.18 : 0.07;
+
   return (
-    <AbsoluteFill
-      style={{
-        overflow: "hidden",
-        background:
-          "radial-gradient(circle at 75% 12%, #142d58 0%, #081424 34%, #040a12 78%)"
-      }}
-    >
+    <AbsoluteFill style={{overflow: "hidden", background: gradient}}>
       <AbsoluteFill
         style={{
-          opacity: 0.22,
+          opacity: gridOpacity,
           backgroundImage:
-            "linear-gradient(rgba(56,189,248,.22) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.18) 1px,transparent 1px)",
-          backgroundSize: "64px 64px",
-          transform: `perspective(900px) rotateX(59deg) scale(1.55) translateY(${frame % 64}px)`,
-          transformOrigin: "center 65%"
+            "linear-gradient(rgba(96,150,205,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(96,150,205,.12) 1px,transparent 1px)",
+          backgroundSize: "72px 72px",
+          transform: `perspective(1000px) rotateX(60deg) scale(1.6) translateY(${gridScroll}px)`,
+          transformOrigin: "center 72%"
         }}
       />
       <div
         style={{
           position: "absolute",
-          left: "-20%",
-          top: `${scan}%`,
-          width: "140%",
-          height: 180,
-          transform: "rotate(-7deg)",
-          background: `linear-gradient(180deg,transparent,${accent}22,transparent)`,
-          filter: "blur(18px)"
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          right: -180,
-          top: 160,
-          width: 520,
-          height: 520,
+          right: -160,
+          top: 300 + glow,
+          width: 560,
+          height: 560,
           borderRadius: "50%",
-          opacity: breathe,
-          background: `radial-gradient(circle,${highlight}26,transparent 68%)`,
-          filter: "blur(12px)"
+          background: `radial-gradient(circle,${accent}1c,transparent 70%)`,
+          filter: "blur(22px)"
         }}
       />
-      {Array.from({length: 18}).map((_, index) => {
-        const y = (frame * (0.45 + (index % 4) * 0.08) + index * 127) % 2100;
-        return (
-          <div
-            key={index}
-            style={{
-              position: "absolute",
-              left: 45 + ((index * 83) % 980),
-              top: 1980 - y,
-              width: index % 3 === 0 ? 5 : 3,
-              height: index % 3 === 0 ? 5 : 3,
-              borderRadius: "50%",
-              background: index % 4 === 0 ? highlight : accent,
-              opacity: 0.18 + (index % 5) * 0.07,
-              boxShadow: `0 0 15px ${accent}`
-            }}
-          />
-        );
-      })}
+      {isGrid && !lowMotion
+        ? Array.from({length: 12}).map((_, index) => {
+            const y = (frame * (0.4 + (index % 4) * 0.07) + index * 150) % 2100;
+            return (
+              <div
+                key={index}
+                style={{
+                  position: "absolute",
+                  left: 50 + ((index * 97) % 960),
+                  top: 1980 - y,
+                  width: 3,
+                  height: 3,
+                  borderRadius: "50%",
+                  background: accent,
+                  opacity: 0.2,
+                  boxShadow: `0 0 12px ${accent}`
+                }}
+              />
+            );
+          })
+        : null}
     </AbsoluteFill>
   );
 };
@@ -423,7 +425,9 @@ const SceneBody: React.FC<{
   dateLabel: string;
   accent: string;
   highlight: string;
-}> = ({scene, reportTitle, dateLabel, accent, highlight}) => {
+  bgPreset?: string;
+  motion?: string;
+}> = ({scene, reportTitle, dateLabel, accent, highlight, bgPreset, motion}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const enter = spring({
@@ -469,7 +473,7 @@ const SceneBody: React.FC<{
 
   return (
     <AbsoluteFill style={{fontFamily: FONT, color: "#f7fbff"}}>
-      <Background accent={accent} highlight={highlight} />
+      <Background accent={accent} highlight={highlight} preset={bgPreset} motion={motion} />
       <Brand dateLabel={dateLabel} accent={accent} />
       <div
         style={{
@@ -596,6 +600,8 @@ export const ReportVideo: React.FC<ReportVideoProps> = ({
               dateLabel={dateLabel}
               accent={style.accentColor}
               highlight={style.highlightColor}
+              bgPreset={style.backgroundPreset}
+              motion={style.motionIntensity}
             />
           </Sequence>
         );

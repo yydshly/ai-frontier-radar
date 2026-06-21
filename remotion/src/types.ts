@@ -24,11 +24,11 @@ export type ReportVideoProps = {
   qrCodeDataUrl?: string | null;
   scenes: ReportScene[];
   style: {
-    backgroundPreset: "tech_grid_dark";
-    transitionStyle: "slide_fade";
+    backgroundPreset: string;
+    transitionStyle: string;
     accentColor: string;
     highlightColor: string;
-    motionIntensity: "medium";
+    motionIntensity: string;
   };
 };
 
