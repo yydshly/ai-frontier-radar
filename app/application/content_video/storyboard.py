@@ -237,7 +237,9 @@ def _build_core_insight_scenes(
         index_label = f"{section_idx:02d}"
 
         short_title = to_video_signal_title(section.title, max_chars=24)
-        full_title = _safe_title(section.title, max_chars=60)
+        headline = _safe_title(section.title, max_chars=80)  # the one-liner headline
+        # Source attribution ("来源：…") shown as the card footer / 依据.
+        source_label = f"来源：{section.source_name}" if section.source_name else None
 
         total_sections = len(snapshot.sections)
         for page_idx, page in enumerate(pages):
@@ -247,15 +249,14 @@ def _build_core_insight_scenes(
             if part > 1:
                 kicker += " · 续"
 
-            scene_title = short_title if part == 1 else f"{short_title}（续）"
+            # Page 1 shows the one-liner headline; continuations a short label.
+            scene_title = headline if part == 1 else f"{short_title}（续）"
 
-            # Compose narration from this page's lines. The page text already
-            # contains the section's content, so we do NOT also read section.title
-            # (it equals the body for radar highlights) — that would say each
-            # point twice. We only add a short ordinal lead-in on the first page.
+            # The body (page) is now the DETAILED 依据 概述 (distinct from the
+            # headline), so page 1 narration reads the headline THEN the detail.
             page_text = "".join(f"{ln}。" for ln in page)
             if part == 1:
-                narration = f"第{_cn_number(section_idx)}个核心观察。{page_text}"
+                narration = f"第{_cn_number(section_idx)}个核心观察。{headline}。{page_text}"
             else:
                 narration = f"接着看。{page_text}"
 
@@ -266,7 +267,7 @@ def _build_core_insight_scenes(
                     visual_title=scene_title,
                     visual_lines=page,
                     narration_text=narration,
-                    source_label=None,  # 依据/source removed from the card (per design)
+                    source_label=source_label,
                     metadata={
                         "section_index": section_idx,
                         "part": part,
@@ -274,7 +275,7 @@ def _build_core_insight_scenes(
                         "kicker": kicker,
                         "section_title": section.title,
                         "short_title": short_title,
-                        "full_title": full_title,
+                        "full_title": headline,
                     },
                 )
             )

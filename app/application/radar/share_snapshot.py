@@ -51,6 +51,26 @@ class ShareReportSnapshot:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+import re as _re
+
+_SENT_END_RE = _re.compile(r"[^。！？；]*[。！？；]")
+
+
+def _trim_to_sentences(text: str, *, max_chars: int = 120) -> str:
+    """Return whole leading sentences of `text` up to ~max_chars (never cut mid
+    sentence). Falls back to a hard slice if the first sentence already exceeds it.
+    """
+    text = (text or "").strip()
+    if len(text) <= max_chars:
+        return text
+    out = ""
+    for m in _SENT_END_RE.finditer(text):
+        out += m.group()
+        if len(out) >= max_chars:  # include the sentence that reaches the target
+            break
+    return out or text[:max_chars]
+
+
 def build_today_share_snapshot(
     db,
     date_label: str | None = None,
@@ -81,16 +101,33 @@ def build_today_share_snapshot(
         overview = ""
         version_id = None
 
-    # Build highlights from view.highlights
+    # Map item_id -> detailed description (zh_summary) from the day's articles,
+    # so each highlight (one-liner) can be enriched with the detail of its 依据.
+    detail_by_item: dict[int, str] = {}
+    for a in (view.important or []):
+        if getattr(a, "description", None):
+            detail_by_item[a.item_id] = a.description
+    for g in (view.other_groups or []):
+        for a in g.items:
+            if getattr(a, "description", None):
+                detail_by_item[a.item_id] = a.description
+
+    # Build highlights from view.highlights, enriched with the 依据 detail.
     highlights: list[ShareReportHighlight] = []
     for h in (view.highlights or []):
         text = getattr(h, "text", "") or ""
         references = list(getattr(h, "references", []) or [])
         primary_reference = references[0] if references else None
+        detail = ""
+        for rf in references:
+            d = detail_by_item.get(getattr(rf, "item_id", None))
+            if d:
+                detail = _trim_to_sentences(d, max_chars=120)
+                break
         highlights.append(
             ShareReportHighlight(
-                title=text[:100] if text else "重点内容",
-                summary=text,
+                title=(text or "重点内容"),          # the one-liner headline
+                summary=(detail or text),            # the detailed 依据 概述 (body)
                 why_it_matters=None,
                 source_name=(
                     getattr(primary_reference, "title", None)

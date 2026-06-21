@@ -249,7 +249,6 @@ const StatChart: React.FC<{
   const {fps} = useVideoConfig();
   const items = [
     {label: "新增", value: Number(stats.new) || 0},
-    {label: "已识别", value: Number(stats.summarized) || 0},
     {label: "重要", value: Number(stats.important) || 0},
     {label: "来源", value: Number(stats.sources) || 0}
   ];

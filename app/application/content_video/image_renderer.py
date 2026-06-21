@@ -233,9 +233,10 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
     stats = (getattr(scene, 'metadata', {}) or {}).get("stats")
     chart_items: list[tuple[str, int]] = []
     if isinstance(stats, dict):
+        # 新增 == 已识别 in practice (all new items get summarized), so show the
+        # three distinct, meaningful metrics instead of a duplicate pair.
         chart_items = [
             ("新增", int(stats.get("new", 0))),
-            ("已识别", int(stats.get("summarized", 0))),
             ("重要", int(stats.get("important", 0))),
             ("来源", int(stats.get("sources", 0))),
         ]
@@ -397,11 +398,16 @@ def _render_signal(scene, w: int, h: int) -> Image.Image:
         _draw_chip(draw, idx_label, SIDE_MARGIN + 280, label_y, font_size=18,
                    bg=(59, 130, 246, 40), fg=C_ACCENT_2)
 
-    # No separate signal title or source/依据: each core observation IS its
-    # sentence, shown as the card body below. The kicker chip ("核心观察 N · 共M条")
-    # already labels it, so the sentence reads once — no duplication.
-    card_top = label_y + 64
-    card_bottom = h - BOTTOM_SAFE - 100
+    # Signal headline (the one-liner) — distinct from the detailed body below.
+    title_y = label_y + 56
+    title_text = getattr(scene, 'visual_title', '') or "核心观察"
+    title_font = _font(40, bold=True)
+    title_wrapped = _wrap_text(draw, title_text, title_font, w - 2 * SIDE_MARGIN - 20)[:2]
+    for tidx, tl in enumerate(title_wrapped):
+        _centered_text(draw, tl, title_font, title_y + tidx * 52, w)
+
+    card_top = title_y + max(1, len(title_wrapped)) * 52 + 16
+    card_bottom = h - BOTTOM_SAFE - 110
     card_left = SIDE_MARGIN
     card_right = w - SIDE_MARGIN
     _draw_panel(draw, card_left, card_top, card_right, card_bottom, radius=20)
@@ -444,10 +450,15 @@ def _render_signal(scene, w: int, h: int) -> Image.Image:
             draw.text((lx, line_y), wl, font=body_font, fill=C_TEXT)
         line_y += line_h
 
+    # Source attribution (依据) below the card.
+    src = getattr(scene, 'source_label', None)
+    if src:
+        _centered_text(draw, src[:46], _font(20), card_bottom + 22, w, fill=C_TEXT_MUTED)
+
     # Waveform decoration above footer
-    wf_y = h - BOTTOM_SAFE - 40
+    wf_y = h - BOTTOM_SAFE - 34
     wf_x = (w - 300) // 2
-    _draw_waveform(draw, wf_x, wf_y, 300, 20)
+    _draw_waveform(draw, wf_x, wf_y, 300, 18)
 
     _draw_footer(draw, w, h)
     return img
