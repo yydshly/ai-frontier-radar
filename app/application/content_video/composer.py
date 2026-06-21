@@ -9,6 +9,7 @@ V1 supports: fade-in, static image + audio.
 """
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import tempfile
@@ -292,30 +293,66 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 _CAPTION_SEPARATORS = "，,、；;：:。！？!?"
+# An "atom" is either a whole alphanumeric token (kept intact — dates like
+# 2026-06-12, numbers like 88.9%, words like ChatGPT) or a single other char.
+_ATOM_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z\-./:%]*")
+
+
+def _atomize(text: str) -> list[str]:
+    atoms: list[str] = []
+    i = 0
+    while i < len(text):
+        m = _ATOM_RE.match(text, i)
+        if m:
+            atoms.append(m.group())
+            i = m.end()
+        else:
+            atoms.append(text[i])
+            i += 1
+    return atoms
 
 
 def _chunk_caption(text: str, max_chars: int = 16) -> list[str]:
-    """Break one sentence into short, readable caption chunks at punctuation.
+    """Break one sentence into short, readable caption chunks.
 
-    Greedily accumulates characters up to ~max_chars, preferring to break right
-    after a separator. Trailing punctuation is trimmed from each chunk.
+    Token-aware: never splits inside an alphanumeric token (dates/numbers/English
+    stay whole). Prefers to break right after a separator; otherwise breaks once
+    adding the next atom would exceed ``max_chars``.
     """
     text = text.strip()
-    if len(text) <= max_chars:
-        return [text.strip("，,、；;：: ")] if text else []
+    if not text:
+        return []
     chunks: list[str] = []
     buf = ""
-    for ch in text:
-        buf += ch
-        if ch in _CAPTION_SEPARATORS and len(buf) >= max_chars * 0.6:
+    for atom in _atomize(text):
+        if buf and len(buf) + len(atom) > max_chars and len(buf) >= max_chars * 0.5:
             chunks.append(buf)
             buf = ""
-        elif len(buf) >= max_chars:
+        buf += atom
+        if atom and atom[-1] in _CAPTION_SEPARATORS and len(buf) >= max_chars * 0.5:
             chunks.append(buf)
             buf = ""
     if buf:
         chunks.append(buf)
-    return [c.strip("，,、；;：: ") for c in chunks if c.strip("，,、；;：: ")]
+    # Merge orphan tiny chunks (e.g. a trailing single char) into the previous.
+    merged: list[str] = []
+    for ch in chunks:
+        if merged and len(ch.strip()) <= 3:
+            merged[-1] += ch
+        else:
+            merged.append(ch)
+    return [c.strip("，,、；;：: ") for c in merged if c.strip("，,、；;：: ")]
+
+
+# Highlight impactful data figures (with a unit/percent) in amber; dates and
+# bare counts stay white. ASS inline colour is &HBBGGRR; {\r} resets to style.
+_NUM_HL_RE = re.compile(r"\d[\d.,]*(?:%|万|亿|倍)")
+_NUM_HL_OPEN = "{\\c&H000BA5F5&}"
+_NUM_HL_RESET = "{\\r}"
+
+
+def _highlight_numbers(text: str) -> str:
+    return _NUM_HL_RE.sub(lambda m: f"{_NUM_HL_OPEN}{m.group()}{_NUM_HL_RESET}", text)
 
 
 def build_ass_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0) -> str:
@@ -348,7 +385,7 @@ def build_ass_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0)
                 share = span * (len(c) / total_chars)
                 c_begin, c_end = t, t + share
                 t = c_end
-                safe = c.replace("\n", " ").strip()
+                safe = _highlight_numbers(c.replace("\n", " ").strip())
                 events.append(
                     f"Dialogue: 0,{_ass_timestamp(c_begin)},{_ass_timestamp(c_end)},"
                     f"Default,,0,0,0,,{safe}"
