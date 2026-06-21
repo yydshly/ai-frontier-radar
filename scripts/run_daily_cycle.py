@@ -76,6 +76,8 @@ def _build_report(
         "report_status": result.report_status,
         "audio_status": result.audio_status,
         "finalized_dates": list(result.finalized_dates),
+        "truncated_sources": list(result.truncated_sources),
+        "health_warnings": list(result.health_warnings),
         "steps": list(result.steps),
         "errors": list(result.errors),
         "log_path": "logs/daily_cycle.log",
@@ -190,6 +192,12 @@ def main() -> int:
             print(f"  - {step}")
         print(f"  report_status: {result.report_status}")
         print(f"  audio_status:  {result.audio_status}")
+        print(f"  coverage:      {result.coverage_status} "
+              f"({result.sources_succeeded}/{result.sources_total} sources)")
+        if result.health_warnings:
+            print("  health warnings:")
+            for w in result.health_warnings:
+                print(f"    ⚠ {w}")
         if result.errors:
             print("  errors:")
             for e in result.errors:

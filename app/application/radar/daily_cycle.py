@@ -36,6 +36,8 @@ class DailyCycleResult:
     report_status: str = "skipped"
     audio_status: str = "skipped"
     finalized_dates: list[str] = field(default_factory=list)
+    truncated_sources: list[str] = field(default_factory=list)
+    health_warnings: list[str] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -211,6 +213,16 @@ def run_daily_cycle(
             result.sources_total = r.total_sources
             result.sources_succeeded = max(0, r.started - r.failed)
             new_items = sum(getattr(sr, "items_new", 0) for sr in (r.source_results or []))
+            # A source that returned >= the per-run cap likely has more unseen
+            # items (truncated) — flag it so coverage gaps are visible.
+            from app.application.sources.fetch_service import (
+                get_source_fetch_max_items_per_run,
+            )
+            _cap = get_source_fetch_max_items_per_run()
+            result.truncated_sources = [
+                sr.source_key for sr in (r.source_results or [])
+                if getattr(sr, "items_found", 0) >= _cap
+            ]
             if not dry_run:
                 if r.failed > 0:
                     result.coverage_status = "partial"
@@ -293,6 +305,14 @@ def run_daily_cycle(
     else:
         _progress("marker_skipped", reason="dry_run")
 
+    # 5. Health check — surface anomalies instead of failing silently.
+    try:
+        result.health_warnings = _build_health_warnings(db, result, dry_run=dry_run)
+        for w in result.health_warnings:
+            _progress("health_warning", message=w)
+    except Exception as exc:  # never let health-check break the cycle
+        result.errors.append(f"health: {exc}")
+
     _progress(
         "cycle_done",
         fetch_due=result.fetch_due,
@@ -301,7 +321,57 @@ def run_daily_cycle(
         summary_completed=result.summary_completed,
         report_status=result.report_status,
         audio_status=result.audio_status,
+        coverage_status=result.coverage_status,
+        health_warnings=len(result.health_warnings),
         error_count=len(result.errors),
     )
 
     return result
+
+
+def _build_health_warnings(db, result: "DailyCycleResult", *, dry_run: bool) -> list[str]:
+    """Derive human-readable health warnings from the cycle result + DB state.
+
+    Detects: failed/partial coverage, sources that failed, still-stuck running
+    runs, truncated sources (more new items than the per-run cap), empty days,
+    and a missing/failed report — so a degraded run is never silent.
+    """
+    warnings: list[str] = []
+    if dry_run:
+        return warnings
+
+    if result.coverage_status == "failed":
+        warnings.append("抓取阶段失败：本周期未能完成来源抓取。")
+    elif result.coverage_status == "partial":
+        failed_n = max(0, result.sources_total - result.sources_succeeded)
+        warnings.append(f"部分来源抓取失败：{failed_n} 个来源未成功。")
+    elif result.coverage_status == "no_content":
+        warnings.append("全部来源成功但无新增内容（确认是否真的无新闻）。")
+
+    if result.truncated_sources:
+        keys = ", ".join(result.truncated_sources)
+        warnings.append(
+            f"{len(result.truncated_sources)} 个来源达到单次抓取上限，可能有更多未抓取内容：{keys}。"
+        )
+
+    # Any FetchRun still stuck running past the stale threshold (recovery should
+    # have cleared these; if not, surface it).
+    try:
+        from app.models import FetchRun
+        from datetime import datetime, timedelta
+        from app.application.sources.stale_runs import get_stale_running_threshold_minutes
+        cutoff = datetime.utcnow() - timedelta(minutes=get_stale_running_threshold_minutes())
+        stuck = (
+            db.query(FetchRun)
+            .filter(FetchRun.status == "running", FetchRun.started_at < cutoff)
+            .count()
+        )
+        if stuck:
+            warnings.append(f"仍有 {stuck} 个抓取任务长时间卡在 running（请检查）。")
+    except Exception:
+        pass
+
+    if result.report_status not in ("generated", "finalized", "skipped"):
+        warnings.append(f"报告状态异常：{result.report_status}。")
+
+    return warnings

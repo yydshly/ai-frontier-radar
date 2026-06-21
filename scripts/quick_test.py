@@ -9994,6 +9994,24 @@ def main():
               "coverage_status" in dc_content
               and all(s in dc_content for s in ("partial", "no_content", "complete")),
               "the cycle should classify daily source coverage")
+        check("daily_cycle runs a health check (warnings)",
+              "_build_health_warnings" in dc_content and "health_warnings" in dc_content,
+              "the cycle should derive health warnings instead of failing silently")
+        check("daily_cycle flags truncated sources",
+              "truncated_sources" in dc_content
+              and "get_source_fetch_max_items_per_run" in dc_content,
+              "sources hitting the per-run cap should be flagged as possibly truncated")
+        from app.application.radar.daily_cycle import _build_health_warnings, DailyCycleResult
+        _hw = _build_health_warnings(
+            None,
+            DailyCycleResult(dry_run=False, coverage_status="partial",
+                             sources_total=15, sources_succeeded=11,
+                             truncated_sources=["x"], report_status="generated"),
+            dry_run=False,
+        )
+        check("health check warns on partial coverage + truncated",
+              any("来源" in w for w in _hw) and len(_hw) >= 2,
+              "partial coverage and truncated sources should produce warnings")
         check("run record persists coverage_status + stale_released",
               all(k in (proj70 / "scripts" / "run_daily_cycle.py").read_text(encoding="utf-8")
                   for k in ('"coverage_status"', '"stale_released"', '"sources_succeeded"')),
