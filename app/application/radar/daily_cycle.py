@@ -25,8 +25,12 @@ ProgressCallback = Callable[[str, dict[str, Any]], None]
 @dataclass
 class DailyCycleResult:
     dry_run: bool
+    stale_released: int = 0
     fetch_due: int = 0
     fetch_started: int = 0
+    sources_total: int = 0
+    sources_succeeded: int = 0
+    coverage_status: str = "unknown"  # complete | partial | no_content | failed
     summary_targets: int = 0
     summary_completed: int = 0
     report_status: str = "skipped"
@@ -166,6 +170,24 @@ def run_daily_cycle(
     else:
         _progress("finalization_skipped", reason="do_report_false")
 
+    # 1b. Auto-recover stale 'running' FetchRuns so stuck sources are not
+    # silently skipped forever by due-source computation (root cause of the
+    # 6/13 → 7-source stall). Skipped in dry-run.
+    if do_fetch and not dry_run:
+        try:
+            from app.application.sources.stale_recovery import (
+                release_stale_running_fetch_runs,
+            )
+            released = release_stale_running_fetch_runs(db)
+            result.stale_released = len(released)
+            if released:
+                keys = ", ".join(sorted({r["source_key"] for r in released}))
+                result.steps.append(f"stale-recovery: released {len(released)} ({keys})")
+            _progress("stale_recovery_done", released=len(released))
+        except Exception as exc:  # best-effort
+            result.errors.append(f"stale-recovery: {exc}")
+            _progress("stale_recovery_error", error=str(exc))
+
     # 2. Fetch the live daily increment (due sources only).
     if do_fetch:
         try:
@@ -185,16 +207,32 @@ def run_daily_cycle(
             )
             result.fetch_due = r.eligible_sources
             result.fetch_started = r.started
+            # Source coverage so a silent partial/empty day is detectable.
+            result.sources_total = r.total_sources
+            result.sources_succeeded = max(0, r.started - r.failed)
+            new_items = sum(getattr(sr, "items_new", 0) for sr in (r.source_results or []))
+            if not dry_run:
+                if r.failed > 0:
+                    result.coverage_status = "partial"
+                elif r.eligible_sources == 0 or new_items == 0:
+                    result.coverage_status = "no_content"
+                else:
+                    result.coverage_status = "complete"
             result.steps.append(
-                f"fetch: due={r.eligible_sources} started={r.started}"
+                f"fetch: due={r.eligible_sources} started={r.started} "
+                f"failed={r.failed} new_items={new_items} coverage={result.coverage_status}"
                 + (" (dry-run)" if dry_run else "")
             )
             _progress(
                 "fetch_done",
                 eligible_sources=r.eligible_sources,
                 started=r.started,
+                failed=r.failed,
+                new_items=new_items,
+                coverage_status=result.coverage_status,
             )
         except Exception as exc:  # best-effort
+            result.coverage_status = "failed"
             result.errors.append(f"fetch: {exc}")
             _progress("fetch_error", error=str(exc))
     else:

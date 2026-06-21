@@ -9977,6 +9977,35 @@ def main():
     check("daily_cycle.py _progress swallows exceptions",
           "progress logging must never break" in dc_content)
 
+    # ── 66b. fetch reliability: stale-run auto-recovery + coverage status ──
+    try:
+        from app.application.sources.stale_recovery import (
+            release_stale_running_fetch_runs,
+        )
+        check("stale_recovery.release_stale_running_fetch_runs exists",
+              callable(release_stale_running_fetch_runs),
+              "auto-recovery writer for stuck 'running' FetchRuns should exist")
+        check("daily_cycle auto-recovers stale running before fetch",
+              "release_stale_running_fetch_runs" in dc_content
+              and dc_content.index("release_stale_running_fetch_runs")
+                  < dc_content.index("run_source_discovery"),
+              "the cycle must release stale runs before computing due sources")
+        check("daily_cycle computes coverage_status",
+              "coverage_status" in dc_content
+              and all(s in dc_content for s in ("partial", "no_content", "complete")),
+              "the cycle should classify daily source coverage")
+        check("run record persists coverage_status + stale_released",
+              all(k in (proj70 / "scripts" / "run_daily_cycle.py").read_text(encoding="utf-8")
+                  for k in ('"coverage_status"', '"stale_released"', '"sources_succeeded"')),
+              "the daily run record should persist coverage + recovery fields")
+        # stale_runs diagnostics must stay read-only (write lives in stale_recovery)
+        sr_src = (proj70 / "app" / "application" / "sources" / "stale_runs.py").read_text(encoding="utf-8")
+        check("stale_runs.py stays read-only (no DB commits)",
+              "db.commit" not in sr_src and "DIAGNOSTIC ONLY" in sr_src,
+              "stale_runs must remain diagnostic; writes belong in stale_recovery")
+    except Exception as e:
+        check("fetch reliability (stale recovery + coverage) checks", False, str(e))
+
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
     check("run_daily_cycle_once.ps1 exists", rdo_path.exists())
