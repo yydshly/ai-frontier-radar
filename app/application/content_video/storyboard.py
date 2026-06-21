@@ -133,37 +133,24 @@ def _build_opening_scene(
     section_count = len(snapshot.sections)
     is_radar = snapshot.source_key.startswith("radar_")
 
-    title = _safe_title(snapshot.title or "AI 前沿雷达", max_chars=40)
+    title = _safe_title(snapshot.title or "AI 前沿雷达", max_chars=60)
     brand = "AI FRONTIER RADAR"
     date = snapshot.date_label or ""
 
-    # Use complete sentences; never truncate.
-    visual_lines: list[str] = []
+    # The cover headline is the REAL report title (the stats bar chart + tagline
+    # are added by the renderer; the old generic "本期包含 N 个核心观察" /
+    # "接下来按顺序展开" lines are dropped).
+    visual_lines: list[str] = [title]
 
     narration_parts: list[str] = [
         f"{brand}，{date}。",
         f"本期主题：{title}。",
     ]
     if section_count > 0:
-        section_word = "个" if is_radar else "个"
-        if is_radar:
-            narration_parts.append(
-                f"本期共包含 {section_count} {section_word}核心观察，接下来按顺序展开。"
-            )
-            visual_lines.append(
-                f"本期包含 {section_count} 个核心观察"
-            )
-        else:
-            narration_parts.append(
-                f"本期共包含 {section_count} {section_word}核心观察。"
-            )
-            visual_lines.append(
-                f"本期包含 {section_count} 个核心观察"
-            )
-        narration_parts.append("以下是核心内容。")
-    else:
-        narration_parts.append("以下是核心内容。")
-    visual_lines.append("接下来按顺序展开")
+        narration_parts.append(
+            f"本期共包含 {section_count} 个核心观察，接下来按顺序展开。"
+        )
+    narration_parts.append("以下是核心内容。")
 
     opening_meta: dict = {"brand": brand, "section_count": section_count}
     snap_meta = snapshot.metadata if isinstance(snapshot.metadata, dict) else {}
@@ -187,46 +174,30 @@ def _build_overview_scenes(
     start_index: int,
     max_total_scenes: int | None = None,
 ) -> tuple[list[VideoScene], int]:
-    """Paginate ``snapshot.summary`` into one or more ``overview_paged`` scenes.
+    """Build a SINGLE ``overview_paged`` scene holding the whole overview.
 
-    The caller is responsible for providing ``max_total_scenes`` (an upper
-    bound on the resulting scene count).  When the overview would exceed
-    the budget, we keep only the FIRST pages so the opening + closing
-    scenes can still be created.
+    The overview is the report's "总结" and should read as one page (the renderer
+    auto-fits the font). It is split into sentences only so the renderer can wrap
+    them tidily — not into multiple scenes.
     """
     scenes: list[VideoScene] = []
     if not snapshot.summary:
         return scenes, start_index
 
-    pages = split_text_to_scene_pages(
-        snapshot.summary,
-        max_lines_per_scene=OVERVIEW_MAX_LINES_PER_PAGE,
-        max_chars_per_line=OVERVIEW_MAX_CHARS_PER_LINE,
-    )
-    if not pages:
-        return scenes, start_index
+    sentences = split_chinese_sentences(snapshot.summary)
+    lines = sentences or [snapshot.summary]
 
-    # Defensive: if max_total_scenes is set, reserve at least 1 scene for
-    # closing and (optionally) for sections.  We don't strictly enforce
-    # this here — the caller decides.  We just keep ALL pages of the
-    # overview because the overview carries the highest signal density.
-    total_pages = len(pages)
-    idx = start_index
-    for page_idx, page in enumerate(pages):
-        kicker = _format_overview_kicker(page_idx, total_pages)
-        narration = "今天的整体判断是：" + "，".join(page) + "。"
-        scenes.append(
-            VideoScene(
-                scene_id=f"scene_{idx:02d}",
-                scene_type="overview_paged",
-                visual_title="今日整体判断",
-                visual_lines=page,
-                narration_text=narration,
-                metadata={"page": page_idx + 1, "total_pages": total_pages, "kicker": kicker},
-            )
+    scenes.append(
+        VideoScene(
+            scene_id=f"scene_{start_index:02d}",
+            scene_type="overview_paged",
+            visual_title="今日整体判断",
+            visual_lines=lines,
+            narration_text=snapshot.summary,
+            metadata={"page": 1, "total_pages": 1, "kicker": "TODAY'S OVERVIEW"},
         )
-        idx += 1
-    return scenes, idx
+    )
+    return scenes, start_index + 1
 
 
 def _build_core_insight_scenes(
@@ -266,9 +237,13 @@ def _build_core_insight_scenes(
         short_title = to_video_signal_title(section.title, max_chars=24)
         full_title = _safe_title(section.title, max_chars=60)
 
+        total_sections = len(snapshot.sections)
         for page_idx, page in enumerate(pages):
             part = page_idx + 1
-            kicker = _make_continuation_kicker(index_label, part)
+            # Chinese ordinal kicker ("核心观察 03 · 共6条"); continuation pages mark 续.
+            kicker = f"核心观察 {index_label} · 共{total_sections}条"
+            if part > 1:
+                kicker += " · 续"
 
             scene_title = short_title if part == 1 else f"{short_title}（续）"
 
@@ -289,7 +264,7 @@ def _build_core_insight_scenes(
                     visual_title=scene_title,
                     visual_lines=page,
                     narration_text=narration,
-                    source_label=section.source_name or snapshot.date_label,
+                    source_label=None,  # 依据/source removed from the card (per design)
                     metadata={
                         "section_index": section_idx,
                         "part": part,

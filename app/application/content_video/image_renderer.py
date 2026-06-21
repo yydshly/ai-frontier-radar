@@ -304,76 +304,58 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
 
 
 def _render_summary_overview(scene, w: int, h: int) -> Image.Image:
-    """Scene: Summary overview — paginated numbered list of sentences.
+    """Scene: Overview — the report's 总结 as ONE auto-fit, centered paragraph.
 
     Layout:
       top: brand header
-      title: 今日整体判断
-      page kicker (e.g. "TODAY'S OVERVIEW · 2/3")
-      body: numbered items (full sentences, no truncation)
+      title: 今日整体判断 + kicker
+      body: the full overview as a single flowing paragraph (font auto-fit so it
+            fits one page), vertically centered, inside a soft panel
       bottom: footer
     """
     img = Image.new("RGBA", (w, h), C_BG)
     draw = _draw_background(img, w, h)
     header_y = _draw_brand_header(draw, w)
 
-    # Page title
+    # Page title + kicker
     title_font = _font(44, bold=True)
     title_text = getattr(scene, 'visual_title', '') or "今日整体判断"
     title_y = header_y + 20
     _centered_text(draw, title_text, title_font, title_y, w)
+    _centered_text(draw, "TODAY'S OVERVIEW", _font(18), title_y + 58, w, fill=C_TEXT_MUTED)
 
-    # Page kicker
-    md = getattr(scene, 'metadata', {}) or {}
-    page = md.get("page")
-    total = md.get("total_pages")
-    if page and total and total > 1:
-        kicker_font = _font(18)
-        _centered_text(
-            draw,
-            f"TODAY'S OVERVIEW · {page}/{total}",
-            kicker_font,
-            title_y + 60,
-            w,
-            fill=C_TEXT_MUTED,
-        )
+    # The whole overview, joined into one paragraph.
+    lines = getattr(scene, 'visual_lines', []) or [getattr(scene, 'visual_title', '')]
+    paragraph = "".join(ln.strip() for ln in lines if ln and ln.strip())
 
-    # Numbered items — show ALL lines from the page (no truncation)
-    content_left = SIDE_MARGIN + 20
-    content_right = w - SIDE_MARGIN - 20
-    item_h = 170
+    # Panel that fills the area below the title.
+    card_top = title_y + 120
+    card_bottom = h - BOTTOM_SAFE
+    card_left = SIDE_MARGIN
+    card_right = w - SIDE_MARGIN
+    _draw_panel(draw, card_left, card_top, card_right, card_bottom, radius=20)
 
-    lines = getattr(scene, 'visual_lines', [])
-    if not lines:
-        lines = [getattr(scene, 'visual_title', '')]
-
-    # Allow up to 4 sentences per page; auto-wrap inside the panel.
-    n = min(len(lines), 4)
-    # Vertically center the item block in the area below the title.
-    area_top = title_y + 130
-    area_bottom = h - BOTTOM_SAFE
-    content_top = area_top + max(0, (area_bottom - area_top - n * item_h) // 2)
-    for idx, line in enumerate(lines[:n], start=1):
-        iy = content_top + (idx - 1) * item_h
-        # Number badge
-        _draw_number_badge(draw, idx, content_left, iy)
-        # Panel
-        panel_left = content_left + 80
-        panel_right = content_right
-        panel_top = iy - 8
-        panel_bottom = iy + 130
-        _draw_panel(draw, panel_left, panel_top, panel_right, panel_bottom,
-                    fill=C_PANEL_ALT, radius=12)
-        # Text — wrap full sentence inside the panel
-        text_lines = _wrap_text(
-            draw,
-            line.strip(),
-            _font(28),
-            panel_right - panel_left - 30,
-        )
-        for t_idx, tl in enumerate(text_lines[:3]):
-            ty = panel_top + 16 + t_idx * 42
-            draw.text((panel_left + 14, ty), tl, font=_font(28), fill=C_TEXT)
+    inner_w = card_right - card_left - 80
+    card_h = card_bottom - card_top
+    # Largest font (within range) whose wrapped paragraph fits the panel.
+    display_lines: list[str] = []
+    body_size = 28
+    for trial in (40, 36, 34, 32, 30, 28, 26):
+        f = _font(trial)
+        wrapped = _wrap_text(draw, paragraph, f, inner_w)
+        if len(wrapped) * int(trial * 1.6) <= card_h - 72:
+            body_size, display_lines = trial, wrapped
+            break
+    else:
+        body_size = 26
+        display_lines = _wrap_text(draw, paragraph, _font(26), inner_w)
+    body_font = _font(body_size)
+    line_h = int(body_size * 1.6)
+    total_h = len(display_lines) * line_h
+    ly = card_top + max(36, (card_h - total_h) // 2)
+    for tl in display_lines:
+        draw.text((card_left + 40, ly), tl, font=body_font, fill=C_TEXT)
+        ly += line_h
 
     _draw_footer(draw, w, h)
     return img
@@ -415,24 +397,10 @@ def _render_signal(scene, w: int, h: int) -> Image.Image:
         _draw_chip(draw, idx_label, SIDE_MARGIN + 280, label_y, font_size=18,
                    bg=(59, 130, 246, 40), fg=C_ACCENT_2)
 
-    # Source label top-right
-    source = getattr(scene, 'source_label', None)
-    if source:
-        sf = _font(18)
-        sbbox = draw.textbbox((0, 0), source, font=sf)
-        sx = w - SIDE_MARGIN - (sbbox[2] - sbbox[0])
-        draw.text((sx, label_y), source, font=sf, fill=C_TEXT_MUTED)
-
-    # Signal title (FULL — never truncated)
-    title_y = label_y + 56
-    title_text = getattr(scene, 'visual_title', '') or "核心观察"
-    title_font = _font(44, bold=True)
-    title_wrapped = _wrap_text(draw, title_text, title_font, w - 2 * SIDE_MARGIN - 20)
-    for tidx, tl in enumerate(title_wrapped[:2]):
-        _centered_text(draw, tl, title_font, title_y + tidx * 56, w)
-
-    # Card panel with explanation
-    card_top = title_y + max(1, len(title_wrapped[:2])) * 56 + 20
+    # No separate signal title or source/依据: each core observation IS its
+    # sentence, shown as the card body below. The kicker chip ("核心观察 N · 共M条")
+    # already labels it, so the sentence reads once — no duplication.
+    card_top = label_y + 64
     card_bottom = h - BOTTOM_SAFE - 100
     card_left = SIDE_MARGIN
     card_right = w - SIDE_MARGIN
