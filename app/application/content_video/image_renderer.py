@@ -159,6 +159,45 @@ def _centered_text(draw: ImageDraw.Image, text: str, font, y: int, w: int,
     draw.text((x, y), text, font=font, fill=fill)
 
 
+def _draw_bar_chart(draw: ImageDraw.Image, cx: int, top: int, total_w: int,
+                    chart_h: int, items: list[tuple[str, int]]) -> int:
+    """Draw a simple vertical bar chart centered on cx. Returns bottom y.
+
+    items: list of (label, value). Bars scale to the max value; each bar shows
+    its value above and a label below.
+    """
+    n = len(items)
+    if n == 0:
+        return top
+    max_v = max((v for _, v in items), default=0) or 1
+    slot = total_w // n
+    bar_w = min(96, slot - 24)
+    label_h = 30
+    val_h = 28
+    bar_zone = chart_h - label_h - val_h
+    left = cx - total_w // 2
+    val_font = _font(24, bold=True)
+    label_font = _font(20)
+    for i, (label, value) in enumerate(items):
+        slot_cx = left + slot * i + slot // 2
+        bh = int(bar_zone * (value / max_v)) if max_v else 0
+        bh = max(bh, 4)
+        bx0 = slot_cx - bar_w // 2
+        by1 = top + val_h + bar_zone
+        by0 = by1 - bh
+        # value label above the bar
+        vb = draw.textbbox((0, 0), str(value), font=val_font)
+        draw.text((slot_cx - (vb[2] - vb[0]) // 2, by0 - val_h), str(value),
+                  font=val_font, fill=C_TEXT)
+        # bar (emerald gradient-ish: solid accent with a lighter cap)
+        draw.rounded_rectangle([bx0, by0, bx0 + bar_w, by1], radius=8, fill=C_ACCENT)
+        # label below
+        lb = draw.textbbox((0, 0), label, font=label_font)
+        draw.text((slot_cx - (lb[2] - lb[0]) // 2, by1 + 8), label,
+                  font=label_font, fill=C_TEXT_MUTED)
+    return top + chart_h
+
+
 # ── Scene-specific renderers ──────────────────────────────────────────────────
 
 def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
@@ -190,11 +229,26 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
         if m:
             count = int(m.group(1)); break
 
+    # Real stats (from the report) drive a bar chart; fall back to the ring.
+    stats = (getattr(scene, 'metadata', {}) or {}).get("stats")
+    chart_items: list[tuple[str, int]] = []
+    if isinstance(stats, dict):
+        chart_items = [
+            ("新增", int(stats.get("new", 0))),
+            ("已识别", int(stats.get("summarized", 0))),
+            ("重要", int(stats.get("important", 0))),
+            ("来源", int(stats.get("sources", 0))),
+        ]
+
     # ── Measure the whole content block, then vertically center it ──
     kicker_h = 30 + 30
     title_h = len(title_wrapped) * 64
-    stat_h = 200 if count else 0
-    sub_h = len(sub_lines) * 42 + (24 if sub_lines else 0)
+    chart_h = 260
+    stat_h = (chart_h + 28) if chart_items else (200 if count else 0)
+    # The sub-line ("接下来按顺序展开") duplicates the tagline below, so skip it
+    # when the chart already fills the mid-section.
+    show_sub = bool(sub_lines) and not chart_items
+    sub_h = (len(sub_lines) * 42 + 24) if show_sub else 0
     tag_h = 60 + 30
     block_h = kicker_h + title_h + stat_h + sub_h + tag_h
     avail_top = header_y
@@ -211,9 +265,12 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
         y += 64
     y += 24
 
-    # Big stat graphic — a ring + count + segmented bar (visual interest, no
-    # external data needed). Falls back gracefully when no count is present.
-    if count:
+    # Big stat graphic — a real bar chart when stats are available, else a ring
+    # with the observation count.
+    if chart_items:
+        _draw_bar_chart(draw, w // 2, y, min(680, w - 2 * SIDE_MARGIN), chart_h, chart_items)
+        y += stat_h  # includes a gap below the chart labels
+    elif count:
         cx, cy, r = w // 2, y + 70, 64
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=C_ACCENT, width=6)
         nf = _font(64, bold=True)
@@ -231,8 +288,8 @@ def _render_opening_summary(scene, w: int, h: int) -> Image.Image:
             sx += seg_w + 8
         y += stat_h
 
-    # Sub-lines (e.g. "本期包含 N 个核心观察")
-    if sub_lines:
+    # Sub-lines (skipped when the chart is shown — see show_sub)
+    if show_sub:
         for sl in sub_lines:
             _centered_text(draw, sl, _font(28), y, w, fill=C_TEXT_DIM)
             y += 42

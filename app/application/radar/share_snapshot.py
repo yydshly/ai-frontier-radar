@@ -124,6 +124,16 @@ def build_today_share_snapshot(
 
     share_key = f"radar_{date_label}" if date_label else "radar_today"
 
+    # Carry the day's stats so the video cover can render a real bar chart.
+    metadata: dict[str, Any] = {}
+    if view.stats is not None:
+        metadata["stats"] = {
+            "new": view.stats.new_items,
+            "summarized": view.stats.summarized,
+            "important": view.stats.important,
+            "sources": view.stats.sources,
+        }
+
     return ShareReportSnapshot(
         share_key=share_key,
         date_label=date_label,
@@ -135,7 +145,7 @@ def build_today_share_snapshot(
         takeaways=takeaways,
         report_url=None,
         generated_at=None,
-        metadata={},
+        metadata=metadata,
     )
 
 

@@ -165,6 +165,11 @@ def _build_opening_scene(
         narration_parts.append("以下是核心内容。")
     visual_lines.append("接下来按顺序展开")
 
+    opening_meta: dict = {"brand": brand, "section_count": section_count}
+    snap_meta = snapshot.metadata if isinstance(snapshot.metadata, dict) else {}
+    if isinstance(snap_meta.get("stats"), dict):
+        opening_meta["stats"] = snap_meta["stats"]
+
     return VideoScene(
         scene_id=f"scene_{scene_index:02d}",
         scene_type="opening",
@@ -172,7 +177,7 @@ def _build_opening_scene(
         visual_lines=visual_lines,
         narration_text="".join(narration_parts),
         source_label=date,
-        metadata={"brand": brand, "section_count": section_count},
+        metadata=opening_meta,
     )
 
 
