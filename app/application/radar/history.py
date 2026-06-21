@@ -16,6 +16,28 @@ from app.application.radar.daily_report_store import (
     load_daily_report,
     load_final_daily_report,
 )
+from app.application.radar.daily_status_store import (
+    list_daily_status_dates,
+    load_daily_status,
+)
+
+
+# Finalization status → short Chinese badge for the history index. Days that
+# produced a report need no badge (None); the abnormal ones get a visible note
+# so a blank/incomplete day is explained rather than silently missing.
+_STATUS_BADGES: dict[str, str] = {
+    "no_input": "当日无内容",
+    "no_report": "未生成报告",
+    "save_failed": "生成失败",
+    "save_error": "生成失败",
+}
+
+
+def _status_badge(status: str | None, detail: str | None) -> str | None:
+    if not status or status in ("finalized", "already_finalized"):
+        # A finalized day may still carry a soft warning (e.g. partial summary).
+        return detail if detail else None
+    return _STATUS_BADGES.get(status, "数据不完整")
 
 
 @dataclass(frozen=True)
@@ -25,6 +47,8 @@ class HistoryDay:
     item_count: int
     audio_count: int
     has_report: bool
+    status: str | None = None
+    status_badge: str | None = None
 
 
 @dataclass(frozen=True)
@@ -75,15 +99,38 @@ def _audio_jobs_for(date_label: str) -> list:
     ]
 
 
-def list_history_days(db) -> list[HistoryDay]:
-    """All past days that have a persisted report, newest first."""
+def list_history_days(db, *, include_blank: bool = False) -> list[HistoryDay]:
+    """Past days, newest first.
+
+    By default only days with a persisted report are returned (used by the
+    public share index). With ``include_blank=True`` the internal history index
+    also lists days that have a finalization *status* sidecar but no report
+    (e.g. ``no_input`` / failed days), so a blank day is explained instead of
+    silently disappearing from the timeline.
+    """
     days: list[HistoryDay] = []
-    date_labels = sorted(
-        set(list_final_daily_report_dates()) | set(list_daily_report_dates()),
-        reverse=True,
-    )
+    report_dates = set(list_final_daily_report_dates()) | set(list_daily_report_dates())
+    status_dates = set(list_daily_status_dates()) if include_blank else set()
+    date_labels = sorted(report_dates | status_dates, reverse=True)
     for date_label in date_labels:
         report = load_final_daily_report(date_label) or load_daily_report(date_label)
+        status_rec = load_daily_status(date_label) if (include_blank or report is None) else None
+        if report is None:
+            # Blank/failed day: surfaced only when include_blank requested.
+            if not include_blank or status_rec is None:
+                continue
+            days.append(HistoryDay(
+                date_label=date_label,
+                report_title=None,
+                item_count=int(status_rec.get("item_count") or 0),
+                audio_count=0,
+                has_report=False,
+                status=status_rec.get("status"),
+                status_badge=_status_badge(
+                    status_rec.get("status"), status_rec.get("detail")
+                ),
+            ))
+            continue
         frozen_articles = (
             report.get("articles")
             if report and report.get("report_kind") == "final"
@@ -107,6 +154,10 @@ def list_history_days(db) -> list[HistoryDay]:
             item_count=len(frozen_articles) if frozen_articles is not None else len(items),
             audio_count=audio_count,
             has_report=report is not None,
+            status=(status_rec or {}).get("status"),
+            status_badge=_status_badge(
+                (status_rec or {}).get("status"), (status_rec or {}).get("detail")
+            ) if status_rec else None,
         ))
     return days
 

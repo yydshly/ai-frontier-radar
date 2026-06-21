@@ -214,6 +214,16 @@ def finalize_daily_report(
         save_final_daily_report,
         update_final_daily_report,
     )
+    from app.application.radar.daily_status_store import save_daily_status
+
+    def _record_status(status: str, *, item_count: int = 0, detail: str | None = None):
+        # Best-effort: a status sidecar must never break finalization.
+        try:
+            save_daily_status(
+                date_label, status, item_count=item_count, detail=detail, root_dir=root_dir
+            )
+        except Exception:
+            pass
 
     existing = load_final_daily_report(date_label, root_dir=root_dir)
     if existing is not None:
@@ -241,6 +251,10 @@ def finalize_daily_report(
                     },
                     root_dir=root_dir,
                 )
+        _record_status(
+            "already_finalized",
+            item_count=len(existing.get("articles") or []),
+        )
         return DailyFinalizationResult(
             date_label=date_label,
             status="already_finalized",
@@ -252,6 +266,7 @@ def finalize_daily_report(
 
     items = _items_in_period(db, date_label)
     if not items:
+        _record_status("no_input", item_count=0, detail="该周期没有可结算文章。")
         return DailyFinalizationResult(
             date_label=date_label,
             status="no_input",
@@ -283,6 +298,9 @@ def finalize_daily_report(
         date_label=date_label,
     )
     if report.status != "generated":
+        _record_status(
+            report.status, item_count=len(items), detail=report.message
+        )
         return DailyFinalizationResult(
             date_label=date_label,
             status=report.status,
@@ -302,6 +320,7 @@ def finalize_daily_report(
         audio_status="pending" if generate_audio else "skipped",
     )
     if stored is None:
+        _record_status("save_failed", item_count=len(items), detail="正式日报保存失败。")
         return DailyFinalizationResult(
             date_label=date_label,
             status="save_failed",
@@ -344,6 +363,11 @@ def finalize_daily_report(
                 root_dir=root_dir,
             )
 
+    _record_status(
+        "finalized",
+        item_count=len(items),
+        detail=("摘要不完整" if summary_status == "partial" else None),
+    )
     return DailyFinalizationResult(
         date_label=date_label,
         status="finalized",

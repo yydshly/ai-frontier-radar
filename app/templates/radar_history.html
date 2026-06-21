@@ -5,6 +5,27 @@
 {% block main_class %}wide-page{% endblock %}
 
 {% block content %}
+        <style>
+            .history-day-badge {
+                display: inline-block;
+                margin-left: .5rem;
+                padding: .05rem .45rem;
+                font-size: .72rem;
+                font-weight: 600;
+                line-height: 1.5;
+                border-radius: 999px;
+                color: #9a6b00;
+                background: rgba(255, 196, 0, .16);
+                border: 1px solid rgba(255, 196, 0, .45);
+                vertical-align: middle;
+            }
+            .history-day--blank .history-day-badge {
+                color: #b23b3b;
+                background: rgba(255, 92, 92, .12);
+                border-color: rgba(255, 92, 92, .4);
+            }
+            .history-day--blank .history-day-meta { opacity: .7; }
+        </style>
         <div class="page-header">
             <h1>每日历史</h1>
             <p>按 08:00 至次日 08:00 的完整周期回看正式报告、语音与文章快照。没有打开网页也不影响外部定时任务归档。</p>
@@ -14,9 +35,12 @@
         {% if days %}
         <ul class="history-list">
             {% for d in days %}
-            <li class="history-day">
+            <li class="history-day{% if not d.has_report %} history-day--blank{% endif %}">
                 <a href="/radar/history/{{ d.date_label }}" class="history-day-link">
-                    <span class="history-day-date">{{ d.date_label }}</span>
+                    <span class="history-day-date">
+                        {{ d.date_label }}
+                        {% if d.status_badge %}<span class="history-day-badge">{{ d.status_badge }}</span>{% endif %}
+                    </span>
                     <span class="history-day-meta">
                         {% if d.report_title %}{{ d.report_title }}{% else %}（当日无核心报告）{% endif %}
                         · 新增 {{ d.item_count }} · 语音 {{ d.audio_count }}

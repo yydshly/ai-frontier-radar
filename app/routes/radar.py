@@ -1483,12 +1483,12 @@ def update_today_radar(
 
 @router.get("/history", response_class=HTMLResponse)
 def radar_history(request: Request):
-    """Per-day history index (P5): past days that have a persisted report."""
+    """Per-day history index (P5): past days, incl. blank/incomplete ones."""
     from app.application.radar.history import list_history_days
 
     db = next(get_db())
     try:
-        days = list_history_days(db)
+        days = list_history_days(db, include_blank=True)
     finally:
         db.close()
     return _radar_templates.TemplateResponse(

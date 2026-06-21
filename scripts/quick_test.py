@@ -10024,6 +10024,57 @@ def main():
     except Exception as e:
         check("fetch reliability (stale recovery + coverage) checks", False, str(e))
 
+    # ── 66c. per-day status sidecars + blank-day history visibility (P2) ──────
+    try:
+        import tempfile as _tf
+        from pathlib import Path as _P
+        from app.application.radar.daily_status_store import (
+            save_daily_status, load_daily_status, list_daily_status_dates,
+        )
+        with _tf.TemporaryDirectory() as _td:
+            _root = _P(_td)
+            save_daily_status("2026-06-18", "no_input", item_count=0,
+                              detail="该周期没有可结算文章。", root_dir=_root)
+            save_daily_status("2026-06-19", "finalized", item_count=12, root_dir=_root)
+            _rec = load_daily_status("2026-06-18", root_dir=_root)
+            check("daily_status round-trips a no_input day",
+                  _rec is not None and _rec.get("status") == "no_input",
+                  "blank days must be persisted so history can explain the gap")
+            check("daily_status lists persisted dates newest-first",
+                  list_daily_status_dates(_root) == ["2026-06-19", "2026-06-18"],
+                  "status sidecar listing should be sorted desc")
+            check("daily_status rejects bad date labels",
+                  load_daily_status("not-a-date", root_dir=_root) is None,
+                  "malformed date labels must not load")
+        # finalization records a status sidecar on terminal paths
+        fin_src = (proj70 / "app" / "application" / "radar" / "daily_finalization.py").read_text(encoding="utf-8")
+        check("finalization records per-day status (incl. no_input)",
+              "save_daily_status" in fin_src and "_record_status" in fin_src,
+              "every finalization outcome should leave a status sidecar")
+        # history surfaces blank days + a status badge
+        from app.application.radar.history import HistoryDay, _status_badge
+        check("HistoryDay carries status + badge",
+              hasattr(HistoryDay("x", None, 0, 0, False), "status_badge"),
+              "history rows must expose a status badge for the UI")
+        check("status badge explains a no_input day",
+              _status_badge("no_input", None) == "当日无内容"
+              and _status_badge("finalized", None) is None,
+              "abnormal days get a badge; normal days stay clean")
+        hist_src = (proj70 / "app" / "application" / "radar" / "history.py").read_text(encoding="utf-8")
+        check("list_history_days supports include_blank",
+              "include_blank" in hist_src,
+              "internal history index must be able to list blank days")
+        radar_routes_src = (proj70 / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        check("radar_history route lists blank days",
+              "include_blank=True" in radar_routes_src,
+              "the history page should request blank days")
+        hist_tpl = (proj70 / "app" / "templates" / "radar_history.html").read_text(encoding="utf-8")
+        check("history template renders status badge",
+              "status_badge" in hist_tpl and "history-day-badge" in hist_tpl,
+              "the badge must be visible in the history index")
+    except Exception as e:
+        check("per-day status + blank-day history checks", False, str(e))
+
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
     check("run_daily_cycle_once.ps1 exists", rdo_path.exists())
