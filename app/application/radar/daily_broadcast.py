@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSError
+from app.application.tts.mimo_tts import MiMoTTSClient, MiMoTTSError
 
 
 _AUDIO_FILENAME_RE = re.compile(

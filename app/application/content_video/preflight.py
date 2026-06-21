@@ -165,7 +165,7 @@ def _check_tts() -> ContentVideoPreflightItem:
         )
     # Validate real TTS config the same way MiMoTTSSettings.from_env() does
     try:
-        from app.application.radar.mimo_tts import MiMoTTSSettings
+        from app.application.tts.mimo_tts import MiMoTTSSettings
         settings = MiMoTTSSettings.from_env()
         return ContentVideoPreflightItem(
             name="tts",

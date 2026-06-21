@@ -2057,15 +2057,11 @@ def main():
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom):
                     mod = node.module or ""
-                    # content_video must not depend on radar BUSINESS logic
-                    # (share/daily_cycle). The MiMo TTS client (radar.mimo_tts) is
-                    # an infra/backend dependency and is the one allowed exception
-                    # (preflight validates TTS config). Everything else is banned.
-                    is_business = "daily_cycle" in mod or (
-                        "radar" in mod and "mimo_tts" not in mod
-                    )
-                    if is_business:
-                        check(f"{py_file.name} must NOT import radar business logic",
+                    # content_video must be fully independent of radar/daily_cycle.
+                    # The TTS client now lives in app.application.tts (not radar),
+                    # so there is NO allowed radar exception any more.
+                    if "radar" in mod or "daily_cycle" in mod:
+                        check(f"{py_file.name} must NOT import radar/daily_cycle",
                               False, f"found: {mod}")
                         raise AssertionError(f"{py_file.name} imports radar: {mod}")
         check("content_video modules do NOT import app.application.radar", True)
@@ -7090,10 +7086,10 @@ def main():
         check("No LLM imports in daily_broadcast.py",
               "from app.llm" not in broadcast_text and "import app.llm" not in broadcast_text,
               "daily_broadcast.py should not import LLM modules")
-        mimo_module_path = project_root / "app" / "application" / "radar" / "mimo_tts.py"
-        check("mimo_tts.py exists",
+        mimo_module_path = project_root / "app" / "application" / "tts" / "mimo_tts.py"
+        check("mimo_tts.py exists (app.application.tts)",
               mimo_module_path.exists(),
-              "MiMo TTS adapter should exist")
+              "MiMo TTS adapter should live under app.application.tts (not radar)")
         mimo_text = mimo_module_path.read_text(encoding="utf-8")
         check("MiMo adapter uses official chat completions endpoint",
               "/chat/completions" in mimo_text and '"api-key"' in mimo_text,
@@ -7104,7 +7100,7 @@ def main():
 
         import base64
         import httpx
-        from app.application.radar.mimo_tts import MiMoTTSClient, MiMoTTSSettings
+        from app.application.tts.mimo_tts import MiMoTTSClient, MiMoTTSSettings
 
         captured_request = {}
         mock_wav = (

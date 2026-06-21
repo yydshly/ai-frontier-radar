@@ -174,7 +174,7 @@ def _generate_final_audio(report: dict[str, Any]) -> tuple[str, str | None]:
     from app.application.radar.daily_broadcast import (
         build_core_report_broadcast_script,
     )
-    from app.application.radar.mimo_tts import MiMoTTSSettings
+    from app.application.tts.mimo_tts import MiMoTTSSettings
 
     script = build_core_report_broadcast_script(report)
     settings = MiMoTTSSettings.from_env()

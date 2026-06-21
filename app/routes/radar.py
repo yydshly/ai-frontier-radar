@@ -788,7 +788,7 @@ def generate_today_audio(
         enqueue_daily_audio_job,
         run_daily_audio_job,
     )
-    from app.application.radar.mimo_tts import MiMoTTSSettings
+    from app.application.tts.mimo_tts import MiMoTTSSettings
 
     try:
         settings = MiMoTTSSettings.from_env()
@@ -1819,7 +1819,7 @@ def get_daily_broadcast(
         load_daily_audio_job,
         select_daily_audio_job,
     )
-    from app.application.radar.mimo_tts import MiMoTTSSettings, MiMoTTSError
+    from app.application.tts.mimo_tts import MiMoTTSSettings, MiMoTTSError
 
     try:
         settings = MiMoTTSSettings.from_env()

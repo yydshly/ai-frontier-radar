@@ -18,7 +18,7 @@ from app.application.radar.daily_broadcast import (
     get_daily_broadcast_audio_path,
     is_valid_daily_broadcast_audio_file,
 )
-from app.application.radar.mimo_tts import (
+from app.application.tts.mimo_tts import (
     MiMoTTSClient,
     MiMoTTSError,
     MiMoTTSSettings,
