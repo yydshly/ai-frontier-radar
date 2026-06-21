@@ -71,17 +71,18 @@ _TERMINATORS = "。！？!?；;\n"
 _SOFT_SEPARATORS = "，,、：:"
 
 
-def split_chinese_sentences(text: str) -> list[str]:
+def split_chinese_sentences(text: str, *, soft_split: bool = False) -> list[str]:
     """Split text into a list of semantic sentences.
 
     Rules:
-      - Strong terminators (。！？!?；;\n) always end a sentence.
-      - Soft separators (，,、：:) only end a sentence when the chunk is
-        already at least 14 chars long.
+      - Strong terminators (。！？!?；;\n) always end a sentence — a full clause.
+      - Commas/colons (，,、：:) do NOT end a sentence by default, so each line
+        stays a complete, semantically whole sentence (the renderer wraps long
+        ones). Pass ``soft_split=True`` to also break on soft separators ≥14
+        chars (legacy behaviour).
       - Empty / whitespace-only chunks are dropped.
 
-    The function guarantees: no fragment lines (≥2 meaningful chars) and
-    no ellipsis.  The order of the original text is preserved.
+    Guarantees no fragment lines and no ellipsis; preserves original order.
     """
     if not text:
         return []
@@ -103,7 +104,7 @@ def split_chinese_sentences(text: str) -> list[str]:
         buf.append(ch)
         if ch in _TERMINATORS:
             _flush()
-        elif ch in _SOFT_SEPARATORS and len(buf) >= 14:
+        elif soft_split and ch in _SOFT_SEPARATORS and len(buf) >= 14:
             _flush()
 
     _flush()
