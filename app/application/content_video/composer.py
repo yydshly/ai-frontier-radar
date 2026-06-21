@@ -271,12 +271,42 @@ def _srt_timestamp(ms: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
+_CAPTION_SEPARATORS = "，,、；;：:。！？!?"
+
+
+def _chunk_caption(text: str, max_chars: int = 20) -> list[str]:
+    """Break one sentence into short, readable caption chunks at punctuation.
+
+    Greedily accumulates characters up to ~max_chars, preferring to break right
+    after a separator. Trailing punctuation is trimmed from each chunk.
+    """
+    text = text.strip()
+    if len(text) <= max_chars:
+        return [text.strip("，,、；;：: ")] if text else []
+    chunks: list[str] = []
+    buf = ""
+    for ch in text:
+        buf += ch
+        if ch in _CAPTION_SEPARATORS and len(buf) >= max_chars * 0.6:
+            chunks.append(buf)
+            buf = ""
+        elif len(buf) >= max_chars:
+            chunks.append(buf)
+            buf = ""
+    if buf:
+        chunks.append(buf)
+    return [c.strip("，,、；;：: ") for c in chunks if c.strip("，,、；;：: ")]
+
+
 def build_srt_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0) -> str:
     """Build SRT text from per-scene subtitle segments.
 
     Each scene's segments are timed relative to its own audio; we offset them by
     the cumulative scene placement. ``gap_seconds`` is the inter-scene padding the
     compose path adds per clip (0 for the Remotion mux, the clip buffer for PIL).
+    Long sentence segments are sub-split into short caption chunks, with the
+    segment's time window allocated proportionally by chunk length (approximate
+    intra-sentence timing — we only have sentence-level timestamps).
     """
     lines: list[str] = []
     idx = 1
@@ -287,15 +317,23 @@ def build_srt_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0)
             text = str(seg.get("text") or "").strip()
             if not text:
                 continue
-            begin = offset_ms + float(seg.get("begin_ms", 0.0))
-            end = min(offset_ms + float(seg.get("end_ms", 0.0)), offset_ms + dur_ms)
-            if end <= begin:
-                end = begin + 800
-            lines.append(str(idx))
-            lines.append(f"{_srt_timestamp(begin)} --> {_srt_timestamp(end)}")
-            lines.append(text)
-            lines.append("")
-            idx += 1
+            seg_begin = offset_ms + float(seg.get("begin_ms", 0.0))
+            seg_end = min(offset_ms + float(seg.get("end_ms", 0.0)), offset_ms + dur_ms)
+            if seg_end <= seg_begin:
+                seg_end = seg_begin + 800
+            chunks = _chunk_caption(text) or [text]
+            total_chars = sum(len(c) for c in chunks) or 1
+            span = seg_end - seg_begin
+            t = seg_begin
+            for c in chunks:
+                share = span * (len(c) / total_chars)
+                c_begin, c_end = t, t + share
+                t = c_end
+                lines.append(str(idx))
+                lines.append(f"{_srt_timestamp(c_begin)} --> {_srt_timestamp(c_end)}")
+                lines.append(c)
+                lines.append("")
+                idx += 1
         offset_ms += dur_ms + gap_seconds * 1000.0
     return "\n".join(lines)
 
