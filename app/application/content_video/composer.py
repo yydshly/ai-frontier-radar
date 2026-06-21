@@ -272,30 +272,87 @@ def _ass_timestamp(ms: float) -> str:
     return f"{h:d}:{m:02d}:{s:02d}.{cs:02d}"
 
 
-# ASS header. PlayResX/Y match the real video so Fontsize/margins are in true
-# pixels (avoids libass's default-res scaling that blows the font up / breaks
-# wrapping). Colours are &HAABBGGRR (AA: 00=opaque, FF=transparent).
-_ASS_HEADER = """\
-[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-WrapStyle: 0
-ScaledBorderAndShadow: yes
+# ── Subtitle style presets (configurable) ───────────────────────────────────
+# Colours are ASS &HAABBGGRR (AA: 00=opaque, FF=transparent). PlayResX/Y match
+# the real video so Fontsize/margins are in true pixels (no libass up-scaling).
+# Env:
+#   CONTENT_VIDEO_SUBTITLES        on|off            (default on)
+#   CONTENT_VIDEO_SUBTITLE_PRESET  clean|boxed|yellow|minimal  (default clean)
+#   CONTENT_VIDEO_SUBTITLE_MAX_CHARS  per-line chars  (default 16)
+_SUBTITLE_PRESETS: dict[str, dict] = {
+    # bold white, dark outline + soft shadow, no box, numbers highlighted
+    "clean": {"font": "Microsoft YaHei", "size": 52, "primary": "&H00FFFFFF",
+              "outline_col": "&H10000000", "back": "&H60000000", "bold": 1,
+              "border_style": 1, "outline": 3, "shadow": 1, "marginv": 150,
+              "marginlr": 90, "highlight": True},
+    # semi-transparent rounded box behind text — most readable on busy frames
+    "boxed": {"font": "Microsoft YaHei", "size": 50, "primary": "&H00FFFFFF",
+              "outline_col": "&H00000000", "back": "&HA0101418", "bold": 1,
+              "border_style": 3, "outline": 6, "shadow": 0, "marginv": 150,
+              "marginlr": 110, "highlight": True},
+    # classic yellow captions, dark outline
+    "yellow": {"font": "Microsoft YaHei", "size": 52, "primary": "&H0000E6F5",
+               "outline_col": "&H10000000", "back": "&H60000000", "bold": 1,
+               "border_style": 1, "outline": 3, "shadow": 1, "marginv": 150,
+               "marginlr": 90, "highlight": False},
+    # smaller, thin outline, no number highlight — understated
+    "minimal": {"font": "Microsoft YaHei", "size": 46, "primary": "&H00F0F0F0",
+                "outline_col": "&H30000000", "back": "&H60000000", "bold": 0,
+                "border_style": 1, "outline": 2, "shadow": 0, "marginv": 140,
+                "marginlr": 100, "highlight": False},
+}
 
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Microsoft YaHei,52,&H00FFFFFF,&H10000000,&H60000000,1,0,0,0,100,100,0,0,1,3,1,2,90,90,150,1
 
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
+def _subtitle_config() -> tuple[bool, dict, int]:
+    """Return (enabled, preset_dict, max_chars_per_line) from env."""
+    import os
+    enabled = os.getenv("CONTENT_VIDEO_SUBTITLES", "on").strip().lower() not in {
+        "0", "off", "false", "no"
+    }
+    name = os.getenv("CONTENT_VIDEO_SUBTITLE_PRESET", "clean").strip().lower()
+    preset = _SUBTITLE_PRESETS.get(name, _SUBTITLE_PRESETS["clean"])
+    try:
+        max_chars = int(os.getenv("CONTENT_VIDEO_SUBTITLE_MAX_CHARS", "16"))
+    except (TypeError, ValueError):
+        max_chars = 16
+    return enabled, preset, max(8, min(28, max_chars))
 
 
-_CAPTION_SEPARATORS = "，,、；;：:。！？!?"
+def subtitles_enabled() -> bool:
+    return _subtitle_config()[0]
+
+
+def _ass_header(preset: dict) -> str:
+    style = (
+        f"Style: Default,{preset['font']},{preset['size']},{preset['primary']},"
+        f"{preset['outline_col']},{preset['back']},{preset['bold']},0,0,0,"
+        f"100,100,0,0,{preset['border_style']},{preset['outline']},{preset['shadow']},"
+        f"2,{preset['marginlr']},{preset['marginlr']},{preset['marginv']},1"
+    )
+    return (
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        "PlayResX: 1080\n"
+        "PlayResY: 1920\n"
+        "WrapStyle: 0\n"
+        "ScaledBorderAndShadow: yes\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, "
+        "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"{style}\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+
+
 # An "atom" is either a whole alphanumeric token (kept intact — dates like
 # 2026-06-12, numbers like 88.9%, words like ChatGPT) or a single other char.
 _ATOM_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z\-./:%]*")
+# Clause boundaries — caption units split here (NOT at 、 or ：, which stay inline).
+_CLAUSE_RE = re.compile(r"[^，,；;。！？!?]+[，,；;。！？!?]?")
+# How long a segment may be before we split it into clauses (otherwise show whole).
+_MAX_CAPTION_CHARS = 38
 
 
 def _atomize(text: str) -> list[str]:
@@ -312,40 +369,33 @@ def _atomize(text: str) -> list[str]:
     return atoms
 
 
-def _chunk_caption(text: str, max_chars: int = 16) -> list[str]:
-    """Break one sentence into short, readable caption chunks.
+def _split_clauses(text: str) -> list[str]:
+    return [c.strip() for c in _CLAUSE_RE.findall(text) if c.strip()]
 
-    Token-aware: never splits inside an alphanumeric token (dates/numbers/English
-    stay whole). Prefers to break right after a separator; otherwise breaks once
-    adding the next atom would exceed ``max_chars``.
-    """
-    text = text.strip()
-    if not text:
-        return []
-    chunks: list[str] = []
+
+def _wrap_lines(text: str, max_chars: int) -> list[str]:
+    """Wrap text into lines without ever splitting an alphanumeric token."""
+    lines: list[str] = []
     buf = ""
     for atom in _atomize(text):
-        if buf and len(buf) + len(atom) > max_chars and len(buf) >= max_chars * 0.5:
-            chunks.append(buf)
+        if buf and len(buf) + len(atom) > max_chars:
+            lines.append(buf)
             buf = ""
         buf += atom
-        if atom and atom[-1] in _CAPTION_SEPARATORS and len(buf) >= max_chars * 0.5:
-            chunks.append(buf)
-            buf = ""
     if buf:
-        chunks.append(buf)
-    # Merge orphan tiny chunks (e.g. a trailing single char) into the previous.
+        lines.append(buf)
+    # Merge an orphan tiny last line into the previous one.
     merged: list[str] = []
-    for ch in chunks:
-        if merged and len(ch.strip()) <= 3:
-            merged[-1] += ch
+    for ln in lines:
+        if merged and len(ln.strip("，,、；;：: ")) <= 3:
+            merged[-1] += ln
         else:
-            merged.append(ch)
-    return [c.strip("，,、；;：: ") for c in merged if c.strip("，,、；;：: ")]
+            merged.append(ln)
+    return [ln for ln in merged if ln.strip()] or [text]
 
 
-# Highlight impactful data figures (with a unit/percent) in amber; dates and
-# bare counts stay white. ASS inline colour is &HBBGGRR; {\r} resets to style.
+# Highlight impactful data figures (with a unit/percent) in the accent colour;
+# dates and bare counts stay the primary colour. {\r} resets to the style.
 _NUM_HL_RE = re.compile(r"\d[\d.,]*(?:%|万|亿|倍)")
 _NUM_HL_OPEN = "{\\c&H000BA5F5&}"
 _NUM_HL_RESET = "{\\r}"
@@ -358,40 +408,50 @@ def _highlight_numbers(text: str) -> str:
 def build_ass_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0) -> str:
     """Build an ASS subtitle file from per-scene subtitle segments.
 
-    Each scene's segments are timed relative to its own audio; we offset them by
-    the cumulative scene placement. ``gap_seconds`` is the inter-scene padding the
-    compose path adds per clip (0 for the Remotion mux, the clip buffer for PIL).
-    Long sentence segments are sub-split into short caption chunks, with the
-    segment's time window allocated proportionally by chunk length (approximate
-    intra-sentence timing — we only have sentence-level timestamps).
+    Caption unit = a whole MiniMax segment (a sentence/clause), shown across its
+    own time window and wrapped to MULTIPLE LINES (never splitting a token) — so a
+    sentence is never cut mid-clause. Only segments longer than _MAX_CAPTION_CHARS
+    are split at natural clause punctuation (，；。！？), with time allocated
+    proportionally. Style/highlight come from the configured preset.
     """
+    enabled, preset, max_chars = _subtitle_config()
+    if not enabled:
+        return _ass_header(preset)  # header only → no Dialogue → burn is skipped
+    do_hl = bool(preset.get("highlight"))
+
+    def _format(unit: str) -> str:
+        lines = _wrap_lines(unit, max_chars)
+        if do_hl:
+            lines = [_highlight_numbers(ln) for ln in lines]
+        return "\\N".join(lines)
+
     events: list[str] = []
     offset_ms = 0.0
     for scene in scenes:
         dur_ms = (scene.duration_seconds or 0.0) * 1000.0
         for seg in (getattr(scene, "subtitle_segments", None) or []):
-            text = str(seg.get("text") or "").strip()
+            text = str(seg.get("text") or "").strip().replace("\n", " ")
             if not text:
                 continue
             seg_begin = offset_ms + float(seg.get("begin_ms", 0.0))
             seg_end = min(offset_ms + float(seg.get("end_ms", 0.0)), offset_ms + dur_ms)
             if seg_end <= seg_begin:
                 seg_end = seg_begin + 800
-            chunks = _chunk_caption(text) or [text]
-            total_chars = sum(len(c) for c in chunks) or 1
             span = seg_end - seg_begin
+            # Show the whole segment unless it is very long → split at clauses.
+            units = [text] if len(text) <= _MAX_CAPTION_CHARS else (_split_clauses(text) or [text])
+            total_chars = sum(len(u) for u in units) or 1
             t = seg_begin
-            for c in chunks:
-                share = span * (len(c) / total_chars)
-                c_begin, c_end = t, t + share
-                t = c_end
-                safe = _highlight_numbers(c.replace("\n", " ").strip())
+            for u in units:
+                share = span * (len(u) / total_chars)
+                u_begin, u_end = t, t + share
+                t = u_end
                 events.append(
-                    f"Dialogue: 0,{_ass_timestamp(c_begin)},{_ass_timestamp(c_end)},"
-                    f"Default,,0,0,0,,{safe}"
+                    f"Dialogue: 0,{_ass_timestamp(u_begin)},{_ass_timestamp(u_end)},"
+                    f"Default,,0,0,0,,{_format(u)}"
                 )
         offset_ms += dur_ms + gap_seconds * 1000.0
-    return _ASS_HEADER + "\n".join(events) + "\n"
+    return _ass_header(preset) + "\n".join(events) + "\n"
 
 
 def burn_subtitles(video_path: Path, srt_path: Path, output_path: Path) -> None:
