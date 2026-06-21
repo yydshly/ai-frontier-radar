@@ -267,13 +267,15 @@ def _build_core_insight_scenes(
 
             scene_title = short_title if part == 1 else f"{short_title}（续）"
 
-            # Compose narration from this page's lines.
+            # Compose narration from this page's lines. The page text already
+            # contains the section's content, so we do NOT also read section.title
+            # (it equals the body for radar highlights) — that would say each
+            # point twice. We only add a short ordinal lead-in on the first page.
+            page_text = "".join(f"{ln}。" for ln in page)
             if part == 1:
-                narration = f"第{_cn_number(section_idx)}个核心观察：{section.title}。" + "".join(
-                    f"{ln}。" for ln in page
-                )
+                narration = f"第{_cn_number(section_idx)}个核心观察。{page_text}"
             else:
-                narration = "接着看：" + "".join(f"{ln}。" for ln in page)
+                narration = f"接着看。{page_text}"
 
             scenes.append(
                 VideoScene(
