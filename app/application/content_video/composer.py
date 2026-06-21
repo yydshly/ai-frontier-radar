@@ -263,18 +263,38 @@ def extract_poster(video_path: Path, output_path: Path, *, at_seconds: float = 0
         raise RuntimeError(f"ffmpeg poster extraction failed: {tail}")
 
 
-def _srt_timestamp(ms: float) -> str:
-    ms = max(0, int(round(ms)))
-    h, ms = divmod(ms, 3600000)
-    m, ms = divmod(ms, 60000)
-    s, ms = divmod(ms, 1000)
-    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+def _ass_timestamp(ms: float) -> str:
+    cs = max(0, int(round(ms / 10)))  # centiseconds
+    h, cs = divmod(cs, 360000)
+    m, cs = divmod(cs, 6000)
+    s, cs = divmod(cs, 100)
+    return f"{h:d}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+# ASS header. PlayResX/Y match the real video so Fontsize/margins are in true
+# pixels (avoids libass's default-res scaling that blows the font up / breaks
+# wrapping). Colours are &HAABBGGRR (AA: 00=opaque, FF=transparent).
+_ASS_HEADER = """\
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Microsoft YaHei,52,&H00FFFFFF,&H10000000,&H60000000,1,0,0,0,100,100,0,0,1,3,1,2,90,90,150,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
 
 
 _CAPTION_SEPARATORS = "，,、；;：:。！？!?"
 
 
-def _chunk_caption(text: str, max_chars: int = 20) -> list[str]:
+def _chunk_caption(text: str, max_chars: int = 16) -> list[str]:
     """Break one sentence into short, readable caption chunks at punctuation.
 
     Greedily accumulates characters up to ~max_chars, preferring to break right
@@ -298,8 +318,8 @@ def _chunk_caption(text: str, max_chars: int = 20) -> list[str]:
     return [c.strip("，,、；;：: ") for c in chunks if c.strip("，,、；;：: ")]
 
 
-def build_srt_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0) -> str:
-    """Build SRT text from per-scene subtitle segments.
+def build_ass_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0) -> str:
+    """Build an ASS subtitle file from per-scene subtitle segments.
 
     Each scene's segments are timed relative to its own audio; we offset them by
     the cumulative scene placement. ``gap_seconds`` is the inter-scene padding the
@@ -308,8 +328,7 @@ def build_srt_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0)
     segment's time window allocated proportionally by chunk length (approximate
     intra-sentence timing — we only have sentence-level timestamps).
     """
-    lines: list[str] = []
-    idx = 1
+    events: list[str] = []
     offset_ms = 0.0
     for scene in scenes:
         dur_ms = (scene.duration_seconds or 0.0) * 1000.0
@@ -329,13 +348,13 @@ def build_srt_from_scenes(scenes: list[VideoScene], *, gap_seconds: float = 0.0)
                 share = span * (len(c) / total_chars)
                 c_begin, c_end = t, t + share
                 t = c_end
-                lines.append(str(idx))
-                lines.append(f"{_srt_timestamp(c_begin)} --> {_srt_timestamp(c_end)}")
-                lines.append(c)
-                lines.append("")
-                idx += 1
+                safe = c.replace("\n", " ").strip()
+                events.append(
+                    f"Dialogue: 0,{_ass_timestamp(c_begin)},{_ass_timestamp(c_end)},"
+                    f"Default,,0,0,0,,{safe}"
+                )
         offset_ms += dur_ms + gap_seconds * 1000.0
-    return "\n".join(lines)
+    return _ASS_HEADER + "\n".join(events) + "\n"
 
 
 def burn_subtitles(video_path: Path, srt_path: Path, output_path: Path) -> None:
@@ -345,15 +364,12 @@ def burn_subtitles(video_path: Path, srt_path: Path, output_path: Path) -> None:
     Windows drive-colon paths don't break the subtitles filter parser.
     """
     ffmpeg = _resolve_ffmpeg()
-    style = (
-        "FontName=Microsoft YaHei,Fontsize=15,PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H99000000,BorderStyle=1,Outline=2,Shadow=0,"
-        "Alignment=2,MarginV=70"
-    )
+    # The subtitle file is ASS with its own [V4+ Styles] + PlayRes, so no
+    # force_style is needed (and Fontsize/margins are in true pixels).
     cmd = [
         ffmpeg, "-y",
         "-i", str(video_path),
-        "-vf", f"subtitles={srt_path.name}:force_style='{style}'",
+        "-vf", f"subtitles={srt_path.name}",
         "-c:a", "copy",
         "-movflags", "+faststart",
         str(output_path),

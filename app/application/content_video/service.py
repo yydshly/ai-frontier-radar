@@ -254,10 +254,10 @@ def generate_video(
         # buffer (see composer.compose_clip), so offset the SRT accordingly.
         try:
             gap = 0.0 if renderer == "remotion" else 0.5
-            srt_text = composer.build_srt_from_scenes(scenes, gap_seconds=gap)
-            if srt_text.strip():
-                srt_path = storage.base_dir / "subtitles.srt"
-                srt_path.write_text(srt_text, encoding="utf-8")
+            ass_text = composer.build_ass_from_scenes(scenes, gap_seconds=gap)
+            if "Dialogue:" in ass_text:
+                srt_path = storage.base_dir / "subtitles.ass"
+                srt_path.write_text(ass_text, encoding="utf-8")
                 subbed = storage.base_dir / "output_subbed.mp4"
                 composer.burn_subtitles(output_mp4, srt_path, subbed)
                 import shutil as _sh
