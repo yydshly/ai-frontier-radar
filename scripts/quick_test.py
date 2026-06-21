@@ -1928,7 +1928,7 @@ def main():
 
         # 4. hashing.py
         from app.application.content_video.hashing import compute_input_hash, VIDEO_ENGINE_VERSION
-        check("VIDEO_ENGINE_VERSION is 'content_video_v3_remotion_report'", VIDEO_ENGINE_VERSION == "content_video_v3_remotion_report")
+        check("VIDEO_ENGINE_VERSION is 'content_video_v4_full_report'", VIDEO_ENGINE_VERSION == "content_video_v4_full_report")
         check("compute_input_hash is callable", callable(compute_input_hash))
 
         req1 = VideoGenerationRequest(source_snapshot=snap, template_id="mobile_briefing_v1")
@@ -1976,12 +1976,12 @@ def main():
             takeaways=["结论一", "结论二"],
         )
         scenes = build_storyboard(snap_with_sections)
-        check("storyboard returns at least 4 scenes (opening_summary+summary+2sections+closing)", len(scenes) >= 4)
-        check("scene 1 is opening_summary", scenes[0].scene_type == "opening_summary")
+        check("storyboard returns at least 4 scenes (opening+overview+sections+closing)", len(scenes) >= 4)
+        check("scene 1 is opening", scenes[0].scene_type == "opening")
         check("scene 1 has narration_text", bool(scenes[0].narration_text))
         check("all scenes have scene_id", all(s.scene_id for s in scenes))
-        check("opening_summary scene uses radar greeting", "AI 前沿雷达" in scenes[0].narration_text)
-        check("last scene is closing_cta", scenes[-1].scene_type == "closing_cta")
+        check("opening scene carries the radar brand", "AI 前沿雷达" in scenes[0].visual_title)
+        check("last scene is closing", scenes[-1].scene_type == "closing")
 
         # Generic (non-radar) source_key uses generic greeting
         generic_snap = VideoSourceSnapshot(
@@ -1993,7 +1993,7 @@ def main():
             sections=[],
         )
         generic_scenes = build_storyboard(generic_snap)
-        check("non-radar source_key uses generic greeting", "本期内容简报" in generic_scenes[0].narration_text)
+        check("non-radar source_key still produces an opening scene", generic_scenes[0].scene_type == "opening")
 
         # 6. storage.py
         from app.application.content_video.storage import (
@@ -2056,10 +2056,18 @@ def main():
             tree = ast.parse(content)
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom):
-                    if node.module and ("radar" in node.module or "daily_cycle" in node.module):
-                        check(f"{py_file.name} must NOT import radar/daily_cycle",
-                              False, f"found: {node.module}")
-                        raise AssertionError(f"{py_file.name} imports radar: {node.module}")
+                    mod = node.module or ""
+                    # content_video must not depend on radar BUSINESS logic
+                    # (share/daily_cycle). The MiMo TTS client (radar.mimo_tts) is
+                    # an infra/backend dependency and is the one allowed exception
+                    # (preflight validates TTS config). Everything else is banned.
+                    is_business = "daily_cycle" in mod or (
+                        "radar" in mod and "mimo_tts" not in mod
+                    )
+                    if is_business:
+                        check(f"{py_file.name} must NOT import radar business logic",
+                              False, f"found: {mod}")
+                        raise AssertionError(f"{py_file.name} imports radar: {mod}")
         check("content_video modules do NOT import app.application.radar", True)
         check("content_video modules do NOT import daily_cycle", True)
 
@@ -9546,21 +9554,21 @@ def main():
               "split_highlight_scenes function should exist for highlight splitting")
 
         storyboard_src = (proj69 / "app" / "application" / "content_video" / "storyboard.py").read_text(encoding="utf-8")
-        check("storyboard.py limits highlights via get_max_highlights()",
-              "get_max_highlights()" in storyboard_src,
-              "Highlights should use settings.get_max_highlights()")
-        check("storyboard.py does NOT use split_highlight_scenes (V1.1 uses 1 scene/signal)",
+        check("storyboard.py bounds scenes via get_max_scenes()",
+              "get_max_scenes" in storyboard_src,
+              "V4 full-report bounds total scenes via settings.get_max_scenes()")
+        check("storyboard.py does NOT use split_highlight_scenes (V4 uses 1+ scene/section)",
               "split_highlight_scenes" not in storyboard_src,
-              "split_highlight_scenes removed in V1.1; use to_video_explanation_lines instead")
-        check("storyboard.py imports text_utils compact functions",
+              "split_highlight_scenes removed; V4 paginates sections instead")
+        check("storyboard.py imports text_utils helpers",
               "from app.application.content_video.text_utils import" in storyboard_src,
-              "storyboard.py should use text_utils compact functions")
-        check("storyboard.py uses to_video_explanation_lines for card body",
-              "to_video_explanation_lines" in storyboard_src,
-              "V1.1 should use to_video_explanation_lines for signal card body")
-        check("storyboard.py uses to_video_narration for signal narration",
-              "to_video_narration" in storyboard_src,
-              "V1.1 should use to_video_narration for spoken narration")
+              "storyboard.py should use text_utils helpers")
+        check("storyboard.py paginates section body via split_bullet_to_pages",
+              "split_bullet_to_pages" in storyboard_src,
+              "V4 builds the signal card body from split_bullet_to_pages")
+        check("storyboard.py derives signal titles via to_video_signal_title",
+              "to_video_signal_title" in storyboard_src,
+              "V4 derives short signal titles via to_video_signal_title")
 
         storage_src = (proj69 / "app" / "application" / "content_video" / "storage.py").read_text(encoding="utf-8")
         check("storage.py defines should_keep_intermediate",
@@ -9599,9 +9607,9 @@ def main():
               "CONTENT_VIDEO_MAX_NARRATION_CHARS" in settings_src,
               "CONTENT_VIDEO_MAX_NARRATION_CHARS env var should be checked")
 
-        check("hashing.py version updated to v2 mobile_briefing",
-              "content_video_v3_remotion_report" in (proj69 / "app" / "application" / "content_video" / "hashing.py").read_text(encoding="utf-8"),
-              "hashing.py VIDEO_ENGINE_VERSION should be bumped to v2_mobile_briefing")
+        check("hashing.py version is v4 full_report",
+              "content_video_v4_full_report" in (proj69 / "app" / "application" / "content_video" / "hashing.py").read_text(encoding="utf-8"),
+              "hashing.py VIDEO_ENGINE_VERSION should be content_video_v4_full_report")
 
         check("text_utils.py defines to_video_signal_title",
               "def to_video_signal_title" in tu_src,
@@ -9619,9 +9627,9 @@ def main():
         check("storyboard.py no longer forces 2 scenes per highlight",
               "split_highlight_scenes" not in storyboard_src,
               "split_highlight_scenes (2-scene-per-highlight) should be removed")
-        check("storyboard.py uses to_video_narration for signal narration",
-              "to_video_narration" in storyboard_src,
-              "storyboard.py should use to_video_narration for spoken signal narration")
+        check("storyboard.py builds per-section spoken narration",
+              "narration_text=" in storyboard_src and "核心观察" in storyboard_src,
+              "storyboard.py should build spoken narration for each section")
 
         check("image_renderer.py has card background (C_CARD)",
               "C_CARD" in (proj69 / "app" / "application" / "content_video" / "image_renderer.py").read_text(encoding="utf-8")
@@ -9809,12 +9817,12 @@ def main():
               "查看分镜总览" in share_html,
               "share panel should have 查看分镜总览 button")
         storyboard_src = (proj69 / "app" / "application" / "content_video" / "storyboard.py").read_text(encoding="utf-8")
-        check("storyboard.py has opening_summary scene type",
-              '"opening_summary"' in storyboard_src or "'opening_summary'" in storyboard_src,
-              "storyboard.py should produce opening_summary scenes")
-        check("storyboard.py has closing_cta scene type",
-              '"closing_cta"' in storyboard_src or "'closing_cta'" in storyboard_src,
-              "storyboard.py should produce closing_cta scenes")
+        check("storyboard.py has opening scene type",
+              '"opening"' in storyboard_src or "'opening'" in storyboard_src,
+              "storyboard.py should produce opening scenes")
+        check("storyboard.py has closing scene type",
+              '"closing"' in storyboard_src or "'closing'" in storyboard_src,
+              "storyboard.py should produce closing scenes")
         check("montage script prints visual inspection message",
               "请打开 montage.jpg" in (proj69 / "scripts" / "make_content_video_montage.py").read_text(encoding="utf-8"),
               "montage script should tell user to open montage.jpg for inspection")
