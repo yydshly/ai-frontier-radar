@@ -10,10 +10,7 @@
 # - Does NOT access the network
 # - Is fully read-only
 
-param(
-    [string]$TaskName = "AI Frontier Radar Daily Cycle",
-    [int]$WebPort = 8765
-)
+param([int]$WebPort = 8765)
 
 $ErrorActionPreference = "Continue"
 
@@ -91,29 +88,23 @@ if ($ProcessIds -and $ProcessIds.Count -gt 0) {
 Write-Host ""
 
 # Windows scheduled task status
-Write-Host "Windows Scheduled Task:" -ForegroundColor White
-Write-Host "  Task name: $TaskName" -ForegroundColor Gray
-
-try {
-    $taskInfo = schtasks /Query /TN $TaskName /FO LIST 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  Status: Installed" -ForegroundColor Green
-        foreach ($line in $taskInfo) {
-            if ($line -match "Next Run Time:\s*(.+)") {
-                Write-Host ("  Next run: " + $matches[1].Trim()) -ForegroundColor Gray
-            }
-            if ($line -match "Last Run Time:\s*(.+)") {
-                Write-Host ("  Last run: " + $matches[1].Trim()) -ForegroundColor Gray
-            }
-            if ($line -match "Last Result:\s*(.+)") {
-                Write-Host ("  Last result: " + $matches[1].Trim()) -ForegroundColor Gray
-            }
+Write-Host "Windows Scheduled Tasks:" -ForegroundColor White
+foreach ($taskName in @("AI Frontier Radar Fetch", "AI Frontier Radar Daily Cycle")) {
+    Write-Host ("  " + $taskName) -ForegroundColor Gray
+    try {
+        $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        if ($null -eq $task) {
+            Write-Host "    Status: Not installed" -ForegroundColor Yellow
+            continue
         }
-    } else {
-        Write-Host "  Status: Not installed" -ForegroundColor Yellow
+        $taskInfo = Get-ScheduledTaskInfo -TaskName $taskName
+        Write-Host ("    Status: " + $task.State) -ForegroundColor Green
+        Write-Host ("    Next run: " + $taskInfo.NextRunTime) -ForegroundColor Gray
+        Write-Host ("    Last run: " + $taskInfo.LastRunTime) -ForegroundColor Gray
+        Write-Host ("    Last result: " + $taskInfo.LastTaskResult) -ForegroundColor Gray
+    } catch {
+        Write-Host ("    Status check failed: " + $_) -ForegroundColor Yellow
     }
-} catch {
-    Write-Host "  Status: Not installed" -ForegroundColor Yellow
 }
 Write-Host ""
 
@@ -128,6 +119,7 @@ $checks = @(
     @{Label="Logs directory"; Path=Join-Path $ProjectRoot "logs"},
     @{Label="Web log"; Path=Join-Path $ProjectRoot "logs\app.log"},
     @{Label="Daily cycle log"; Path=Join-Path $ProjectRoot "logs\daily_cycle.log"},
+    @{Label="Frequent fetch log"; Path=Join-Path $ProjectRoot "logs\fetch.log"},
     @{Label="Latest report"; Path=Join-Path $ProjectRoot "runtime\daily_cycle_runs\latest.json"}
 )
 

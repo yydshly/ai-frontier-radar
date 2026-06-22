@@ -6,7 +6,7 @@
 #                     the target machine.
 #   - app\ scripts\ config\ data\   the application + (optionally) current data.
 #   - .env.example    placeholder config WITHOUT any API key (see -IncludeEnv).
-#   - start_app.bat / control_panel.bat   double-click entry points.
+#   - start_app.bat / control_panel.bat / setup_automation.bat entry points.
 #   - README_PORTABLE.txt   setup instructions for the recipient.
 #
 # The whole folder can be zipped, copied to another Windows x64 machine, and run
@@ -178,7 +178,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $OutDir "runtime\daily_cycl
 
 # Loose files.
 Copy-Item (Join-Path $ProjectRoot "requirements.txt") $OutDir -Force
-foreach ($bat in @("start_app.bat", "control_panel.bat", "create_desktop_icon.bat")) {
+foreach ($bat in @("start_app.bat", "control_panel.bat", "setup_automation.bat", "create_desktop_icon.bat")) {
     $p = Join-Path $ProjectRoot $bat
     if (Test-Path $p) { Copy-Item $p $OutDir -Force }
 }
@@ -224,7 +224,8 @@ First-time setup
    (Leave the other values as-is unless you know you need to change them.)
 
 3. (Optional) Double-click  create_desktop_icon.bat
-   Creates nice radar-icon shortcuts ("启动 AI前沿雷达", "AI前沿雷达 控制台")
+   Creates nice radar-icon shortcuts ("启动 AI前沿雷达", "AI前沿雷达 控制台",
+   "配置 AI前沿雷达 自动化")
    in this folder and on your Desktop, so you don't have to hunt for the .bat.
 
 ------------------------------------------------------------
@@ -237,20 +238,25 @@ Start the app
   A small control window: start / stop / status / run the daily cycle.
 
 ------------------------------------------------------------
-Daily auto-report - IMPORTANT: NOT automatic until you install it
+Automated collection + daily report - IMPORTANT: NOT automatic until configured
 ------------------------------------------------------------
-A fresh copy does NOT run on a schedule by itself. To have the report build
-itself every morning at 08:05 (and catch up if the PC was off), open PowerShell
-IN THIS FOLDER once and run:
+A fresh copy does NOT run on a schedule by itself. Double-click:
 
-    powershell -ExecutionPolicy Bypass -File scripts\install_windows_daily_task.ps1
+    setup_automation.bat
 
-After that it runs daily on its own while you are logged in. Check it with:
+This initializes the source registry, configures frequent fetching (default
+every 3 hours), and installs the daily report task at anchor + 5 minutes.
+After that both tasks run while you are logged in. Check them with:
 
     powershell -ExecutionPolicy Bypass -File scripts\status_local.ps1
 
-Logs go to logs\daily_cycle.log. Remove the schedule later with:
+Logs:
+    logs\fetch.log
+    logs\daily_cycle.log
 
+Remove the schedules later with:
+
+    powershell -ExecutionPolicy Bypass -File scripts\uninstall_windows_fetch_task.ps1
     powershell -ExecutionPolicy Bypass -File scripts\uninstall_windows_daily_task.ps1
 
 ------------------------------------------------------------

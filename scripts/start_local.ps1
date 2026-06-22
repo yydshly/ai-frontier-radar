@@ -56,8 +56,25 @@ if (-not (Test-Path $EnvFile)) {
 
 $SourcesYaml = Join-Path $ProjectRoot "config\sources.yaml"
 if (-not (Test-Path $SourcesYaml)) {
-    Write-Host "[WARN] config/sources.yaml not found at $SourcesYaml" -ForegroundColor Yellow
-    Write-Host "[WARN] Source configuration is missing. Copy config/sources.yaml.example if available." -ForegroundColor Yellow
+    $SourcesExample = Join-Path $ProjectRoot "config\sources.example.yaml"
+    if (Test-Path $SourcesExample) {
+        Write-Host "[INFO] config/sources.yaml not found; using bundled config/sources.example.yaml." -ForegroundColor Gray
+    } else {
+        Write-Host "[WARN] No source configuration found." -ForegroundColor Yellow
+    }
+}
+
+# Initialize tables and source rows before serving pages. This is local-only,
+# does not access the network, and avoids an empty fresh install until /sources
+# happens to be opened.
+$SyncScript = Join-Path $ProjectRoot "scripts\sync_sources_from_config.py"
+if (Test-Path $SyncScript) {
+    Write-Host "Initializing database and source registry..." -ForegroundColor Gray
+    & $PythonExe -u $SyncScript --apply
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Source initialization failed. Web service was not started." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
 }
 
 # ── Start uvicorn with transcript logging ───────────────────────────────────

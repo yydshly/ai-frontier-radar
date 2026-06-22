@@ -1063,6 +1063,21 @@ Linux 部署(Docker / systemd / cron)见 [docs/LINUX_DEPLOYMENT.md](docs/LINUX_D
 .\scripts\launcher.ps1
 ```
 
+### 用户入口如何选择
+
+```text
+start_app.bat
+  日常打开软件：启动 Web 服务并打开浏览器。
+
+control_panel.bat
+  打开控制台：启停服务、查看状态、手动抓取或手动生成日报。
+
+setup_automation.bat
+  首次配置自动化：同步来源、设置抓取间隔、安装高频抓取与每日日报任务。
+```
+
+自动化配置只需在每台机器、每个安装目录执行一次。移动软件目录后，应重新配置。
+
 ### 启动 Web 服务
 
 ```powershell
@@ -1072,8 +1087,16 @@ Linux 部署(Docker / systemd / cron)见 [docs/LINUX_DEPLOYMENT.md](docs/LINUX_D
 ### 安装每日定时任务
 
 ```powershell
-.\scripts\install_windows_daily_task.ps1
+.\scripts\setup_windows_automation.ps1
 ```
+
+该入口默认安装两个任务：
+
+- 每3小时抓取来源；
+- 每天锚点后5分钟结算并发送日报。
+
+高级用户也可以分别运行 `install_windows_fetch_task.ps1` 和
+`install_windows_daily_task.ps1`。
 
 ### 查看本地状态
 

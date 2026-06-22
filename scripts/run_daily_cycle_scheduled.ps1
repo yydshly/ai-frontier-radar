@@ -20,6 +20,7 @@ if (-not (Test-Path $PythonExe)) { $PythonExe = Join-Path $ProjectRoot ".venv\Sc
 if (-not (Test-Path $PythonExe)) { $PythonExe = "python" }       # system PATH
 
 $ScriptPath = Join-Path $ProjectRoot "scripts\run_daily_cycle.py"
+$SyncScript = Join-Path $ProjectRoot "scripts\sync_sources_from_config.py"
 
 "" | Out-File -FilePath $DailyLog -Append -Encoding utf8
 "===== $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss') daily cycle start (python=$PythonExe) =====" |
@@ -28,6 +29,12 @@ $ScriptPath = Join-Path $ProjectRoot "scripts\run_daily_cycle.py"
 # -u for unbuffered output. Force UTF-8 so Chinese is readable and the file
 # isn't a mix of UTF-16 (PS '*>>' default) and the UTF-8 markers above.
 $env:PYTHONIOENCODING = "utf-8"
+& $PythonExe -u $SyncScript --apply 2>&1 | Out-File -FilePath $DailyLog -Append -Encoding utf8
+if ($LASTEXITCODE -ne 0) {
+    "===== source sync failed (exit=$LASTEXITCODE) =====" |
+        Out-File -FilePath $DailyLog -Append -Encoding utf8
+    exit $LASTEXITCODE
+}
 & $PythonExe -u $ScriptPath --apply 2>&1 | Out-File -FilePath $DailyLog -Append -Encoding utf8
 $exitCode = $LASTEXITCODE
 

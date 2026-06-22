@@ -30,7 +30,8 @@ if (-not (Test-Path $IconPath)) {
 
 $targets = @(
     @{ Name = "启动 AI前沿雷达";   Bat = "start_app.bat";     Desc = "启动 AI 前沿雷达并打开浏览器" },
-    @{ Name = "AI前沿雷达 控制台"; Bat = "control_panel.bat"; Desc = "启动/停止/状态/手动执行每日任务" }
+    @{ Name = "AI前沿雷达 控制台"; Bat = "control_panel.bat"; Desc = "启动/停止/状态/手动执行抓取或每日任务" },
+    @{ Name = "配置 AI前沿雷达 自动化"; Bat = "setup_automation.bat"; Desc = "首次配置高频抓取和每日日报任务" }
 )
 
 $destDirs = @($ProjectRoot)

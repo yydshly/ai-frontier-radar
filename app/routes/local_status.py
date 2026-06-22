@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -39,6 +41,23 @@ def _load_latest_report() -> dict | None:
         return None
 
 
+def _scheduled_task_installed(task_name: str) -> bool | None:
+    """Return task presence on Windows; None when Task Scheduler is unavailable."""
+    if os.name != "nt":
+        return None
+    try:
+        completed = subprocess.run(
+            ["schtasks", "/Query", "/TN", task_name],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        return completed.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 @router.get("/local-status", response_class=HTMLResponse)
 def local_status(request: Request):
     """Render the local run status page.
@@ -65,12 +84,25 @@ def local_status(request: Request):
         "日志目录": str(logs_dir),
         "Web 日志": str(logs_dir / "app.log"),
         "每日任务日志": str(logs_dir / "daily_cycle.log"),
+        "高频抓取日志": str(logs_dir / "fetch.log"),
         "实时日志": str(logs_dir / "daily_cycle.live.log"),
         "运行中状态": str(runtime_dir / "daily_cycle_runs" / "running.json"),
         "最近执行报告": str(runtime_dir / "daily_cycle_runs" / "latest.json"),
         "日报存储": str(runtime_dir / "daily_reports"),
         "音频存储": str(runtime_dir / "daily_audio"),
     }
+    scheduled_tasks = [
+        {
+            "name": "AI Frontier Radar Fetch",
+            "purpose": "高频抓取来源",
+            "installed": _scheduled_task_installed("AI Frontier Radar Fetch"),
+        },
+        {
+            "name": "AI Frontier Radar Daily Cycle",
+            "purpose": "结算并发送每日报告",
+            "installed": _scheduled_task_installed("AI Frontier Radar Daily Cycle"),
+        },
+    ]
 
     return _templates.TemplateResponse(
         "local_status.html",
@@ -81,5 +113,9 @@ def local_status(request: Request):
             "key_dirs": key_dirs,
             "project_root": str(project_root),
             "web_address": "http://127.0.0.1:8765",
+            "fetch_interval_override": os.getenv(
+                "RADAR_FETCH_INTERVAL_OVERRIDE_HOURS", ""
+            ),
+            "scheduled_tasks": scheduled_tasks,
         },
     )

@@ -10445,6 +10445,9 @@ def main():
               "shell scripts must be LF so the shebang works on Linux")
         # Frequent fetch-only task (keeps the daily window fresh before finalize).
         for rel in ("scripts/install_windows_fetch_task.ps1",
+                    "scripts/setup_windows_automation.ps1",
+                    "scripts/uninstall_windows_fetch_task.ps1",
+                    "scripts/run_fetch_once.ps1",
                     "scripts/run_fetch_scheduled.ps1",
                     "scripts/run_fetch_once.sh",
                     "deploy/aifrontier-radar-fetch.service",
@@ -10457,6 +10460,17 @@ def main():
               and "AUTO_SUMMARY_MAX_PER_FETCH_RUN" in _fetch_ps
               and "RADAR_SCHEDULER_ENABLED" in _fetch_ps,
               "the frequent task must fetch due sources without triggering LLM/report")
+        _setup_ps = (proj70 / "scripts" / "setup_windows_automation.ps1").read_text(encoding="utf-8")
+        check("automation setup configures both scheduled tasks + source sync",
+              "sync_sources_from_config.py" in _setup_ps
+              and "install_windows_fetch_task.ps1" in _setup_ps
+              and "install_windows_daily_task.ps1" in _setup_ps
+              and "RADAR_FETCH_INTERVAL_OVERRIDE_HOURS" in _setup_ps,
+              "first-time setup must initialize sources and install both tasks")
+        check("scheduled runners sync sources before execution",
+              "sync_sources_from_config.py" in _fetch_ps
+              and "sync_sources_from_config.py" in (proj70 / "scripts" / "run_daily_cycle_scheduled.ps1").read_text(encoding="utf-8"),
+              "fresh installs must not depend on visiting /sources")
         # The global interval OVERRIDE must beat per-source fetch_interval_hours,
         # otherwise the frequent fetch task no-ops (sources pin 24h in YAML).
         import os as _osfi
@@ -10498,11 +10512,17 @@ def main():
     launcher_content_check = (proj70 / "scripts" / "launcher.ps1").read_text(encoding="utf-8")
     check("launcher.ps1 calls run_daily_cycle_once.ps1",
           "run_daily_cycle_once.ps1" in launcher_content_check)
+    check("launcher exposes automation setup + one-time fetch",
+          "setup_windows_automation.ps1" in launcher_content_check
+          and "run_fetch_once.ps1" in launcher_content_check)
 
     # local_status.py — reads running.json
     local_status_py_check = (proj70 / "app" / "routes" / "local_status.py").read_text(encoding="utf-8")
     check("local_status.py loads running.json",
           "load_daily_cycle_running_status" in local_status_py_check)
+    check("local status checks both Windows scheduled tasks",
+          "AI Frontier Radar Fetch" in local_status_py_check
+          and "AI Frontier Radar Daily Cycle" in local_status_py_check)
 
     # local_status.html — shows current_step
     local_status_html_check = (proj70 / "app" / "templates" / "local_status.html").read_text(encoding="utf-8")

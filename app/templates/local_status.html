@@ -23,6 +23,37 @@
     </table>
 </section>
 
+<section class="status-section">
+    <h2>自动化配置</h2>
+    <p>自动运行由两个独立的 Windows 任务组成：</p>
+    <ul>
+        <li><strong>AI Frontier Radar Fetch</strong>：高频抓取来源，不生成报告。</li>
+        <li><strong>AI Frontier Radar Daily Cycle</strong>：每天结算、生成音频并发送日报。</li>
+    </ul>
+    <p>
+        当前全局抓取间隔：
+        <code>{{ fetch_interval_override or "未设置（将使用来源自身间隔，通常为24小时）" }}</code>
+    </p>
+    <table class="info-table">
+        {% for task in scheduled_tasks %}
+        <tr>
+            <th>{{ task.name }}</th>
+            <td>
+                {{ task.purpose }}：
+                {% if task.installed is sameas true %}
+                <span class="badge badge-success">已安装</span>
+                {% elif task.installed is sameas false %}
+                <span class="badge badge-error">未安装</span>
+                {% else %}
+                <span class="badge">当前平台无法检查</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <p>首次启用建议运行：<code>.\scripts\setup_windows_automation.ps1</code></p>
+</section>
+
 {# ── Key directories ─────────────────────────────────────────────────────────── #}
 <section class="status-section">
     <h2>关键目录</h2>
@@ -151,12 +182,28 @@
             <td><code>.\scripts\stop_local.ps1</code></td>
         </tr>
         <tr>
-            <th>安装每日定时任务</th>
+            <th>首次配置完整自动化</th>
+            <td><code>.\scripts\setup_windows_automation.ps1</code></td>
+        </tr>
+        <tr>
+            <th>安装高频抓取任务</th>
+            <td><code>.\scripts\install_windows_fetch_task.ps1</code></td>
+        </tr>
+        <tr>
+            <th>安装每日日报任务</th>
             <td><code>.\scripts\install_windows_daily_task.ps1</code></td>
         </tr>
         <tr>
-            <th>卸载每日定时任务</th>
+            <th>卸载高频抓取任务</th>
+            <td><code>.\scripts\uninstall_windows_fetch_task.ps1</code></td>
+        </tr>
+        <tr>
+            <th>卸载每日日报任务</th>
             <td><code>.\scripts\uninstall_windows_daily_task.ps1</code></td>
+        </tr>
+        <tr>
+            <th>立即抓取一次</th>
+            <td><code>.\scripts\run_fetch_once.ps1</code></td>
         </tr>
         <tr>
             <th>查看本地状态</th>

@@ -7,11 +7,28 @@
 **日常启动 Web 服务**（已配置好的机器）：
 - 双击根目录 **`start_app.bat`**，或双击桌面 **「启动 AI前沿雷达」** 快捷方式。
 - 它会启动服务并自动打开浏览器：http://127.0.0.1:8765
-- 想要更多操作（启停/状态/手动跑每日任务）：双击 **`control_panel.bat`** 或 **「AI前沿雷达 控制台」**。
+- 想要更多操作（启停/状态/手动抓取/手动跑每日任务）：双击 **`control_panel.bat`** 或 **「AI前沿雷达 控制台」**。
 
 **第一次没有桌面图标？** 双击 **`create_desktop_icon.bat`** 生成带雷达图标的快捷方式（本目录 + 桌面）。
 
-**每日报告会自动生成吗？** 只有装过定时任务的机器才会自动跑（见 [第 8 节](#8-安装每日定时任务)）。本机若已执行过 `install_windows_daily_task.ps1`，则**每天 08:05 自动执行**（关机错过会在开机后补跑）。换台机器/解压便携包后需要**重新安装一次**。
+**第一次启用自动化：** 配好 `.env` 后，双击根目录 **`setup_automation.bat`**。它会：
+
+1. 初始化数据库并同步15个信息来源；
+2. 设置全局抓取间隔（默认3小时）；
+3. 安装高频抓取任务；
+4. 安装每日日报任务（默认锚点08:00，08:05结算并发送）。
+
+**每日报告会自动生成吗？** 只有执行过 `setup_automation.bat`（或手工安装两个任务）的机器才会自动运行。换机器或移动/重新解压文件夹后，需要重新执行一次。
+
+### 用户应如何理解三个入口
+
+| 入口 | 用途 | 是否需要经常执行 |
+|------|------|------------------|
+| `start_app.bat` | 启动网页并打开浏览器 | 每次需要使用网页时 |
+| `control_panel.bat` | 启停、状态、手动抓取、手动结算 | 按需 |
+| `setup_automation.bat` | 首次安装后台自动采集和日报任务 | 每台机器/每个目录执行一次 |
+
+> Web 服务和定时任务相互独立。即使没有打开网页，Windows 定时任务也能抓取和生成报告；但本地分享链接需要 Web 服务正在运行才能访问。
 
 **两种运行形态：**
 | 形态 | 适合 | 启动 | 见 |
@@ -84,6 +101,8 @@ LLM_PROFILE=minimax_m27_highspeed_anthropic
 - Open Local Status
 - Show Status
 - Open Logs Folder
+- Configure Automation (First Time)
+- Fetch Sources Once
 - Run Daily Cycle Once
 - Exit
 
@@ -120,22 +139,63 @@ Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
 
 或直接按 Ctrl+C 停止 `start_local.ps1`。
 
-## 8. 安装每日定时任务
+## 8. 配置自动采集和每日报告
 
-> **默认会自动执行吗？** 不会——**装了才会**。`install_windows_daily_task.ps1`
-> 向 Windows 任务计划程序注册一个任务；**注册之后**才会每天自动跑。这个注册是
+> **默认会自动执行吗？** 不会——**配置后才会**。自动化由两个 Windows 任务组成：
+>
+> - `AI Frontier Radar Fetch`：默认每3小时抓取来源，不生成报告；
+> - `AI Frontier Radar Daily Cycle`：每天锚点后5分钟结算、生成音频并发送报告。
+>
+> 任务注册是
 > *按机器、按目录*的：换一台机器、或把便携包解压到新位置，都要**重新执行一次**。
 
+### 8.1 推荐：一键配置
+
 ```powershell
+.\scripts\setup_windows_automation.ps1
+```
+
+也可以双击根目录：
+
+```text
+setup_automation.bat
+```
+
+默认配置：
+
+- 高频抓取：每3小时；
+- `.env` 自动写入 `RADAR_FETCH_INTERVAL_OVERRIDE_HOURS=3`；
+- 日报锚点：读取 `.env` 的 `RADAR_DAILY_ANCHOR_HOUR`；
+- 日报任务：锚点后5分钟执行，例如锚点08:00 → 08:05。
+
+自定义抓取间隔：
+
+```powershell
+.\scripts\setup_windows_automation.ps1 -FetchIntervalHours 2
+```
+
+### 8.2 分别安装（高级用法）
+
+```powershell
+.\scripts\install_windows_fetch_task.ps1 -IntervalHours 3
 .\scripts\install_windows_daily_task.ps1
 ```
 
-- **任务名**：AI Frontier Radar Daily Cycle
-- **执行时间**：每天 08:05（登录状态下运行）
+如果分别安装，高频抓取还必须在 `.env` 配置：
+
+```env
+RADAR_FETCH_INTERVAL_OVERRIDE_HOURS=3
+```
+
+否则来源自身的24小时间隔会生效，高频任务虽然启动但不会真正重复抓取。
+
+### 8.3 运行行为
+
 - **可靠性**：`StartWhenAvailable` —— 到点时机器关着/睡眠，开机后会尽快补跑，
   每日任务再自行回填错过的日期。失败自动重试 2 次。
-- **执行内容**：`python scripts/run_daily_cycle.py --apply`
-- **日志输出**：`logs/daily_cycle.log`（追加，UTF-8）
+- **抓取任务日志**：`logs/fetch.log`
+- **日报任务日志**：`logs/daily_cycle.log`
+- 两种任务执行前都会同步来源配置，新数据库不需要先访问 `/sources` 页面。
 
 安装完成后会显示任务摘要信息。确认是否已装、下次何时跑：
 
@@ -143,11 +203,13 @@ Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
 .\scripts\status_local.ps1
 # 或
 Get-ScheduledTaskInfo -TaskName "AI Frontier Radar Daily Cycle"
+Get-ScheduledTaskInfo -TaskName "AI Frontier Radar Fetch"
 ```
 
-## 9. 卸载每日定时任务
+## 9. 卸载自动任务
 
 ```powershell
+.\scripts\uninstall_windows_fetch_task.ps1
 .\scripts\uninstall_windows_daily_task.ps1
 ```
 
@@ -396,8 +458,7 @@ python scripts/show_daily_cycle_status.py
 2. 复制 `.env.example` 为 `.env`，填入自己的 `MINIMAX_API_KEY`。
 3. （可选）双击 `create_desktop_icon.bat` 生成桌面图标。
 4. 双击 `start_app.bat` 启动。
-5. （可选）需要每天自动出报告：在该文件夹内执行
-   `powershell -ExecutionPolicy Bypass -File scripts\install_windows_daily_task.ps1`。
+5. （推荐）双击 `setup_automation.bat`，启用每3小时抓取和每日日报。
 
 ### 15.3 图标与快捷方式
 

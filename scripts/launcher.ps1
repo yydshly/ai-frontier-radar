@@ -67,7 +67,7 @@ function Ensure-LogsDir {
 # ── Build Form ────────────────────────────────────────────────────────────────
 $Form = New-Object System.Windows.Forms.Form
 $Form.Text = "AI Frontier Radar Local Launcher"
-$Form.Size = New-Object System.Drawing.Size(420, 480)
+$Form.Size = New-Object System.Drawing.Size(420, 630)
 $Form.StartPosition = "CenterScreen"
 $Form.FormBorderStyle = "FixedDialog"
 $Form.MaximizeBox = $false
@@ -174,25 +174,45 @@ $b6.Add_Click({ Ensure-LogsDir })
 $Form.Controls.Add($b6)
 $buttons += $b6
 
-# Button 7: Run Daily Cycle Once
+# Button 7: Configure Automation
 $b7 = New-Object System.Windows.Forms.Button
-$b7.Text = "Run Daily Cycle Once"
+$b7.Text = "Configure Automation (First Time)"
 $b7.Size = New-Object System.Drawing.Size($btnW, $btnH)
 $b7.Location = New-Object System.Drawing.Point($btnX, ($btnY += $btnH + $spacing))
 $b7.FlatStyle = "Standard"
-$b7.Add_Click({ Start-ScriptInNewWindow "scripts\run_daily_cycle_once.ps1" })
+$b7.Add_Click({ Start-ScriptInNewWindow "scripts\setup_windows_automation.ps1" })
 $Form.Controls.Add($b7)
 $buttons += $b7
 
-# Button 8: Exit
+# Button 8: Run Fetch Once
 $b8 = New-Object System.Windows.Forms.Button
-$b8.Text = "Exit"
+$b8.Text = "Fetch Sources Once"
 $b8.Size = New-Object System.Drawing.Size($btnW, $btnH)
 $b8.Location = New-Object System.Drawing.Point($btnX, ($btnY += $btnH + $spacing))
 $b8.FlatStyle = "Standard"
-$b8.Add_Click({ $Form.Close() })
+$b8.Add_Click({ Start-ScriptInNewWindow "scripts\run_fetch_once.ps1" })
 $Form.Controls.Add($b8)
 $buttons += $b8
+
+# Button 9: Run Daily Cycle Once
+$b9 = New-Object System.Windows.Forms.Button
+$b9.Text = "Run Daily Cycle Once"
+$b9.Size = New-Object System.Drawing.Size($btnW, $btnH)
+$b9.Location = New-Object System.Drawing.Point($btnX, ($btnY += $btnH + $spacing))
+$b9.FlatStyle = "Standard"
+$b9.Add_Click({ Start-ScriptInNewWindow "scripts\run_daily_cycle_once.ps1" })
+$Form.Controls.Add($b9)
+$buttons += $b9
+
+# Button 10: Exit
+$b10 = New-Object System.Windows.Forms.Button
+$b10.Text = "Exit"
+$b10.Size = New-Object System.Drawing.Size($btnW, $btnH)
+$b10.Location = New-Object System.Drawing.Point($btnX, ($btnY += $btnH + $spacing))
+$b10.FlatStyle = "Standard"
+$b10.Add_Click({ $Form.Close() })
+$Form.Controls.Add($b10)
+$buttons += $b10
 
 # Status bar at bottom
 $StatusBar = New-Object System.Windows.Forms.Label

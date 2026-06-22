@@ -22,6 +22,7 @@ if (-not (Test-Path $PythonExe)) { $PythonExe = Join-Path $ProjectRoot ".venv\Sc
 if (-not (Test-Path $PythonExe)) { $PythonExe = "python" }       # system PATH
 
 $ScriptPath = Join-Path $ProjectRoot "scripts\run_due_sources_once.py"
+$SyncScript = Join-Path $ProjectRoot "scripts\sync_sources_from_config.py"
 
 # The two explicit safety gates required by run_due_sources_once.py --apply.
 $env:RADAR_SCHEDULER_ENABLED = "true"
@@ -31,6 +32,15 @@ $env:PYTHONIOENCODING = "utf-8"
 "" | Out-File -FilePath $FetchLog -Append -Encoding utf8
 "===== $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss') fetch start (python=$PythonExe) =====" |
     Out-File -FilePath $FetchLog -Append -Encoding utf8
+
+# A fresh/portable install may have an empty DB. Sync configured sources before
+# due-source computation so the task never depends on visiting /sources first.
+& $PythonExe -u $SyncScript --apply 2>&1 | Out-File -FilePath $FetchLog -Append -Encoding utf8
+if ($LASTEXITCODE -ne 0) {
+    "===== source sync failed (exit=$LASTEXITCODE) =====" |
+        Out-File -FilePath $FetchLog -Append -Encoding utf8
+    exit $LASTEXITCODE
+}
 
 & $PythonExe -u $ScriptPath --apply 2>&1 | Out-File -FilePath $FetchLog -Append -Encoding utf8
 $exitCode = $LASTEXITCODE
