@@ -87,6 +87,68 @@ def build_feishu_text(
     return "\n".join(lines)
 
 
+def build_feishu_card(
+    report: dict,
+    *,
+    share_url: str | None = None,
+    audio_url: str | None = None,
+) -> dict:
+    """Build a Feishu interactive card (the ``card`` object) from a report dict.
+
+    Header = date + title; body = overview + top highlights (lark_md); an action
+    row with 「查看完整报告」/「收听语音播报」buttons when the links exist.
+    """
+    date_label = str(report.get("date_label") or "")
+    title = str(report.get("title") or "AI 前沿雷达 · 每日核心报告")
+    overview = str(report.get("overview") or "").strip()
+    highlights = [str(h) for h in (report.get("highlights") or []) if str(h).strip()]
+
+    body_lines: list[str] = []
+    if overview:
+        body_lines.append(overview)
+    if highlights:
+        if body_lines:
+            body_lines.append("")
+        for i, h in enumerate(highlights[:_MAX_HIGHLIGHTS]):
+            body_lines.append(f"**{i + 1}.** {h}")
+        extra = len(highlights) - _MAX_HIGHLIGHTS
+        if extra > 0:
+            body_lines.append(f"_…… 其余 {extra} 条见完整报告_")
+    body_md = "\n".join(body_lines) or title
+
+    elements: list[dict] = [
+        {"tag": "div", "text": {"tag": "lark_md", "content": body_md}},
+    ]
+    buttons: list[dict] = []
+    if share_url:
+        buttons.append({
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "查看完整报告"},
+            "url": share_url,
+            "type": "primary",
+        })
+    if audio_url:
+        buttons.append({
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "收听语音播报"},
+            "url": audio_url,
+            "type": "default",
+        })
+    if buttons:
+        elements.append({"tag": "hr"})
+        elements.append({"tag": "action", "actions": buttons})
+
+    header_title = f"【AI 前沿雷达】{date_label} · {title}" if date_label else title
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": header_title},
+            "template": "blue",
+        },
+        "elements": elements,
+    }
+
+
 def _gen_sign(secret: str, timestamp: int) -> str:
     """Feishu custom-bot signature: base64(hmac_sha256(key='ts\\nsecret', msg=''))."""
     string_to_sign = f"{timestamp}\n{secret}"
@@ -119,8 +181,8 @@ def send_report_to_feishu(
     if not config.is_complete:
         return {"sent": False, "reason": "not_configured"}
 
-    text = build_feishu_text(report, share_url=share_url, audio_url=audio_url)
-    payload: dict = {"msg_type": "text", "content": {"text": text}}
+    card = build_feishu_card(report, share_url=share_url, audio_url=audio_url)
+    payload: dict = {"msg_type": "interactive", "card": card}
     if config.secret:
         ts = int(time.time())
         payload["timestamp"] = str(ts)

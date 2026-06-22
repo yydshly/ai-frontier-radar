@@ -548,7 +548,9 @@ python scripts/send_daily_report_feishu.py --dry-run
 python scripts/send_daily_report_feishu.py --date 2026-06-21
 ```
 
-消息为 `msg_type=text`(标题 + 概述 + 前几条要点 + 报告/音频链接),支持飞书签名校验。逻辑在 `app/application/radar/feishu_notify.py`。其他平台(钉钉/企业微信/Slack)可按同样模式扩展。
+消息为 **交互卡片**(`msg_type=interactive`):标题栏 + 概述/要点正文 + 「查看完整报告」「收听语音播报」按钮,支持飞书签名校验。逻辑在 `app/application/radar/feishu_notify.py`。其他平台(钉钉/企业微信/Slack)可按同样模式扩展。
+
+> **关于音频**:飞书群机器人 webhook 只支持文本/卡片/图片,**不能直接发音频/文件**(发文件需自建应用 + 文件 API,且有格式/大小限制)。因此音频以卡片按钮链接形式提供,与邮件一致。
 
 ### 核心报告视频生成
 

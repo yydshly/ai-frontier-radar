@@ -10284,6 +10284,15 @@ def main():
         check("feishu text includes title + links",
               "2026-06-21" in _txt and "https://x/s" in _txt and "https://x/a.wav" in _txt,
               "feishu message should carry the report + audio links")
+        _card = _fn.build_feishu_card(_rep, share_url="https://x/s", audio_url="https://x/a.wav")
+        _btn_urls = [b.get("url") for e in _card["elements"] if e.get("tag") == "action" for b in e["actions"]]
+        check("feishu interactive card has header + action buttons",
+              _card.get("header", {}).get("title", {}).get("content")
+              and "https://x/s" in _btn_urls and "https://x/a.wav" in _btn_urls,
+              "card should expose 查看报告 / 收听音频 buttons")
+        check("feishu send payload is an interactive card",
+              "msg_type\": \"interactive\"" in (proj70 / "app" / "application" / "radar" / "feishu_notify.py").read_text(encoding="utf-8").replace("'", '"'),
+              "the pushed message should be an interactive card, not plain text")
         _prevf = {k: _osb.environ.pop(k, None) for k in ("FEISHU_SHARE_ENABLED", "FEISHU_WEBHOOK_URL")}
         try:
             check("feishu is a no-op when unconfigured",
