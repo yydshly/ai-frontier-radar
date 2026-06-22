@@ -1,0 +1,22 @@
+# systemd oneshot unit: frequent FETCH-ONLY run (paired with the .timer below).
+# Companion to aifrontier-radar-daily.* — this keeps the daily window fresh so
+# the once-daily finalize produces a complete, timely report.
+#
+# Install (with aifrontier-radar-fetch.timer):
+#   sudo cp deploy/aifrontier-radar-fetch.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aifrontier-radar-fetch.timer
+[Unit]
+Description=AI Frontier Radar frequent fetch (due sources only, no LLM/report)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radar
+WorkingDirectory=/opt/ai-frontier-radar
+EnvironmentFile=/opt/ai-frontier-radar/.env
+Environment=PYTHONIOENCODING=utf-8
+Environment=RADAR_SCHEDULER_ENABLED=true
+Environment=AUTO_SUMMARY_MAX_PER_FETCH_RUN=0
+ExecStart=/opt/ai-frontier-radar/.venv/bin/python -u scripts/run_due_sources_once.py --apply

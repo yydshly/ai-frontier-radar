@@ -52,12 +52,38 @@ def get_default_fetch_interval_hours() -> int:
     return value
 
 
-def get_source_fetch_interval_hours(config_source: object | None) -> int:
-    """Return the fetch interval for a given SourceConfig, or the default.
+def get_fetch_interval_override_hours() -> int | None:
+    """Return a global interval that OVERRIDES every per-source value, or None.
 
-    Looks for ``fetch_interval_hours`` then ``interval_hours`` attributes.
-    Returns the default if the attribute is missing or invalid.
+    Reads ``RADAR_FETCH_INTERVAL_OVERRIDE_HOURS``. Per-source ``fetch_interval_hours``
+    in the YAML config normally wins over ``RADAR_DEFAULT_FETCH_INTERVAL_HOURS``, so
+    lowering only the default has no effect when sources pin their own interval.
+    This override forces the effective interval for ALL sources, which is what the
+    frequent fetch-only task needs. Unset (the default) preserves per-source values.
     """
+    raw = os.getenv("RADAR_FETCH_INTERVAL_OVERRIDE_HOURS")
+    if raw is None or not raw.strip():
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0 or value > 24 * 30:
+        return None
+    return value
+
+
+def get_source_fetch_interval_hours(config_source: object | None) -> int:
+    """Return the effective fetch interval (hours) for a SourceConfig.
+
+    Precedence: ``RADAR_FETCH_INTERVAL_OVERRIDE_HOURS`` (global, if set) >
+    per-source ``fetch_interval_hours`` / ``interval_hours`` > the
+    ``RADAR_DEFAULT_FETCH_INTERVAL_HOURS`` default.
+    """
+    override = get_fetch_interval_override_hours()
+    if override is not None:
+        return override
+
     default = get_default_fetch_interval_hours()
     if config_source is None:
         return default

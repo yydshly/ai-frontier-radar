@@ -1,0 +1,14 @@
+# systemd timer: run the frequent fetch every few hours.
+#
+# Keep the interval aligned with RADAR_DEFAULT_FETCH_INTERVAL_HOURS in .env, or
+# due-source logic will skip sources fetched <interval ago and this no-ops.
+# Example below = every 3 hours.
+[Unit]
+Description=Run the AI Frontier Radar frequent fetch on schedule
+
+[Timer]
+OnCalendar=*-*-* 00/3:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

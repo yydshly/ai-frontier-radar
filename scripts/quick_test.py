@@ -10443,6 +10443,44 @@ def main():
               and "*.sh" in ga.read_text(encoding="utf-8")
               and "eol=lf" in ga.read_text(encoding="utf-8"),
               "shell scripts must be LF so the shebang works on Linux")
+        # Frequent fetch-only task (keeps the daily window fresh before finalize).
+        for rel in ("scripts/install_windows_fetch_task.ps1",
+                    "scripts/run_fetch_scheduled.ps1",
+                    "scripts/run_fetch_once.sh",
+                    "deploy/aifrontier-radar-fetch.service",
+                    "deploy/aifrontier-radar-fetch.timer"):
+            check(f"{rel} exists", (proj70 / rel).exists(),
+                  "frequent fetch-only task scaffolding should exist")
+        _fetch_ps = (proj70 / "scripts" / "run_fetch_scheduled.ps1").read_text(encoding="utf-8")
+        check("fetch runner is fetch-only (no LLM, due sources)",
+              "run_due_sources_once.py" in _fetch_ps
+              and "AUTO_SUMMARY_MAX_PER_FETCH_RUN" in _fetch_ps
+              and "RADAR_SCHEDULER_ENABLED" in _fetch_ps,
+              "the frequent task must fetch due sources without triggering LLM/report")
+        # The global interval OVERRIDE must beat per-source fetch_interval_hours,
+        # otherwise the frequent fetch task no-ops (sources pin 24h in YAML).
+        import os as _osfi
+        from app.application.sources.due_sources import get_source_fetch_interval_hours
+        class _Cfg:  # mimic a SourceConfig pinning 24h
+            fetch_interval_hours = 24
+        _prevfi = _osfi.environ.get("RADAR_FETCH_INTERVAL_OVERRIDE_HOURS")
+        try:
+            _osfi.environ.pop("RADAR_FETCH_INTERVAL_OVERRIDE_HOURS", None)
+            check("per-source interval wins over default when no override",
+                  get_source_fetch_interval_hours(_Cfg()) == 24,
+                  "a source pinning fetch_interval_hours keeps it absent an override")
+            _osfi.environ["RADAR_FETCH_INTERVAL_OVERRIDE_HOURS"] = "3"
+            check("RADAR_FETCH_INTERVAL_OVERRIDE_HOURS forces all sources",
+                  get_source_fetch_interval_hours(_Cfg()) == 3,
+                  "the override must beat per-source fetch_interval_hours (24)")
+        finally:
+            if _prevfi is None:
+                _osfi.environ.pop("RADAR_FETCH_INTERVAL_OVERRIDE_HOURS", None)
+            else:
+                _osfi.environ["RADAR_FETCH_INTERVAL_OVERRIDE_HOURS"] = _prevfi
+        check(".env.example documents the interval override + precedence",
+              "RADAR_FETCH_INTERVAL_OVERRIDE_HOURS" in (proj70 / ".env.example").read_text(encoding="utf-8"),
+              "the override knob must be documented since per-source pins 24h")
     except Exception as e:
         check("Linux deployment scaffolding checks", False, str(e))
 

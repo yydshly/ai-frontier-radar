@@ -53,12 +53,18 @@ copy .env.example .env      # 收件人需先填 MINIMAX_API_KEY
 | `MINIMAX_API_KEY` | 是 | 摘要 / 日报 LLM |
 | `DAILY_REPORT_ENABLED=true` | 按需 | 启用每日核心报告 |
 | `LLM_SUMMARY_ENABLED=true` | 按需 | 启用正文中文摘要 |
-| `RADAR_DEFAULT_FETCH_INTERVAL_HOURS` | 否 | 来源抓取间隔，默认 24h |
+| `RADAR_DAILY_ANCHOR_HOUR` | 否 | 每日锚点（0–23，默认 8）。改晚上=收"今天"的报告；须与定时时间一致 |
+| `RADAR_FETCH_INTERVAL_OVERRIDE_HOURS` | 否 | 强制所有源的抓取间隔（覆盖每源 `fetch_interval_hours`）。配高频抓取任务时设为 3 |
+| `RADAR_DEFAULT_FETCH_INTERVAL_HOURS` | 否 | 仅作未设 `fetch_interval_hours` 的源的兜底，默认 24h |
+| `RADAR_PUBLIC_BASE_URL` | 否 | 对外域名；邮件/飞书/二维码的可点链接依赖它（本机留空） |
 | `RADAR_CYCLE_STALE_HOURS` | 否 | 定时器停跑告警阈值，默认 36h |
-| `HEALTH_ALERT_WEBHOOK_URL` | 否 | 健康告警推送（留空=关闭） |
+| `HEALTH_ALERT_WEBHOOK_URL` | 否 | 健康告警通用 webhook（留空=关闭，仅异常时发） |
+| `HEALTH_REPORT_ENABLED` + `HEALTH_REPORT_MODE` | 否 | 每次运行健康回执（邮件/飞书心跳，默认 always） |
 | `EMAIL_SHARE_ENABLED` + `EMAIL_*` | 否 | 日报邮件分享（见 E） |
+| `FEISHU_SHARE_ENABLED` + `FEISHU_WEBHOOK_URL` | 否 | 日报推送到飞书群机器人 |
 
 > 切勿把真实 `.env` 提交到 git 或外发；分发包默认只带 `.env.example`。
+> 完整可配置项与默认值见 [`.env.example`](../.env.example)。
 
 ---
 

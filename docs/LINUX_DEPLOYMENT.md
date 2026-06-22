@@ -77,6 +77,18 @@ sudo systemctl enable --now aifrontier-radar
   5 22 * * *  cd /opt/ai-frontier-radar && scripts/run_daily_cycle_once.sh --apply >> logs/cron.log 2>&1
   ```
 
+**高频抓取**(可选但推荐,保证日报及时完整) —— 与每日结算并存:
+
+```bash
+sudo cp deploy/aifrontier-radar-fetch.{service,timer} /etc/systemd/system/
+# 编辑 .timer 的 OnCalendar(默认每 3h)与 .env 的 RADAR_DEFAULT_FETCH_INTERVAL_HOURS 对齐
+sudo systemctl daemon-reload
+sudo systemctl enable --now aifrontier-radar-fetch.timer
+```
+或 cron:`0 */3 * * *  cd /opt/ai-frontier-radar && scripts/run_fetch_once.sh >> logs/fetch.log 2>&1`
+
+> ⚠️ 记得在 `.env` 设 `RADAR_FETCH_INTERVAL_OVERRIDE_HOURS=3`(与 timer 间隔一致)。每个源在 `sources.yaml` 钉死了 `fetch_interval_hours: 24`,只调 `RADAR_DEFAULT_FETCH_INTERVAL_HOURS` 不生效——必须用 OVERRIDE 才能对所有源强制高频。原理见 README「信息及时性」。
+
 也可手动起服务:`scripts/start_local.sh`(或 `HOST=0.0.0.0 PORT=8000 scripts/start_local.sh`)。
 
 > 首次使用先给脚本可执行权限:`chmod +x scripts/*.sh`。

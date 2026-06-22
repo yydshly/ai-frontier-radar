@@ -445,6 +445,51 @@ V1.0-beta.4 已区分展示标签，V1.0-beta.5 继续解决更底层的问题�
 - 电脑错过定时点后会补算最近若干完整周期，范围由 `DAILY_FINALIZATION_BACKFILL_DAYS` 控制。
 - `/radar/share/today` 指向最近正式日报；没有正式日报时兼容回退到旧版最近报告。
 
+### 信息及时性：抓取节奏与报告窗口（重要）
+
+每日周期 `run_daily_cycle.py --apply` 的步骤顺序是：
+
+```
+① 结算上一完整周期 + 发送（邮件/飞书）   ② 释放卡死源   ③ 抓取 due 来源
+④ 摘要   ⑤ 记录运行   ⑥ 健康检查 + 健康回执
+```
+
+**第一步是「结算并发送上一周期」，抓取是第 ③ 步**。要理解报告的"新鲜度"，关键在于：
+
+> 一篇文章归属哪一天的报告，由它的**首次抓取时间 `first_seen_at`**(落在 `[锚点, 下个锚点)` 窗口)决定，**不是发布时间**。
+
+因此第 ③ 步抓到的内容 `first_seen` ≈ 当下 ≥ 锚点 → 进入**新窗口**，喂的是**下一份**报告，而不是本次刚结算发送的那份。换言之：**某天的报告内容 = 那个窗口期内"之前各次抓取"积累的结果**。
+
+- 如果**一天只跑一次**周期 → 窗口只被抓一次（在窗口开头）→ 当天稍晚发布的内容会顺延到次日报告。
+- 想让日报**及时且完整**，正解不是调步骤顺序（把抓取提前也无济于事，`first_seen` 仍 ≥ 锚点），而是**在窗口期内多抓几次**。
+
+**推荐配置**：在每日结算任务之外，再加一个**高频「仅抓取」任务**，并相应调低抓取间隔，让窗口在被结算前已积累当天最新内容：
+
+```bash
+# .env：把抓取间隔从默认 24h 调低，允许一天多次抓取
+RADAR_DEFAULT_FETCH_INTERVAL_HOURS=3
+```
+
+仅抓取（不结算、不发报告、不调用 LLM）的现成任务：
+
+```powershell
+# Windows：安装每 3 小时的抓取任务（与每日结算任务并存）
+.\scripts\install_windows_fetch_task.ps1 -IntervalHours 3
+```
+```bash
+# Linux：systemd timer 或 cron（详见 docs/LINUX_DEPLOYMENT.md）
+sudo cp deploy/aifrontier-radar-fetch.{service,timer} /etc/systemd/system/
+sudo systemctl enable --now aifrontier-radar-fetch.timer
+# 或 cron： 0 */3 * * *  cd /opt/ai-frontier-radar && scripts/run_fetch_once.sh
+```
+
+底层都是 `RADAR_SCHEDULER_ENABLED=true AUTO_SUMMARY_MAX_PER_FETCH_RUN=0 python scripts/run_due_sources_once.py --apply`（同步抓取 due 来源，不碰 LLM/报告）。
+
+> ⚠️ **必须设置 `RADAR_FETCH_INTERVAL_OVERRIDE_HOURS=3`**（与抓取任务间隔一致），否则高频任务会空跑。
+> 原因：抓取间隔的优先级是 **`RADAR_FETCH_INTERVAL_OVERRIDE_HOURS` > 每个源在 `sources.yaml` 里的 `fetch_interval_hours`（默认 24）> `RADAR_DEFAULT_FETCH_INTERVAL_HOURS`**。由于每个源都钉死了 `fetch_interval_hours: 24`，**只调低 `RADAR_DEFAULT_FETCH_INTERVAL_HOURS` 不生效**；用 OVERRIDE 才能对所有源强制生效。
+
+这样每日结算时，待结算窗口已经被多次抓取填满 → 报告及时、完整；而结算任务本身仍每天只跑一次（生成+发送一份正式日报）。
+
 ### 每日周期可靠性与健康监控
 
 为避免"报告悄悄停在某一天、却没有任何提示"这类问题，每日周期内置了一套自动恢复 + 健康监控机制（默认全部开启，无需额外配置）。
