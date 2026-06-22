@@ -55,8 +55,14 @@ def main() -> int:
         print(f"未找到 {date_label} 的正式日报。")
         return 1
 
+    from app.application.radar.daily_cycle import _share_urls_for
+    base_share_url, audio_url = _share_urls_for(date_label, report)
+    share_url = args.share_url or base_share_url
+
     config = get_email_config()
-    subject, _text, _html = build_report_email(report, share_url=args.share_url)
+    subject, _text, _html = build_report_email(
+        report, share_url=share_url, audio_url=audio_url
+    )
     print(f"日期: {date_label}")
     print(f"主题: {subject}")
     print(f"SMTP: {config.host}:{config.port} ssl={config.use_ssl} 发件={config.sender}")
@@ -64,7 +70,8 @@ def main() -> int:
 
     outcome = send_report_email(
         report,
-        share_url=args.share_url,
+        share_url=share_url,
+        audio_url=audio_url,
         config=config,
         require_enabled=False,  # explicit manual run is its own opt-in
         dry_run=args.dry_run,

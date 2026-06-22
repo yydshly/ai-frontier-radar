@@ -528,7 +528,27 @@ python scripts/send_daily_report_email.py --dry-run
 python scripts/send_daily_report_email.py --date 2026-06-21
 ```
 
-邮件正文 = 报告标题 + 概述 + 编号要点(每条带原文链接)+ 在线报告链接。逻辑在 `app/application/radar/email_share.py`。
+邮件正文 = 报告标题 + 概述 + 编号要点(每条带原文链接)+ **在线报告链接 + 语音播报链接**。逻辑在 `app/application/radar/email_share.py`。
+
+> **公开链接配置**:邮件/二维码/飞书里的报告链接与音频链接都依赖 `RADAR_PUBLIC_BASE_URL`(本机部署时填你的对外域名,如 `https://radar.example.com`)。不配则退回到 `request.url`(仅本机可用),邮件里不带链接。音频以**可点击链接**形式给出(不作附件),稳定不被邮箱拦截。
+
+### 推送到飞书(Feishu / Lark）
+
+把每日正式日报推送到飞书群机器人(自定义 webhook),与邮件同一时机触发(结算后,非探测后)。
+
+```bash
+# .env 配置
+RADAR_PUBLIC_BASE_URL=https://radar.example.com   # 链接用
+FEISHU_SHARE_ENABLED=true
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxxx
+FEISHU_WEBHOOK_SECRET=                              # 仅当机器人开启了「签名校验」才填
+
+# 手动测试推送
+python scripts/send_daily_report_feishu.py --dry-run
+python scripts/send_daily_report_feishu.py --date 2026-06-21
+```
+
+消息为 `msg_type=text`(标题 + 概述 + 前几条要点 + 报告/音频链接),支持飞书签名校验。逻辑在 `app/application/radar/feishu_notify.py`。其他平台(钉钉/企业微信/Slack)可按同样模式扩展。
 
 ### 核心报告视频生成
 

@@ -37,6 +37,7 @@ class DailyCycleResult:
     audio_status: str = "skipped"
     finalized_dates: list[str] = field(default_factory=list)
     emailed_dates: list[str] = field(default_factory=list)
+    pushed_dates: list[str] = field(default_factory=list)
     truncated_sources: list[str] = field(default_factory=list)
     health_warnings: list[str] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
@@ -58,6 +59,71 @@ def _summary_coverage(db) -> tuple[int, int]:
         if isinstance(raw, dict) and str(raw.get("zh_one_liner") or "").strip() and str(raw.get("zh_summary") or "").strip():
             done += 1
     return len(rows), done
+
+
+def _share_urls_for(date_label: str, report: dict) -> tuple[str | None, str | None]:
+    """(share_url, audio_url) absolute links for a finalized report, or (None,None).
+
+    Both require RADAR_PUBLIC_BASE_URL; the audio link also requires a generated
+    audio job for the report.
+    """
+    from app.application.radar.settings import build_report_share_url, build_public_url
+
+    share_url = build_report_share_url(date_label)
+    audio_url = None
+    job_id = report.get("audio_job_id") if isinstance(report, dict) else None
+    if job_id:
+        try:
+            from app.application.radar.daily_audio_jobs import load_daily_audio_job
+            job = load_daily_audio_job(str(job_id))
+            rel = job.audio_url if job else None
+            audio_url = build_public_url(rel)
+        except Exception:
+            audio_url = None
+    return share_url, audio_url
+
+
+def _deliver_finalized_report(date_label: str, result, _progress) -> None:
+    """Send a freshly finalized report via the opt-in share-out channels.
+
+    Email + Feishu. Each is independent, opt-in, and best-effort: a delivery
+    failure never affects the cycle. Called only for fresh ``finalized`` days so
+    a report is delivered exactly once.
+    """
+    from app.application.radar.daily_report_store import load_final_daily_report
+
+    report = load_final_daily_report(date_label)
+    if not report:
+        return
+    share_url, audio_url = _share_urls_for(date_label, report)
+
+    # Email channel
+    try:
+        from app.application.radar.email_share import (
+            is_email_share_enabled,
+            send_report_email,
+        )
+        if is_email_share_enabled():
+            outcome = send_report_email(report, share_url=share_url, audio_url=audio_url)
+            if outcome.get("sent"):
+                result.emailed_dates.append(date_label)
+            _progress("email_done", date=date_label, sent=outcome.get("sent"), reason=outcome.get("reason"))
+    except Exception as exc:
+        _progress("email_error", date=date_label, error=str(exc))
+
+    # Feishu channel
+    try:
+        from app.application.radar.feishu_notify import (
+            is_feishu_share_enabled,
+            send_report_to_feishu,
+        )
+        if is_feishu_share_enabled():
+            outcome = send_report_to_feishu(report, share_url=share_url, audio_url=audio_url)
+            if outcome.get("sent"):
+                result.pushed_dates.append(date_label)
+            _progress("feishu_done", date=date_label, sent=outcome.get("sent"), reason=outcome.get("reason"))
+    except Exception as exc:
+        _progress("feishu_error", date=date_label, error=str(exc))
 
 
 def run_daily_cycle(
@@ -139,30 +205,11 @@ def run_daily_cycle(
                     audio_statuses.append(finalized.audio_status)
                     if finalized.status in {"finalized", "already_finalized"}:
                         result.finalized_dates.append(date_label)
-                    # Email only FRESHLY finalized days (not already_finalized),
-                    # so re-runs never re-send. Opt-in + best-effort.
+                    # Deliver share-out channels (email / Feishu) only for FRESHLY
+                    # finalized days (not already_finalized), so re-runs never
+                    # re-deliver. All channels opt-in + best-effort.
                     if finalized.status == "finalized":
-                        try:
-                            from app.application.radar.email_share import (
-                                is_email_share_enabled,
-                                send_report_email,
-                            )
-                            if is_email_share_enabled():
-                                from app.application.radar.daily_report_store import (
-                                    load_final_daily_report,
-                                )
-                                rep = load_final_daily_report(date_label)
-                                outcome = send_report_email(rep) if rep else {"sent": False, "reason": "no_report"}
-                                if outcome.get("sent"):
-                                    result.emailed_dates.append(date_label)
-                                _progress(
-                                    "email_done",
-                                    date=date_label,
-                                    sent=outcome.get("sent"),
-                                    reason=outcome.get("reason"),
-                                )
-                        except Exception as exc:  # never break finalization
-                            _progress("email_error", date=date_label, error=str(exc))
+                        _deliver_finalized_report(date_label, result, _progress)
                     result.errors.extend(
                         f"finalization {date_label}: {error}"
                         for error in finalized.errors

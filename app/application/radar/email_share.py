@@ -78,8 +78,17 @@ def is_email_share_enabled(config: EmailConfig | None = None) -> bool:
     return config.enabled and config.is_complete
 
 
-def build_report_email(report: dict, *, share_url: str | None = None) -> tuple[str, str, str]:
-    """Build (subject, text_body, html_body) from a finalized daily report dict."""
+def build_report_email(
+    report: dict,
+    *,
+    share_url: str | None = None,
+    audio_url: str | None = None,
+) -> tuple[str, str, str]:
+    """Build (subject, text_body, html_body) from a finalized daily report dict.
+
+    ``share_url`` (the public report page) and ``audio_url`` (the narration) are
+    rendered as clickable links when provided.
+    """
     date_label = str(report.get("date_label") or "")
     title = str(report.get("title") or "AI 前沿雷达 · 每日核心报告")
     overview = str(report.get("overview") or "")
@@ -109,6 +118,8 @@ def build_report_email(report: dict, *, share_url: str | None = None) -> tuple[s
             text_lines.append(f"   原文：{url}")
     if share_url:
         text_lines += ["", f"在线查看完整报告：{share_url}"]
+    if audio_url:
+        text_lines.append(f"收听语音播报：{audio_url}")
     text_body = "\n".join(text_lines)
 
     # ── HTML body ─────────────────────────────────────────────────────────────
@@ -124,10 +135,18 @@ def build_report_email(report: dict, *, share_url: str | None = None) -> tuple[s
         f'<p style="color:#374151;line-height:1.7;">{escape(overview)}</p>'
         if overview else ""
     )
+    footer_parts = []
+    if share_url:
+        footer_parts.append(
+            f'<a href="{escape(share_url, quote=True)}" style="color:#2563eb;">在线查看完整报告 →</a>'
+        )
+    if audio_url:
+        footer_parts.append(
+            f'<a href="{escape(audio_url, quote=True)}" style="color:#2563eb;">收听语音播报 →</a>'
+        )
     footer_html = (
-        f'<p style="margin-top:24px;"><a href="{escape(share_url, quote=True)}" '
-        f'style="color:#2563eb;">在线查看完整报告 →</a></p>'
-        if share_url else ""
+        '<p style="margin-top:24px;">' + " &nbsp;·&nbsp; ".join(footer_parts) + "</p>"
+        if footer_parts else ""
     )
     html_body = (
         '<div style="max-width:640px;margin:0 auto;font-family:-apple-system,'
@@ -146,6 +165,7 @@ def send_report_email(
     report: dict,
     *,
     share_url: str | None = None,
+    audio_url: str | None = None,
     config: EmailConfig | None = None,
     require_enabled: bool = True,
     dry_run: bool = False,
@@ -167,7 +187,9 @@ def send_report_email(
     if not config.is_complete:
         return {"sent": False, "reason": "not_configured", "recipients": len(config.recipients)}
 
-    subject, text_body, html_body = build_report_email(report, share_url=share_url)
+    subject, text_body, html_body = build_report_email(
+        report, share_url=share_url, audio_url=audio_url
+    )
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = config.sender

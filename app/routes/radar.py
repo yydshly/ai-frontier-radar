@@ -1606,12 +1606,16 @@ def _render_share(request: Request, date_label: str):
     from app.application.radar.share import build_share_view, build_qr_svg
     from app.application.radar.share_video import video_enabled
 
+    from app.application.radar.settings import build_report_share_url
+
     db = next(get_db())
     try:
         view = build_share_view(db, date_label)
     finally:
         db.close()
-    share_url = str(request.url)
+    # Prefer the configured public base URL so the QR / shared link works off the
+    # local machine; fall back to the request URL when RADAR_PUBLIC_BASE_URL unset.
+    share_url = build_report_share_url(getattr(view, "date_label", date_label)) or str(request.url)
     try:
         qr_svg = build_qr_svg(share_url)
     except Exception:

@@ -172,6 +172,35 @@ def get_daily_finalization_backfill_days() -> int:
     )
 
 
+def get_public_base_url() -> str | None:
+    """Public base URL of this deployment, e.g. ``https://radar.example.com``.
+
+    Used to build absolute links in share-out channels (email / Feishu / QR)
+    where ``request.url`` is unavailable or wrong (localhost). Returns None when
+    unset; the trailing slash is stripped so callers can append ``/radar/...``.
+    """
+    raw = (os.getenv("RADAR_PUBLIC_BASE_URL") or "").strip()
+    if not raw:
+        return None
+    return raw.rstrip("/")
+
+
+def build_report_share_url(date_label: str) -> str | None:
+    """Absolute URL of a date's public share page, or None if base URL unset."""
+    base = get_public_base_url()
+    if not base or not date_label:
+        return None
+    return f"{base}/radar/share/{date_label}"
+
+
+def build_public_url(relative_path: str | None) -> str | None:
+    """Turn a relative app path (e.g. an audio_url) into an absolute URL."""
+    base = get_public_base_url()
+    if not base or not relative_path:
+        return None
+    return f"{base}/{relative_path.lstrip('/')}"
+
+
 def get_cycle_stale_threshold_hours() -> int:
     """Hours since the last daily cycle before the UI flags it as stale.
 

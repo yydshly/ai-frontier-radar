@@ -10239,6 +10239,82 @@ def main():
     except Exception as e:
         check("email delivery of daily report checks", False, str(e))
 
+    # ── 66g. public base URL + Feishu report push (share-out expansion) ───────
+    try:
+        import os as _osb
+        from app.application.radar.settings import (
+            get_public_base_url, build_report_share_url, build_public_url,
+        )
+        _prevb = _osb.environ.get("RADAR_PUBLIC_BASE_URL")
+        _osb.environ["RADAR_PUBLIC_BASE_URL"] = "https://radar.example.com/"
+        try:
+            check("public base url strips trailing slash",
+                  get_public_base_url() == "https://radar.example.com",
+                  "RADAR_PUBLIC_BASE_URL should normalize the trailing slash")
+            check("build_report_share_url is absolute + date-scoped",
+                  build_report_share_url("2026-06-21")
+                  == "https://radar.example.com/radar/share/2026-06-21",
+                  "share url must be absolute for QR / email / Feishu")
+            check("build_public_url joins relative audio path",
+                  build_public_url("/radar/daily-report/broadcast/audio/files/x.wav")
+                  == "https://radar.example.com/radar/daily-report/broadcast/audio/files/x.wav",
+                  "audio link must be absolute")
+        finally:
+            if _prevb is None:
+                _osb.environ.pop("RADAR_PUBLIC_BASE_URL", None)
+            else:
+                _osb.environ["RADAR_PUBLIC_BASE_URL"] = _prevb
+        check("base url unset → None (no localhost link in share-out)",
+              get_public_base_url() is None or _prevb is not None,
+              "share-out links must be absent unless base url configured")
+        # email + share page consume the base url
+        radar_src_b = (proj70 / "app" / "routes" / "radar.py").read_text(encoding="utf-8")
+        check("share page QR uses configured base url",
+              "build_report_share_url" in radar_src_b,
+              "the share page should build its QR from the public base url")
+        email_src_b = (proj70 / "app" / "application" / "radar" / "email_share.py").read_text(encoding="utf-8")
+        check("email renders audio link",
+              "audio_url" in email_src_b and "收听语音播报" in email_src_b,
+              "email should include a clickable audio link (not an attachment)")
+        # Feishu channel
+        from app.application.radar import feishu_notify as _fn
+        _rep = {"date_label": "2026-06-21", "title": "T", "overview": "O",
+                "highlights": ["a", "b"], "highlight_references": []}
+        _txt = _fn.build_feishu_text(_rep, share_url="https://x/s", audio_url="https://x/a.wav")
+        check("feishu text includes title + links",
+              "2026-06-21" in _txt and "https://x/s" in _txt and "https://x/a.wav" in _txt,
+              "feishu message should carry the report + audio links")
+        _prevf = {k: _osb.environ.pop(k, None) for k in ("FEISHU_SHARE_ENABLED", "FEISHU_WEBHOOK_URL")}
+        try:
+            check("feishu is a no-op when unconfigured",
+                  _fn.send_report_to_feishu(_rep)["reason"] in ("disabled", "not_configured"),
+                  "feishu push must stay off unless enabled + webhook set")
+            check("feishu manual dry-run never sends",
+                  _fn.send_report_to_feishu(_rep, require_enabled=False, dry_run=True)["reason"] == "dry_run",
+                  "dry-run must build only")
+        finally:
+            for k, v in _prevf.items():
+                if v is not None:
+                    _osb.environ[k] = v
+        check("feishu optional signing implemented",
+              "_gen_sign" in (proj70 / "app" / "application" / "radar" / "feishu_notify.py").read_text(encoding="utf-8"),
+              "feishu custom-bot 签名校验 should be supported")
+        dc_src_g = (proj70 / "app" / "application" / "radar" / "daily_cycle.py").read_text(encoding="utf-8")
+        check("daily cycle delivers via email + feishu on fresh finalize",
+              "_deliver_finalized_report" in dc_src_g
+              and "send_report_to_feishu" in dc_src_g
+              and "send_report_email" in dc_src_g,
+              "both share-out channels should fire from the cycle")
+        check("manual feishu test script exists",
+              (proj70 / "scripts" / "send_daily_report_feishu.py").exists(),
+              "a manual Feishu push script should exist for testing")
+        env_b = (proj70 / ".env.example").read_text(encoding="utf-8")
+        check(".env.example documents base url + Feishu",
+              all(k in env_b for k in ("RADAR_PUBLIC_BASE_URL", "FEISHU_SHARE_ENABLED", "FEISHU_WEBHOOK_URL")),
+              "base url + Feishu config must be documented")
+    except Exception as e:
+        check("public base url + Feishu push checks", False, str(e))
+
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
     check("run_daily_cycle_once.ps1 exists", rdo_path.exists())
