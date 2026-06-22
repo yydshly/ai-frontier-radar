@@ -10184,6 +10184,61 @@ def main():
     except Exception as e:
         check("scheduler-stopped staleness signal checks", False, str(e))
 
+    # ── 66f. opt-in email delivery of the finalized daily report (share-out) ──
+    try:
+        import os as _ose
+        from app.application.radar import email_share as _es
+        # build email from a synthetic report — no network, no DB
+        _report = {
+            "date_label": "2026-06-21",
+            "title": "测试标题",
+            "overview": "测试概述",
+            "highlights": ["要点一", "要点二"],
+            "highlight_references": [[{"title": "t", "url": "https://example.com/a"}], []],
+        }
+        subj, text_body, html_body = _es.build_report_email(_report, share_url="https://example.com/s")
+        check("email build produces subject + text + html",
+              "2026-06-21" in subj and "要点一" in text_body
+              and "<ol" in html_body and "https://example.com/a" in html_body,
+              "report email should render subject, plain text, and HTML with refs")
+        check("email html escapes + links share url",
+              "https://example.com/s" in html_body,
+              "share url should appear as a footer link")
+        # gating: disabled / unconfigured / dry-run must NOT attempt a real send
+        _prev = {k: _ose.environ.pop(k, None) for k in (
+            "EMAIL_SHARE_ENABLED", "EMAIL_SMTP_HOST", "EMAIL_FROM", "EMAIL_TO",
+            "EMAIL_SMTP_USER")}
+        try:
+            check("email auto-path is a no-op when unconfigured",
+                  _es.send_report_email(_report)["reason"] in ("disabled", "not_configured"),
+                  "auto email must stay off unless enabled + configured")
+            check("email is_share_enabled false when unconfigured",
+                  _es.is_email_share_enabled() is False,
+                  "email delivery must default off")
+            check("email manual dry-run never sends",
+                  _es.send_report_email(_report, require_enabled=False, dry_run=True)["reason"] == "dry_run",
+                  "dry-run must build only, never send")
+        finally:
+            for k, v in _prev.items():
+                if v is not None:
+                    _ose.environ[k] = v
+        # wiring: daily cycle emails freshly-finalized days; manual script exists
+        dc_email = (proj70 / "app" / "application" / "radar" / "daily_cycle.py").read_text(encoding="utf-8")
+        check("daily cycle emails only freshly finalized days",
+              "is_email_share_enabled" in dc_email
+              and 'finalized.status == "finalized"' in dc_email
+              and "emailed_dates" in dc_email,
+              "auto email must fire on fresh finalize only (no re-send on already_finalized)")
+        check("manual email test script exists",
+              (proj70 / "scripts" / "send_daily_report_email.py").exists(),
+              "a manual send script should exist for testing the email channel")
+        env_email = (proj70 / ".env.example").read_text(encoding="utf-8")
+        check(".env.example documents EMAIL_SHARE_ENABLED + SMTP",
+              all(k in env_email for k in ("EMAIL_SHARE_ENABLED", "EMAIL_SMTP_HOST", "EMAIL_TO")),
+              "email config must be documented")
+    except Exception as e:
+        check("email delivery of daily report checks", False, str(e))
+
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
     check("run_daily_cycle_once.ps1 exists", rdo_path.exists())

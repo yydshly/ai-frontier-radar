@@ -76,6 +76,7 @@ def _build_report(
         "report_status": result.report_status,
         "audio_status": result.audio_status,
         "finalized_dates": list(result.finalized_dates),
+        "emailed_dates": list(result.emailed_dates),
         "truncated_sources": list(result.truncated_sources),
         "health_warnings": list(result.health_warnings),
         "steps": list(result.steps),

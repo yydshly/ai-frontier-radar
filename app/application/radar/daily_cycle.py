@@ -36,6 +36,7 @@ class DailyCycleResult:
     report_status: str = "skipped"
     audio_status: str = "skipped"
     finalized_dates: list[str] = field(default_factory=list)
+    emailed_dates: list[str] = field(default_factory=list)
     truncated_sources: list[str] = field(default_factory=list)
     health_warnings: list[str] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
@@ -138,6 +139,30 @@ def run_daily_cycle(
                     audio_statuses.append(finalized.audio_status)
                     if finalized.status in {"finalized", "already_finalized"}:
                         result.finalized_dates.append(date_label)
+                    # Email only FRESHLY finalized days (not already_finalized),
+                    # so re-runs never re-send. Opt-in + best-effort.
+                    if finalized.status == "finalized":
+                        try:
+                            from app.application.radar.email_share import (
+                                is_email_share_enabled,
+                                send_report_email,
+                            )
+                            if is_email_share_enabled():
+                                from app.application.radar.daily_report_store import (
+                                    load_final_daily_report,
+                                )
+                                rep = load_final_daily_report(date_label)
+                                outcome = send_report_email(rep) if rep else {"sent": False, "reason": "no_report"}
+                                if outcome.get("sent"):
+                                    result.emailed_dates.append(date_label)
+                                _progress(
+                                    "email_done",
+                                    date=date_label,
+                                    sent=outcome.get("sent"),
+                                    reason=outcome.get("reason"),
+                                )
+                        except Exception as exc:  # never break finalization
+                            _progress("email_error", date=date_label, error=str(exc))
                     result.errors.extend(
                         f"finalization {date_label}: {error}"
                         for error in finalized.errors

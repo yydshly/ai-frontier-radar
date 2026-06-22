@@ -506,6 +506,30 @@ HEALTH_ALERT_WEBHOOK_URL=https://your-webhook-endpoint
 
 > 上述机制由 `scripts/quick_test.py` 的 §66b / §66c / §66d / §66e 锁定。
 
+### 邮件分享日报（自发给自己 / 少数固定收件人）
+
+把每日正式日报通过邮件发给自己或少数固定收件人(自用,不是公开 newsletter,无订阅/退订)。纯标准库 `smtplib`,无外部依赖。
+
+- **默认关闭**:仅当 `EMAIL_SHARE_ENABLED=true` 且 SMTP host / 发件人 / 收件人都配置好才生效。
+- **自动发送**:`run_daily_cycle.py --apply` 在**新结算**某天日报后自动发送(已结算过的不会重复发)。
+- **best-effort**:发送失败不影响周期退出码。
+
+```bash
+# 在 .env 配置(以 QQ/163 邮箱为例,密码用授权码而非登录密码)
+EMAIL_SHARE_ENABLED=true
+EMAIL_SMTP_HOST=smtp.qq.com
+EMAIL_SMTP_SSL=true            # SSL(465);设 false 走 STARTTLS(587)
+EMAIL_SMTP_USER=you@qq.com
+EMAIL_SMTP_PASSWORD=授权码
+EMAIL_TO=you@qq.com,friend@example.com
+
+# 手动测试发送(忽略开关,只要 SMTP 配好即可发;--dry-run 只构造不发送)
+python scripts/send_daily_report_email.py --dry-run
+python scripts/send_daily_report_email.py --date 2026-06-21
+```
+
+邮件正文 = 报告标题 + 概述 + 编号要点(每条带原文链接)+ 在线报告链接。逻辑在 `app/application/radar/email_share.py`。
+
 ### 核心报告视频生成
 
 分享页支持从核心报告快照生成 9:16 竖屏 MP4 视频（语音讲解 + 信息卡片）。
