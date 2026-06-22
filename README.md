@@ -1008,6 +1008,8 @@ python scripts/acceptance_demo_data.py --isolated-db
 
 打包分发 + 真实测试的一步步清单见 [docs/REAL_TESTING_CHECKLIST.md](docs/REAL_TESTING_CHECKLIST.md)（含打包、启动冒烟、定时任务、邮件分享、回归测试）。
 
+Linux 部署(Docker / systemd / cron)见 [docs/LINUX_DEPLOYMENT.md](docs/LINUX_DEPLOYMENT.md)。核心闭环纯 Python,Linux 零代码改动即可运行,只需 `ffmpeg` + `fonts-noto-cjk` 等系统依赖。
+
 ### 本地控制台（推荐）
 
 双击打开 GUI 控制台，一键启动/停止服务、打开页面：

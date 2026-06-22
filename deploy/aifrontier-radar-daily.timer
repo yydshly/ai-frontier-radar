@@ -1,0 +1,16 @@
+# systemd timer that triggers the daily cycle. Match OnCalendar to your anchor.
+#
+# IMPORTANT: keep this in sync with RADAR_DAILY_ANCHOR_HOUR. The cycle finalizes
+# the period that just closed at the anchor, so the timer should fire at (or a
+# few minutes after) the anchor hour. Examples:
+#   anchor 08:00 -> OnCalendar=*-*-* 08:05:00   (morning, "yesterday" digest)
+#   anchor 22:00 -> OnCalendar=*-*-* 22:05:00   ("today" digest, delivered tonight)
+[Unit]
+Description=Run the AI Frontier Radar daily cycle on schedule
+
+[Timer]
+OnCalendar=*-*-* 08:05:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

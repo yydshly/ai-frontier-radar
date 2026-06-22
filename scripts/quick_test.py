@@ -10384,6 +10384,44 @@ def main():
     except Exception as e:
         check("per-run health report checks", False, str(e))
 
+    # ── 66i. Linux deployment scaffolding (Docker / systemd / shell) ──────────
+    try:
+        dockerfile = proj70 / "Dockerfile"
+        check("Dockerfile exists and installs runtime deps",
+              dockerfile.exists()
+              and all(s in dockerfile.read_text(encoding="utf-8")
+                      for s in ("ffmpeg", "fonts-noto-cjk", "requirements.txt", "uvicorn")),
+              "the image must bundle ffmpeg + a CJK font and run uvicorn")
+        dockerignore = proj70 / ".dockerignore"
+        check(".dockerignore excludes secrets + local state",
+              dockerignore.exists()
+              and all(s in dockerignore.read_text(encoding="utf-8")
+                      for s in (".env", ".venv", "data", "runtime")),
+              "the build context must never include .env / local DB")
+        compose = proj70 / "docker-compose.yml"
+        check("docker-compose defines web + daily-cycle services",
+              compose.exists()
+              and "run_daily_cycle.py" in compose.read_text(encoding="utf-8"),
+              "compose should expose both the web service and a daily-cycle runner")
+        for rel in ("scripts/run_daily_cycle_once.sh", "scripts/start_local.sh"):
+            p = proj70 / rel
+            check(f"{rel} exists with a shebang",
+                  p.exists() and p.read_text(encoding="utf-8").startswith("#!"),
+                  "shell launchers should mirror the .ps1 wrappers")
+        check("run_daily_cycle_once.sh calls the cross-platform CLI",
+              "run_daily_cycle.py" in (proj70 / "scripts" / "run_daily_cycle_once.sh").read_text(encoding="utf-8"),
+              "the shell wrapper should drive the same Python entrypoint")
+        for rel in ("deploy/aifrontier-radar.service",
+                    "deploy/aifrontier-radar-daily.service",
+                    "deploy/aifrontier-radar-daily.timer"):
+            check(f"{rel} exists", (proj70 / rel).exists(),
+                  "systemd units for service + scheduled daily cycle should exist")
+        check("Linux deployment doc exists",
+              (proj70 / "docs" / "LINUX_DEPLOYMENT.md").exists(),
+              "a Linux deployment guide should document Docker + systemd + cron")
+    except Exception as e:
+        check("Linux deployment scaffolding checks", False, str(e))
+
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
     check("run_daily_cycle_once.ps1 exists", rdo_path.exists())

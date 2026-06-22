@@ -1,0 +1,33 @@
+# AI Frontier Radar — Linux compose stack.
+#
+#   docker compose up -d --build           # start the web service
+#   docker compose run --rm daily-cycle    # run one daily cycle manually
+#
+# The daily cycle is NOT a long-running service; schedule it from the host with
+# cron / systemd timer (see docs/LINUX_DEPLOYMENT.md), e.g.:
+#   5 22 * * *  cd /opt/ai-frontier-radar && docker compose run --rm daily-cycle
+services:
+  radar:
+    build: .
+    image: aifrontier-radar
+    env_file: .env
+    ports:
+      - "${PORT:-8765}:8765"
+    volumes:
+      - ./data:/app/data
+      - ./runtime:/app/runtime
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # One-shot profile: `docker compose run --rm daily-cycle` runs a single cycle
+  # against the same DB/volumes, then exits. Not started by `up`.
+  daily-cycle:
+    build: .
+    image: aifrontier-radar
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./runtime:/app/runtime
+      - ./logs:/app/logs
+    profiles: ["tools"]
+    command: ["python", "-u", "scripts/run_daily_cycle.py", "--apply"]

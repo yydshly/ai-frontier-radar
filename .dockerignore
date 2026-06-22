@@ -1,0 +1,16 @@
+# Keep the build context small + never bake secrets / local state into the image.
+.git
+.venv
+dist
+node_modules
+remotion/node_modules
+**/__pycache__
+*.pyc
+.env
+data
+runtime
+logs
+data/backups
+*.log
+.pytest_cache
+.mypy_cache

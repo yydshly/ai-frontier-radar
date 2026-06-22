@@ -1,0 +1,19 @@
+# systemd oneshot unit that runs ONE daily cycle. Paired with the .timer below.
+# (Alternative to a cron entry — pick one, not both.)
+#
+# Install (with aifrontier-radar-daily.timer):
+#   sudo cp deploy/aifrontier-radar-daily.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aifrontier-radar-daily.timer
+[Unit]
+Description=AI Frontier Radar daily cycle (fetch -> summarize -> report -> share-out)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radar
+WorkingDirectory=/opt/ai-frontier-radar
+EnvironmentFile=/opt/ai-frontier-radar/.env
+Environment=PYTHONIOENCODING=utf-8
+ExecStart=/opt/ai-frontier-radar/.venv/bin/python -u scripts/run_daily_cycle.py --apply
