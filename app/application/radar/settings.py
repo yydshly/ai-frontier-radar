@@ -170,3 +170,19 @@ def get_daily_finalization_backfill_days() -> int:
         minimum=1,
         maximum=31,
     )
+
+
+def get_cycle_stale_threshold_hours() -> int:
+    """Hours since the last daily cycle before the UI flags it as stale.
+
+    The daily cycle is meant to run ~once a day. If the external scheduler stops
+    (PC off, task disabled), no health warning fires because no cycle runs at
+    all — this threshold powers a passive "上次运行距今 N 小时" alert in the UI.
+    Default 36h gives a normal daily run plenty of slack before alerting.
+    """
+    return _env_int(
+        "RADAR_CYCLE_STALE_HOURS",
+        default=36,
+        minimum=1,
+        maximum=720,
+    )

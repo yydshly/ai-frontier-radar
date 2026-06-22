@@ -2947,6 +2947,13 @@ def main():
               and 'update_result.plan_source == "forced"' in radar_html,
               "force-refresh button + result banner should render on the today page")
 
+        # Reliability fix 1: web-side self-heal — force-refresh releases stuck runs
+        # so interactive-only use isn't dependent on the scheduled daily cycle.
+        check("force-refresh self-heals stale running runs",
+              "release_stale_running_fetch_runs" in radar_route_py
+              and "update_stale_released" in radar_route_py,
+              "force-refresh should auto-release stuck FetchRuns (web-only self-heal)")
+
         check("style.css defines radar-update-result styles",
               "radar-update-result" in style_css,
               "update result banner should be styled")
@@ -10137,6 +10144,45 @@ def main():
               "the opt-in alert webhook must be documented")
     except Exception as e:
         check("health-warning webhook notifier checks", False, str(e))
+
+    # ── 66e. scheduler-stopped staleness signal (P2 reliability) ──────────────
+    # Detects the one degraded state no in-cycle health check can catch: the
+    # daily cycle not running at all (PC off / task disabled).
+    try:
+        from datetime import datetime as _dt, timedelta as _tdh
+        from app.application.radar.settings import get_cycle_stale_threshold_hours
+        from app.application.radar import status_view as _sv
+        check("cycle stale threshold is configurable",
+              callable(get_cycle_stale_threshold_hours)
+              and 1 <= get_cycle_stale_threshold_hours() <= 720,
+              "RADAR_CYCLE_STALE_HOURS should bound the staleness alert")
+        check("scheduler status exposes cycle freshness fields",
+              all(f in _sv.RadarSchedulerStatusView.__dataclass_fields__
+                  for f in ("cycle_last_run_age_hours", "cycle_stale",
+                            "cycle_never_ran", "cycle_stale_threshold_hours")),
+              "the scheduler status view must surface cycle freshness")
+        # build_radar_scheduler_status_view accepts an injectable now (for the
+        # stale-simulation) — verified against the real DB in dev; here we just
+        # assert the signature + the template renders the alert.
+        import inspect as _insp
+        check("scheduler status view accepts injectable now",
+              "now" in _insp.signature(_sv.build_radar_scheduler_status_view).parameters,
+              "now override is needed to test staleness deterministically")
+        today_tpl_sv = (proj70 / "app" / "templates" / "radar_today.html").read_text(encoding="utf-8")
+        check("today template renders cycle-stale alert",
+              "cycle_stale" in today_tpl_sv and "cycle_never_ran" in today_tpl_sv
+              and "radar-scheduler-alert" in today_tpl_sv,
+              "the UI must alert when the daily cycle has stopped running")
+        style_sv = (proj70 / "app" / "static" / "style.css").read_text(encoding="utf-8")
+        check("scheduler-alert style defined",
+              ".radar-scheduler-alert" in style_sv,
+              "the staleness alert should be styled")
+        env_sv = (proj70 / ".env.example").read_text(encoding="utf-8")
+        check(".env.example documents RADAR_CYCLE_STALE_HOURS",
+              "RADAR_CYCLE_STALE_HOURS" in env_sv,
+              "the cycle-staleness threshold must be documented")
+    except Exception as e:
+        check("scheduler-stopped staleness signal checks", False, str(e))
 
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"

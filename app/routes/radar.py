@@ -551,7 +551,9 @@ class UpdateResultParams:
         update_missing: int | None = Query(None, ge=0),
         update_reason_summary: str | None = Query(None),
         update_plan_source: str | None = Query(None),
+        update_stale_released: int | None = Query(None, ge=0),
     ):
+        self.update_stale_released = update_stale_released
         self.update_started = update_started
         self.update_running = update_running
         self.update_unsupported = update_unsupported
@@ -585,6 +587,7 @@ class UpdateResultParams:
             self.update_missing,
             self.update_reason_summary,
             self.update_plan_source,
+            self.update_stale_released,
         ]):
             return None
         return {
@@ -605,6 +608,7 @@ class UpdateResultParams:
             "reason_summary": self.update_reason_summary or "",
             "reason_summary_label": _humanize_reason_summary(self.update_reason_summary) or "",
             "plan_source": self.update_plan_source or "",
+            "stale_released": self.update_stale_released or 0,
         }
 
 
@@ -1501,6 +1505,17 @@ def force_refresh_today_radar(
     """
     db = next(get_db())
     try:
+        # Self-heal: release FetchRuns stuck in 'running' (e.g. a crashed/killed
+        # fetch) BEFORE computing the plan, so a stuck source is not excluded as
+        # "running" forever when the user never runs the scheduled daily cycle.
+        # The daily cycle does this too; doing it here makes web-only use heal too.
+        from app.application.sources.stale_recovery import (
+            release_stale_running_fetch_runs,
+        )
+        try:
+            stale_released = len(release_stale_running_fetch_runs(db))
+        except Exception:
+            stale_released = 0
         # No max cap: a force refresh deliberately covers all sources. Cooled-down
         # sources land in plan.skipped (not_due_yet) / due in plan.due; both are
         # fetchable. running / unsupported / missing are intentionally excluded.
@@ -1546,6 +1561,7 @@ def force_refresh_today_radar(
         f"&update_missing={plan.missing_count}"
         f"&update_failed={failed}"
         f"&update_skipped=0"
+        f"&update_stale_released={stale_released}"
         f"&update_plan_source=forced"
     )
     return RedirectResponse(url=redirect_url, status_code=303)

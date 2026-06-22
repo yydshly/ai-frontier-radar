@@ -5574,6 +5574,18 @@ details[open] .radar-compile-candidate-details summary::before {
     line-height: 1.4;
 }
 
+.radar-scheduler-alert {
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #9a3412;
+    background: rgba(251, 146, 60, 0.14);
+    border: 1px solid rgba(234, 88, 12, 0.4);
+    border-radius: 6px;
+    padding: 0.4rem 0.55rem;
+    margin-bottom: 0.4rem;
+}
+
 /* P-003 step 1 — daily digest sidebar block (additive, reuses scheduler rows) */
 .radar-digest {
     margin-top: 0.5rem;

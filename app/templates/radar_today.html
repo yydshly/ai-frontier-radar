@@ -371,6 +371,16 @@
                         {% if scheduler_status %}
                         <div class="radar-scheduler-status">
                             <div class="radar-scheduler-title">调度状态</div>
+                            {% if scheduler_status.cycle_never_ran %}
+                            <div class="radar-scheduler-alert">⚠ 每日任务从未运行。请安装定时任务，或手动运行一次每日周期。</div>
+                            {% elif scheduler_status.cycle_stale %}
+                            <div class="radar-scheduler-alert">⚠ 每日任务已 {{ scheduler_status.cycle_last_run_age_hours }} 小时未运行（阈值 {{ scheduler_status.cycle_stale_threshold_hours }}h）。定时器可能已停止，数据正在变旧。</div>
+                            {% else %}
+                            <div class="radar-scheduler-row">
+                                <span class="radar-scheduler-label">上次自动运行</span>
+                                <span class="radar-scheduler-value">{{ scheduler_status.cycle_last_run_age_hours }} 小时前</span>
+                            </div>
+                            {% endif %}
                             <div class="radar-scheduler-row">
                                 <span class="radar-scheduler-label">待检查来源</span>
                                 <span class="radar-scheduler-value">{{ scheduler_status.due_count }}</span>
@@ -565,7 +575,10 @@
                         <span>启动失败：{{ update_result.failed }}</span>
                         {% endif %}
                     </div>
-                    <div class="radar-update-reasons">后台抓取已启动，稍后刷新今日雷达即可看到新增内容。</div>
+                    <div class="radar-update-reasons">
+                        后台抓取已启动，稍后刷新今日雷达即可看到新增内容。
+                        {% if update_result.stale_released %}已自动释放 {{ update_result.stale_released }} 个卡死的抓取任务。{% endif %}
+                    </div>
                 </div>
                 {% elif update_result.plan_source == "due_sources_v1" %}
                 {# ── V1.0-beta.1 due-source plan summary ──────────────────────── #}
