@@ -237,6 +237,19 @@ def main() -> int:
     # Persist the JSON report (both <run_id>.json and latest.json).
     save_daily_cycle_run_report(report)
 
+    # ── Opt-in: push health warnings to an external webhook ──────────────────
+    # No-op unless HEALTH_ALERT_WEBHOOK_URL is set; never affects exit code.
+    if result is not None and args.apply:
+        try:
+            from app.application.radar.health_notify import notify_health_warnings
+            outcome = notify_health_warnings(result, run_id=run_id, dry_run=not args.apply)
+            if outcome.get("notified"):
+                _emit_live("STEP", f"health_alert_sent ({outcome.get('reason')})")
+            elif outcome.get("reason") not in ("no_webhook_configured", "no_warnings"):
+                _emit_live("WARN", f"health_alert_failed: {outcome.get('reason')}")
+        except Exception as exc:  # never let alerting break the cycle
+            _emit_live("WARN", f"health_alert_error: {exc}")
+
     _emit_live("STEP", "appending_log")
     _write_running(run_id, mode, started_at, "appending_log", command, errors=report.get("errors", []))
 

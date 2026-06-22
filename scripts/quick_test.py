@@ -10075,6 +10075,54 @@ def main():
     except Exception as e:
         check("per-day status + blank-day history checks", False, str(e))
 
+    # ── 66d. opt-in health-warning webhook notifier (P2) ──────────────────────
+    try:
+        import os as _os
+        from app.application.radar.daily_cycle import DailyCycleResult
+        from app.application.radar import health_notify as _hn
+        # disabled by default → no-op even with warnings present
+        _bad = DailyCycleResult(dry_run=False, coverage_status="partial",
+                                sources_total=15, sources_succeeded=11,
+                                health_warnings=["来源覆盖不全：11/15"])
+        _prev = _os.environ.pop("HEALTH_ALERT_WEBHOOK_URL", None)
+        try:
+            check("health notifier is a no-op when unconfigured",
+                  _hn.notify_health_warnings(_bad, run_id="t").get("reason")
+                  == "no_webhook_configured",
+                  "alerting must stay disabled unless HEALTH_ALERT_WEBHOOK_URL is set")
+            check("health notifier skips dry-run",
+                  _hn.notify_health_warnings(_bad, run_id="t", dry_run=True).get("reason")
+                  == "dry_run",
+                  "dry-run cycles must never send alerts")
+            # should_notify gating
+            _ok = DailyCycleResult(dry_run=False, coverage_status="complete",
+                                   health_warnings=[])
+            check("health notifier alerts only on warnings/bad coverage",
+                  _hn.should_notify(_bad) and not _hn.should_notify(_ok),
+                  "a clean cycle should not alert; a degraded one should")
+            payload = _hn.build_payload(_bad, run_id="run123")
+            check("health alert payload carries text + structured fields",
+                  payload.get("run_id") == "run123"
+                  and "text" in payload and payload.get("coverage_status") == "partial"
+                  and payload.get("warnings"),
+                  "webhook payload must include a text summary + structured data")
+        finally:
+            if _prev is not None:
+                _os.environ["HEALTH_ALERT_WEBHOOK_URL"] = _prev
+        check("get_health_alert_webhook_url reads env",
+              callable(_hn.get_health_alert_webhook_url),
+              "webhook URL accessor should exist")
+        rdc_src = (proj70 / "scripts" / "run_daily_cycle.py").read_text(encoding="utf-8")
+        check("run_daily_cycle wires the health notifier",
+              "notify_health_warnings" in rdc_src,
+              "the scheduled entrypoint should push health warnings")
+        env_example = (proj70 / ".env.example").read_text(encoding="utf-8")
+        check(".env.example documents HEALTH_ALERT_WEBHOOK_URL",
+              "HEALTH_ALERT_WEBHOOK_URL" in env_example,
+              "the opt-in alert webhook must be documented")
+    except Exception as e:
+        check("health-warning webhook notifier checks", False, str(e))
+
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
     check("run_daily_cycle_once.ps1 exists", rdo_path.exists())
