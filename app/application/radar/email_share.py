@@ -190,12 +190,42 @@ def send_report_email(
     subject, text_body, html_body = build_report_email(
         report, share_url=share_url, audio_url=audio_url
     )
+    return send_email(
+        subject, text_body, html_body,
+        config=config, require_enabled=False, dry_run=False, timeout=timeout,
+    )
+
+
+def send_email(
+    subject: str,
+    text_body: str,
+    html_body: str | None = None,
+    *,
+    config: EmailConfig | None = None,
+    require_enabled: bool = True,
+    dry_run: bool = False,
+    timeout: float = 20.0,
+) -> dict:
+    """Best-effort SMTP send of an arbitrary message. Never raises.
+
+    Shared by both the report email and the health-report email. Returns
+    ``{sent, reason, recipients}``.
+    """
+    config = config or get_email_config()
+    if dry_run:
+        return {"sent": False, "reason": "dry_run", "recipients": len(config.recipients)}
+    if require_enabled and not config.enabled:
+        return {"sent": False, "reason": "disabled", "recipients": len(config.recipients)}
+    if not config.is_complete:
+        return {"sent": False, "reason": "not_configured", "recipients": len(config.recipients)}
+
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = config.sender
     msg["To"] = ", ".join(config.recipients)
     msg.set_content(text_body)
-    msg.add_alternative(html_body, subtype="html")
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
 
     try:
         if config.use_ssl:

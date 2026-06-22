@@ -504,7 +504,27 @@ HEALTH_ALERT_WEBHOOK_URL=https://your-webhook-endpoint
 
 > ⚠️ **固有限制**:RSS 只暴露近期条目。长时间(>1 天)不运行,间隔期内已滚出 feed 的文章**无法补回**——补抓只能重建空报告。请保持定时任务按时运行。
 
-> 上述机制由 `scripts/quick_test.py` 的 §66b / §66c / §66d / §66e 锁定。
+**6. 每次运行健康回执（邮件 / 飞书心跳）**
+
+除了"仅异常时"的 webhook 告警，每次定时运行结束后还会通过**已配置的邮件 / 飞书渠道**发一条健康回执(覆盖率、抓取/摘要/报告状态、结算与分发情况、告警/错误,正常则"一切正常 ✅")。这样即使一切正常,你也能确认**定时器还活着**。
+
+```bash
+HEALTH_REPORT_ENABLED=true
+HEALTH_REPORT_MODE=always     # always(心跳,每次发) | on_warning(仅异常发)
+```
+
+逻辑在 `app/application/radar/health_report.py`，复用日报的邮件 SMTP 与飞书机器人配置(仅发往已启用的渠道)。
+
+**关于运行时间(把"昨天的报告"变成"今天的")**：日报覆盖 `[锚点, 下个锚点)` 整周期,定时器在锚点时刻结算并推送。默认锚点 08:00 → 早晨收到"昨天"。想晚上收到"今天"的报告,把锚点与定时时间一起改到晚上(纯配置)：
+
+```bash
+RADAR_DAILY_ANCHOR_HOUR=22                                    # 锚点改到 22:00
+```
+```powershell
+.\scripts\install_windows_daily_task.ps1 -RunTime "22:05"     # 定时任务同步改到 22:05
+```
+
+> 上述机制由 `scripts/quick_test.py` 的 §66b / §66c / §66d / §66e / §66g / §66h 锁定。
 
 ### 邮件分享日报（自发给自己 / 少数固定收件人）
 

@@ -252,6 +252,20 @@ def main() -> int:
         except Exception as exc:  # never let alerting break the cycle
             _emit_live("WARN", f"health_alert_error: {exc}")
 
+    # ── Per-run health report via email / Feishu (heartbeat回执) ──────────────
+    # Sends a health digest (incl. "一切正常") through the same channels as the
+    # daily report. HEALTH_REPORT_MODE=always|on_warning. Never affects exit code.
+    if result is not None and args.apply:
+        try:
+            from app.application.radar.health_report import deliver_health_report
+            outcome = deliver_health_report(result, run_id=run_id, dry_run=not args.apply)
+            if outcome.get("sent"):
+                _emit_live("STEP", f"health_report_sent (mode={outcome.get('mode')})")
+            elif outcome.get("reason") not in ("disabled", "ok_suppressed_on_warning_mode", "no_channel_enabled_or_failed"):
+                _emit_live("WARN", f"health_report: {outcome.get('reason')}")
+        except Exception as exc:  # never let the digest break the cycle
+            _emit_live("WARN", f"health_report_error: {exc}")
+
     _emit_live("STEP", "appending_log")
     _write_running(run_id, mode, started_at, "appending_log", command, errors=report.get("errors", []))
 

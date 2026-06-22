@@ -182,6 +182,30 @@ def send_report_to_feishu(
         return {"sent": False, "reason": "not_configured"}
 
     card = build_feishu_card(report, share_url=share_url, audio_url=audio_url)
+    return send_feishu_card(card, config=config, require_enabled=False, timeout=timeout)
+
+
+def send_feishu_card(
+    card: dict,
+    *,
+    config: FeishuConfig | None = None,
+    require_enabled: bool = True,
+    dry_run: bool = False,
+    timeout: float = 10.0,
+) -> dict:
+    """Best-effort POST of an interactive card to the Feishu bot. Never raises.
+
+    Shared by the report push and the health-report push. Returns
+    ``{sent, reason}``.
+    """
+    config = config or get_feishu_config()
+    if dry_run:
+        return {"sent": False, "reason": "dry_run"}
+    if require_enabled and not config.enabled:
+        return {"sent": False, "reason": "disabled"}
+    if not config.is_complete:
+        return {"sent": False, "reason": "not_configured"}
+
     payload: dict = {"msg_type": "interactive", "card": card}
     if config.secret:
         ts = int(time.time())

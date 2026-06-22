@@ -10324,6 +10324,66 @@ def main():
     except Exception as e:
         check("public base url + Feishu push checks", False, str(e))
 
+    # ── 66h. per-run health report via email/Feishu (heartbeat回执) ───────────
+    try:
+        import os as _osh
+        from app.application.radar.daily_cycle import DailyCycleResult as _DCR
+        from app.application.radar import health_report as _hr
+        _ok = _DCR(dry_run=False, coverage_status="complete", sources_total=15,
+                   sources_succeeded=15, report_status="finalized")
+        _warn = _DCR(dry_run=False, coverage_status="partial", sources_total=15,
+                     sources_succeeded=11, health_warnings=["来源覆盖不全 11/15"])
+        # builders
+        _subj, _txt, _html = _hr.build_health_email(_ok, run_id="R1")
+        check("health email summarizes an all-good run",
+              "✅" in _subj and "一切正常" in _txt,
+              "the heartbeat email should state 一切正常 on a clean run")
+        check("health card header color reflects status",
+              _hr.build_health_card(_ok)["header"]["template"] == "green"
+              and _hr.build_health_card(_warn)["header"]["template"] == "orange",
+              "green when ok, orange/red when degraded")
+        # mode gating
+        _prev = {k: _osh.environ.get(k) for k in ("HEALTH_REPORT_MODE", "HEALTH_REPORT_ENABLED")}
+        try:
+            _osh.environ["HEALTH_REPORT_ENABLED"] = "true"
+            _osh.environ["HEALTH_REPORT_MODE"] = "always"
+            check("mode=always sends even when ok",
+                  _hr.should_send_health(_ok) and _hr.should_send_health(_warn),
+                  "always mode is the heartbeat: every run")
+            _osh.environ["HEALTH_REPORT_MODE"] = "on_warning"
+            check("mode=on_warning suppresses ok, sends on warning",
+                  (not _hr.should_send_health(_ok)) and _hr.should_send_health(_warn),
+                  "on_warning mode should stay quiet on a clean run")
+            _osh.environ["HEALTH_REPORT_ENABLED"] = "false"
+            check("health report master switch off → never sends",
+                  not _hr.should_send_health(_warn),
+                  "HEALTH_REPORT_ENABLED=false disables the digest entirely")
+        finally:
+            for k, v in _prev.items():
+                if v is None:
+                    _osh.environ.pop(k, None)
+                else:
+                    _osh.environ[k] = v
+        check("health report dry-run never sends",
+              _hr.deliver_health_report(_warn, run_id="R", dry_run=True)["reason"] == "dry_run",
+              "dry-run must build only")
+        # shared transports extracted for reuse
+        check("email_share exposes generic send_email",
+              "def send_email(" in (proj70 / "app" / "application" / "radar" / "email_share.py").read_text(encoding="utf-8"),
+              "health digest should reuse a generic SMTP sender")
+        check("feishu_notify exposes generic send_feishu_card",
+              "def send_feishu_card(" in (proj70 / "app" / "application" / "radar" / "feishu_notify.py").read_text(encoding="utf-8"),
+              "health digest should reuse a generic Feishu card sender")
+        check("daily run wires the health report",
+              "deliver_health_report" in (proj70 / "scripts" / "run_daily_cycle.py").read_text(encoding="utf-8"),
+              "the scheduled entrypoint should deliver the per-run health digest")
+        _envh = (proj70 / ".env.example").read_text(encoding="utf-8")
+        check(".env.example documents HEALTH_REPORT_MODE",
+              "HEALTH_REPORT_MODE" in _envh and "HEALTH_REPORT_ENABLED" in _envh,
+              "the heartbeat config must be documented")
+    except Exception as e:
+        check("per-run health report checks", False, str(e))
+
     # run_daily_cycle_once.ps1
     rdo_path = proj70 / "scripts" / "run_daily_cycle_once.ps1"
     check("run_daily_cycle_once.ps1 exists", rdo_path.exists())
