@@ -964,6 +964,8 @@ python scripts/acceptance_demo_data.py --isolated-db
 
 详细说明见 [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md)。
 
+打包分发 + 真实测试的一步步清单见 [docs/REAL_TESTING_CHECKLIST.md](docs/REAL_TESTING_CHECKLIST.md)（含打包、启动冒烟、定时任务、邮件分享、回归测试）。
+
 ### 本地控制台（推荐）
 
 双击打开 GUI 控制台，一键启动/停止服务、打开页面：
