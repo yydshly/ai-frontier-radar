@@ -445,6 +445,57 @@ V1.0-beta.4 已区分展示标签，V1.0-beta.5 继续解决更底层的问题�
 - 电脑错过定时点后会补算最近若干完整周期，范围由 `DAILY_FINALIZATION_BACKFILL_DAYS` 控制。
 - `/radar/share/today` 指向最近正式日报；没有正式日报时兼容回退到旧版最近报告。
 
+### 每日周期可靠性与健康监控
+
+为避免"报告悄悄停在某一天、却没有任何提示"这类问题，每日周期内置了一套自动恢复 + 健康监控机制（默认全部开启，无需额外配置）。
+
+**1. 卡死抓取自动恢复（P0）**
+
+- 抓取任务（`FetchRun`）若因进程中断卡在 `running` 状态，会让该来源被持续判定为"正在运行"而**每天被静默跳过**——这是历史上报告停滞的根因。
+- 每次 `run_daily_cycle.py --apply` 在抓取前会先把超时的 `running` 记录自动释放为 `failed`（带 `[stale-timeout]` 标记），下一轮即可重新抓取。
+- 超时阈值由 `RADAR_STALE_RUNNING_MINUTES` 控制（默认 120 分钟，范围 10–10080）。
+- 诊断只读逻辑在 `app/application/sources/stale_runs.py`，写入恢复在 `app/application/sources/stale_recovery.py`。
+
+**2. 覆盖状态（P1）**
+
+每次周期会基于**权威的 `FetchRun` 记录**（而非可能漏报的异步发现结果）统计当日来源覆盖情况，输出 `coverage_status`：
+
+| 状态 | 含义 |
+|------|------|
+| `complete` | 所有 due 来源成功且有新增内容 |
+| `partial` | 有来源抓取失败 |
+| `no_content` | 来源成功但无新增内容 / 无 due 来源 |
+| `failed` | 抓取步骤异常 |
+
+CLI 会打印 `coverage: <status> (成功/总数 sources)`，并持久化到 `runtime/daily_cycle_runs/latest.json`。
+
+**3. 健康告警（P1）**
+
+周期结束会自动生成健康告警（覆盖不全 / 失败、来源被截断、仍有卡死记录、报告状态异常），输出到日志、运行记录与 CLI（以 `⚠` 前缀显示），不再静默失败。
+- 被截断来源：单来源单轮抓取条数达到上限（`SOURCE_FETCH_MAX_ITEMS_PER_RUN`，默认 50）时标记为"可能被截断"。
+
+**4. 空白日历史可见（P2）**
+
+- 每次结算（无论是否生成报告）都会写入一份按天状态边车 `runtime/daily_reports/status/daily_status_<date>.json`。
+- 历史页 `/radar/history` 会列出**没有报告的空白日**，并显示状态徽章（`当日无内容` / `生成失败` / `数据不完整`），不再让缺失的某天从时间线上无声消失。
+- 公开分享索引仍只列出有正式报告的日期。
+
+**5. 外部告警 Webhook（P2，可选）**
+
+无人值守的定时任务出问题时，可把健康告警推送到一个 Webhook：
+
+```bash
+# 在 .env 中配置（留空 = 关闭，默认关闭）
+HEALTH_ALERT_WEBHOOK_URL=https://your-webhook-endpoint
+```
+
+- 仅在 `--apply` 运行且存在告警 / 覆盖异常时触发；dry-run 不发送。
+- POST 通用 JSON（顶层 `text` 摘要 + `coverage_status` / `warnings` / `truncated_sources` 等结构化字段），兼容多数聊天平台的 incoming-webhook。
+- 纯标准库实现，best-effort：**任何发送失败都不会影响周期退出码**。
+- 逻辑在 `app/application/radar/health_notify.py`。
+
+> 上述机制由 `scripts/quick_test.py` 的 §66b / §66c / §66d 锁定。
+
 ### 核心报告视频生成
 
 分享页支持从核心报告快照生成 9:16 竖屏 MP4 视频（语音讲解 + 信息卡片）。
@@ -916,13 +967,14 @@ python scripts\show_daily_cycle_status.py
 | `runtime/daily_cycle_runs/latest.json` | 最近执行报告 |
 | `runtime/daily_cycle_runs/running.json` | 当前运行中状态 |
 | `runtime/daily_reports/` | 日报文件 |
+| `runtime/daily_reports/status/` | 按天结算状态边车（空白/失败日也会记录） |
 | `runtime/daily_audio/` | 音频文件 |
 
 ### 每日任务内部阶段
 
 Daily Cycle 运行时会在控制台和 `logs/daily_cycle.live.log` 输出内部阶段日志。如果窗口长时间停在 `summary_batch_start` 前后，通常表示正在调用模型，请耐心等待。
 
-主要阶段：`cycle_start` → `finalization_*` → `fetch_*` → `summary_*` → `marker_*` → `cycle_done`。详细说明见 [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md)。
+主要阶段：`cycle_start` → `finalization_*` → `stale_recovery_done` → `fetch_*` → `summary_*` → `marker_*` → `cycle_done`。`cycle_done` 会附带 `coverage_status` 与健康告警数量。详细说明见 [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md)。
 
 ## 后续路线
 
