@@ -1,9 +1,14 @@
 # install_windows_daily_task.ps1 - Install a RELIABLE Windows Task Scheduler job
-# for the daily cycle (fetch -> summarize -> report -> audio -> finalize).
+# for the daily cycle (finalize previous period + send -> fetch -> summarize ->
+# report -> audio -> health report).
 #
 # Usage:
-#   .\scripts\install_windows_daily_task.ps1                 # daily at 08:05
-#   .\scripts\install_windows_daily_task.ps1 -RunTime 09:00
+#   .\scripts\install_windows_daily_task.ps1                 # auto-aligns to anchor
+#   .\scripts\install_windows_daily_task.ps1 -RunTime 22:05  # explicit override
+#
+# When -RunTime is omitted it is auto-derived from RADAR_DAILY_ANCHOR_HOUR in .env
+# (anchor hour + 5 min), so the task fires right after the period it finalizes
+# closes. The two MUST stay aligned, or the report is finalized a cycle late.
 #
 # Reliability (the whole point):
 #   - StartWhenAvailable: if the PC was OFF/asleep at the scheduled time, the task
@@ -17,7 +22,7 @@
 
 param(
     [string]$TaskName = "AI Frontier Radar Daily Cycle",
-    [string]$RunTime = "08:05"
+    [string]$RunTime
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +30,26 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path (Join-Path $ProjectRoot "..")).Path
 Set-Location $ProjectRoot
+
+# ── Auto-align RunTime to the daily anchor (unless explicitly provided) ──────
+# The cycle finalizes the period that just closed at the anchor, so the task
+# should fire at (anchor hour):05. Read RADAR_DAILY_ANCHOR_HOUR from .env.
+if (-not $PSBoundParameters.ContainsKey('RunTime') -or [string]::IsNullOrWhiteSpace($RunTime)) {
+    $anchorHour = $null
+    $envFile = Join-Path $ProjectRoot ".env"
+    if (Test-Path $envFile) {
+        $m = Select-String -Path $envFile -Pattern '^\s*RADAR_DAILY_ANCHOR_HOUR\s*=\s*(\d{1,2})' |
+            Select-Object -First 1
+        if ($m) { $anchorHour = [int]$m.Matches[0].Groups[1].Value }
+    }
+    if ($null -ne $anchorHour -and $anchorHour -ge 0 -and $anchorHour -le 23) {
+        $RunTime = '{0:D2}:05' -f $anchorHour
+        Write-Host "Aligned RunTime to RADAR_DAILY_ANCHOR_HOUR=$anchorHour -> $RunTime" -ForegroundColor Green
+    } else {
+        $RunTime = "08:05"
+        Write-Host "RADAR_DAILY_ANCHOR_HOUR not found in .env; defaulting RunTime to $RunTime" -ForegroundColor Yellow
+    }
+}
 
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "AI Frontier Radar - Install Daily Task (reliable)" -ForegroundColor Cyan
@@ -86,4 +111,6 @@ Write-Host "Tips:" -ForegroundColor Cyan
 Write-Host "  - Test now:     Start-ScheduledTask -TaskName `"$TaskName`"" -ForegroundColor Gray
 Write-Host "  - Check status: Get-ScheduledTaskInfo -TaskName `"$TaskName`"" -ForegroundColor Gray
 Write-Host "  - Ensure .env has your API keys before the task runs." -ForegroundColor Yellow
+Write-Host "  - RunTime must match RADAR_DAILY_ANCHOR_HOUR (omit -RunTime to auto-align)." -ForegroundColor Yellow
+Write-Host "  - For working email/Feishu links, set RADAR_PUBLIC_BASE_URL in .env." -ForegroundColor Yellow
 Write-Host "  - Task runs while you are logged on; StartWhenAvailable catches up after the PC is on." -ForegroundColor Gray

@@ -9865,6 +9865,15 @@ def main():
     check("README mentions LOCAL_RUNBOOK.md", "LOCAL_RUNBOOK.md" in readme)
     check("README mentions start_local.ps1", "start_local.ps1" in readme)
     check("README mentions install_windows_daily_task.ps1", "install_windows_daily_task.ps1" in readme)
+    # The scheduled task must run the full --apply cycle and auto-align to the anchor.
+    _install_src = (proj70 / "scripts" / "install_windows_daily_task.ps1").read_text(encoding="utf-8")
+    _sched_src = (proj70 / "scripts" / "run_daily_cycle_scheduled.ps1").read_text(encoding="utf-8")
+    check("scheduled runner invokes run_daily_cycle.py --apply",
+          "run_daily_cycle.py" in _sched_src and "--apply" in _sched_src,
+          "the Task Scheduler action must run the full apply cycle (finalize+send)")
+    check("install task auto-aligns RunTime to RADAR_DAILY_ANCHOR_HOUR",
+          "RADAR_DAILY_ANCHOR_HOUR" in _install_src,
+          "RunTime should derive from the anchor so the report isn't finalized a cycle late")
     # Web local-status route
     check("local_status route registered in main.py",
           "local_status_router" in (proj70 / "app" / "main.py").read_text(encoding="utf-8"))
