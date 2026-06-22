@@ -2932,6 +2932,21 @@ def main():
               and "今日雷达更新已启动" in radar_html,
               "today radar should show update enqueue result")
 
+        # Force-refresh: one-click fetch of ALL sources, ignoring the 24h interval
+        # (the today-page equivalent of manually probing each source).
+        check("today radar has force-refresh route",
+              '@router.post("/today/force-refresh")' in radar_route_py
+              and "update_plan_source=forced" in radar_route_py,
+              "today radar should expose a force-refresh that ignores cooldown")
+        check("force-refresh enqueues due + cooled-down sources",
+              "list(plan.due) + list(plan.skipped)" in radar_route_py,
+              "force-refresh must cover both due and not_due_yet (cooled-down) sources")
+        check("today radar template has force-refresh form + banner",
+              'action="/radar/today/force-refresh"' in radar_html
+              and "强制刷新全部来源" in radar_html
+              and 'update_result.plan_source == "forced"' in radar_html,
+              "force-refresh button + result banner should render on the today page")
+
         check("style.css defines radar-update-result styles",
               "radar-update-result" in style_css,
               "update result banner should be styled")

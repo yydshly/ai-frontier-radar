@@ -1481,6 +1481,76 @@ def update_today_radar(
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
+@router.post("/today/force-refresh")
+def force_refresh_today_radar(
+    background_tasks: BackgroundTasks,
+    section: str = Form(ALL_KEY),
+    item_id: int | None = Form(None),
+    hours: int = Form(DEFAULT_HOURS),
+    limit: int = Form(DEFAULT_LIMIT),
+    page: int = Form(1),
+    per_page: int = Form(DEFAULT_PER_PAGE),
+):
+    """Force-fetch every supported source now, ignoring the fetch interval.
+
+    Unlike ``/today/update`` (which enqueues only sources whose due-source plan
+    status is "due", i.e. past their cooldown), this enqueues every configured,
+    supported, non-running source — the one-click equivalent of manually
+    probing each source from the sources page. Sources already running are
+    left alone (``enqueue_source`` rejects a second concurrent run).
+    """
+    db = next(get_db())
+    try:
+        # No max cap: a force refresh deliberately covers all sources. Cooled-down
+        # sources land in plan.skipped (not_due_yet) / due in plan.due; both are
+        # fetchable. running / unsupported / missing are intentionally excluded.
+        plan = compute_due_sources(db)
+    finally:
+        db.close()
+
+    candidates = list(plan.due) + list(plan.skipped)
+    fetch_service = SourceFetchBackgroundService()
+    started = 0
+    already_running = 0
+    failed = 0
+    for decision in candidates:
+        try:
+            result = fetch_service.enqueue_source(
+                decision.source_key,
+                background_tasks=background_tasks,
+            )
+        except Exception:
+            failed += 1
+            continue
+        status = getattr(result, "status", "")
+        if getattr(result, "accepted", False) and status in ("running", "queued"):
+            started += 1
+        elif status == "already_running":
+            already_running += 1
+        else:
+            failed += 1
+
+    safe_section = normalize_section_key(section)
+    redirect_url = (
+        f"/radar/today?section={safe_section}"
+        f"&hours={hours}&limit={limit}&page={page}&per_page={per_page}"
+    )
+    if item_id is not None:
+        redirect_url += f"&item_id={item_id}"
+    redirect_url += (
+        f"&update_total={plan.total_configured}"
+        f"&update_due={len(candidates)}"
+        f"&update_started={started}"
+        f"&update_running={already_running + plan.running_count}"
+        f"&update_unsupported={plan.unsupported_count}"
+        f"&update_missing={plan.missing_count}"
+        f"&update_failed={failed}"
+        f"&update_skipped=0"
+        f"&update_plan_source=forced"
+    )
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
 @router.get("/history", response_class=HTMLResponse)
 def radar_history(request: Request):
     """Per-day history index (P5): past days, incl. blank/incomplete ones."""

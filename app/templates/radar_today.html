@@ -249,6 +249,16 @@
                                 <input type="hidden" name="per_page" value="{{ view.per_page }}">
                                 <button type="submit" class="btn-sm btn-primary" title="仅检查已到期来源，不重复抓取冷却中的来源">同步今日新增</button>
                             </form>
+                            <form method="post" action="/radar/today/force-refresh" class="radar-update-form">
+                                <input type="hidden" name="section" value="{{ view.active_section }}">
+                                <input type="hidden" name="item_id" value="{{ view.selected_item_id or '' }}">
+                                <input type="hidden" name="hours" value="{{ view.hours }}">
+                                <input type="hidden" name="limit" value="{{ view.limit }}">
+                                <input type="hidden" name="page" value="{{ view.page }}">
+                                <input type="hidden" name="per_page" value="{{ view.per_page }}">
+                                <button type="submit" class="btn-sm btn-secondary" title="忽略 24 小时冷却，立即抓取全部来源（等同逐个手动探测）">强制刷新全部来源</button>
+                            </form>
+                            <p class="radar-action-hint">「同步今日新增」只抓到期来源；若刚手动探测过或想立即拉取，用「强制刷新全部来源」忽略冷却。</p>
                         </div>
 
                         <div class="radar-action-stage">
@@ -540,7 +550,24 @@
                 </div>
                 {% endif %}
                 {% if update_result %}
-                {% if update_result.plan_source == "due_sources_v1" %}
+                {% if update_result.plan_source == "forced" %}
+                {# ── Force-refresh summary (ignores the fetch interval) ───────── #}
+                <div class="radar-update-result">
+                    <div class="radar-update-result-title">强制刷新全部来源（已忽略冷却）</div>
+                    <div class="radar-update-result-grid">
+                        <span>配置来源：{{ update_result.total }}</span>
+                        <span>本次抓取：{{ update_result.due }}</span>
+                        <span>已启动：{{ update_result.started }}</span>
+                        <span>已在运行：{{ update_result.running }}</span>
+                        <span>不支持：{{ update_result.unsupported }}</span>
+                        <span>缺失：{{ update_result.missing }}</span>
+                        {% if update_result.failed %}
+                        <span>启动失败：{{ update_result.failed }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="radar-update-reasons">后台抓取已启动，稍后刷新今日雷达即可看到新增内容。</div>
+                </div>
+                {% elif update_result.plan_source == "due_sources_v1" %}
                 {# ── V1.0-beta.1 due-source plan summary ──────────────────────── #}
                 <div class="radar-update-result">
                     <div class="radar-update-result-title">本轮更新计划</div>
