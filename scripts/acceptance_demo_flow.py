@@ -290,7 +290,7 @@ def _run_acceptance(args):
             ("导出完整 Markdown 报告", "export full report button"),
             ("导出为 Markdown 任务", "export markdown task button (to_action case)"),
             ("预览 Markdown 任务草稿", "preview markdown task draft button (non to_action case)"),
-            ("判断不是模型做的", "decision guidance notice"),
+            ("不是模型自动判断", "decision guidance notice"),
         ]
 
         # Verify at least one of the export markdown variants is present
