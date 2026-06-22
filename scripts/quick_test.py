@@ -10419,6 +10419,21 @@ def main():
         check("Linux deployment doc exists",
               (proj70 / "docs" / "LINUX_DEPLOYMENT.md").exists(),
               "a Linux deployment guide should document Docker + systemd + cron")
+        ci_yml = proj70 / ".github" / "workflows" / "ci.yml"
+        if ci_yml.exists():
+            ci_text = ci_yml.read_text(encoding="utf-8")
+            check("CI builds the Docker image + boot smoke",
+                  "docker/build-push-action" in ci_text
+                  and "aifrontier-radar:ci" in ci_text
+                  and "load_cjk_font" in ci_text,
+                  "CI should really build the image and verify Linux deps (ffmpeg/CJK font)")
+        # .gitattributes pins LF for the Linux-critical files (CRLF shebang breaks)
+        ga = proj70 / ".gitattributes"
+        check(".gitattributes forces LF for *.sh / Dockerfile",
+              ga.exists()
+              and "*.sh" in ga.read_text(encoding="utf-8")
+              and "eol=lf" in ga.read_text(encoding="utf-8"),
+              "shell scripts must be LF so the shebang works on Linux")
     except Exception as e:
         check("Linux deployment scaffolding checks", False, str(e))
 

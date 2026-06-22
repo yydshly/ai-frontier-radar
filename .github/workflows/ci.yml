@@ -60,3 +60,49 @@ jobs:
       - name: Run health check
         run: |
           python scripts/health_check.py
+
+  docker:
+    name: Docker image build + smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: aifrontier-radar:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: App import + Linux runtime deps
+        run: |
+          docker run --rm aifrontier-radar:ci python -c "import app.main; print('app import OK')"
+          # The CJK font + ffmpeg must resolve inside the image (Linux paths).
+          docker run --rm aifrontier-radar:ci python -c "from app.application.content_video.fonts import load_cjk_font; load_cjk_font(40); print('cjk font OK')"
+          docker run --rm aifrontier-radar:ci ffmpeg -version | head -1
+
+      - name: Web boot smoke (expect HTTP 200)
+        run: |
+          docker run -d --name radar-ci -p 8765:8765 aifrontier-radar:ci
+          ok=0
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8765/ || true)
+            if [ "$code" = "200" ]; then echo "boot OK ($code)"; ok=1; break; fi
+            sleep 2
+          done
+          docker logs radar-ci || true
+          docker rm -f radar-ci || true
+          if [ "$ok" != "1" ]; then echo "web service did not return 200"; exit 1; fi
+
+      - name: Daily cycle dry-run inside container
+        run: |
+          docker run --rm aifrontier-radar:ci sh -c "python -c 'from app.db import init_db; init_db()' && python scripts/run_daily_cycle.py"

@@ -101,3 +101,16 @@ sudo systemctl enable --now aifrontier-radar
 | 捆绑的 `bin/ffmpeg.exe` | 系统 `ffmpeg`(apt) |
 
 业务代码、邮件/飞书/健康回执、数据库均无需改动。
+
+---
+
+## CI 验证
+
+`.github/workflows/ci.yml` 的 `docker` job 会在每次 push/PR 时**真实构建镜像**并冒烟:
+- `import app.main`(含 `init_db`)
+- `load_cjk_font(40)` —— 验证中文字体在镜像里能解析(Linux 路径)
+- `ffmpeg -version`
+- 启动容器并 `curl http://127.0.0.1:8765/` 期望 **200**
+- 容器内 `run_daily_cycle.py` dry-run
+
+所以"在 Linux 上能否构建运行"由 CI 持续把关,不必每次手动验证。
