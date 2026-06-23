@@ -146,6 +146,27 @@ PROJECT_DOCS_REGISTRY: dict[str, DocEntry] = {
     ),
 
     # V1.0-beta First Usable Loop 阶段包
+    "v1-beta-checkpoint-archive": DocEntry(
+        key="v1-beta-checkpoint-archive",
+        title="V1.0-beta Checkpoint 归档",
+        path="docs/V1_BETA_CHECKPOINT_ARCHIVE.md",
+        category="V1/V2 规划",
+        description="V1.0-beta 第一可用闭环 checkpoint 正式归档，包含阶段结论、已验证价值、可用能力、非目标和封版建议。",
+    ),
+    "v2-architecture-proposal": DocEntry(
+        key="v2-architecture-proposal",
+        title="V2 架构设计提案",
+        path="docs/V2_ARCHITECTURE_PROPOSAL.md",
+        category="V1/V2 规划",
+        description="V2 重新设计方向：七层架构（Source Registry → Delivery）、V2 状态机建议、验收标准。",
+    ),
+    "v2-migration-roadmap": DocEntry(
+        key="v2-migration-roadmap",
+        title="V1 → V2 迁移路线图",
+        path="docs/V2_MIGRATION_ROADMAP.md",
+        category="V1/V2 规划",
+        description="从 V1 到 V2 的分阶段迁移规划：Phase 0 封版 → Phase 1-6 核心重建 → 风险控制策略。",
+    ),
     "v1-beta-checkpoint": DocEntry(
         key="v1-beta-checkpoint",
         title="V1.0-beta First Usable Loop Checkpoint",

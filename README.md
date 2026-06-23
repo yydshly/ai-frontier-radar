@@ -14,6 +14,11 @@ AI Frontier Radar 是**AI 前沿信息探测与中文洞察编译系统**，不�
 - 适合个人本地使用，可完成一个完整的资料发现到洞察生成周期
 - 暂不定位为公开 SaaS
 
+> **V1.0-beta Checkpoint 归档**：当前版本已验证完整链路可行，定位为**第一可用闭环 checkpoint**，不是最终长期架构。后续优化和 V2 重建设计见：
+> - [docs/V1_BETA_CHECKPOINT_ARCHIVE.md](docs/V1_BETA_CHECKPOINT_ARCHIVE.md) — V1 checkpoint 归档
+> - [docs/V2_ARCHITECTURE_PROPOSAL.md](docs/V2_ARCHITECTURE_PROPOSAL.md) — V2 架构设计
+> - [docs/V2_MIGRATION_ROADMAP.md](docs/V2_MIGRATION_ROADMAP.md) — V1→V2 迁移路线图
+
 **产品方向：**
 - 手动工作流：作为底层能力保留，用户自主控制探测与生成
 - 每日雷达：作为上层内容消费入口，每日定时推送精选内容

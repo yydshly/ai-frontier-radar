@@ -1,5 +1,14 @@
 # AI Frontier Radar Release Notes
 
+## V1.0-beta Checkpoint Archive
+
+- 归档 V1.0-beta First Usable Loop
+- 明确当前版本是第一可用闭环 checkpoint
+- 新增 V2 架构设计文档：`docs/V2_ARCHITECTURE_PROPOSAL.md`
+- 新增 V1→V2 迁移路线图：`docs/V2_MIGRATION_ROADMAP.md`
+- 新增 V1 checkpoint 归档：`docs/V1_BETA_CHECKPOINT_ARCHIVE.md`
+- 本次任务不改业务代码，不新增功能，不改数据库模型
+
 ## V1.0-alpha
 
 ### Release Candidate 信息
