@@ -161,6 +161,17 @@ Python: D:\path\to\ai-frontier-radar\.venv\Scripts\python.exe
 setup_automation.bat
 ```
 
+重复执行是安全的：两个规范任务会更新为当前目录，配置过程还会扫描并删除
+旧版本、旧解压目录或旧任务名称留下的冲突任务。最终只保留：
+
+- `AI Frontier Radar Fetch`
+- `AI Frontier Radar Daily Cycle`
+
+后台执行脚本同时带有系统级互斥锁。即使任务计划程序短时间内重复触发，
+同类抓取或同类日报也只会有一个实例真正执行。抓取和日报还共享一把流程锁：
+日报正在运行时，高频抓取会跳过；日报遇到正在收尾的抓取会最多等待30分钟。
+跳过或等待失败的记录会写入对应日志。
+
 默认配置：
 
 - 高频抓取：每3小时；

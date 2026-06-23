@@ -7,6 +7,7 @@
 #   3. Initialize the DB and sync configured sources.
 #   4. Install the frequent fetch task.
 #   5. Install the daily finalization/report task (anchor + 5 minutes).
+#   6. Remove legacy/duplicate Radar tasks so only the canonical pair remains.
 
 param(
     [int]$FetchIntervalHours = 3,
@@ -53,6 +54,42 @@ function Set-EnvValue {
     [System.IO.File]::WriteAllLines($Path, $lines, $utf8NoBom)
 }
 
+function Remove-ConflictingRadarTasks {
+    # -Force replaces a task with the same name, but old releases or previous
+    # unpack locations may have registered another name and keep running.
+    $canonicalNames = @(
+        "AI Frontier Radar Fetch",
+        "AI Frontier Radar Daily Cycle"
+    )
+    $knownRunnerPattern = 'run_fetch_scheduled\.ps1|run_daily_cycle_scheduled\.ps1|run_daily_cycle_once\.ps1|run_due_sources_once\.py|run_daily_cycle\.py'
+    $removed = 0
+
+    foreach ($task in @(Get-ScheduledTask -ErrorAction Stop)) {
+        if ($canonicalNames -contains $task.TaskName) {
+            continue
+        }
+
+        $actionText = (($task.Actions | ForEach-Object {
+            "$($_.Execute) $($_.Arguments) $($_.WorkingDirectory)"
+        }) -join " ")
+        $isRadarNamedTask = $task.TaskName -like "AI Frontier Radar*"
+        $usesKnownRadarRunner = $actionText -match $knownRunnerPattern
+        if (-not $isRadarNamedTask -and -not $usesKnownRadarRunner) {
+            continue
+        }
+
+        Write-Host "[CLEANUP] Removing conflicting task: $($task.TaskName)" -ForegroundColor Yellow
+        Unregister-ScheduledTask -TaskName $task.TaskName -TaskPath $task.TaskPath -Confirm:$false
+        $removed++
+    }
+
+    if ($removed -eq 0) {
+        Write-Host "[OK] No legacy or duplicate automation tasks found." -ForegroundColor Green
+    } else {
+        Write-Host "[OK] Removed $removed legacy/duplicate automation task(s)." -ForegroundColor Green
+    }
+}
+
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "AI Frontier Radar - Automation Setup" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -85,10 +122,14 @@ if ([string]::IsNullOrWhiteSpace($DailyRunTime)) {
     & $dailyInstaller -RunTime $DailyRunTime
 }
 
+Write-Host "[STEP] Filtering legacy and duplicate automation tasks..." -ForegroundColor Yellow
+Remove-ConflictingRadarTasks
+
 Write-Host ""
 Write-Host "[SUCCESS] Automation is configured." -ForegroundColor Green
 Write-Host "  Frequent fetch: every $FetchIntervalHours hour(s)" -ForegroundColor Gray
 Write-Host "  Daily report:   anchor + 5 minutes (or explicit override)" -ForegroundColor Gray
+Write-Host "  Task filter:    only the canonical fetch + daily tasks remain" -ForegroundColor Gray
 Write-Host "  Check status:   .\scripts\status_local.ps1" -ForegroundColor Gray
 Write-Host "  Fetch log:      logs\fetch.log" -ForegroundColor Gray
 Write-Host "  Daily log:      logs\daily_cycle.log" -ForegroundColor Gray

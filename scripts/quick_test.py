@@ -10467,9 +10467,29 @@ def main():
               and "install_windows_daily_task.ps1" in _setup_ps
               and "RADAR_FETCH_INTERVAL_OVERRIDE_HOURS" in _setup_ps,
               "first-time setup must initialize sources and install both tasks")
+        check("automation setup removes legacy/duplicate tasks",
+              "Remove-ConflictingRadarTasks" in _setup_ps
+              and "Unregister-ScheduledTask" in _setup_ps
+              and "run_fetch_scheduled" in _setup_ps
+              and "run_daily_cycle_scheduled" in _setup_ps,
+              "old task names and old package locations must not run in parallel")
+        _daily_scheduled_ps = (
+            proj70 / "scripts" / "run_daily_cycle_scheduled.ps1"
+        ).read_text(encoding="utf-8")
+        check("scheduled runners reject duplicate concurrent execution",
+              "Global\\AIFrontierRadar.Fetch" in _fetch_ps
+              and "Global\\AIFrontierRadar.DailyCycle" in _daily_scheduled_ps
+              and "WaitOne(0)" in _fetch_ps
+              and "WaitOne(0)" in _daily_scheduled_ps,
+              "duplicate triggers must not execute the same automation concurrently")
+        check("fetch and daily tasks share one automation pipeline lock",
+              "Global\\AIFrontierRadar.AutomationPipeline" in _fetch_ps
+              and "Global\\AIFrontierRadar.AutomationPipeline" in _daily_scheduled_ps
+              and "FromMinutes(30)" in _daily_scheduled_ps,
+              "frequent fetch must not overlap the daily cycle's own fetch stage")
         check("scheduled runners sync sources before execution",
               "sync_sources_from_config.py" in _fetch_ps
-              and "sync_sources_from_config.py" in (proj70 / "scripts" / "run_daily_cycle_scheduled.ps1").read_text(encoding="utf-8"),
+              and "sync_sources_from_config.py" in _daily_scheduled_ps,
               "fresh installs must not depend on visiting /sources")
         # The global interval OVERRIDE must beat per-source fetch_interval_hours,
         # otherwise the frequent fetch task no-ops (sources pin 24h in YAML).

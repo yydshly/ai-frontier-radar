@@ -15,6 +15,40 @@ $LogsDir = Join-Path $ProjectRoot "logs"
 if (-not (Test-Path $LogsDir)) { New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null }
 $DailyLog = Join-Path $LogsDir "daily_cycle.log"
 
+$Mutex = New-Object System.Threading.Mutex($false, "Global\AIFrontierRadar.DailyCycle")
+$PipelineMutex = New-Object System.Threading.Mutex($false, "Global\AIFrontierRadar.AutomationPipeline")
+$HasMutex = $false
+$HasPipelineMutex = $false
+try {
+    $HasMutex = $Mutex.WaitOne(0)
+} catch [System.Threading.AbandonedMutexException] {
+    $HasMutex = $true
+}
+if (-not $HasMutex) {
+    "===== $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss') daily cycle skipped: another daily runner is active =====" |
+        Out-File -FilePath $DailyLog -Append -Encoding utf8
+    $Mutex.Dispose()
+    $PipelineMutex.Dispose()
+    exit 0
+}
+
+# The daily cycle includes its own fetch stage. If a frequent fetch is already
+# finishing, wait for it instead of running two source fetches concurrently.
+try {
+    $HasPipelineMutex = $PipelineMutex.WaitOne([TimeSpan]::FromMinutes(30))
+} catch [System.Threading.AbandonedMutexException] {
+    $HasPipelineMutex = $true
+}
+if (-not $HasPipelineMutex) {
+    "===== $(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss') daily cycle failed: automation pipeline stayed busy for 30 minutes =====" |
+        Out-File -FilePath $DailyLog -Append -Encoding utf8
+    $Mutex.ReleaseMutex()
+    $Mutex.Dispose()
+    $PipelineMutex.Dispose()
+    exit 1
+}
+
+try {
 $PythonExe = Join-Path $ProjectRoot "python\python.exe"          # portable bundle
 if (-not (Test-Path $PythonExe)) { $PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe" }  # dev venv
 if (-not (Test-Path $PythonExe)) { $PythonExe = "python" }       # system PATH
@@ -42,3 +76,9 @@ $exitCode = $LASTEXITCODE
     Out-File -FilePath $DailyLog -Append -Encoding utf8
 
 exit $exitCode
+} finally {
+    if ($HasPipelineMutex) { $PipelineMutex.ReleaseMutex() }
+    if ($HasMutex) { $Mutex.ReleaseMutex() }
+    $PipelineMutex.Dispose()
+    $Mutex.Dispose()
+}
