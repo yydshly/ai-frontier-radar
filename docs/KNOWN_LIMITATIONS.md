@@ -213,6 +213,20 @@ V1.0-beta 是**第一可用闭环版本**，验证「信息来源 → 探测 →
 
 ---
 
+## V1.0-beta 架构限制
+
+以下限制源于 V1 是探索式实现，不适合作为复杂 SaaS 长期底座：
+
+- 当前架构是探索式演进，不是最终长期架构
+- `raw_metadata_json` 承担了过多状态
+- SourceItem 生命周期还不是严格状态机
+- 同步抓取和后台抓取仍有重复逻辑
+- HTML index fallback 不保证长期稳定
+- Daily cycle 依赖外部 scheduler
+- 当前版本适合个人使用和技术验证，不适合作为复杂 SaaS 底座
+
+详见 [docs/V1_BETA_CHECKPOINT_ARCHIVE.md](docs/V1_BETA_CHECKPOINT_ARCHIVE.md) 和 [docs/V2_ARCHITECTURE_PROPOSAL.md](docs/V2_ARCHITECTURE_PROPOSAL.md)。
+
 ## V1.0-beta.3 今日雷达体验闭环 — 已知限制
 
 V1.0-beta.3 聚焦 `/radar/today` 阅读体验，以下限制经决策可接受：

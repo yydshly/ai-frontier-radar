@@ -120,7 +120,24 @@
 - InsightCard 不是自动全量生成
 - PDF / 报告页还不是主链路重点
 
-## 6. 下一阶段建议
+## 6. Checkpoint 说明
+
+本阶段已完成第一可用闭环验证。
+
+后续不建议继续在 V1 中堆叠复杂功能。V1 后续主要用于：
+
+- 演示
+- 回归验证
+- 行为参考
+- V2 设计依据
+
+V2 设计见：
+
+- [docs/V2_ARCHITECTURE_PROPOSAL.md](docs/V2_ARCHITECTURE_PROPOSAL.md)
+- [docs/V2_MIGRATION_ROADMAP.md](docs/V2_MIGRATION_ROADMAP.md)
+- [docs/V1_BETA_CHECKPOINT_ARCHIVE.md](docs/V1_BETA_CHECKPOINT_ARCHIVE.md)
+
+## 7. 下一阶段建议
 
 V1.0-beta First Usable Loop checkpoint 已成立。推荐下一阶段 V1.0-beta.1 优先级：
 
