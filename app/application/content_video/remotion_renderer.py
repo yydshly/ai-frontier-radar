@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
 
 from app.application.content_video.models import VideoScene
+
+logger = logging.getLogger(__name__)
 
 
 COMPOSITION_ID = "RadarReportVideo"
@@ -26,6 +29,20 @@ def _npx_command() -> list[str]:
     if not npx:
         raise RuntimeError("npx not found; install Node.js to enable Remotion.")
     return [npx]
+
+
+def _remotion_timeout_seconds() -> int:
+    """Return Remotion render timeout in seconds from env var, default 360.
+
+    Validates the value: must be at least 30 seconds to avoid accidental 0/negative.
+    Falls back to 360 on invalid or empty values.
+    """
+    raw = os.getenv("CONTENT_VIDEO_REMOTION_TIMEOUT_SECONDS", "").strip()
+    try:
+        value = int(raw) if raw else 360
+    except ValueError:
+        value = 360
+    return max(30, value)
 
 
 def check_remotion_available() -> tuple[bool, str]:
@@ -172,18 +189,38 @@ def render_report_video(props: dict, output_path: Path, props_path: Path) -> Non
             "/c",
             subprocess.list2cmdline(command),
         ]
-    timeout = int(os.getenv("CONTENT_VIDEO_REMOTION_TIMEOUT_SECONDS", "900"))
-    proc = subprocess.run(
-        run_command,
-        cwd=str(remotion_dir),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        shell=False,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    timeout = _remotion_timeout_seconds()
+    logger.info(
+        "Remotion render starting: timeout=%ds, remotion_dir=%s, output_path=%s",
+        timeout, remotion_dir, output_path,
     )
+    try:
+        proc = subprocess.run(
+            run_command,
+            cwd=str(remotion_dir),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            shell=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired as exc:
+        logger.warning(
+            "Remotion render timed out after %ds; remotion_dir=%s, output_path=%s, props_path=%s",
+            timeout, remotion_dir, output_path, props_path,
+        )
+        raise RuntimeError(
+            f"Remotion render timed out after {timeout}s; "
+            f"remotion_dir={remotion_dir}; output_path={output_path}; props_path={props_path}"
+        ) from exc
     if proc.returncode != 0 or not output_path.is_file():
         detail = (proc.stderr or proc.stdout or "").strip()[-1200:]
+        logger.warning("Remotion render failed: %s", detail)
         raise RuntimeError(f"Remotion render failed: {detail}")
+    logger.info(
+        "Remotion render finished: output_path=%s, size=%s",
+        output_path,
+        output_path.stat().st_size if output_path.is_file() else "N/A",
+    )

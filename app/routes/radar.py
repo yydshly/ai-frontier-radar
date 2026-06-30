@@ -2235,7 +2235,13 @@ def _run_content_video_job(request, job_id, input_hash):
     from app.application.content_video.service import generate_video
     from app.application.content_video.storage import video_storage_for
 
-    storage = video_storage_for(request.source_snapshot.source_key, input_hash)
+    source_key = request.source_snapshot.source_key
+    logger.info(
+        "content_video background task entered: job_id=%s, input_hash=%s, source_key=%s",
+        job_id, input_hash, source_key,
+    )
+
+    storage = video_storage_for(source_key, input_hash)
 
     try:
         tts_provider = _resolve_share_tts_provider()
@@ -2249,6 +2255,10 @@ def _run_content_video_job(request, job_id, input_hash):
             error=str(exc),
         )
         storage.release_lock(job_id)
+        logger.info(
+            "content_video background task finished (TTS error): job_id=%s, input_hash=%s",
+            job_id, input_hash,
+        )
         return
 
     try:
@@ -2259,6 +2269,10 @@ def _run_content_video_job(request, job_id, input_hash):
     finally:
         # Always release lock when done (success or failure)
         storage.release_lock(job_id)
+        logger.info(
+            "content_video background task finished/releasing lock: job_id=%s, input_hash=%s",
+            job_id, input_hash,
+        )
 
 
 def _start_video_generation(
@@ -2429,6 +2443,10 @@ def _start_video_generation(
 
     # Dispatch background task (only the request dataclass — no DB session)
     # Lock will be released by _run_content_video_job's finally block
+    logger.info(
+        "content_video add_task: job_id=%s, input_hash=%s, source_key=%s, force=%s",
+        job_id, input_hash, video_snapshot.source_key, force,
+    )
     background_tasks.add_task(_run_content_video_job, request, job_id, input_hash)
 
     return job_id, input_hash, {
