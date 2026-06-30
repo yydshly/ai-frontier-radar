@@ -156,11 +156,25 @@ def render_report_video(props: dict, output_path: Path, props_path: Path) -> Non
         raise RuntimeError(message)
 
     remotion_dir = get_remotion_dir()
+
+    # [DEBUG-1] 开始写 props
+    logger.info(
+        "[DEBUG-1] Starting render: remotion_dir=%s, remotion_dir_exists=%s, cwd=%s",
+        remotion_dir, remotion_dir.exists(), os.getcwd(),
+    )
+
     props_path.parent.mkdir(parents=True, exist_ok=True)
     props_path.write_text(
         json.dumps(props, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    # [DEBUG-2] props 写完后
+    logger.info(
+        "[DEBUG-2] Props written: props_path=%s, props_size=%d bytes, output_path=%s",
+        props_path, props_path.stat().st_size, output_path,
+    )
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
         *_npx_command(),
@@ -189,11 +203,23 @@ def render_report_video(props: dict, output_path: Path, props_path: Path) -> Non
             "/c",
             subprocess.list2cmdline(command),
         ]
+
     timeout = _remotion_timeout_seconds()
+
+    # [DEBUG-3] subprocess 启动前（关键）
     logger.info(
-        "Remotion render starting: timeout=%ds, remotion_dir=%s, output_path=%s",
-        timeout, remotion_dir, output_path,
+        "[DEBUG-3] About to call subprocess.run: "
+        "cwd=%s, cwd_exists=%s, timeout=%d, "
+        "run_command[0]=%s, run_command_type=%s, creationflags=%s, "
+        "COMSPEC=%s, PATH_snippet=%s",
+        str(remotion_dir), os.path.exists(str(remotion_dir)),
+        timeout,
+        run_command[0], type(run_command[0]).__name__,
+        getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        os.environ.get("COMSPEC", ""),
+        os.environ.get("PATH", "")[:150],
     )
+
     try:
         proc = subprocess.run(
             run_command,
@@ -206,21 +232,33 @@ def render_report_video(props: dict, output_path: Path, props_path: Path) -> Non
             shell=False,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
+
+        # [DEBUG-4] subprocess 返回了
+        logger.info(
+            "[DEBUG-4] subprocess returned: returncode=%s, stdout_len=%d, stderr_len=%d",
+            proc.returncode, len(proc.stdout), len(proc.stderr),
+        )
+
     except subprocess.TimeoutExpired as exc:
+        # [DEBUG-5] 超时发生
         logger.warning(
-            "Remotion render timed out after %ds; remotion_dir=%s, output_path=%s, props_path=%s",
-            timeout, remotion_dir, output_path, props_path,
+            "[DEBUG-5] TimeoutExpired: timeout=%ds, "
+            "remotion_dir=%s, remotion_dir_exists=%s, output_exists=%s, cwd=%s",
+            timeout, remotion_dir, remotion_dir.exists(), output_path.exists(), os.getcwd(),
         )
         raise RuntimeError(
             f"Remotion render timed out after {timeout}s; "
             f"remotion_dir={remotion_dir}; output_path={output_path}; props_path={props_path}"
         ) from exc
+
     if proc.returncode != 0 or not output_path.is_file():
         detail = (proc.stderr or proc.stdout or "").strip()[-1200:]
         logger.warning("Remotion render failed: %s", detail)
         raise RuntimeError(f"Remotion render failed: {detail}")
+
+    # [DEBUG-6] 成功完成
     logger.info(
-        "Remotion render finished: output_path=%s, size=%s",
+        "[DEBUG-6] Remotion render finished: output_path=%s, size=%s",
         output_path,
         output_path.stat().st_size if output_path.is_file() else "N/A",
     )
