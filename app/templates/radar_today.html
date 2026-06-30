@@ -158,14 +158,14 @@
                             <div class="radar-sidebar-summary-generated">报告生成于 {{ today_summary_panel.generated_at }}</div>
                             {% endif %}
                             {% elif daily_digest and daily_digest.top_items %}
-                            <p class="radar-sidebar-summary-empty">核心报告尚未生成，先查看今日新增重点：</p>
+                            <p class="radar-sidebar-summary-empty">核心报告尚未生成，先查看今日发布重点：</p>
                             <ul class="radar-sidebar-summary-fallback-list">
                                 {% for item in daily_digest.top_items[:3] %}
                                 <li><a href="/source-items/{{ item.item_id }}">{{ (item.zh_preview or item.title)[:52] }}</a></li>
                                 {% endfor %}
                             </ul>
                             {% else %}
-                            <p class="radar-sidebar-summary-empty">今日暂无可总结的新增内容。</p>
+                            <p class="radar-sidebar-summary-empty">今日暂无可总结的发布内容。</p>
                             {% endif %}
 
                             {% if today_summary_panel.has_audio %}
@@ -309,7 +309,11 @@
                     <div class="radar-digest">
                         <div class="radar-digest-title">今日编译概览 · {{ daily_digest.date_label }}</div>
                         <div class="radar-scheduler-row">
-                            <span class="radar-scheduler-label">今日新增</span>
+                            <span class="radar-scheduler-label">今日发布</span>
+                            <span class="radar-scheduler-value">{{ daily_digest.published_items_count }}</span>
+                        </div>
+                        <div class="radar-scheduler-row">
+                            <span class="radar-scheduler-label">新增入库</span>
                             <span class="radar-scheduler-value">{{ daily_digest.new_items_count }}</span>
                         </div>
                         <div class="radar-scheduler-row">
@@ -765,7 +769,8 @@
                 {# ── 今日速览: deterministic grouped-by-source list (merged briefing) ── #}
                 {% if view.briefing and view.briefing.groups %}
                 <div class="briefing-summary">
-                    <span>今日新增 <strong>{{ view.briefing.new_items_count }}</strong></span>
+                    <span>今日发布 <strong>{{ view.briefing.published_items_count }}</strong></span>
+                    <span>新增入库 <strong>{{ view.briefing.new_items_count }}</strong></span>
                     <span>· 覆盖来源 <strong>{{ view.briefing.source_count }}</strong></span>
                     <span>· 已有中文摘要 <strong>{{ view.briefing.summarized_count }}</strong>/{{ view.briefing.shown_count }}</span>
                     {% if view.briefing.truncated %}
@@ -801,7 +806,7 @@
                 </section>
                 {% endfor %}
                 {% else %}
-                <p class="radar-empty-hint">今天暂无新增内容。可点击「同步今日新增」抓取最新。</p>
+                <p class="radar-empty-hint">今天暂无发布内容。可点击「同步今日新增」抓取最新。</p>
                 {% endif %}
                 {% elif view.active_section == 'recommended' and view.recommended_items %}
                 {# ── Recommended items (virtual section — not in view.sections) ── #}

@@ -1,15 +1,15 @@
 """Per-day history (P5): index of past days + a read-only per-day view.
 
 A "day" is the anchor period (08:00→08:00). Reports and audio are already
-persisted by date_label; articles are queried by first_seen_at within the day's
-anchor window. This module only reads — no writes, no LLM.
+persisted by date_label; articles are queried by publication-date attribution
+within the day's anchor window. This module only reads — no writes, no LLM.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 from app.models import Source, SourceItem
-from app.application.radar.daily_scope import anchor_window_for_date
+from app.application.radar.daily_scope import valid_items_for_report_date
 from app.application.radar.daily_report_store import (
     list_daily_report_dates,
     list_final_daily_report_dates,
@@ -68,22 +68,7 @@ class HistoryDayView:
 
 
 def _valid_items_in_window(db, date_label: str) -> list[SourceItem]:
-    start, end = anchor_window_for_date(date_label)
-    return (
-        db.query(SourceItem)
-        .join(Source, Source.id == SourceItem.source_id)
-        .filter(
-            Source.enabled.is_(True),
-            SourceItem.url.isnot(None),
-            SourceItem.url != "",
-            SourceItem.title.isnot(None),
-            SourceItem.title != "",
-            SourceItem.first_seen_at >= start,
-            SourceItem.first_seen_at < end,
-        )
-        .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .all()
-    )
+    return valid_items_for_report_date(db, date_label)
 
 
 def _audio_jobs_for(date_label: str) -> list:

@@ -23,14 +23,10 @@ import hashlib
 import json
 from typing import Any, Protocol
 
-from sqlalchemy import or_
-
 from app.models import CardStatus, InsightCard, SourceItem
 from app.application.radar.daily_scope import (
-    anchor_window_for_date,
-    recent_valid_items_query,
-    daily_anchor,
     daily_date_label,
+    valid_items_for_report_date,
     SUMMARY_MARKERS,
 )
 from app.application.radar.settings import get_daily_scope_settings
@@ -202,9 +198,9 @@ def build_daily_report_input(
 ) -> DailyReportInput:
     """Assemble summaries and completed insight context. Read-only.
 
-    Without ``date_label`` this keeps the live current-period behavior used by
-    today-radar previews. With ``date_label`` it reads the immutable historical
-    anchor window ``[start, end)`` used by formal daily finalization.
+    With or without an explicit ``date_label``, report inputs are attributed by
+    publication date. The ingestion/increment window remains a separate
+    today-radar concept.
     """
     import json as _json
 
@@ -213,26 +209,14 @@ def build_daily_report_input(
     if max_items is None:
         max_items = get_daily_report_settings().max_items
 
-    if date_label:
-        window_start, window_end = anchor_window_for_date(date_label)
-        base = recent_valid_items_query(db, now=now, since=window_start).filter(
-            SourceItem.first_seen_at < window_end
-        )
-        resolved_date_label = date_label
-    else:
-        base = recent_valid_items_query(db, now=now, since=daily_anchor(now))
-        resolved_date_label = daily_date_label(now)
+    resolved_date_label = date_label or daily_date_label(now)
+    rows_scope = valid_items_for_report_date(db, resolved_date_label)
 
-    rows = (
-        # Anchored to the daily increment (same scope as the radar), capped to
-        # max_items as a report-synthesis ceiling (top-N), not a display limit.
-        # RADAR_DAILY_ITEM_LIMIT does NOT affect core report input.
-        base
-        .filter(or_(*[SourceItem.raw_metadata_json.like(f"%{m}%") for m in _SUMMARY_MARKERS]))
-        .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(max_items)
-        .all()
-    )
+    def has_summary_marker(item: SourceItem) -> bool:
+        raw = item.raw_metadata_json or ""
+        return any(marker in raw for marker in _SUMMARY_MARKERS)
+
+    rows = [item for item in rows_scope if has_summary_marker(item)][:max_items]
     insight_ids = {
         item.insight_card_id for item in rows if item.insight_card_id is not None
     }

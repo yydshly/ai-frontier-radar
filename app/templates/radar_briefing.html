@@ -1,17 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}今日新增清单 - AI Frontier Radar{% endblock %}
+{% block title %}今日发布清单 - AI Frontier Radar{% endblock %}
 
 {% block main_class %}wide-page{% endblock %}
 
 {% block content %}
         <div class="page-header">
-            <h1>今日新增清单 · {{ briefing.date_label }}</h1>
-            <p>今日 8:00 起首次发现的有效文章，先按发现时间选取，再按来源分组。点击可查看详情或核验原文。</p>
+            <h1>今日发布清单 · {{ briefing.date_label }}</h1>
+            <p>按文章发布时间归属到今日的有效文章，新增入库数单独展示。点击可查看详情或核验原文。</p>
         </div>
 
         <div class="briefing-summary">
-            <span>今日新增 <strong>{{ briefing.new_items_count }}</strong></span>
+            <span>今日发布 <strong>{{ briefing.published_items_count }}</strong></span>
+            <span>· 新增入库 <strong>{{ briefing.new_items_count }}</strong></span>
             <span>· 覆盖来源 <strong>{{ briefing.source_count }}</strong></span>
             <span>· 已有中文摘要 <strong>{{ briefing.summarized_count }}</strong>/{{ briefing.shown_count }}</span>
             {% if briefing.truncated %}
@@ -45,6 +46,6 @@
         </section>
         {% endfor %}
         {% else %}
-        <p class="empty-state">今天暂无新增内容。可在<a href="/radar/today">今日雷达</a>点击「更新今日雷达」抓取最新。</p>
+        <p class="empty-state">今天暂无发布内容。可在<a href="/radar/today">今日雷达</a>点击「更新今日雷达」抓取最新。</p>
         {% endif %}
 {% endblock %}

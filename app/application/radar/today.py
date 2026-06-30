@@ -40,7 +40,12 @@ from app.application.radar.today_item_card import (
     TodayItemCard,
     build_today_item_card,
 )
-from app.application.radar.daily_scope import recent_valid_items_query, daily_anchor
+from app.application.radar.daily_scope import (
+    daily_anchor,
+    daily_date_label,
+    recent_valid_items_query,
+    valid_items_for_report_date,
+)
 from app.application.radar.settings import (
     get_daily_scope_settings,
     get_recommendation_settings,
@@ -742,13 +747,13 @@ class RadarTodayService:
         if section == BRIEFING_KEY:
             from app.application.radar.daily_digest import build_daily_briefing
             briefing = build_daily_briefing(self.db)
-            section_counts[BRIEFING_KEY] = briefing.new_items_count
+            section_counts[BRIEFING_KEY] = briefing.published_items_count
         else:
             briefing = None
             # Anchor-based so the 今日速览 badge matches ALL/categories (§4.7).
-            section_counts[BRIEFING_KEY] = recent_valid_items_query(
-                self.db, since=daily_anchor()
-            ).count()
+            section_counts[BRIEFING_KEY] = len(
+                valid_items_for_report_date(self.db, daily_date_label())
+            )
 
         # ── Filter items to the active section ───────────────────────────
         if section == ALL_KEY:

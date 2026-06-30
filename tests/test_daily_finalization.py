@@ -16,6 +16,7 @@ from app.application.radar.daily_report import (
     DailyReportResult,
     build_daily_report_input,
 )
+from app.application.radar.daily_digest import build_daily_digest_view
 from app.application.radar.daily_report_store import (
     load_final_daily_report,
     save_final_daily_report,
@@ -81,6 +82,81 @@ def test_fixed_date_report_input_uses_closed_anchor_window():
     assert payload.date_label == "2026-06-12"
     assert payload.item_count == 1
     assert payload.sources[0].title == "inside"
+
+
+def test_fixed_date_report_input_uses_published_date_over_first_seen():
+    db = _session()
+    source = _source(db)
+    summary = json.dumps({
+        "zh_one_liner": "one line",
+        "zh_summary": "full summary",
+    }, ensure_ascii=False)
+    db.add_all([
+        SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url="https://example.com/published-target",
+            title="published target",
+            status="discovered",
+            raw_metadata_json=summary,
+            published_at="Sun, 28 Jun 2026 17:00:00 GMT",
+            first_seen_at=datetime(2026, 6, 29, 0, 5),
+        ),
+        SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url="https://example.com/first-seen-target",
+            title="first seen target",
+            status="discovered",
+            raw_metadata_json=summary,
+            published_at="Sun, 29 Jun 2026 00:05:00 GMT",
+            first_seen_at=datetime(2026, 6, 28, 17, 0),
+        ),
+    ])
+    db.commit()
+
+    payload = build_daily_report_input(db, date_label="2026-06-28")
+
+    assert payload.item_count == 1
+    assert payload.sources[0].title == "published target"
+
+
+def test_current_report_input_uses_published_date_over_first_seen():
+    db = _session()
+    source = _source(db)
+    summary = json.dumps({
+        "zh_one_liner": "one line",
+        "zh_summary": "full summary",
+    }, ensure_ascii=False)
+    db.add_all([
+        SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url="https://example.com/current-published-target",
+            title="current published target",
+            status="discovered",
+            raw_metadata_json=summary,
+            published_at="Sun, 28 Jun 2026 17:00:00 GMT",
+            first_seen_at=datetime(2026, 6, 29, 0, 5),
+        ),
+        SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url="https://example.com/current-first-seen-target",
+            title="current first seen target",
+            status="discovered",
+            raw_metadata_json=summary,
+            published_at="Sun, 29 Jun 2026 00:05:00 GMT",
+            first_seen_at=datetime(2026, 6, 28, 17, 0),
+        ),
+    ])
+    db.commit()
+
+    payload = build_daily_report_input(db, now=datetime(2026, 6, 28, 18, 0))
+
+    assert payload.date_label == "2026-06-28"
+    assert payload.item_count == 1
+    assert payload.sources[0].title == "current published target"
 
 
 def test_final_report_is_not_overwritten(tmp_path):
@@ -212,3 +288,41 @@ def test_finalize_saves_article_summary_snapshot(tmp_path, monkeypatch):
     assert stored["audio_status"] == "skipped"
     assert stored["articles"][0]["zh_summary"] == "结算时保存的详细摘要"
     assert stored["articles"][0]["url"] == "https://example.com/canonical"
+
+
+def test_daily_digest_exposes_published_and_newly_ingested_counts():
+    db = _session()
+    source = _source(db)
+    summary = json.dumps({
+        "zh_one_liner": "one line",
+        "zh_summary": "full summary",
+    }, ensure_ascii=False)
+    db.add_all([
+        SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url="https://example.com/published-today",
+            title="published today",
+            status="discovered",
+            raw_metadata_json=summary,
+            published_at="Sun, 28 Jun 2026 17:00:00 GMT",
+            first_seen_at=datetime(2026, 6, 29, 0, 5),
+        ),
+        SourceItem(
+            source_id=source.id,
+            source_key=source.source_key,
+            url="https://example.com/newly-ingested",
+            title="newly ingested",
+            status="discovered",
+            raw_metadata_json=summary,
+            published_at="Sun, 29 Jun 2026 01:00:00 GMT",
+            first_seen_at=datetime(2026, 6, 28, 12, 0),
+        ),
+    ])
+    db.commit()
+
+    digest = build_daily_digest_view(db, now=datetime(2026, 6, 28, 18, 0))
+
+    assert digest.date_label == "2026-06-28"
+    assert digest.published_items_count == 1
+    assert digest.new_items_count == 2

@@ -1,6 +1,6 @@
 """Read-only daily digest aggregation for the today-radar (P-003 step 1).
 
-Aggregates *today's* newly discovered SourceItems into a compact "今日编译概览"
+Aggregates today's published SourceItems into a compact "今日编译概览"
 summary for the radar sidebar. This is the data foundation for the future
 "今日核心报告卡片"; it does NOT call any LLM and does NOT write to the database.
 
@@ -9,8 +9,8 @@ Phase boundaries:
 - Phase D (later): LLM core summary generation (cost-gated, explicit).
 - Phase E (later): voice broadcast (TTS, optional / toggleable).
 
-User-facing "today" means the rolling recent window (default 24 hours).
-Items are counted by their ``first_seen_at`` inside this window.
+User-facing content counts are attributed by publication date. Newly ingested
+counts still use ``first_seen_at`` and are shown separately.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from app.application.radar.daily_scope import (
     recent_valid_items_query,
     daily_anchor,
     daily_date_label,
+    valid_items_for_report_date,
     SUMMARY_MARKERS,
 )
 from app.application.radar.settings import get_daily_scope_settings
@@ -48,9 +49,10 @@ class DailyDigestItem:
 
 @dataclass(frozen=True)
 class DailyDigestView:
-    """Read-only aggregation of today's newly discovered content."""
+    """Read-only aggregation of today's published and newly ingested content."""
 
     date_label: str
+    published_items_count: int
     new_items_count: int
     summarized_count: int
     card_count: int
@@ -59,7 +61,7 @@ class DailyDigestView:
 
 
 def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestView:
-    """Aggregate today's newly discovered SourceItems. Read-only, no LLM.
+    """Aggregate today's published SourceItems. Read-only, no LLM.
 
     Counts are computed in SQL (no full-table load into Python). Only the few
     surfaced top items are turned into display previews via the canonical
@@ -90,13 +92,17 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
             for marker in _SUMMARY_MARKERS
         )
 
-    new_items_count = len(rows)
-    summarized_rows = [item for item in rows if has_summary(item)]
-    summarized_count = len(summarized_rows)
-    card_count = sum(item.insight_card_id is not None for item in rows)
-    source_count = len({item.source_key for item in rows})
+    date_label = daily_date_label(now)
+    published_rows = valid_items_for_report_date(db, date_label)
 
-    # Top items: use the same capped scope as today's radar and report input.
+    new_items_count = len(rows)
+    published_items_count = len(published_rows)
+    summarized_rows = [item for item in published_rows if has_summary(item)]
+    summarized_count = len(summarized_rows)
+    card_count = sum(item.insight_card_id is not None for item in published_rows)
+    source_count = len({item.source_key for item in published_rows})
+
+    # Top items: published today, with readable Chinese summaries first.
     from app.application.candidates.display import build_candidate_display_card
 
     candidate_rows = summarized_rows[:_TOP_ITEMS_LIMIT]
@@ -115,7 +121,8 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
         )
 
     return DailyDigestView(
-        date_label=daily_date_label(now),
+        date_label=date_label,
+        published_items_count=published_items_count,
         new_items_count=new_items_count,
         summarized_count=summarized_count,
         card_count=card_count,
@@ -124,9 +131,9 @@ def build_daily_digest_view(db, *, now: datetime | None = None) -> DailyDigestVi
     )
 
 
-# ── Daily briefing (the readable "今日新增报告") ──────────────────────────────
-# A fuller, read-only view than the sidebar digest: lists ALL of today's newly
-# discovered items (capped), grouped by source, each with its Chinese one-liner
+# ── Daily briefing (the readable "今日发布报告") ──────────────────────────────
+# A fuller, read-only view than the sidebar digest: lists ALL of today's
+# published items (capped), grouped by source, each with its Chinese one-liner
 # (or title), discovery time and read links. No LLM, no writes — this is the
 # deterministic "new-items report" that lets a user actually read what's new.
 
@@ -156,7 +163,8 @@ class DailyBriefingGroup:
 @dataclass(frozen=True)
 class DailyBriefingView:
     date_label: str
-    new_items_count: int   # total new today (may exceed shown if truncated)
+    published_items_count: int
+    new_items_count: int
     shown_count: int
     summarized_count: int  # shown items that have a readable Chinese one-liner
     source_count: int
@@ -167,28 +175,24 @@ class DailyBriefingView:
 def build_daily_briefing(
     db, *, now: datetime | None = None, max_items: int = DEFAULT_BRIEFING_MAX
 ) -> DailyBriefingView:
-    """Build a read-only briefing of today's newly discovered items.
+    """Build a read-only briefing of today's published items.
 
     Groups by source, newest-first within each source. Read-only; no LLM.
     Unlike the sidebar digest, this includes items that are not yet summarized
-    (falling back to their title) so the user sees everything new.
+    (falling back to their title) so the user sees every item published today.
     """
     if now is None:
         now = datetime.utcnow()
 
     # 今日速览 = today's increment (since the daily anchor), matching the radar
     # ALL/categories scope so the catalog counts agree (§4.7).
-    base = recent_valid_items_query(db, now=now, since=daily_anchor(now))
-    new_items_count = base.count()
-
-    rows = (
-        base.order_by(
-            SourceItem.first_seen_at.desc(),
-            SourceItem.id.desc(),
-        )
-        .limit(max_items)
-        .all()
-    )
+    date_label = daily_date_label(now)
+    new_items_count = recent_valid_items_query(
+        db, now=now, since=daily_anchor(now)
+    ).count()
+    published_rows = valid_items_for_report_date(db, date_label)
+    published_items_count = len(published_rows)
+    rows = published_rows[:max_items]
 
     keys = {row.source_key for row in rows}
     source_names = {
@@ -227,11 +231,12 @@ def build_daily_briefing(
     ]
 
     return DailyBriefingView(
-        date_label=daily_date_label(now),
+        date_label=date_label,
+        published_items_count=published_items_count,
         new_items_count=new_items_count,
         shown_count=len(rows),
         summarized_count=summarized,
         source_count=len(groups),
         groups=groups,
-        truncated=new_items_count > len(rows),
+        truncated=published_items_count > len(rows),
     )

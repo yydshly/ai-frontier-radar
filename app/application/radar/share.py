@@ -55,7 +55,7 @@ class ShareGroup:
 
 @dataclass(frozen=True)
 class ShareStats:
-    new_items: int      # 新增(纳入今日增量)
+    new_items: int      # Published articles; field name kept for compatibility.
     summarized: int     # 已识别(已生成中文摘要)
     pending: int        # 待补(尚无摘要)
     important: int      # 重要(报告高亮)

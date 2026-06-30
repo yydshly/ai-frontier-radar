@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     {% set _title = (view.report.title if view.report else None) or 'AI 前沿情报' %}
-    {% set _desc = (view.report.overview if view.report else None) or ('今日新增 ' ~ (view.stats.new_items if view.stats else 0) ~ ' 篇,重要 ' ~ (view.stats.important if view.stats else 0) ~ ' 篇。') %}
+    {% set _desc = (view.report.overview if view.report else None) or ('今日发布 ' ~ (view.stats.new_items if view.stats else 0) ~ ' 篇,重要 ' ~ (view.stats.important if view.stats else 0) ~ ' 篇。') %}
     <title>{{ _title }} · {{ view.date_label }}</title>
     <meta property="og:title" content="{{ _title }} · {{ view.date_label }}">
     <meta property="og:description" content="{{ _desc[:140] }}">
@@ -195,7 +195,7 @@
         <div class="date">{{ view.date_label }} · AI Frontier Radar</div>
         {% if view.stats %}
         <div class="stats">
-            <span class="stat">新增 <strong>{{ view.stats.new_items }}</strong></span>
+            <span class="stat">发布 <strong>{{ view.stats.new_items }}</strong></span>
             <span class="stat">已识别 <strong>{{ view.stats.summarized }}</strong></span>
             <span class="stat">待补 <strong>{{ view.stats.pending }}</strong></span>
             <span class="stat">重要 <strong>{{ view.stats.important }}</strong></span>
@@ -283,7 +283,7 @@
         {% endfor %}
         {% endfor %}
         {% else %}
-        <p class="empty">当日无其他新增文章。</p>
+        <p class="empty">当日无其他发布文章。</p>
         {% endif %}
     </section>
 
@@ -326,7 +326,7 @@
         {% for h in view.highlights %}<li>{{ h.text }}</li>{% endfor %}
     </ol>
     {% endif %}
-    <div class="rc-stats">新增 {{ view.stats.new_items if view.stats else 0 }} 篇 · 重要 {{ view.stats.important if view.stats else 0 }} 篇 · 覆盖 {{ view.stats.sources if view.stats else 0 }} 个来源</div>
+    <div class="rc-stats">发布 {{ view.stats.new_items if view.stats else 0 }} 篇 · 重要 {{ view.stats.important if view.stats else 0 }} 篇 · 覆盖 {{ view.stats.sources if view.stats else 0 }} 个来源</div>
     <div class="rc-foot">
         {% if qr_svg %}<div class="rc-qr">{{ qr_svg|safe }}</div>{% endif %}
         <div class="rc-cta"><b>扫码查看完整报告</b>查看原始链接和更多信息<br>· 语音播报 · 全部文章原文</div>

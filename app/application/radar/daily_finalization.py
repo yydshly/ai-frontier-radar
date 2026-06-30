@@ -9,6 +9,7 @@ from typing import Any
 from app.application.radar.daily_scope import (
     anchor_window_for_date,
     latest_completed_date_label,
+    valid_items_for_report_date,
 )
 from app.models import Source, SourceItem
 
@@ -54,22 +55,7 @@ def pending_finalization_dates(
 
 
 def _items_in_period(db, date_label: str) -> list[SourceItem]:
-    start, end = anchor_window_for_date(date_label)
-    return (
-        db.query(SourceItem)
-        .join(Source, Source.id == SourceItem.source_id)
-        .filter(
-            Source.enabled.is_(True),
-            SourceItem.first_seen_at >= start,
-            SourceItem.first_seen_at < end,
-            SourceItem.url.isnot(None),
-            SourceItem.url != "",
-            SourceItem.title.isnot(None),
-            SourceItem.title != "",
-        )
-        .order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .all()
-    )
+    return valid_items_for_report_date(db, date_label)
 
 
 def _metadata(item: SourceItem) -> dict[str, Any]:

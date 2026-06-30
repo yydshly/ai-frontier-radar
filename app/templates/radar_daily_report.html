@@ -33,7 +33,7 @@
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.total_items }}</span>
                 <span class="radar-report-stat-label">候选内容</span>
-                <span class="radar-report-stat-note">今日雷达候选池上限</span>
+                <span class="radar-report-stat-note">按发布时间归属到今日</span>
             </div>
             <div class="radar-report-stat">
                 <span class="radar-report-stat-value">{{ overview.readable_items }}</span>
@@ -62,7 +62,7 @@
     <div class="radar-report-basis">
         <div class="radar-report-basis-title">当前简报依据</div>
         <ul class="radar-report-basis-list">
-            <li>基于今日雷达时间窗口内的有效文章</li>
+            <li>基于发布时间归属到今日的有效文章</li>
             <li>当前可读内容：{{ overview.readable_items }} 条</li>
             <li>待补全内容：{{ overview.pending_items }} 条</li>
             <li>已有洞察卡：{{ overview.with_insight_card }} 条</li>

@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from app.models import SourceItem
-from app.application.radar.daily_scope import recent_valid_items_query, daily_anchor, daily_date_label
+from app.application.radar.daily_scope import daily_date_label, valid_items_for_report_date
 from app.application.radar.settings import get_daily_scope_settings
 
 
@@ -320,22 +320,16 @@ def build_daily_report_card(
         now = datetime.utcnow()
 
     settings = get_daily_scope_settings()
-    base = recent_valid_items_query(db, now=now, since=daily_anchor(now))
-    # total_items comes from count() — NOT limited by item_limit (50).
-    # This ensures DailyReportCard.overview.total_items reflects the true
-    # daily increment, not a truncated display ceiling.
-    total_items = base.count()
+    date_label = daily_date_label(now)
+    published_rows = valid_items_for_report_date(db, date_label)
+    total_items = len(published_rows)
 
-    rows = (
-        # Load items for scoring/ranking, bounded by increment_ceiling for safety.
-        base.order_by(SourceItem.first_seen_at.desc(), SourceItem.id.desc())
-        .limit(settings.increment_ceiling)
-        .all()
-    )
+    # Load items for scoring/ranking, bounded by increment_ceiling for safety.
+    rows = published_rows[: settings.increment_ceiling]
 
     if not rows:
         return DailyReportCard(
-            date_label=daily_date_label(now),
+            date_label=date_label,
             overview=DailyReportOverview(
                 total_items=0,
                 with_zh_one_liner=0,
@@ -475,7 +469,7 @@ def build_daily_report_card(
     )
 
     return DailyReportCard(
-        date_label=daily_date_label(now),
+        date_label=date_label,
         overview=final_overview,
         primary_items=primary_items,
         secondary_items=secondary_items,

@@ -1,7 +1,8 @@
 """Shared query policy for user-facing today-radar content."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 from app.models import Source, SourceItem
 
@@ -103,6 +104,77 @@ def recent_valid_items_query(
             SourceItem.title.isnot(None),
             SourceItem.title != "",
         )
+    )
+
+
+def _to_naive_utc(value: datetime) -> datetime:
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
+def parse_published_at(value) -> datetime | None:
+    """Parse SourceItem.published_at into naive UTC when possible."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return _to_naive_utc(value)
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+
+    try:
+        return _to_naive_utc(parsedate_to_datetime(text))
+    except (TypeError, ValueError, IndexError):
+        pass
+
+    iso_text = text[:-1] + "+00:00" if text.endswith("Z") else text
+    try:
+        return _to_naive_utc(datetime.fromisoformat(iso_text))
+    except (TypeError, ValueError):
+        return None
+
+
+def report_datetime_for_item(item: SourceItem) -> datetime | None:
+    """Return the datetime used to attribute an item to a daily report.
+
+    Publication time is the user-facing content date. first_seen_at remains the
+    ingestion/increment date and is only a fallback when publication time is
+    missing or unparsable.
+    """
+    return parse_published_at(item.published_at) or item.first_seen_at
+
+
+def valid_items_for_report_date(db, date_label: str) -> list[SourceItem]:
+    """Return valid items whose report attribution datetime falls in date_label."""
+    start, end = anchor_window_for_date(date_label)
+    rows = (
+        db.query(SourceItem)
+        .join(Source, Source.id == SourceItem.source_id)
+        .filter(
+            Source.enabled.is_(True),
+            SourceItem.url.isnot(None),
+            SourceItem.url != "",
+            SourceItem.title.isnot(None),
+            SourceItem.title != "",
+        )
+        .all()
+    )
+
+    def sort_key(item: SourceItem) -> tuple[datetime, int]:
+        return report_datetime_for_item(item) or datetime.min, item.id or 0
+
+    return sorted(
+        [
+            item
+            for item in rows
+            if (dt := report_datetime_for_item(item)) is not None
+            and start <= dt < end
+        ],
+        key=sort_key,
+        reverse=True,
     )
 
 

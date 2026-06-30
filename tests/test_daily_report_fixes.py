@@ -38,9 +38,10 @@ class TestBuildDailyReportInputSourceCode:
         assert "min(scope_settings.item_limit, max_items)" not in source, \
             "Source still contains 'min(scope_settings.item_limit, max_items)' — bug not fixed"
 
-        # Should have: .limit(max_items)
-        assert ".limit(max_items)" in source, \
-            "Source should contain '.limit(max_items)'"
+        # Report-date attribution is filtered in Python because published_at is
+        # stored as mixed-format text; the max_items cap still applies.
+        assert "[:max_items]" in source, \
+            "Source should cap report inputs with max_items"
 
     def test_source_uses_daily_date_label(self):
         """Source should use daily_date_label, not day_start.strftime."""
@@ -64,16 +65,17 @@ class TestBuildDailyReportInputSourceCode:
 
 
 class TestBuildDailyReportCardSourceCode:
-    """Verify DailyReportCard source uses count() for total_items."""
+    """Verify DailyReportCard source uses report-date attribution for total_items."""
 
-    def test_source_uses_count_for_total_items(self):
-        """Source should call base.count() to get total_items."""
+    def test_source_uses_report_date_items_for_total_items(self):
+        """Source should count publication-date-attributed items."""
         import app.application.radar.daily_report_card as drc_module
         source = inspect.getsource(drc_module.build_daily_report_card)
 
-        # Should have: total_items = base.count()
-        assert "total_items = base.count()" in source or "total_items=base.count()" in source, \
-            "Source should set total_items from base.count()"
+        assert "valid_items_for_report_date" in source, \
+            "DailyReportCard should use publication-date attribution"
+        assert "total_items = len(published_rows)" in source, \
+            "Source should set total_items from the full published_rows list"
 
     def test_source_no_longer_uses_item_limit_for_total(self):
         """Source should NOT compute total_items from len(limit(50).all())."""
@@ -84,7 +86,7 @@ class TestBuildDailyReportCardSourceCode:
         #              total_items = len(rows)
         # The FIX: total_items = base.count() first
         assert "total_items=len(rows)" not in source and "total_items = len(rows)" not in source, \
-            "Source still computes total_items from len(rows) — should use base.count()"
+            "Source still computes total_items from capped rows — should use full published_rows"
 
     def test_source_uses_daily_date_label(self):
         """Source should use daily_date_label for date_label."""

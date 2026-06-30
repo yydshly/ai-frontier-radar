@@ -937,11 +937,12 @@ def _build_radar_today_view_context(
 
 @router.get("/today/briefing", response_class=HTMLResponse)
 def radar_today_briefing(request: Request):
-    """Read-only "今日新增简报": today's newly discovered items grouped by source.
+    """Read-only "今日发布简报": today's published items grouped by source.
 
-    The deterministic new-items report — lists everything new today with its
-    Chinese one-liner (or title), discovery time, and read links. No LLM, no
-    writes, and does not touch the today-radar reading layout.
+    The deterministic published-items report lists everything attributed to
+    today's publication date with its Chinese one-liner (or title), display
+    time, and read links. No LLM, no writes, and does not touch the today-radar
+    reading layout.
     """
     db = next(get_db())
     try:
